@@ -29,14 +29,9 @@ public static class MigrationsAssemblyExtensions
     /// <returns>The identifier of the migration.</returns>
     public static string GetMigrationId(this IMigrationsAssembly assembly, string nameOrId)
     {
-        Check.NotEmpty(nameOrId, nameof(nameOrId));
+        Check.NotEmpty(nameOrId);
 
         var id = assembly.FindMigrationId(nameOrId);
-        if (id == null)
-        {
-            throw new InvalidOperationException(RelationalStrings.MigrationNotFound(nameOrId));
-        }
-
-        return id;
+        return id ?? throw new InvalidOperationException(RelationalStrings.MigrationNotFound(nameOrId));
     }
 }

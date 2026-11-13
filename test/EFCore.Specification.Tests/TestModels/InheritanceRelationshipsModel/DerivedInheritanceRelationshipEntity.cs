@@ -7,14 +7,14 @@ public class DerivedInheritanceRelationshipEntity : BaseInheritanceRelationshipE
 {
     public int? BaseId { get; set; }
 
-    public BaseReferenceOnDerived BaseReferenceOnDerived { get; set; }
-    public DerivedReferenceOnDerived DerivedReferenceOnDerived { get; set; }
-    public ReferenceOnDerived ReferenceOnDerived { get; set; }
-    public BaseInheritanceRelationshipEntity BaseSelfReferenceOnDerived { get; set; }
-    public OwnedEntity OwnedReferenceOnDerived { get; set; }
+    public BaseReferenceOnDerived? BaseReferenceOnDerived { get; set; }
+    public DerivedReferenceOnDerived? DerivedReferenceOnDerived { get; set; }
+    public ReferenceOnDerived? ReferenceOnDerived { get; set; }
+    public BaseInheritanceRelationshipEntity? BaseSelfReferenceOnDerived { get; set; }
+    public OwnedEntity? OwnedReferenceOnDerived { get; set; }
 
-    public List<BaseCollectionOnDerived> BaseCollectionOnDerived { get; set; }
-    public List<DerivedCollectionOnDerived> DerivedCollectionOnDerived { get; set; }
-    public List<CollectionOnDerived> CollectionOnDerived { get; set; }
-    public List<OwnedEntity> OwnedCollectionOnDerived { get; set; }
+    public List<BaseCollectionOnDerived> BaseCollectionOnDerived { get; set; } = null!;
+    public List<DerivedCollectionOnDerived> DerivedCollectionOnDerived { get; set; } = null!;
+    public List<CollectionOnDerived> CollectionOnDerived { get; set; } = null!;
+    public List<OwnedEntity> OwnedCollectionOnDerived { get; set; } = null!;
 }

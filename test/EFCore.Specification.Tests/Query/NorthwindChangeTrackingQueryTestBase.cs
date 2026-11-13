@@ -6,17 +6,12 @@ using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 // ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFixture<TFixture>
+public abstract class NorthwindChangeTrackingQueryTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : NorthwindQueryFixtureBase<NoopModelCustomizer>, new()
 {
-    protected NorthwindChangeTrackingQueryTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
+    protected TFixture Fixture { get; } = fixture;
 
-    protected TFixture Fixture { get; }
-
-    [ConditionalFact]
+    [Fact]
     public virtual void Entity_reverts_when_state_set_to_unchanged()
     {
         using var context = CreateContext();
@@ -42,7 +37,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         Assert.Equal(EntityState.Unchanged, firstTrackedEntity.State);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Multiple_entities_can_revert()
     {
         using var context = CreateContext();
@@ -71,7 +66,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         Assert.Equal(customerRegion, newCustomerRegion);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Entity_does_not_revert_when_attached_on_DbContext()
     {
         using var context = CreateContext();
@@ -95,7 +90,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         Assert.Equal("425-882-8080", firstTrackedEntity.Property(c => c.Phone).OriginalValue);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Entity_does_not_revert_when_attached_on_DbSet()
     {
         using var context = CreateContext();
@@ -120,7 +115,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
     }
 
     // ReSharper disable PossibleMultipleEnumeration
-    [ConditionalFact]
+    [Fact]
     public virtual void Entity_range_does_not_revert_when_attached_dbContext()
     {
         using var context = CreateContext();
@@ -158,7 +153,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         Assert.Equal("425-882-8080", trackedEntity1.Property(c => c.Phone).OriginalValue);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Entity_range_does_not_revert_when_attached_dbSet()
     {
         using var context = CreateContext();
@@ -197,7 +192,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
     }
     // ReSharper restore PossibleMultipleEnumeration
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Can_disable_and_reenable_query_result_tracking()
     {
         using var context = CreateContext();
@@ -225,7 +220,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         Assert.Equal(9, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Can_disable_and_reenable_query_result_tracking_starting_with_NoTracking()
     {
         using var context = CreateNoTrackingContext();
@@ -246,7 +241,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         Assert.Single(context.ChangeTracker.Entries());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Can_disable_and_reenable_query_result_tracking_query_caching()
     {
         using (var context = CreateContext())
@@ -272,7 +267,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Can_disable_and_reenable_query_result_tracking_query_caching_using_options()
     {
         using (var context = CreateContext())
@@ -296,7 +291,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Can_disable_and_reenable_query_result_tracking_query_caching_single_context()
     {
         using var context = CreateContext();
@@ -317,7 +312,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         Assert.Equal(9, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AsTracking_switches_tracking_on_when_off_in_options()
     {
         using var context = CreateNoTrackingContext();
@@ -327,7 +322,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         Assert.Equal(9, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Precedence_of_tracking_modifiers()
     {
         using var context = CreateContext();
@@ -337,7 +332,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         Assert.Equal(9, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Precedence_of_tracking_modifiers2()
     {
         using var context = CreateContext();
@@ -347,7 +342,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         Assert.Empty(context.ChangeTracker.Entries());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Precedence_of_tracking_modifiers3()
     {
         using var context = CreateContext();
@@ -363,7 +358,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         Assert.Equal(6, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Precedence_of_tracking_modifiers4()
     {
         using var context = CreateContext();
@@ -379,7 +374,7 @@ public abstract class NorthwindChangeTrackingQueryTestBase<TFixture> : IClassFix
         Assert.Empty(context.ChangeTracker.Entries());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Precedence_of_tracking_modifiers5()
     {
         using var context = CreateContext();

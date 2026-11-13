@@ -6,5 +6,6 @@ namespace Microsoft.EntityFrameworkCore.TestModels.ManyToManyModel;
 public class EntityBranch : EntityRoot
 {
     public virtual long Number { get; set; }
-    public virtual ICollection<EntityOne> OneSkip { get; set; }
+    public virtual ICollection<EntityOne> OneSkip { get; set; } = null!;
+    public virtual ICollection<EntityRoot> RootSkipShared { get; set; } = null!;
 }

@@ -19,7 +19,7 @@ namespace Microsoft.EntityFrameworkCore.Query;
 ///         your constructor so that an instance will be created and injected automatically by the
 ///         dependency injection container. To create an instance with some dependent services replaced,
 ///         first resolve the object from the dependency injection container, then replace selected
-///         services using the 'With...' methods. Do not call the constructor at any point in this process.
+///         services using the C# 'with' operator. Do not call the constructor at any point in this process.
 ///     </para>
 ///     <para>
 ///         The service lifetime is <see cref="ServiceLifetime.Scoped" />. This means that each
@@ -41,16 +41,18 @@ public sealed record RelationalShapedQueryCompilingExpressionVisitorDependencies
     ///     as new dependencies are added. Instead, use this type in your constructor so that an instance
     ///     will be created and injected automatically by the dependency injection container. To create
     ///     an instance with some dependent services replaced, first resolve the object from the dependency
-    ///     injection container, then replace selected services using the 'With...' methods. Do not call
+    ///     injection container, then replace selected services using the C# 'with' operator. Do not call
     ///     the constructor at any point in this process.
     /// </remarks>
     [EntityFrameworkInternal]
     public RelationalShapedQueryCompilingExpressionVisitorDependencies(
         IQuerySqlGeneratorFactory querySqlGeneratorFactory,
-        IRelationalParameterBasedSqlProcessorFactory relationalParameterBasedSqlProcessorFactory)
+        IRelationalParameterBasedSqlProcessorFactory relationalParameterBasedSqlProcessorFactory,
+        IRelationalLiftableConstantFactory relationalLiftableConstantFactory)
     {
         QuerySqlGeneratorFactory = querySqlGeneratorFactory;
         RelationalParameterBasedSqlProcessorFactory = relationalParameterBasedSqlProcessorFactory;
+        RelationalLiftableConstantFactory = relationalLiftableConstantFactory;
     }
 
     /// <summary>
@@ -62,4 +64,9 @@ public sealed record RelationalShapedQueryCompilingExpressionVisitorDependencies
     ///     The SQL processor based on parameter values.
     /// </summary>
     public IRelationalParameterBasedSqlProcessorFactory RelationalParameterBasedSqlProcessorFactory { get; init; }
+
+    /// <summary>
+    ///     The liftable constant factory.
+    /// </summary>
+    public IRelationalLiftableConstantFactory RelationalLiftableConstantFactory { get; init; }
 }

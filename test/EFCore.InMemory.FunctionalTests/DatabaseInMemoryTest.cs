@@ -1,23 +1,20 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore;
 
 public class DatabaseInMemoryTest
 {
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task CanConnect_returns_true(bool async)
     {
         using var context = new SimpleContext();
         Assert.True(async ? await context.Database.CanConnectAsync() : context.Database.CanConnect());
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_add_update_delete_end_to_end()
     {
         var serviceProvider = new ServiceCollection()
@@ -35,7 +32,7 @@ public class DatabaseInMemoryTest
 
         using (var context = new DbContext(options))
         {
-            context.Add(customer);
+            await context.AddAsync(customer);
 
             await context.SaveChangesAsync();
 
@@ -93,13 +90,13 @@ public class DatabaseInMemoryTest
         }
 
         public int Id { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 
     protected virtual void OnModelCreating(ModelBuilder modelBuilder)
         => modelBuilder.Entity<Customer>();
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_share_instance_between_contexts_with_sugar_experience()
     {
         using (var db = new SimpleContext())
@@ -121,7 +118,7 @@ public class DatabaseInMemoryTest
     private class SimpleContext : DbContext
     {
         // ReSharper disable once UnusedAutoPropertyAccessor.Local
-        public DbSet<Artist> Artists { get; set; }
+        public DbSet<Artist> Artists { get; set; } = null!;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder
@@ -131,14 +128,12 @@ public class DatabaseInMemoryTest
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<Artist>().HasKey(a => a.ArtistId);
 
-        public class Artist : ArtistBase<string>
-        {
-        }
+        public class Artist : ArtistBase<string>;
 
         public class ArtistBase<TKey>
         {
-            public TKey ArtistId { get; set; }
-            public string Name { get; set; }
+            public TKey ArtistId { get; set; } = default!;
+            public string Name { get; set; } = null!;
         }
     }
 }

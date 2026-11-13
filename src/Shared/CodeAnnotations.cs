@@ -1,43 +1,32 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System;
-
-#nullable enable
-
 namespace JetBrains.Annotations;
 
 [AttributeUsage(AttributeTargets.Parameter)]
-internal sealed class InvokerParameterNameAttribute : Attribute
-{
-}
+internal sealed class InvokerParameterNameAttribute : Attribute;
 
 [AttributeUsage(AttributeTargets.Parameter)]
-internal sealed class NoEnumerationAttribute : Attribute
-{
-}
+internal sealed class NoEnumerationAttribute : Attribute;
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-internal sealed class ContractAnnotationAttribute : Attribute
+internal sealed class ContractAnnotationAttribute(string contract, bool forceFullStates) : Attribute
 {
-    public string Contract { get; }
+    public string Contract { get; } = contract;
 
-    public bool ForceFullStates { get; }
+    public bool ForceFullStates { get; } = forceFullStates;
 
     public ContractAnnotationAttribute(string contract)
         : this(contract, false)
     {
     }
-
-    public ContractAnnotationAttribute(string contract, bool forceFullStates)
-    {
-        Contract = contract;
-        ForceFullStates = forceFullStates;
-    }
 }
 
 [AttributeUsage(AttributeTargets.All)]
-internal sealed class UsedImplicitlyAttribute : Attribute
+internal sealed class UsedImplicitlyAttribute(
+    ImplicitUseKindFlags useKindFlags,
+    ImplicitUseTargetFlags targetFlags)
+    : Attribute
 {
     public UsedImplicitlyAttribute()
         : this(ImplicitUseKindFlags.Default, ImplicitUseTargetFlags.Default)
@@ -54,27 +43,14 @@ internal sealed class UsedImplicitlyAttribute : Attribute
     {
     }
 
-    public UsedImplicitlyAttribute(
-        ImplicitUseKindFlags useKindFlags,
-        ImplicitUseTargetFlags targetFlags)
-    {
-        UseKindFlags = useKindFlags;
-        TargetFlags = targetFlags;
-    }
-
-    public ImplicitUseKindFlags UseKindFlags { get; }
-    public ImplicitUseTargetFlags TargetFlags { get; }
+    public ImplicitUseKindFlags UseKindFlags { get; } = useKindFlags;
+    public ImplicitUseTargetFlags TargetFlags { get; } = targetFlags;
 }
 
 [AttributeUsage(AttributeTargets.Constructor | AttributeTargets.Method | AttributeTargets.Property | AttributeTargets.Delegate)]
-internal sealed class StringFormatMethodAttribute : Attribute
+internal sealed class StringFormatMethodAttribute(string formatParameterName) : Attribute
 {
-    public StringFormatMethodAttribute(string formatParameterName)
-    {
-        FormatParameterName = formatParameterName;
-    }
-
-    public string FormatParameterName { get; }
+    public string FormatParameterName { get; } = formatParameterName;
 }
 
 [Flags]

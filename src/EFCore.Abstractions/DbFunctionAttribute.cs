@@ -14,10 +14,8 @@ namespace Microsoft.EntityFrameworkCore;
 ///     See <see href="https://aka.ms/efcore-docs-database-functions">Database functions</see> for more information and examples.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method)]
-#pragma warning disable CA1813 // Avoid unsealed attributes
 // Already shipped unsealed
 public class DbFunctionAttribute : Attribute
-#pragma warning restore CA1813 // Avoid unsealed attributes
 {
     private string? _name;
     private string? _schema;
@@ -38,7 +36,7 @@ public class DbFunctionAttribute : Attribute
     /// <param name="schema">The schema of the function in the database.</param>
     public DbFunctionAttribute(string name, string? schema = null)
     {
-        Check.NotEmpty(name, nameof(name));
+        Check.NotEmpty(name);
 
         _name = name;
         _schema = schema;
@@ -53,7 +51,7 @@ public class DbFunctionAttribute : Attribute
         get => _name;
         set
         {
-            Check.NotEmpty(value, nameof(value));
+            Check.NotEmpty(value);
 
             _name = value;
         }

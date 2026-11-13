@@ -3,8 +3,7 @@
 
 using Microsoft.EntityFrameworkCore.Cosmos.Metadata.Internal;
 
-#nullable enable
-
+// ReSharper disable once CheckNamespace
 namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 /// <summary>
@@ -21,8 +20,7 @@ public class CosmosRuntimeModelConvention : RuntimeModelConvention
     ///     Creates a new instance of <see cref="CosmosRuntimeModelConvention" />.
     /// </summary>
     /// <param name="dependencies">Parameter object containing dependencies for this convention.</param>
-    public CosmosRuntimeModelConvention(
-        ProviderConventionSetBuilderDependencies dependencies)
+    public CosmosRuntimeModelConvention(ProviderConventionSetBuilderDependencies dependencies)
         : base(dependencies)
     {
     }
@@ -56,7 +54,7 @@ public class CosmosRuntimeModelConvention : RuntimeModelConvention
     /// <param name="runtimeEntityType">The target entity type that will contain the annotations.</param>
     /// <param name="runtime">Indicates whether the given annotations are runtime annotations.</param>
     protected override void ProcessEntityTypeAnnotations(
-        IDictionary<string, object?> annotations,
+        Dictionary<string, object?> annotations,
         IEntityType entityType,
         RuntimeEntityType runtimeEntityType,
         bool runtime)
@@ -68,6 +66,8 @@ public class CosmosRuntimeModelConvention : RuntimeModelConvention
             annotations.Remove(CosmosAnnotationNames.AnalyticalStoreTimeToLive);
             annotations.Remove(CosmosAnnotationNames.DefaultTimeToLive);
             annotations.Remove(CosmosAnnotationNames.Throughput);
+            annotations.Remove(CosmosAnnotationNames.AutomaticIndexingExceptions);
+            annotations.Remove(CosmosAnnotationNames.AutomaticIndexingEnabled);
         }
     }
 }

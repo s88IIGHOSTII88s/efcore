@@ -3,38 +3,34 @@
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public abstract class ComplexNavigationsSharedTypeQueryTestBase<TFixture> : ComplexNavigationsQueryTestBase<TFixture>
+public abstract class ComplexNavigationsSharedTypeQueryTestBase<TFixture>(TFixture fixture)
+    : ComplexNavigationsQueryTestBase<TFixture>(fixture)
     where TFixture : ComplexNavigationsSharedTypeQueryFixtureBase, new()
 {
-    protected ComplexNavigationsSharedTypeQueryTestBase(TFixture fixture)
-        : base(fixture)
-    {
-    }
-
     public override Task Join_navigation_self_ref(bool async)
         => AssertTranslationFailed(() => base.Join_navigation_self_ref(async));
 
-    public override Task Join_condition_optimizations_applied_correctly_when_anonymous_type_with_multiple_properties(bool async)
-        => AssertUnableToTranslateEFProperty(
-            () => base.Join_condition_optimizations_applied_correctly_when_anonymous_type_with_multiple_properties(async));
+    public override Task Join_on_anonymous_type_with_multiple_properties(bool async)
+        => AssertUnableToTranslateEFProperty(()
+            => base.Join_on_anonymous_type_with_multiple_properties(async));
 
-    public override Task Join_condition_optimizations_applied_correctly_when_anonymous_type_with_single_property(bool async)
-        => AssertUnableToTranslateEFProperty(
-            () => base.Join_condition_optimizations_applied_correctly_when_anonymous_type_with_single_property(async));
+    public override Task Join_on_anonymous_type_with_single_property(bool async)
+        => AssertUnableToTranslateEFProperty(()
+            => base.Join_on_anonymous_type_with_single_property(async));
 
     public override Task Multiple_SelectMany_with_nested_navigations_and_explicit_DefaultIfEmpty_joined_together(bool async)
-        => AssertTranslationFailed(
-            () => base.Multiple_SelectMany_with_nested_navigations_and_explicit_DefaultIfEmpty_joined_together(async));
+        => AssertTranslationFailed(()
+            => base.Multiple_SelectMany_with_nested_navigations_and_explicit_DefaultIfEmpty_joined_together(async));
 
     public override Task SelectMany_with_nested_navigations_explicit_DefaultIfEmpty_and_additional_joins_outside_of_SelectMany(
         bool async)
-        => AssertTranslationFailed(
-            () => base.SelectMany_with_nested_navigations_explicit_DefaultIfEmpty_and_additional_joins_outside_of_SelectMany(async));
+        => AssertTranslationFailed(()
+            => base.SelectMany_with_nested_navigations_explicit_DefaultIfEmpty_and_additional_joins_outside_of_SelectMany(async));
 
     public override Task SelectMany_with_nested_navigations_explicit_DefaultIfEmpty_and_additional_joins_outside_of_SelectMany2(
         bool async)
-        => AssertTranslationFailed(
-            () => base.SelectMany_with_nested_navigations_explicit_DefaultIfEmpty_and_additional_joins_outside_of_SelectMany2(async));
+        => AssertTranslationFailed(()
+            => base.SelectMany_with_nested_navigations_explicit_DefaultIfEmpty_and_additional_joins_outside_of_SelectMany2(async));
 
     public override Task SelectMany_with_nested_navigations_and_additional_joins_outside_of_SelectMany(bool async)
         => AssertTranslationFailed(() => base.SelectMany_with_nested_navigations_and_additional_joins_outside_of_SelectMany(async));
@@ -71,4 +67,12 @@ public abstract class ComplexNavigationsSharedTypeQueryTestBase<TFixture> : Comp
 
     public override Task Project_shadow_properties9(bool async)
         => AssertUnableToTranslateEFProperty(() => base.Project_shadow_properties9(async));
+
+    public override async Task Null_check_removal_applied_recursively_complex(bool async)
+    {
+        var message =
+            (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Null_check_removal_applied_recursively_complex(async))).Message;
+
+        Assert.Equal(CoreStrings.IncludeOnNonEntity("x => x.OneToMany_Required_Inverse3"), message);
+    }
 }

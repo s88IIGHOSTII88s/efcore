@@ -1,248 +1,556 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Concurrent;
 using System.Data;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 using SQLitePCL;
 using Xunit;
 
-namespace Microsoft.Data.Sqlite
+namespace Microsoft.Data.Sqlite;
+
+[Collection(nameof(SqliteConnectionFactoryTest)), CollectionDefinition(nameof(SqliteConnectionFactoryTest), DisableParallelization = true)]
+public class SqliteConnectionFactoryTest : IDisposable
 {
-    [Collection(nameof(SqliteConnectionFactoryTest))]
-    [CollectionDefinition(nameof(SqliteConnectionFactoryTest), DisableParallelization = true)]
-    public class SqliteConnectionFactoryTest : IDisposable
+    private const string FileName = "pooled.db";
+    private const string ConnectionString = "Data Source=" + FileName + ";Cache=Shared;Pooling=True";
+
+    [Fact]
+    public async Task Concurrent_opens_do_not_share_internal_connections()
     {
-        private const string FileName = "pooled.db";
-        private const string ConnectionString = "Data Source=" + FileName + ";Cache=Shared;Pooling=True";
+        const int workerCount = 16;
+        const int iterations = 1000;
+        var connections = new SqliteConnection?[workerCount];
+        var errors = new ConcurrentQueue<Exception>();
+        var duplicate = false;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        using var barrier = new Barrier(workerCount + 1);
+        using var pool = new SqliteConnection(ConnectionString);
 
-        [Fact]
-        public void Internal_connections_are_reused_after_reopen()
-        {
-            using var connection = new SqliteConnection(ConnectionString);
-            connection.Open();
-            var db = connection.Handle;
-
-            connection.Close();
-
-            Assert.Null(connection.Handle);
-
-            connection.Open();
-
-            Assert.Same(db, connection.Handle);
-        }
-
-        [Fact]
-        public void Internal_connections_are_reused_across_connections()
-        {
-            sqlite3 db;
-            using (var connection1 = new SqliteConnection(ConnectionString))
+        // Dedicated workers avoid blocking thread-pool threads at the phase barriers.
+        var workers = Enumerable.Range(0, workerCount).Select(index => Task.Factory.StartNew(
+            () =>
             {
-                connection1.Open();
-                db = connection1.Handle!;
+                for (var iteration = 0; iteration < iterations; iteration++)
+                {
+                    barrier.SignalAndWait(timeout.Token);
+                    try
+                    {
+                        connections[index] = new SqliteConnection(ConnectionString);
+                        connections[index]!.Open();
+                    }
+                    catch (Exception exception)
+                    {
+                        errors.Enqueue(exception);
+                    }
+
+                    try
+                    {
+                        barrier.SignalAndWait(timeout.Token);
+                        // Keep every owner alive and open until its handle has been inspected.
+                        barrier.SignalAndWait(timeout.Token);
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            connections[index]?.Dispose();
+                        }
+                        catch (Exception exception)
+                        {
+                            errors.Enqueue(exception);
+                        }
+                    }
+
+                    barrier.SignalAndWait(timeout.Token);
+                    if (duplicate || !errors.IsEmpty)
+                    {
+                        break;
+                    }
+                }
+            }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
+
+        var completed = false;
+        try
+        {
+            for (var iteration = 0; iteration < iterations; iteration++)
+            {
+                // Only clear this pool, between waves while all previous owners are closed.
+                SqliteConnection.ClearPool(pool);
+                barrier.SignalAndWait(timeout.Token);
+                barrier.SignalAndWait(timeout.Token);
+                duplicate = connections.Select(c => c?.Handle).Distinct().Count() != workerCount;
+                barrier.SignalAndWait(timeout.Token);
+                barrier.SignalAndWait(timeout.Token);
+                if (duplicate || !errors.IsEmpty)
+                {
+                    break;
+                }
             }
 
-            using var connection2 = new SqliteConnection(ConnectionString);
-            connection2.Open();
-
-            Assert.Same(db, connection2.Handle);
+            completed = true;
         }
-
-        [Fact]
-        public void Internal_connections_are_not_reused_when_pooling_is_disabled()
+        finally
         {
-            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder(ConnectionString) { Pooling = false }.ToString());
-            connection.Open();
-            var db = connection.Handle;
-
-            connection.Close();
-            connection.Open();
-
-            Assert.NotSame(db, connection.Handle);
-        }
-
-        [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Internal_connections_are_not_reused_after_clearing_pool(bool allPools)
-        {
-            using var connection = new SqliteConnection(ConnectionString);
-
-            connection.Open();
-            var db = connection.Handle;
-
-            connection.Close();
-
-            if (allPools)
+            if (!completed)
             {
-                SqliteConnection.ClearAllPools();
+                timeout.Cancel();
+            }
+
+            await Task.WhenAll(workers);
+        }
+
+        Assert.Empty(errors);
+        Assert.False(duplicate);
+    }
+
+    [Fact]
+    public void Internal_connections_are_reused_after_reopen()
+    {
+        using var connection = new SqliteConnection(ConnectionString);
+        connection.Open();
+        var db = connection.Handle;
+
+        connection.Close();
+
+        Assert.Null(connection.Handle);
+
+        connection.Open();
+
+        Assert.Same(db, connection.Handle);
+    }
+
+    [Fact]
+    public void Synchronous_is_reapplied_when_pooled_connection_is_reopened()
+    {
+        using var connection = new SqliteConnection(
+            ConnectionString + ";Synchronous=Normal");
+
+        connection.Open();
+        var db = connection.Handle;
+
+        connection.ExecuteNonQuery("PRAGMA synchronous = OFF;");
+        Assert.Equal(0L, connection.ExecuteScalar<long>("PRAGMA synchronous;"));
+
+        connection.Close();
+        connection.Open();
+
+        Assert.Same(db, connection.Handle);
+        Assert.Equal(1L, connection.ExecuteScalar<long>("PRAGMA synchronous;"));
+    }
+
+    [Fact]
+    public void Internal_connections_are_reused_across_connections()
+    {
+        sqlite3 db;
+        using (var connection1 = new SqliteConnection(ConnectionString))
+        {
+            connection1.Open();
+            db = connection1.Handle!;
+        }
+
+        using var connection2 = new SqliteConnection(ConnectionString);
+        connection2.Open();
+
+        Assert.Same(db, connection2.Handle);
+    }
+
+    [Fact]
+    public void Internal_connections_are_not_reused_when_pooling_is_disabled()
+    {
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder(ConnectionString) { Pooling = false }.ToString());
+        connection.Open();
+        var db = connection.Handle;
+
+        connection.Close();
+        connection.Open();
+
+        Assert.NotSame(db, connection.Handle);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task Internal_connections_are_reused_only_after_native_transaction_completion(
+        bool async, bool dispose, bool denyRollback)
+    {
+        using var connection = new SqliteConnection(ConnectionString);
+        using var healthyConnection = new SqliteConnection(ConnectionString);
+        connection.Open();
+        healthyConnection.Open();
+        var healthyHandle = healthyConnection.Handle;
+        connection.ExecuteNonQuery("CREATE TABLE Data (Value INTEGER); INSERT INTO Data VALUES (1);");
+
+        using var transaction = connection.BeginTransaction();
+        connection.ExecuteNonQuery("INSERT INTO Data VALUES (2);");
+        var handle = connection.Handle!;
+        var rollbackAttempts = 0;
+        Assert.Equal(
+            raw.SQLITE_OK,
+            raw.sqlite3_set_authorizer(
+                handle,
+                (_, action, first, _, _, _) =>
+                {
+                    if (action != raw.SQLITE_TRANSACTION || first != "ROLLBACK")
+                    {
+                        return raw.SQLITE_OK;
+                    }
+
+                    rollbackAttempts++;
+                    return denyRollback ? raw.SQLITE_DENY : raw.SQLITE_OK;
+                },
+                null));
+
+        if (denyRollback)
+        {
+            var exception = await Assert.ThrowsAsync<SqliteException>(CompleteTransaction);
+            Assert.Equal(raw.SQLITE_AUTH, exception.SqliteErrorCode);
+            Assert.Equal(raw.SQLITE_AUTH, exception.SqliteExtendedErrorCode);
+        }
+        else
+        {
+            await CompleteTransaction();
+        }
+
+        Assert.Null(transaction.Connection);
+        Assert.Null(connection.Transaction);
+        Assert.Equal(denyRollback ? 0 : 1, raw.sqlite3_get_autocommit(handle));
+
+        if (async)
+        {
+            await connection.DisposeAsync();
+        }
+        else
+        {
+            connection.Dispose();
+        }
+
+        Assert.Equal(ConnectionState.Closed, connection.State);
+        Assert.Equal(1, rollbackAttempts);
+        Assert.Equal(denyRollback, handle.IsClosed);
+
+        using var nextConnection = new SqliteConnection(ConnectionString);
+        nextConnection.Open();
+        Assert.Equal(!denyRollback, ReferenceEquals(handle, nextConnection.Handle));
+        Assert.Equal(1, raw.sqlite3_get_autocommit(nextConnection.Handle!));
+        Assert.Equal(1L, nextConnection.ExecuteScalar<long>("SELECT COUNT(*) FROM Data;"));
+        using (var nextTransaction = nextConnection.BeginTransaction())
+        {
+            nextConnection.ExecuteNonQuery("INSERT INTO Data VALUES (3);");
+            nextTransaction.Rollback();
+        }
+
+        // Discard only the unsettled connection, not the other connections in its pool.
+        healthyConnection.Close();
+        healthyConnection.Open();
+        Assert.Same(healthyHandle, healthyConnection.Handle);
+
+        async Task CompleteTransaction()
+        {
+            if (dispose)
+            {
+                if (async)
+                {
+                    await transaction.DisposeAsync();
+                }
+                else
+                {
+                    transaction.Dispose();
+                }
+            }
+            else if (async)
+            {
+                await transaction.RollbackAsync();
             }
             else
             {
-                SqliteConnection.ClearPool(connection);
-            }
-
-            connection.Open();
-
-            Assert.NotSame(db, connection.Handle);
-        }
-
-        [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Internal_connections_are_not_reused_after_clearing_pool_when_open(bool allPools)
-        {
-            using var connection = new SqliteConnection(ConnectionString);
-
-            connection.Open();
-            var db = connection.Handle;
-
-            if (allPools)
-            {
-                SqliteConnection.ClearAllPools();
-            }
-            else
-            {
-                SqliteConnection.ClearPool(connection);
-            }
-
-            Assert.Same(db, connection.Handle);
-
-            connection.Close();
-            connection.Open();
-
-            Assert.NotSame(db, connection.Handle);
-        }
-
-        [Fact]
-        public void ReadUncommitted_doesnt_bleed_across_connections()
-        {
-            sqlite3 db;
-            using (var connection1 = new SqliteConnection(ConnectionString))
-            {
-                connection1.Open();
-                db = connection1.Handle!;
-
-                using (connection1.BeginTransaction(IsolationLevel.ReadUncommitted))
-                {
-                }
-            }
-
-            using var connection2 = new SqliteConnection(ConnectionString);
-            connection2.Open();
-
-            Assert.Same(db, connection2.Handle);
-            var readUncommitted = connection2.ExecuteScalar<long>("PRAGMA read_uncommitted;");
-            Assert.Equal(0L, readUncommitted);
-        }
-
-        [Fact]
-        public void Functions_dont_bleed_across_connections()
-        {
-            sqlite3 db;
-            using (var connection1 = new SqliteConnection(ConnectionString))
-            {
-                if (new Version(connection1.ServerVersion) < new Version(3, 31, 0))
-                {
-                    // Skip. SQLite returns deleted functions
-                    return;
-                }
-
-                connection1.CreateFunction("function1", () => 1L, isDeterministic: true);
-                connection1.CreateAggregate("aggregate1", 0L, x => x, isDeterministic: true);
-                connection1.Open();
-                db = connection1.Handle!;
-            }
-
-            using var connection2 = new SqliteConnection(ConnectionString);
-            connection2.Open();
-
-            Assert.Same(db, connection2.Handle);
-            var functions = connection2.ExecuteScalar<string>("SELECT group_concat(name) FROM pragma_function_list;")
-                .Split(',');
-            Assert.DoesNotContain("function1", functions);
-            Assert.DoesNotContain("aggregate1", functions);
-        }
-
-        [Fact(Skip = "ericsink/SQLitePCL.raw#421")]
-        public void Collations_dont_bleed_across_connections()
-        {
-            sqlite3 db;
-            using (var connection1 = new SqliteConnection(ConnectionString))
-            {
-                connection1.CreateCollation("COLLATION1", string.CompareOrdinal);
-                connection1.Open();
-                db = connection1.Handle!;
-            }
-
-            using var connection2 = new SqliteConnection(ConnectionString);
-            connection2.Open();
-
-            Assert.Same(db, connection2.Handle);
-            var collations = connection2.ExecuteScalar<string>("SELECT group_concat(name) FROM pragma_collation_list;")
-                .Split(',');
-            Assert.DoesNotContain("COLLATION1", collations);
-        }
-
-        [Fact]
-        public void EnableExtensions_doesnt_bleed_across_connections()
-        {
-            sqlite3 db;
-            SqliteException ex;
-            string disabledMessage;
-            using (var connection1 = new SqliteConnection(ConnectionString))
-            {
-                connection1.Open();
-                db = connection1.Handle!;
-
-                var loadExtensionOmitted = connection1.ExecuteScalar<long>(
-                    "SELECT COUNT(*) FROM pragma_compile_options WHERE compile_options = 'OMIT_LOAD_EXTENSION';");
-                if (loadExtensionOmitted != 0L)
-                {
-                    return;
-                }
-
-                ex = Assert.Throws<SqliteException>(
-                    () => connection1.ExecuteNonQuery("SELECT load_extension('unknown');"));
-                disabledMessage = ex.Message;
-
-                connection1.EnableExtensions();
-            }
-
-            using var connection2 = new SqliteConnection(ConnectionString);
-            connection2.Open();
-            Assert.Same(db, connection2.Handle);
-
-            ex = Assert.Throws<SqliteException>(
-                () => connection2.ExecuteNonQuery("SELECT load_extension('unknown');"));
-            Assert.Equal(disabledMessage, ex.Message);
-        }
-
-        [Fact]
-        public void Clear_works_when_connection_leaked()
-        {
-            using var connection = new SqliteConnection(ConnectionString);
-            connection.Open();
-
-            LeakConnection();
-            GC.Collect();
-
-            SqliteConnection.ClearPool(connection);
-
-            [MethodImpl(MethodImplOptions.NoInlining)]
-            static void LeakConnection()
-            {
-                // Don't add using!
-                var connection = new SqliteConnection(ConnectionString);
-                connection.Open();
+                transaction.Rollback();
             }
         }
+    }
 
-        public void Dispose()
+    [Fact]
+    public void Internal_connections_are_reused_after_failed_native_transaction_is_rolled_back()
+    {
+        using var connection = new SqliteConnection(ConnectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+        var handle = connection.Handle!;
+        Assert.Equal(
+            raw.SQLITE_OK,
+            raw.sqlite3_set_authorizer(
+                handle,
+                (_, action, first, _, _, _) => action == raw.SQLITE_TRANSACTION && first == "ROLLBACK"
+                    ? raw.SQLITE_DENY
+                    : raw.SQLITE_OK,
+                null));
+
+        Assert.Equal(raw.SQLITE_AUTH, Assert.Throws<SqliteException>(transaction.Rollback).SqliteErrorCode);
+        Assert.Equal(raw.SQLITE_OK, raw.sqlite3_set_authorizer(handle, (strdelegate_authorizer)null!, null));
+        connection.ExecuteNonQuery("ROLLBACK;");
+        connection.Close();
+        connection.Open();
+
+        Assert.Same(handle, connection.Handle);
+        Assert.Equal(1, raw.sqlite3_get_autocommit(connection.Handle!));
+        using var nextTransaction = connection.BeginTransaction();
+    }
+
+    [Fact]
+    public void Internal_connections_are_not_reused_with_unmanaged_native_transaction()
+    {
+        using var connection = new SqliteConnection(ConnectionString);
+        connection.Open();
+        connection.ExecuteNonQuery("CREATE TABLE Data (Value INTEGER); BEGIN; INSERT INTO Data VALUES (1);");
+        var handle = connection.Handle!;
+        connection.Close();
+        connection.Open();
+
+        Assert.True(handle.IsClosed);
+        Assert.NotSame(handle, connection.Handle);
+        Assert.Equal(1, raw.sqlite3_get_autocommit(connection.Handle!));
+        Assert.Equal(0L, connection.ExecuteScalar<long>("SELECT COUNT(*) FROM Data;"));
+        using var transaction = connection.BeginTransaction();
+    }
+
+    [Theory, InlineData(false), InlineData(true)]
+    public void Internal_connections_are_not_reused_after_clearing_pool(bool allPools)
+    {
+        using var connection = new SqliteConnection(ConnectionString);
+
+        connection.Open();
+        var db = connection.Handle;
+
+        connection.Close();
+
+        if (allPools)
         {
             SqliteConnection.ClearAllPools();
-            File.Delete(FileName);
         }
+        else
+        {
+            SqliteConnection.ClearPool(connection);
+        }
+
+        connection.Open();
+
+        Assert.NotSame(db, connection.Handle);
+    }
+
+    [Fact]
+    public void Can_clear_pools_while_connections_are_being_used()
+    {
+        const int threadCount = 20;
+        var connectionStrings = Enumerable.Range(30, 30 + threadCount - 1)
+            .Select(i => $"Data Source={FileName};Cache=Shared;Pooling=True;Command Timeout={i}").ToArray();
+
+        var usingTasks = new Action[threadCount];
+        for (var i = 0; i < threadCount; i++)
+        {
+            var captured = i;
+            usingTasks[i] = () =>
+            {
+                for (var j = 0; j < 10000; j++)
+                {
+                    using var connection = new SqliteConnection(connectionStrings[captured]);
+                    connection.Open();
+                    Task.Yield();
+                    connection.Close();
+                }
+            };
+        }
+
+        for (var j = 0; j < 30; j++)
+        {
+            var runningTasks = usingTasks.Select(Task.Run).ToArray();
+
+            for (var i = 0; i < 10000; i++)
+            {
+                SqliteConnection.ClearAllPools();
+                Task.Yield();
+            }
+
+#pragma warning disable xUnit1031
+            Task.WaitAll(runningTasks);
+#pragma warning restore xUnit1031
+        }
+    }
+
+    [Theory, InlineData(false), InlineData(true)]
+    public void Internal_connections_are_not_reused_after_clearing_pool_when_open(bool allPools)
+    {
+        using var connection = new SqliteConnection(ConnectionString);
+
+        connection.Open();
+        var db = connection.Handle;
+
+        if (allPools)
+        {
+            SqliteConnection.ClearAllPools();
+        }
+        else
+        {
+            SqliteConnection.ClearPool(connection);
+        }
+
+        Assert.Same(db, connection.Handle);
+
+        connection.Close();
+        connection.Open();
+
+        Assert.NotSame(db, connection.Handle);
+    }
+
+    [Fact]
+    public void ReadUncommitted_doesnt_bleed_across_connections()
+    {
+        sqlite3 db;
+        using (var connection1 = new SqliteConnection(ConnectionString))
+        {
+            connection1.Open();
+            db = connection1.Handle!;
+
+            using (connection1.BeginTransaction(IsolationLevel.ReadUncommitted))
+            {
+            }
+        }
+
+        using var connection2 = new SqliteConnection(ConnectionString);
+        connection2.Open();
+
+        Assert.Same(db, connection2.Handle);
+        var readUncommitted = connection2.ExecuteScalar<long>("PRAGMA read_uncommitted;");
+        Assert.Equal(0L, readUncommitted);
+    }
+
+    [Fact]
+    public void Functions_dont_bleed_across_connections()
+    {
+        sqlite3 db;
+        using (var connection1 = new SqliteConnection(ConnectionString))
+        {
+            if (new Version(connection1.ServerVersion) < new Version(3, 31, 0))
+            {
+                // Skip. SQLite returns deleted functions
+                return;
+            }
+
+            connection1.CreateFunction("function1", () => 1L, isDeterministic: true);
+            connection1.CreateAggregate("aggregate1", 0L, x => x, isDeterministic: true);
+            connection1.Open();
+            db = connection1.Handle!;
+        }
+
+        using var connection2 = new SqliteConnection(ConnectionString);
+        connection2.Open();
+
+        Assert.Same(db, connection2.Handle);
+        var functions = connection2.ExecuteScalar<string>("SELECT group_concat(name) FROM pragma_function_list;")
+            .Split(',');
+        Assert.DoesNotContain("function1", functions);
+        Assert.DoesNotContain("aggregate1", functions);
+    }
+
+    [Fact(Skip = "ericsink/SQLitePCL.raw#421")]
+    public void Collations_dont_bleed_across_connections()
+    {
+        sqlite3 db;
+        using (var connection1 = new SqliteConnection(ConnectionString))
+        {
+            connection1.CreateCollation("COLLATION1", string.CompareOrdinal);
+            connection1.Open();
+            db = connection1.Handle!;
+        }
+
+        using var connection2 = new SqliteConnection(ConnectionString);
+        connection2.Open();
+
+        Assert.Same(db, connection2.Handle);
+        var collations = connection2.ExecuteScalar<string>("SELECT group_concat(name) FROM pragma_collation_list;")
+            .Split(',');
+        Assert.DoesNotContain("COLLATION1", collations);
+    }
+
+    [Fact]
+    public void EnableExtensions_doesnt_bleed_across_connections()
+    {
+        sqlite3 db;
+        SqliteException ex;
+        string disabledMessage;
+        using (var connection1 = new SqliteConnection(ConnectionString))
+        {
+            connection1.Open();
+            db = connection1.Handle!;
+
+            var loadExtensionOmitted = connection1.ExecuteScalar<long>(
+                "SELECT COUNT(*) FROM pragma_compile_options WHERE compile_options = 'OMIT_LOAD_EXTENSION';");
+            if (loadExtensionOmitted != 0L)
+            {
+                return;
+            }
+
+            ex = Assert.Throws<SqliteException>(() => connection1.ExecuteNonQuery("SELECT load_extension('unknown');"));
+            disabledMessage = ex.Message;
+
+            connection1.EnableExtensions();
+        }
+
+        using var connection2 = new SqliteConnection(ConnectionString);
+        connection2.Open();
+        Assert.Same(db, connection2.Handle);
+
+        ex = Assert.Throws<SqliteException>(() => connection2.ExecuteNonQuery("SELECT load_extension('unknown');"));
+        Assert.Equal(disabledMessage, ex.Message);
+    }
+
+    [Fact]
+    public void Deactivate_does_not_touch_disposed_handle_on_return()
+    {
+        using var connection = new SqliteConnection(ConnectionString);
+        connection.CreateCollation("MY_COLLATION", string.CompareOrdinal);
+        connection.Open();
+
+        // Simulate the underlying handle being disposed before the connection is returned to the pool. Deactivate()
+        // must not call into the native handle (sqlite3_create_collation) to reset custom collations in this case.
+        connection.Handle!.Dispose();
+
+        connection.Close();
+    }
+
+    [Fact]
+    public void Clear_works_when_connection_leaked()
+    {
+        using var connection = new SqliteConnection(ConnectionString);
+        connection.Open();
+
+        LeakConnection();
+        GC.Collect();
+
+        SqliteConnection.ClearPool(connection);
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        static void LeakConnection()
+        {
+            // Don't add using!
+            var connection = new SqliteConnection(ConnectionString);
+            connection.Open();
+        }
+    }
+
+    public void Dispose()
+    {
+        SqliteConnection.ClearAllPools();
+        File.Delete(FileName);
     }
 }

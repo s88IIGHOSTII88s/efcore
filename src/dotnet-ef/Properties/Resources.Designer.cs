@@ -50,13 +50,13 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("ConnectionDescription");
 
         /// <summary>
-        ///     The DbContext to use.
+        ///     The DbContext to use. "*" can be used to run the command for all contexts found. This will also disable service discovery through the startup project if a corresponding IDesignTimeDbContextFactory implementation is found.
         /// </summary>
         public static string ContextDescription
             => GetString("ContextDescription");
 
         /// <summary>
-        ///     The directory to put the DbContext file in. Paths are relative to the project directory.
+        ///     The directory to put the DbContext file in. Paths are relative to the project or file-based app directory.
         /// </summary>
         public static string ContextDirDescription
             => GetString("ContextDirDescription");
@@ -102,6 +102,12 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
         /// </summary>
         public static string DatabaseDropForceDescription
             => GetString("DatabaseDropForceDescription");
+
+        /// <summary>
+        ///     Create a new migration with the given name and apply it immediately.
+        /// </summary>
+        public static string DatabaseUpdateAddDescription
+            => GetString("DatabaseUpdateAddDescription");
 
         /// <summary>
         ///     Updates the database to a specified migration.
@@ -164,10 +170,64 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("DotnetEfFullName");
 
         /// <summary>
+        ///     Unable to read '{configFile}'. Fix the JSON and try again. {details}
+        /// </summary>
+        public static string DotNetEfConfigInvalidJson(object? configFile, object? details)
+            => string.Format(
+                GetString("DotNetEfConfigInvalidJson", nameof(configFile), nameof(details)),
+                configFile, details);
+
+        /// <summary>
+        ///     Unable to read '{configFile}'. The file must contain a JSON object.
+        /// </summary>
+        public static string DotNetEfConfigInvalidRoot(object? configFile)
+            => string.Format(
+                GetString("DotNetEfConfigInvalidRoot", nameof(configFile)),
+                configFile);
+
+        /// <summary>
+        ///     Unable to read '{configFile}'. The '{propertyName}' property must be a non-empty JSON string.
+        /// </summary>
+        public static string DotNetEfConfigInvalidValue(object? configFile, object? propertyName)
+            => string.Format(
+                GetString("DotNetEfConfigInvalidValue", nameof(configFile), nameof(propertyName)),
+                configFile, propertyName);
+
+        /// <summary>
+        ///     Unable to read '{configFile}'. The '{propertyName}' property must be a boolean.
+        /// </summary>
+        public static string DotNetEfConfigInvalidBoolValue(object? configFile, object? propertyName)
+            => string.Format(
+                GetString("DotNetEfConfigInvalidBoolValue", nameof(configFile), nameof(propertyName)),
+                configFile, propertyName);
+
+        /// <summary>
+        ///     Unable to read '{configFile}'. Ensure the file is accessible and try again. {details}
+        /// </summary>
+        public static string DotNetEfConfigReadFailed(object? configFile, object? details)
+            => string.Format(
+                GetString("DotNetEfConfigReadFailed", nameof(configFile), nameof(details)),
+                configFile, details);
+
+        /// <summary>
+        ///     Unable to read '{configFile}'. Remove the unsupported '{propertyName}' property.
+        /// </summary>
+        public static string DotNetEfConfigUnknownProperty(object? configFile, object? propertyName)
+            => string.Format(
+                GetString("DotNetEfConfigUnknownProperty", nameof(configFile), nameof(propertyName)),
+                configFile, propertyName);
+
+        /// <summary>
         ///     Entity Framework Core Command-line Tools
         /// </summary>
         public static string EFFullName
             => GetString("EFFullName");
+
+        /// <summary>
+        ///     The file-based app to use. An alias for --project.
+        /// </summary>
+        public static string FileDescription
+            => GetString("FileDescription");
 
         /// <summary>
         ///     The target framework. Defaults to the first one in the project.
@@ -176,10 +236,24 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("FrameworkDescription");
 
         /// <summary>
-        ///     Unable to retrieve project metadata. Ensure it's an SDK-style project. If you're using a custom BaseIntermediateOutputPath or MSBuildProjectExtensionsPath values, Use the --msbuildprojectextensionspath option.
+        ///     Unable to retrieve project metadata. Ensure it's an SDK-style project or a file-based app.
         /// </summary>
         public static string GetMetadataFailed
             => GetString("GetMetadataFailed");
+
+        /// <summary>
+        ///     Unable to retrieve project metadata. Restore the project or file-based app (e.g. by running 'dotnet restore') and try again.
+        /// </summary>
+        public static string RestoreRequired
+            => GetString("RestoreRequired");
+
+        /// <summary>
+        ///     The file '{file}' could not be found.
+        /// </summary>
+        public static string ProjectFileNotFound(object? file)
+            => string.Format(
+                GetString("ProjectFileNotFound", nameof(file)),
+                file);
 
         /// <summary>
         ///     Generate a script that can be used on a database at any migration.
@@ -188,7 +262,7 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("IdempotentDescription");
 
         /// <summary>
-        ///     Show JSON output. Use with --prefix-output to parse programatically.
+        ///     Show JSON output. Use with --prefix-output to parse programmatically.
         /// </summary>
         public static string JsonDescription
             => GetString("JsonDescription");
@@ -242,6 +316,12 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("MigrationsDescription");
 
         /// <summary>
+        ///     Checks if any changes have been made to the model since the last migration.
+        /// </summary>
+        public static string MigrationsHasPendingModelChangesDescription
+            => GetString("MigrationsHasPendingModelChangesDescription");
+
+        /// <summary>
         ///     Lists available migrations.
         /// </summary>
         public static string MigrationsListDescription
@@ -254,7 +334,7 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("MigrationsNamespaceDescription");
 
         /// <summary>
-        ///     The directory to put files in. Paths are relative to the project directory. Defaults to "Migrations".
+        ///     The directory to put files in. Paths are relative to the project or file-based app directory. Defaults to "Migrations".
         /// </summary>
         public static string MigrationsOutputDirDescription
             => GetString("MigrationsOutputDirDescription");
@@ -272,6 +352,12 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("MigrationsRemoveForceDescription");
 
         /// <summary>
+        ///     Remove the migration without connecting to the database.
+        /// </summary>
+        public static string MigrationsRemoveOfflineDescription
+            => GetString("MigrationsRemoveOfflineDescription");
+
+        /// <summary>
         ///     Generates a SQL script from migrations.
         /// </summary>
         public static string MigrationsScriptDescription
@@ -282,6 +368,22 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
         /// </summary>
         public static string MigrationToDescription
             => GetString("MigrationToDescription");
+
+        /// <summary>
+        ///     Missing required argument '{arg}'.
+        /// </summary>
+        public static string MissingArgument(object? arg)
+            => string.Format(
+                GetString("MissingArgument", nameof(arg)),
+                arg);
+
+        /// <summary>
+        ///     Option '--{requiredOption}' must be specified if '--{conditionalOption}' is used.
+        /// </summary>
+        public static string MissingConditionalOption(object? requiredOption, object? conditionalOption)
+            => string.Format(
+                GetString("MissingConditionalOption", nameof(requiredOption), nameof(conditionalOption)),
+                requiredOption, conditionalOption);
 
         /// <summary>
         ///     More than one project was found in the current working directory. Use the --project option.
@@ -304,13 +406,45 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("MultipleStartupProjects");
 
         /// <summary>
+        ///     The --{option1} and --{option2} options cannot be used together.
+        /// </summary>
+        public static string MutuallyExclusiveOptions(object? option1, object? option2)
+            => string.Format(
+                GetString("MutuallyExclusiveOptions", nameof(option1), nameof(option2)),
+                option1, option2);
+
+        /// <summary>
+        ///     The project targets multiple frameworks. Use the --framework option to specify which target framework to use.
+        /// </summary>
+        public static string MultipleTargetFrameworks
+            => GetString("MultipleTargetFrameworks");
+
+        /// <summary>
         ///     The namespace to use. Matches the directory by default.
         /// </summary>
         public static string NamespaceDescription
             => GetString("NamespaceDescription");
 
         /// <summary>
-        ///     Startup project '{startupProject}' targets framework '.NETCoreApp' version '{targetFrameworkVersion}'. This version of the Entity Framework Core .NET Command-line Tools only supports version 2.0 or higher. For information on using older versions of the tools, see https://go.microsoft.com/fwlink/?linkid=871254
+        ///     The C# language version to use when generating code.
+        /// </summary>
+        public static string LanguageVersionDescription
+            => GetString("LanguageVersionDescription");
+
+        /// <summary>
+        ///     Generate additional code in the compiled model required for NativeAOT compilation and precompiled queries (experimental).
+        /// </summary>
+        public static string NativeAotDescription
+            => GetString("NativeAotDescription");
+
+        /// <summary>
+        ///     NativeAOT support is experimental and can change in the future.
+        /// </summary>
+        public static string NativeAotWarning
+            => GetString("NativeAotWarning");
+
+        /// <summary>
+        ///     Startup project '{startupProject}' targets framework '.NETCoreApp' version '{targetFrameworkVersion}'. This version of the Entity Framework Core .NET Command-line Tools only supports version 10.0 or higher.
         /// </summary>
         public static string NETCoreApp1StartupProject(object? startupProject, object? targetFrameworkVersion)
             => string.Format(
@@ -318,7 +452,15 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
                 startupProject, targetFrameworkVersion);
 
         /// <summary>
-        ///     Startup project '{startupProject}' targets framework '.NETStandard'. There is no runtime associated with this framework, and projects targeting it cannot be executed directly. To use the Entity Framework Core .NET Command-line Tools with this project, add an executable project targeting .NET Core or .NET Framework that references this project, and set it as the startup project using --startup-project; or, update this project to cross-target .NET Core or .NET Framework. For more information on using the Entity Framework Tools with .NET Standard projects, see https://go.microsoft.com/fwlink/?linkid=2034781
+        ///     Startup project '{startupProject}' targets framework '.NETFramework'. The Entity Framework Core .NET Command-line Tools don't support .NET Framework projects. Consider updating the project to target .NET.
+        /// </summary>
+        public static string NETFrameworkStartupProject(object? startupProject)
+            => string.Format(
+                GetString("NETFrameworkStartupProject", nameof(startupProject)),
+                startupProject);
+
+        /// <summary>
+        ///     Startup project '{startupProject}' targets framework '.NETStandard'. There is no runtime associated with this framework, and projects targeting it cannot be executed directly. To use the Entity Framework Core .NET Command-line Tools with this project, add an executable project targeting .NET Core references this project, and set it as the startup project using --startup-project; or, update this project to cross-target .NET Core or .NET Framework. For more information on using the Entity Framework Tools with .NET Standard projects, see https://go.microsoft.com/fwlink/?linkid=2034781
         /// </summary>
         public static string NETStandardStartupProject(object? startupProject)
             => string.Format(
@@ -364,6 +506,12 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
                 projectDir);
 
         /// <summary>
+        ///     Don't generate a compiled model.
+        /// </summary>
+        public static string NoScaffoldDescription
+            => GetString("NoScaffoldDescription");
+
+        /// <summary>
         ///     Don't generate SQL transaction statements.
         /// </summary>
         public static string NoTransactionsDescription
@@ -376,10 +524,30 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("OutputDescription");
 
         /// <summary>
-        ///     The directory to put files in. Paths are relative to the project directory.
+        ///     The directory to put files in. Paths are relative to the project or file-based app directory.
         /// </summary>
         public static string OutputDirDescription
             => GetString("OutputDirDescription");
+
+        /// <summary>
+        ///     Generate precompiled queries.
+        /// </summary>
+        public static string PrecompileQueriesDescription
+            => GetString("PrecompileQueriesDescription");
+
+        /// <summary>
+        ///     Query precompilation is an experimental feature and should be used with caution.
+        /// </summary>
+        public static string PrecompileQueriesWarning
+            => GetString("PrecompileQueriesWarning");
+
+        /// <summary>
+        ///     Startup project '{startupProject}' targets a platform-specific framework: '{targetFrameworkValue}'. The Entity Framework Core .NET Command-line Tools might not function correctly. Implement IDesignTimeDbContextFactory&lt;&gt; to ensure design-time tools work correctly with this project. See https://aka.ms/efcore-docs-migrations-projects for more information.
+        /// </summary>
+        public static string PlatformSpecificProject(object? startupProject, object? targetFrameworkValue)
+            => string.Format(
+                GetString("PlatformSpecificProject", nameof(startupProject), nameof(targetFrameworkValue)),
+                startupProject, targetFrameworkValue);
 
         /// <summary>
         ///     Prefix output with level.
@@ -394,7 +562,7 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("ProjectDescription");
 
         /// <summary>
-        ///     The MSBuild project extensions path. Defaults to "obj".
+        ///     Obsolete
         /// </summary>
         public static string ProjectExtensionsDescription
             => GetString("ProjectExtensionsDescription");
@@ -406,13 +574,21 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("ProviderDescription");
 
         /// <summary>
+        ///     Running '{command}'
+        /// </summary>
+        public static string RunningCommand(object? command)
+            => string.Format(
+                GetString("RunningCommand", nameof(command)),
+                command);
+
+        /// <summary>
         ///     The runtime to use.
         /// </summary>
         public static string RuntimeDescription
             => GetString("RuntimeDescription");
 
         /// <summary>
-        ///     The schemas of tables to generate entity types for.
+        ///     The schemas of tables and views to generate entity types for. All tables and views in the schemas will be included in the model, even if they are not explicitly included with the --table parameter.
         /// </summary>
         public static string SchemasDescription
             => GetString("SchemasDescription");
@@ -430,13 +606,25 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("StartupProjectDescription");
 
         /// <summary>
+        ///     The startup file-based app to use. An alias for --startup-project.
+        /// </summary>
+        public static string StartupFileDescription
+            => GetString("StartupFileDescription");
+
+        /// <summary>
+        ///     The suffix to attach to the name of all the generated files
+        /// </summary>
+        public static string SuffixDescription
+            => GetString("SuffixDescription");
+
+        /// <summary>
         ///     Don't generate DbContext.OnConfiguring.
         /// </summary>
         public static string SuppressOnConfiguringDescription
             => GetString("SuppressOnConfiguringDescription");
 
         /// <summary>
-        ///     The tables to generate entity types for.
+        ///     The tables and views to generate entity types for. Tables or views in a specific schema can be included using the 'schema.table' or 'schema.view' format.
         /// </summary>
         public static string TablesDescription
             => GetString("TablesDescription");
@@ -458,10 +646,18 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
                 startupProject, targetPlatform);
 
         /// <summary>
-        ///     Use table and column names directly from the database.
+        ///     Use table, view, sequence, and column names directly from the database.
         /// </summary>
         public static string UseDatabaseNamesDescription
             => GetString("UseDatabaseNamesDescription");
+
+        /// <summary>
+        ///     Using file-based app '{file}'.
+        /// </summary>
+        public static string UsingFileBasedApp(object? file)
+            => string.Format(
+                GetString("UsingFileBasedApp", nameof(file)),
+                file);
 
         /// <summary>
         ///     Using project '{project}'.
@@ -470,6 +666,14 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => string.Format(
                 GetString("UsingProject", nameof(project)),
                 project);
+
+        /// <summary>
+        ///     Using startup file-based app '{file}'.
+        /// </summary>
+        public static string UsingStartupFileBasedApp(object? file)
+            => string.Format(
+                GetString("UsingStartupFileBasedApp", nameof(file)),
+                file);
 
         /// <summary>
         ///     Using startup project '{startupProject}'.
@@ -505,3 +709,4 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
         }
     }
 }
+

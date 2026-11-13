@@ -6,6 +6,6 @@ namespace Microsoft.EntityFrameworkCore.TestModels.InheritanceModel;
 public abstract class Plant
 {
     public PlantGenus Genus { get; set; }
-    public string Species { get; set; }
-    public string Name { get; set; }
+    public string Species { get; set; } = null!;
+    public string Name { get; set; } = null!;
 }

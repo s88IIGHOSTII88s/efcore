@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.EntityFrameworkCore.TestModels.ComplexNavigationsModel;
@@ -10,15 +10,14 @@ namespace Microsoft.EntityFrameworkCore.Query;
 
 public class ComplexNavigationsODataQueryTestFixture : ComplexNavigationsQuerySqlServerFixture, IODataQueryTestFixture
 {
-    private IHost _selfHostServer;
+    private IHost? _selfHostServer;
 
-    protected override string StoreName { get; } = "ODataComplexNavigations";
+    protected override string StoreName
+        => "ODataComplexNavigations";
 
     public ComplexNavigationsODataQueryTestFixture()
-    {
-        (BaseAddress, ClientFactory, _selfHostServer)
+        => (BaseAddress, ClientFactory, _selfHostServer)
             = ODataQueryTestFixtureInitializer.Initialize<ComplexNavigationsODataContext>(StoreName, GetEdmModel());
-    }
 
     private static IEdmModel GetEdmModel()
     {
@@ -35,7 +34,7 @@ public class ComplexNavigationsODataQueryTestFixture : ComplexNavigationsQuerySq
 
     public IHttpClientFactory ClientFactory { get; }
 
-    public override async Task DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         if (_selfHostServer != null)
         {

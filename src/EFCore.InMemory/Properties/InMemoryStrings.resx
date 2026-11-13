@@ -117,8 +117,11 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="CompiledModelDefiningQuery" xml:space="preserve">
+    <value>The entity type '{entityType}' has a defining query configured. Compiled model can't be generated, because defining queries are not supported.</value>
+  </data>
   <data name="DefaultIfEmptyAppliedAfterProjection" xml:space="preserve">
-    <value>Cannot apply 'DefaultIfEmpty' after a client-evaluated projection. Consider applying 'DefaultIfEmpty' before last 'Select' or use 'AsEnumerable' before 'DefaultIfEmpty' to apply it on client-side.</value>
+    <value>'DefaultIfEmpty' cannot be applied after a client-evaluated projection. Consider applying 'DefaultIfEmpty' before last 'Select' or use 'AsEnumerable' before 'DefaultIfEmpty' to apply it on client-side.</value>
   </data>
   <data name="DistinctOnSubqueryNotSupported" xml:space="preserve">
     <value>Using 'Distinct' operation on a projection containing a subquery is not supported.</value>
@@ -131,8 +134,11 @@
     <comment>Information InMemoryEventId.ChangesSaved int</comment>
   </data>
   <data name="LogTransactionsNotSupported" xml:space="preserve">
-    <value>Transactions are not supported by the in-memory store. See http://go.microsoft.com/fwlink/?LinkId=800142</value>
+    <value>Transactions are not supported by the in-memory store. See https://go.microsoft.com/fwlink/?LinkId=800142</value>
     <comment>Warning InMemoryEventId.TransactionIgnoredWarning</comment>
+  </data>
+  <data name="NonComposedGroupByNotSupported" xml:space="preserve">
+    <value>A 'GroupBy' operation which is not composed into aggregate or projection of elements is not supported.</value>
   </data>
   <data name="NoQueryStrings" xml:space="preserve">
     <value>There is no query string because the in-memory provider does not use a string-based query language.</value>

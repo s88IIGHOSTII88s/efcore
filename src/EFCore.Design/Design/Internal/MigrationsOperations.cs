@@ -1,7 +1,10 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.EntityFrameworkCore.Migrations.Design.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Design.Internal;
 
@@ -42,11 +45,12 @@ public class MigrationsOperations
         _projectDir = projectDir;
         _rootNamespace = rootNamespace;
         _language = language;
-        args ??= Array.Empty<string>();
+        args ??= [];
         _contextOperations = new DbContextOperations(
             reporter,
             assembly,
             startupAssembly,
+            project: "",
             projectDir,
             rootNamespace,
             language,
@@ -66,8 +70,36 @@ public class MigrationsOperations
         string name,
         string? outputDir,
         string? contextType,
-        string? @namespace)
+        string? @namespace,
+        bool dryRun)
     {
+        if (contextType == "*")
+        {
+            throw new OperationException(DesignStrings.WildcardNotSupported);
+        }
+
+        using var context = _contextOperations.CreateContext(contextType);
+        var services = PrepareForMigration(name, context);
+
+        using var scope = services.CreateScope();
+        var (_, files) =
+            CreateScaffoldedMigration(name, outputDir, @namespace, dryRun, scope.ServiceProvider);
+        return files;
+    }
+
+    /// <summary>
+    ///     Creates and saves a scaffolded migration using the provided services.
+    /// </summary>
+    public virtual (ScaffoldedMigration Migration, MigrationFiles Files)
+        CreateScaffoldedMigration(
+            string name,
+            string? outputDir,
+            string? @namespace,
+            bool dryRun,
+            IServiceProvider services)
+    {
+        EnsureMigrationsAssembly(services);
+
         if (outputDir != null)
         {
             outputDir = Path.GetFullPath(Path.Combine(_projectDir, outputDir));
@@ -75,26 +107,16 @@ public class MigrationsOperations
 
         var subNamespace = SubnamespaceFromOutputPath(outputDir);
 
-        using var context = _contextOperations.CreateContext(contextType);
-        var contextClassName = context.GetType().Name;
-        if (string.Equals(name, contextClassName, StringComparison.Ordinal))
-        {
-            throw new OperationException(
-                DesignStrings.ConflictingContextAndMigrationName(name));
-        }
-
-        var services = _servicesBuilder.Build(context);
-        EnsureServices(services);
-        EnsureMigrationsAssembly(services);
-
-        using var scope = services.CreateScope();
-        var scaffolder = scope.ServiceProvider.GetRequiredService<IMigrationsScaffolder>();
+        var scaffolder = services.GetRequiredService<IMigrationsScaffolder>();
         var migration =
             string.IsNullOrEmpty(@namespace)
                 // TODO: Honor _nullable (issue #18950)
-                ? scaffolder.ScaffoldMigration(name, _rootNamespace ?? string.Empty, subNamespace, _language)
-                : scaffolder.ScaffoldMigration(name, null, @namespace, _language);
-        return scaffolder.Save(_projectDir, migration, outputDir);
+                ? scaffolder.ScaffoldMigration(name, _rootNamespace ?? string.Empty, subNamespace, _language, dryRun)
+                : scaffolder.ScaffoldMigration(name, null, @namespace, _language, dryRun);
+
+        var files = scaffolder.Save(_projectDir, migration, outputDir, dryRun);
+
+        return (migration, files);
     }
 
     // if outputDir is a subfolder of projectDir, then use each subfolder as a sub-namespace
@@ -102,18 +124,19 @@ public class MigrationsOperations
     // => "namespace $(rootnamespace).A.B.C"
     private string? SubnamespaceFromOutputPath(string? outputDir)
     {
-        if (outputDir?.StartsWith(_projectDir, StringComparison.Ordinal) != true)
+        var fullPath = Path.GetFullPath(_projectDir);
+        if (outputDir?.StartsWith(fullPath, StringComparison.Ordinal) != true)
         {
             return null;
         }
 
-        var subPath = outputDir[_projectDir.Length..];
+        var subPath = outputDir[fullPath.Length..];
 
         return !string.IsNullOrWhiteSpace(subPath)
             ? string.Join(
                 ".",
                 subPath.Split(
-                    new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                    [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
                     StringSplitOptions.RemoveEmptyEntries))
             : null;
     }
@@ -129,9 +152,35 @@ public class MigrationsOperations
         string? connectionString,
         bool noConnect)
     {
-        using var context = _contextOperations.CreateContext(contextType);
+        if (contextType == "*")
+        {
+            var anyContext = false;
+            var contextsList = new List<MigrationInfo>();
 
-        if (connectionString != null)
+            foreach (var contextItem in _contextOperations.CreateAllContexts())
+            {
+                anyContext = true;
+                using (contextItem)
+                {
+                    contextsList.AddRange(GetMigrationsContext(contextItem, connectionString, noConnect));
+                }
+            }
+
+            if (!anyContext)
+            {
+                throw new OperationException(DesignStrings.NoContext(_assembly.GetName().Name));
+            }
+        }
+
+        using var context = _contextOperations.CreateContext(contextType);
+        {
+            return GetMigrationsContext(context, connectionString, noConnect);
+        }
+    }
+
+    private IEnumerable<MigrationInfo> GetMigrationsContext(DbContext context, string? connectionString, bool noConnect)
+    {
+        if (connectionString is not null)
         {
             context.Database.SetConnectionString(connectionString);
         }
@@ -179,7 +228,35 @@ public class MigrationsOperations
         MigrationsSqlGenerationOptions options,
         string? contextType)
     {
+        if (contextType == "*")
+        {
+            var anyContext = false;
+            var stringBuilder = new StringBuilder();
+
+            foreach (var contextItem in _contextOperations.CreateAllContexts())
+            {
+                anyContext = true;
+                using (contextItem)
+                {
+                    stringBuilder.Append(ScriptMigrationContext(fromMigration, toMigration, options, contextItem));
+                }
+            }
+
+            return !anyContext ? throw new OperationException(DesignStrings.NoContext(_assembly.GetName().Name)) : stringBuilder.ToString();
+        }
+
         using var context = _contextOperations.CreateContext(contextType);
+        {
+            return ScriptMigrationContext(fromMigration, toMigration, options, context);
+        }
+    }
+
+    private string ScriptMigrationContext(
+        string? fromMigration,
+        string? toMigration,
+        MigrationsSqlGenerationOptions options,
+        DbContext context)
+    {
         var services = _servicesBuilder.Build(context);
         EnsureServices(services);
 
@@ -199,22 +276,47 @@ public class MigrationsOperations
         string? connectionString,
         string? contextType)
     {
-        using (var context = _contextOperations.CreateContext(contextType))
+        if (contextType == "*")
         {
-            if (connectionString != null)
+            var contexts = _contextOperations.CreateAllContexts();
+
+            if (!contexts.Any())
             {
-                context.Database.SetConnectionString(connectionString);
+                throw new OperationException(DesignStrings.NoContext(_assembly.GetName().Name));
             }
 
-            var services = _servicesBuilder.Build(context);
-            EnsureServices(services);
+            foreach (var item in contexts)
+            {
+                using (item)
+                {
+                    MigrateContext(item, targetMigration, connectionString);
+                }
+            }
 
-            var migrator = services.GetRequiredService<IMigrator>();
+            _reporter.WriteInformation(DesignStrings.Done);
+            return;
+        }
 
-            migrator.Migrate(targetMigration);
+        using (var context = _contextOperations.CreateContext(contextType))
+        {
+            MigrateContext(context, targetMigration, connectionString);
         }
 
         _reporter.WriteInformation(DesignStrings.Done);
+    }
+
+    private void MigrateContext(DbContext context, string? targetMigration, string? connectionString)
+    {
+        if (connectionString is not null)
+        {
+            context.Database.SetConnectionString(connectionString);
+        }
+
+        var services = _servicesBuilder.Build(context);
+        EnsureServices(services);
+
+        var migrator = services.GetRequiredService<IMigrator>();
+        migrator.Migrate(targetMigration);
     }
 
     /// <summary>
@@ -225,9 +327,23 @@ public class MigrationsOperations
     /// </summary>
     public virtual MigrationFiles RemoveMigration(
         string? contextType,
-        bool force)
+        bool force,
+        bool offline,
+        bool dryRun,
+        string? connectionString)
     {
+        if (contextType == "*")
+        {
+            throw new OperationException(DesignStrings.WildcardNotSupported);
+        }
+
         using var context = _contextOperations.CreateContext(contextType);
+
+        if (connectionString != null)
+        {
+            context.Database.SetConnectionString(connectionString);
+        }
+
         var services = _servicesBuilder.Build(context);
         EnsureServices(services);
         EnsureMigrationsAssembly(services);
@@ -235,11 +351,113 @@ public class MigrationsOperations
         using var scope = services.CreateScope();
         var scaffolder = scope.ServiceProvider.GetRequiredService<IMigrationsScaffolder>();
 
-        var files = scaffolder.RemoveMigration(_projectDir, _rootNamespace, force, _language);
+        var files = scaffolder.RemoveMigration(_projectDir, _rootNamespace, force, _language, dryRun, offline);
 
         _reporter.WriteInformation(DesignStrings.Done);
 
         return files;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual void HasPendingModelChanges(string? contextType)
+    {
+        using var context = _contextOperations.CreateContext(contextType);
+
+        var hasPendingModelChanges = context.Database.HasPendingModelChanges();
+
+        if (hasPendingModelChanges)
+        {
+            throw new OperationException(DesignStrings.PendingModelChanges);
+        }
+
+        _reporter.WriteInformation(DesignStrings.NoPendingModelChanges);
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [RequiresDynamicCode("Runtime migration compilation requires dynamic code generation.")]
+    public virtual MigrationFiles AddAndApplyMigration(
+        string name,
+        string? outputDir,
+        string? contextType,
+        string? @namespace,
+        string? connectionString)
+    {
+        using var context = _contextOperations.CreateContext(contextType);
+        var services = PrepareForMigration(name, context);
+
+        if (connectionString != null)
+        {
+            context.Database.SetConnectionString(connectionString);
+        }
+
+        using var scope = services.CreateScope();
+        var migrator = scope.ServiceProvider.GetRequiredService<IMigrator>();
+
+        if (!migrator.HasPendingModelChanges())
+        {
+            _reporter.WriteInformation(DesignStrings.NoPendingModelChanges);
+            migrator.Migrate();
+            _reporter.WriteInformation(DesignStrings.Done);
+            // Return empty MigrationFiles to indicate no migration was created.
+            // When serialized to JSON (with --json), all file path properties will be null.
+            return new MigrationFiles();
+        }
+
+        _reporter.WriteInformation(DesignStrings.CreatingAndApplyingMigration(name));
+
+        var (migration, files) =
+            CreateScaffoldedMigration(name, outputDir, @namespace, dryRun: false, scope.ServiceProvider);
+
+        var compiler = scope.ServiceProvider.GetRequiredService<IMigrationCompiler>();
+        var migrationsAssembly = scope.ServiceProvider.GetRequiredService<IMigrationsAssembly>();
+        var compiledAssembly = compiler.CompileMigration(migration, context.GetType());
+        migrationsAssembly.AddMigrations(compiledAssembly);
+
+        migrator.Migrate(migration.MigrationId);
+
+        _reporter.WriteInformation(DesignStrings.MigrationCreatedAndApplied(migration.MigrationId));
+
+        return files;
+    }
+
+    /// <summary>
+    ///     Prepares common resources for migration operations.
+    /// </summary>
+    public virtual IServiceProvider PrepareForMigration(string name, DbContext context)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new OperationException(DesignStrings.MigrationNameRequired);
+        }
+
+        var invalidPathChars = Path.GetInvalidFileNameChars();
+        if (name.Any(c => invalidPathChars.Contains(c)))
+        {
+            throw new OperationException(
+                DesignStrings.BadMigrationName(name, string.Join("','", invalidPathChars)));
+        }
+
+        var contextClassName = context.GetType().Name;
+        if (string.Equals(name, contextClassName, StringComparison.Ordinal))
+        {
+            throw new OperationException(
+                DesignStrings.ConflictingContextAndMigrationName(name));
+        }
+
+        var services = _servicesBuilder.Build(context);
+        EnsureServices(services);
+
+        return services;
     }
 
     private static void EnsureServices(IServiceProvider services)
@@ -257,13 +475,19 @@ public class MigrationsOperations
         var assemblyName = _assembly.GetName();
         var options = services.GetRequiredService<IDbContextOptions>();
         var contextType = services.GetRequiredService<ICurrentDbContext>().Context.GetType();
-        var migrationsAssemblyName = RelationalOptionsExtension.Extract(options).MigrationsAssembly
-            ?? contextType.Assembly.GetName().Name;
-        if (assemblyName.Name != migrationsAssemblyName
-            && assemblyName.FullName != migrationsAssemblyName)
+        var optionsExtension = RelationalOptionsExtension.Extract(options);
+        if (optionsExtension.MigrationsAssemblyObject == null
+            || optionsExtension.MigrationsAssemblyObject != _assembly)
         {
-            throw new OperationException(
-                DesignStrings.MigrationsAssemblyMismatch(assemblyName.Name, migrationsAssemblyName));
+            var migrationsAssemblyName = optionsExtension.MigrationsAssembly
+                ?? optionsExtension.MigrationsAssemblyObject?.GetName().Name
+                ?? contextType.Assembly.GetName().Name;
+            if (assemblyName.Name != migrationsAssemblyName
+                && assemblyName.FullName != migrationsAssemblyName)
+            {
+                throw new OperationException(
+                    DesignStrings.MigrationsAssemblyMismatch(assemblyName.Name, migrationsAssemblyName));
+            }
         }
     }
 }

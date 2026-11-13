@@ -11,8 +11,12 @@ namespace Microsoft.EntityFrameworkCore.Metadata;
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and examples.
 /// </remarks>
-public interface IColumnMapping : IColumnMappingBase
+public interface IColumnMapping : IColumnMappingBase, IComparable<IColumnMapping>
 {
+    /// <inheritdoc />
+    int IComparable<IColumnMapping>.CompareTo(IColumnMapping? other)
+        => ((IColumnMappingBase)this).CompareTo(other);
+
     /// <summary>
     ///     Gets the target column.
     /// </summary>
@@ -49,7 +53,7 @@ public interface IColumnMapping : IColumnMappingBase
         }
 
         builder
-            .Append(Property.DeclaringEntityType.DisplayName())
+            .Append(Property.DeclaringType.DisplayName())
             .Append('.')
             .Append(Property.Name)
             .Append(" - ");

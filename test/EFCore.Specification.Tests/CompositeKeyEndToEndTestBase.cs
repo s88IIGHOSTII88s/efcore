@@ -6,24 +6,19 @@ using System.Globalization;
 // ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class CompositeKeyEndToEndTestBase<TFixture> : IClassFixture<TFixture>
+public abstract class CompositeKeyEndToEndTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : CompositeKeyEndToEndTestBase<TFixture>.CompositeKeyEndToEndFixtureBase
 {
-    protected CompositeKeyEndToEndTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
+    private TFixture Fixture { get; } = fixture;
 
-    private TFixture Fixture { get; }
-
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Can_use_two_non_generated_integers_as_composite_key_end_to_end()
     {
         var ticks = DateTime.UtcNow.Ticks;
 
         using (var context = CreateContext())
         {
-            var pegasus = context.Add(
+            var pegasus = await context.AddAsync(
                 new Pegasus
                 {
                     Id1 = ticks,
@@ -63,7 +58,7 @@ public abstract class CompositeKeyEndToEndTestBase<TFixture> : IClassFixture<TFi
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Can_use_generated_values_in_composite_key_end_to_end()
     {
         long id1;
@@ -74,8 +69,8 @@ public abstract class CompositeKeyEndToEndTestBase<TFixture> : IClassFixture<TFi
         {
             context.Database.EnsureCreatedResiliently();
 
-            var added = context.Add(
-                new Unicorn { Id2 = id2, Name = "Rarity" }).Entity;
+            var added = (await context.AddAsync(
+                new Unicorn { Id2 = id2, Name = "Rarity" })).Entity;
 
             await context.SaveChangesAsync();
 
@@ -117,34 +112,34 @@ public abstract class CompositeKeyEndToEndTestBase<TFixture> : IClassFixture<TFi
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Only_one_part_of_a_composite_key_needs_to_vary_for_uniqueness()
     {
         var ids = new int[3];
 
         using (var context = CreateContext())
         {
-            var pony1 = context.Add(
+            var pony1 = (await context.AddAsync(
                 new EarthPony
                 {
                     Id1 = 1,
                     Id2 = 7,
                     Name = "Apple Jack 1"
-                }).Entity;
-            var pony2 = context.Add(
+                })).Entity;
+            var pony2 = (await context.AddAsync(
                 new EarthPony
                 {
                     Id1 = 2,
                     Id2 = 7,
                     Name = "Apple Jack 2"
-                }).Entity;
-            var pony3 = context.Add(
+                })).Entity;
+            var pony3 = (await context.AddAsync(
                 new EarthPony
                 {
                     Id1 = 3,
                     Id2 = 7,
                     Name = "Apple Jack 3"
-                }).Entity;
+                })).Entity;
 
             await context.SaveChangesAsync();
 
@@ -192,89 +187,76 @@ public abstract class CompositeKeyEndToEndTestBase<TFixture> : IClassFixture<TFi
 
     public abstract class CompositeKeyEndToEndFixtureBase : SharedStoreFixtureBase<DbContext>
     {
-        protected override string StoreName { get; } = "CompositeKeyEndToEndTest";
+        protected override string StoreName
+            => "CompositeKeyEndToEndTest";
 
         protected override Type ContextType { get; } = typeof(BronieContext);
     }
 
-    protected class BronieContext : PoolableDbContext
+    protected class BronieContext(DbContextOptions options) : PoolableDbContext(options)
     {
-        public BronieContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
         // ReSharper disable UnusedAutoPropertyAccessor.Local
-        public DbSet<Pegasus> Pegasuses { get; set; }
-        public DbSet<Unicorn> Unicorns { get; set; }
+        public DbSet<Pegasus> Pegasuses { get; set; } = null!;
+        public DbSet<Unicorn> Unicorns { get; set; } = null!;
 
-        public DbSet<EarthPony> EarthPonies { get; set; }
+        public DbSet<EarthPony> EarthPonies { get; set; } = null!;
         // ReSharper restore UnusedAutoPropertyAccessor.Local
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Flyer>(
-                b =>
-                {
-                    b.HasKey(
-                        e => new
-                        {
-                            e.Id1,
-                            e.Id2,
-                            e.Discriminator
-                        });
-                });
+            modelBuilder.Entity<Flyer>(b => b.HasKey(e => new
+            {
+                e.Id1,
+                e.Id2,
+                e.Discriminator
+            }));
 
             modelBuilder.Entity<Pegasus>();
 
-            modelBuilder.Entity<Unicorn>(
-                b =>
+            modelBuilder.Entity<Unicorn>(b =>
+            {
+                b.HasKey(e => new
                 {
-                    b.HasKey(
-                        e => new
-                        {
-                            e.Id1,
-                            e.Id2,
-                            e.Id3
-                        });
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id3).ValueGeneratedOnAdd();
+                    e.Id1,
+                    e.Id2,
+                    e.Id3
                 });
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id3).ValueGeneratedOnAdd();
+            });
 
-            modelBuilder.Entity<EarthPony>(
-                b =>
-                {
-                    b.HasKey(
-                        e => new { e.Id1, e.Id2 });
-                    b.Property(e => e.Id1);
-                });
+            modelBuilder.Entity<EarthPony>(b =>
+            {
+                b.HasKey(e => new { e.Id1, e.Id2 });
+                b.Property(e => e.Id1);
+            });
         }
     }
 
     protected abstract class Flyer
     {
-        public string Discriminator { get; set; }
+        public string Discriminator { get; set; } = null!;
         public long Id1 { get; set; }
         public long Id2 { get; set; }
     }
 
     protected class Pegasus : Flyer
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 
     protected class Unicorn
     {
         public int Id1 { get; set; }
-        public string Id2 { get; set; }
+        public string Id2 { get; set; } = null!;
         public Guid Id3 { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 
     protected class EarthPony
     {
         public int Id1 { get; set; }
         public int Id2 { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 }

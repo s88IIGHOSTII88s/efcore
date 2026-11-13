@@ -64,13 +64,13 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("ConnectionDescription");
 
         /// <summary>
-        ///     The DbContext to use.
+        ///     The DbContext to use. "*" can be used to run the command for all contexts found. This will also disable service discovery through the startup project if a corresponding IDesignTimeDbContextFactory implementation is found.
         /// </summary>
         public static string ContextDescription
             => GetString("ContextDescription");
 
         /// <summary>
-        ///     The directory to put the DbContext file in. Paths are relative to the project directory.
+        ///     The directory to put the DbContext file in. Paths are relative to the project or file-based app directory.
         /// </summary>
         public static string ContextDirDescription
             => GetString("ContextDirDescription");
@@ -148,6 +148,12 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("DatabaseUpdateDescription");
 
         /// <summary>
+        ///     Create a new migration with the given name and apply it immediately.
+        /// </summary>
+        public static string DatabaseUpdateAddDescription
+            => GetString("DatabaseUpdateAddDescription");
+
+        /// <summary>
         ///     The data directory.
         /// </summary>
         public static string DataDirDescription
@@ -218,6 +224,12 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
                 type);
 
         /// <summary>
+        ///     The location of the referenced Microsoft.EntityFrameworkCore.Design assembly.
+        /// </summary>
+        public static string DesignAssemblyDescription
+            => GetString("DesignAssemblyDescription");
+
+        /// <summary>
         ///     Your startup project '{startupProject}' doesn't reference Microsoft.EntityFrameworkCore.Design. This package is required for the Entity Framework Core Tools to work. Ensure your startup project is correct, install the package, and try again.
         /// </summary>
         public static string DesignNotFound(object? startupProject)
@@ -240,6 +252,14 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
                 path);
 
         /// <summary>
+        ///     File '{filename}' not found.
+        /// </summary>
+        public static string FileNotFound(object? filename)
+            => string.Format(
+                GetString("FileNotFound", nameof(filename)),
+                filename);
+
+        /// <summary>
         ///     The target framework.
         /// </summary>
         public static string FrameworkDescription
@@ -252,7 +272,7 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("IdempotentDescription");
 
         /// <summary>
-        ///     Show JSON output. Use with --prefix-output to parse programatically.
+        ///     Show JSON output. Use with --prefix-output to parse programmatically.
         /// </summary>
         public static string JsonDescription
             => GetString("JsonDescription");
@@ -318,6 +338,12 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("MigrationsDescription");
 
         /// <summary>
+        ///     Checks if any changes have been made to the model since the last migration.
+        /// </summary>
+        public static string MigrationsHasPendingModelChangesDescription
+            => GetString("MigrationsHasPendingModelChangesDescription");
+
+        /// <summary>
         ///     Lists available migrations.
         /// </summary>
         public static string MigrationsListDescription
@@ -330,7 +356,7 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("MigrationsNamespaceDescription");
 
         /// <summary>
-        ///     The directory to put files in. Paths are relative to the project directory. Defaults to "Migrations".
+        ///     The directory to put files in. Paths are relative to the project or file-based app directory. Defaults to "Migrations".
         /// </summary>
         public static string MigrationsOutputDirDescription
             => GetString("MigrationsOutputDirDescription");
@@ -346,6 +372,12 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
         /// </summary>
         public static string MigrationsRemoveForceDescription
             => GetString("MigrationsRemoveForceDescription");
+
+        /// <summary>
+        ///     Remove the migration without connecting to the database.
+        /// </summary>
+        public static string MigrationsRemoveOfflineDescription
+            => GetString("MigrationsRemoveOfflineDescription");
 
         /// <summary>
         ///     Generates a SQL script from migrations.
@@ -368,6 +400,14 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
                 arg);
 
         /// <summary>
+        ///     Option '--{requiredOption}' must be specified if '--{conditionalOption}' is used.
+        /// </summary>
+        public static string MissingConditionalOption(object? requiredOption, object? conditionalOption)
+            => string.Format(
+                GetString("MissingConditionalOption", nameof(requiredOption), nameof(conditionalOption)),
+                requiredOption, conditionalOption);
+
+        /// <summary>
         ///     Missing required option '--{option}'.
         /// </summary>
         public static string MissingOption(object? option)
@@ -376,10 +416,38 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
                 option);
 
         /// <summary>
+        ///     The --offline and --force options cannot be used together.
+        /// </summary>
+        public static string OfflineForceConflict
+            => GetString("OfflineForceConflict");
+
+        /// <summary>
         ///     The namespace to use. Matches the directory by default.
         /// </summary>
         public static string NamespaceDescription
             => GetString("NamespaceDescription");
+
+        /// <summary>
+        ///     The '--namespace' option requires the '--add' option to be specified.
+        /// </summary>
+
+        /// <summary>
+        ///     The C# language version to use when generating code.
+        /// </summary>
+        public static string LanguageVersionDescription
+            => GetString("LanguageVersionDescription");
+
+        /// <summary>
+        ///     Additionally generate all the code required for NativeAOT compilation and precompiled queries (experimental).
+        /// </summary>
+        public static string NativeAotDescription
+            => GetString("NativeAotDescription");
+
+        /// <summary>
+        ///     NativeAOT support is experimental and can change in the future.
+        /// </summary>
+        public static string NativeAotWarning
+            => GetString("NativeAotWarning");
 
         /// <summary>
         ///     Don't colorize output.
@@ -412,6 +480,12 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("NoPluralizeDescription");
 
         /// <summary>
+        ///     Don't generate a compiled model.
+        /// </summary>
+        public static string NoScaffoldDescription
+            => GetString("NoScaffoldDescription");
+
+        /// <summary>
         ///     Don't generate SQL transaction statements.
         /// </summary>
         public static string NoTransactionsDescription
@@ -438,10 +512,14 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("OutputDescription");
 
         /// <summary>
-        ///     The directory to put files in. Paths are relative to the project directory.
+        ///     The directory to put files in. Paths are relative to the project or file-based app directory.
         /// </summary>
         public static string OutputDirDescription
             => GetString("OutputDirDescription");
+
+        /// <summary>
+        ///     The '--output-dir' option requires the '--add' option to be specified.
+        /// </summary>
 
         /// <summary>
         ///      (Pending)
@@ -454,6 +532,18 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
         /// </summary>
         public static string PendingUnknown
             => GetString("PendingUnknown");
+
+        /// <summary>
+        ///     Generate precompiled queries.
+        /// </summary>
+        public static string PrecompileQueriesDescription
+            => GetString("PrecompileQueriesDescription");
+
+        /// <summary>
+        ///     Query precompilation is an experimental feature and should be used with caution.
+        /// </summary>
+        public static string PrecompileQueriesWarning
+            => GetString("PrecompileQueriesWarning");
 
         /// <summary>
         ///     Prefix output with level.
@@ -502,7 +592,7 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("RootNamespaceDescription");
 
         /// <summary>
-        ///     The schemas of tables to generate entity types for.
+        ///     The schemas of tables and views to generate entity types for. All tables and views in the schemas will be included in the model, even if they are not explicitly included with the --table parameter.
         /// </summary>
         public static string SchemasDescription
             => GetString("SchemasDescription");
@@ -526,19 +616,25 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("StartupProjectDescription");
 
         /// <summary>
+        ///     The suffix to attach to the name of all the generated files
+        /// </summary>
+        public static string SuffixDescription
+            => GetString("SuffixDescription");
+
+        /// <summary>
         ///     Don't generate DbContext.OnConfiguring.
         /// </summary>
         public static string SuppressOnConfiguringDescription
             => GetString("SuppressOnConfiguringDescription");
 
         /// <summary>
-        ///     The tables to generate entity types for.
+        ///     The tables and views to generate entity types for. Tables or views in a specific schema can be included using the 'schema.table' or 'schema.view' format.
         /// </summary>
         public static string TablesDescription
             => GetString("TablesDescription");
 
         /// <summary>
-        ///     Use table and column names directly from the database.
+        ///     Use table, view, sequence, and column names directly from the database.
         /// </summary>
         public static string UseDatabaseNamesDescription
             => GetString("UseDatabaseNamesDescription");
@@ -634,6 +730,12 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => string.Format(
                 GetString("WritingFile", nameof(file)),
                 file);
+
+        /// <summary>
+        ///     The wildcard '*' is not supported for this command.
+        /// </summary>
+        public static string WildcardNotSupported
+            => GetString("WildcardNotSupported");
 
         private static string GetString(string name, params string[] formatterNames)
         {

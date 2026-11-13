@@ -14,15 +14,17 @@ namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 /// </summary>
 public class SqlFragmentExpression : SqlExpression
 {
+    private static ConstructorInfo? _quotingConstructor;
+
     /// <summary>
     ///     Creates a new instance of the <see cref="SqlFragmentExpression" /> class.
     /// </summary>
     /// <param name="sql">A string token to print in SQL tree.</param>
-    public SqlFragmentExpression(string sql)
-        : base(typeof(string), null)
-    {
-        Sql = sql;
-    }
+    /// <param name="type">The <see cref="Type" /> of the expression. Defaults to <see langword="object" />. </param>
+    /// <param name="typeMapping">The <see cref="RelationalTypeMapping" /> associated with the expression.</param>
+    public SqlFragmentExpression(string sql, Type? type = null, RelationalTypeMapping? typeMapping = null)
+        : base(type ?? typeof(object), typeMapping)
+        => Sql = sql;
 
     /// <summary>
     ///     The string token to print in SQL tree.
@@ -34,6 +36,15 @@ public class SqlFragmentExpression : SqlExpression
         => this;
 
     /// <inheritdoc />
+    public override Expression Quote()
+        => New(
+            _quotingConstructor ??=
+                typeof(SqlFragmentExpression).GetConstructor([typeof(string), typeof(Type), typeof(RelationalTypeMapping)])!,
+            Constant(Sql),
+            Constant(Type),
+            RelationalExpressionQuotingUtilities.QuoteTypeMapping(TypeMapping));
+
+    /// <inheritdoc />
     protected override void Print(ExpressionPrinter expressionPrinter)
         => expressionPrinter.Append(Sql);
 
@@ -41,8 +52,8 @@ public class SqlFragmentExpression : SqlExpression
     public override bool Equals(object? obj)
         => obj != null
             && (ReferenceEquals(this, obj)
-                || obj is SqlFragmentExpression sqlFragmentExpression
-                && Equals(sqlFragmentExpression));
+                || (obj is SqlFragmentExpression sqlFragmentExpression
+                    && Equals(sqlFragmentExpression)));
 
     private bool Equals(SqlFragmentExpression sqlFragmentExpression)
         => base.Equals(sqlFragmentExpression)

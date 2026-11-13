@@ -11,8 +11,7 @@ public abstract class F1RelationalFixture<TRowVersion> : F1FixtureBase<TRowVersi
         => (TestSqlLoggerFactory)ListLoggerFactory;
 
     public override DbContextOptionsBuilder AddOptions(DbContextOptionsBuilder builder)
-        => base.AddOptions(builder).ConfigureWarnings(
-            w => w.Ignore(RelationalEventId.BatchSmallerThanMinBatchSize));
+        => base.AddOptions(builder).ConfigureWarnings(w => w.Ignore(RelationalEventId.BatchSmallerThanMinBatchSize));
 
     protected override void BuildModelExternal(ModelBuilder modelBuilder)
     {
@@ -25,5 +24,63 @@ public abstract class F1RelationalFixture<TRowVersion> : F1FixtureBase<TRowVersi
         modelBuilder.Entity<EngineSupplier>().ToTable("EngineSuppliers");
         modelBuilder.Entity<Gearbox>().ToTable("Gearboxes");
         modelBuilder.Entity<Sponsor>().ToTable("Sponsors");
+
+        modelBuilder.Entity<Fan>(b => b.Property(e => e.Id).ValueGeneratedNever());
+
+        modelBuilder.Entity<FanTpt>(b =>
+        {
+            b.UseTptMappingStrategy();
+            b.Property(e => e.Id).ValueGeneratedNever();
+        });
+
+        modelBuilder.Entity<FanTpc>(b =>
+        {
+            b.UseTpcMappingStrategy();
+            b.Property(e => e.Id).ValueGeneratedNever();
+        });
+
+        modelBuilder.Entity<Circuit>(b =>
+        {
+            b.ToTable("Circuits");
+            b.Property(e => e.Name).HasColumnName("Name");
+            b.Property(e => e.Id).ValueGeneratedNever();
+        });
+
+        modelBuilder.Entity<City>(b =>
+        {
+            b.ToTable("Circuits");
+            b.Property(e => e.Name).HasColumnName("Name");
+            b.Property(e => e.Id).ValueGeneratedNever();
+        });
+
+        modelBuilder.Entity<CircuitTpt>(b =>
+        {
+            b.UseTptMappingStrategy();
+            b.Property(e => e.Name).HasColumnName("Name");
+            b.Property(e => e.Id).ValueGeneratedNever();
+        });
+
+        modelBuilder.Entity<StreetCircuitTpt>(b => b.ToTable("StreetCircuitsTpt"));
+
+        modelBuilder.Entity<CityTpt>(b =>
+        {
+            b.ToTable("StreetCircuitsTpt");
+            b.Property(e => e.Name).HasColumnName("Name");
+        });
+
+        modelBuilder.Entity<CircuitTpc>(b =>
+        {
+            b.UseTpcMappingStrategy();
+            b.Property(e => e.Name).HasColumnName("Name");
+            b.Property(e => e.Id).ValueGeneratedNever();
+        });
+
+        modelBuilder.Entity<StreetCircuitTpc>(b => b.ToTable("StreetCircuitsTpc"));
+
+        modelBuilder.Entity<CityTpc>(b =>
+        {
+            b.ToTable("StreetCircuitsTpc");
+            b.Property(e => e.Name).HasColumnName("Name");
+        });
     }
 }

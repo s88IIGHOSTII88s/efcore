@@ -20,8 +20,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
 
     protected ExecutionStrategyFixture Fixture { get; }
 
-    [ConditionalTheory]
-    [MemberData(nameof(DataGenerator.GetBoolCombinations), 1, MemberType = typeof(DataGenerator))]
+    [Theory, MemberData(nameof(DataGenerator.GetBoolCombinations), 1, MemberType = typeof(DataGenerator))]
     public void Handles_commit_failure(bool realFailure)
     {
         // Use all overloads of ExecuteInTransaction
@@ -82,7 +81,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         {
             var connection = (TestSqlServerConnection)context.GetService<ISqlServerConnection>();
 
-            connection.CommitFailures.Enqueue(new bool?[] { realFailure });
+            connection.CommitFailures.Enqueue([realFailure]);
             Fixture.TestSqlLoggerFactory.Clear();
 
             context.Products.Add(new Product());
@@ -101,7 +100,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
             }
             else
             {
-                Assert.Empty(Fixture.TestSqlLoggerFactory.Log.Where(l => l.Id == CoreEventId.ExecutionStrategyRetrying));
+                Assert.DoesNotContain(Fixture.TestSqlLoggerFactory.Log, l => l.Id == CoreEventId.ExecutionStrategyRetrying);
             }
 
             Assert.Equal(realFailure ? 3 : 2, connection.OpenCount);
@@ -113,8 +112,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(DataGenerator.GetBoolCombinations), 1, MemberType = typeof(DataGenerator))]
+    [Theory, MemberData(nameof(DataGenerator.GetBoolCombinations), 1, MemberType = typeof(DataGenerator))]
     public async Task Handles_commit_failure_async(bool realFailure)
     {
         // Use all overloads of ExecuteInTransactionAsync
@@ -196,7 +194,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         {
             var connection = (TestSqlServerConnection)context.GetService<ISqlServerConnection>();
 
-            connection.CommitFailures.Enqueue(new bool?[] { realFailure });
+            connection.CommitFailures.Enqueue([realFailure]);
             Fixture.TestSqlLoggerFactory.Clear();
 
             context.Products.Add(new Product());
@@ -215,7 +213,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
             }
             else
             {
-                Assert.Empty(Fixture.TestSqlLoggerFactory.Log.Where(l => l.Id == CoreEventId.ExecutionStrategyRetrying));
+                Assert.DoesNotContain(Fixture.TestSqlLoggerFactory.Log, l => l.Id == CoreEventId.ExecutionStrategyRetrying);
             }
 
             Assert.Equal(realFailure ? 3 : 2, connection.OpenCount);
@@ -227,8 +225,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(DataGenerator.GetBoolCombinations), 1, MemberType = typeof(DataGenerator))]
+    [Theory, MemberData(nameof(DataGenerator.GetBoolCombinations), 1, MemberType = typeof(DataGenerator))]
     public void Handles_commit_failure_multiple_SaveChanges(bool realFailure)
     {
         CleanContext();
@@ -238,7 +235,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
 
         using (var context2 = CreateContext())
         {
-            connection.CommitFailures.Enqueue(new bool?[] { realFailure });
+            connection.CommitFailures.Enqueue([realFailure]);
 
             context1.Products.Add(new Product());
             context2.Products.Add(new Product());
@@ -248,7 +245,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
                 c1 =>
                 {
                     context2.Database.UseTransaction(null);
-                    context2.Database.UseTransaction(context1.Database.CurrentTransaction.GetDbTransaction());
+                    context2.Database.UseTransaction(context1.Database.CurrentTransaction!.GetDbTransaction());
 
                     c1.SaveChanges(false);
 
@@ -264,8 +261,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         Assert.Equal(2, context.Products.Count());
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(DataGenerator.GetBoolCombinations), 4, MemberType = typeof(DataGenerator))]
+    [Theory, MemberData(nameof(DataGenerator.GetBoolCombinations), 4, MemberType = typeof(DataGenerator))]
     public async Task Retries_SaveChanges_on_execution_failure(
         bool realFailure,
         bool externalStrategy,
@@ -278,7 +274,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         {
             var connection = (TestSqlServerConnection)context.GetService<ISqlServerConnection>();
 
-            connection.ExecutionFailures.Enqueue(new bool?[] { null, realFailure });
+            connection.ExecutionFailures.Enqueue([null, realFailure]);
 
             Assert.Equal(ConnectionState.Closed, context.Database.GetDbConnection().State);
 
@@ -369,8 +365,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         }
     }
 
-    [ConditionalTheory] // Issue #25946
-    [MemberData(nameof(DataGenerator.GetBoolCombinations), 3, MemberType = typeof(DataGenerator))]
+    [Theory, MemberData(nameof(DataGenerator.GetBoolCombinations), 3, MemberType = typeof(DataGenerator))] // Issue #25946
     public async Task Retries_SaveChanges_on_execution_failure_with_two_contexts(
         bool realFailure,
         bool openConnection,
@@ -384,7 +379,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
 
             var connection = (TestSqlServerConnection)context.GetService<ISqlServerConnection>();
 
-            connection.ExecutionFailures.Enqueue(new bool?[] { null, realFailure });
+            connection.ExecutionFailures.Enqueue([null, realFailure]);
 
             Assert.Equal(ConnectionState.Closed, context.Database.GetDbConnection().State);
 
@@ -526,8 +521,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(DataGenerator.GetBoolCombinations), 2, MemberType = typeof(DataGenerator))]
+    [Theory, MemberData(nameof(DataGenerator.GetBoolCombinations), 2, MemberType = typeof(DataGenerator))]
     public async Task Retries_query_on_execution_failure(bool externalStrategy, bool async)
     {
         CleanContext();
@@ -544,36 +538,19 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         {
             var connection = (TestSqlServerConnection)context.GetService<ISqlServerConnection>();
 
-            connection.ExecutionFailures.Enqueue(new bool?[] { true });
+            connection.ExecutionFailures.Enqueue([true]);
 
             Assert.Equal(ConnectionState.Closed, context.Database.GetDbConnection().State);
 
-            List<Product> list;
-            if (async)
-            {
-                if (externalStrategy)
-                {
-                    list = await new TestSqlServerRetryingExecutionStrategy(context)
-                        .ExecuteAsync(context, (c, ct) => c.Products.ToListAsync(ct), null);
-                }
-                else
-                {
-                    list = await context.Products.ToListAsync();
-                }
-            }
-            else
-            {
-                if (externalStrategy)
-                {
-                    list = new TestSqlServerRetryingExecutionStrategy(context)
-                        .Execute(context, c => c.Products.ToList(), null);
-                }
-                else
-                {
-                    list = context.Products.ToList();
-                }
-            }
-
+            var list = async
+                ? externalStrategy
+                    ? await new TestSqlServerRetryingExecutionStrategy(context)
+                        .ExecuteAsync(context, (c, ct) => c.Products.ToListAsync(ct), null)
+                    : await context.Products.ToListAsync()
+                : externalStrategy
+                    ? new TestSqlServerRetryingExecutionStrategy(context)
+                        .Execute(context, c => c.Products.ToList(), null)
+                    : context.Products.ToList();
             Assert.Equal(2, list.Count);
             Assert.Equal(1, connection.OpenCount);
             Assert.Equal(2, connection.ExecutionCount);
@@ -582,8 +559,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(DataGenerator.GetBoolCombinations), 2, MemberType = typeof(DataGenerator))]
+    [Theory, MemberData(nameof(DataGenerator.GetBoolCombinations), 2, MemberType = typeof(DataGenerator))]
     public async Task Retries_FromSqlRaw_on_execution_failure(bool externalStrategy, bool async)
     {
         CleanContext();
@@ -600,46 +576,29 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         {
             var connection = (TestSqlServerConnection)context.GetService<ISqlServerConnection>();
 
-            connection.ExecutionFailures.Enqueue(new bool?[] { true });
+            connection.ExecutionFailures.Enqueue([true]);
 
             Assert.Equal(ConnectionState.Closed, context.Database.GetDbConnection().State);
 
-            List<Product> list;
-            if (async)
-            {
-                if (externalStrategy)
-                {
-                    list = await new TestSqlServerRetryingExecutionStrategy(context)
+            var list = async
+                ? externalStrategy
+                    ? await new TestSqlServerRetryingExecutionStrategy(context)
                         .ExecuteAsync(
                             context, (c, ct) => c.Set<Product>().FromSqlRaw(
                                 @"SELECT [ID], [name]
-                              FROM [Products]").ToListAsync(ct), null);
-                }
-                else
-                {
-                    list = await context.Set<Product>().FromSqlRaw(
+                              FROM [Products]").ToListAsync(ct), null)
+                    : await context.Set<Product>().FromSqlRaw(
                         @"SELECT [ID], [name]
-                              FROM [Products]").ToListAsync();
-                }
-            }
-            else
-            {
-                if (externalStrategy)
-                {
-                    list = new TestSqlServerRetryingExecutionStrategy(context)
+                              FROM [Products]").ToListAsync()
+                : externalStrategy
+                    ? new TestSqlServerRetryingExecutionStrategy(context)
                         .Execute(
                             context, c => c.Set<Product>().FromSqlRaw(
                                 @"SELECT [ID], [name]
-                              FROM [Products]").ToList(), null);
-                }
-                else
-                {
-                    list = context.Set<Product>().FromSqlRaw(
+                              FROM [Products]").ToList(), null)
+                    : context.Set<Product>().FromSqlRaw(
                         @"SELECT [ID], [name]
                               FROM [Products]").ToList();
-                }
-            }
-
             Assert.Equal(2, list.Count);
             Assert.Equal(1, connection.OpenCount);
             Assert.Equal(2, connection.ExecutionCount);
@@ -648,14 +607,13 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(DataGenerator.GetBoolCombinations), 2, MemberType = typeof(DataGenerator))]
+    [Theory, MemberData(nameof(DataGenerator.GetBoolCombinations), 2, MemberType = typeof(DataGenerator))]
     public async Task Retries_OpenConnection_on_execution_failure(bool externalStrategy, bool async)
     {
         using var context = CreateContext();
         var connection = (TestSqlServerConnection)context.GetService<ISqlServerConnection>();
 
-        connection.OpenFailures.Enqueue(new bool?[] { true });
+        connection.OpenFailures.Enqueue([true]);
 
         Assert.Equal(ConnectionState.Closed, context.Database.GetDbConnection().State);
 
@@ -700,15 +658,13 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         Assert.Equal(ConnectionState.Closed, context.Database.GetDbConnection().State);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task Retries_BeginTransaction_on_execution_failure(bool async)
     {
         using var context = CreateContext();
         var connection = (TestSqlServerConnection)context.GetService<ISqlServerConnection>();
 
-        connection.OpenFailures.Enqueue(new bool?[] { true });
+        connection.OpenFailures.Enqueue([true]);
 
         Assert.Equal(ConnectionState.Closed, context.Database.GetDbConnection().State);
 
@@ -734,7 +690,7 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         Assert.Equal(ConnectionState.Closed, context.Database.GetDbConnection().State);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Verification_is_retried_using_same_retry_limit()
     {
         CleanContext();
@@ -743,17 +699,16 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         {
             var connection = (TestSqlServerConnection)context.GetService<ISqlServerConnection>();
 
-            connection.ExecutionFailures.Enqueue(new bool?[] { true, null, true, true });
-            connection.CommitFailures.Enqueue(new bool?[] { true, true, true, true });
+            connection.ExecutionFailures.Enqueue([true, null, true, true]);
+            connection.CommitFailures.Enqueue([true, true, true, true]);
 
             context.Products.Add(new Product());
-            Assert.Throws<RetryLimitExceededException>(
-                () =>
-                    new TestSqlServerRetryingExecutionStrategy(context, TimeSpan.FromMilliseconds(100))
-                        .ExecuteInTransaction(
-                            context,
-                            c => c.SaveChanges(false),
-                            c => false));
+            Assert.Throws<RetryLimitExceededException>(() =>
+                new TestSqlServerRetryingExecutionStrategy(context, TimeSpan.FromMilliseconds(100))
+                    .ExecuteInTransaction(
+                        context,
+                        c => c.SaveChanges(false),
+                        c => false));
             context.ChangeTracker.AcceptAllChanges();
 
             Assert.Equal(7, connection.OpenCount);
@@ -766,26 +721,21 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         }
     }
 
-    protected class ExecutionStrategyContext : DbContext
+    protected class ExecutionStrategyContext(DbContextOptions options) : DbContext(options)
     {
-        public ExecutionStrategyContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public DbSet<Product> Products { get; set; }
-        public DbSet<Audit> Audits { get; set; }
+        public DbSet<Product> Products { get; set; } = null!;
+        public DbSet<Audit> Audits { get; set; } = null!;
     }
 
     protected class Product
     {
         public int Id { get; set; }
-        public string Name { get; set; }
+        public string? Name { get; set; }
     }
 
     public class AuditContext : DbContext
     {
-        public DbSet<Audit> Audits { get; set; }
+        public DbSet<Audit> Audits { get; set; } = null!;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder.UseSqlServer();
@@ -814,7 +764,8 @@ public class ExecutionStrategyTest : IClassFixture<ExecutionStrategyTest.Executi
         protected override bool UsePooling
             => false;
 
-        protected override string StoreName { get; } = nameof(ExecutionStrategyTest);
+        protected override string StoreName
+            => nameof(ExecutionStrategyTest);
 
         public new RelationalTestStore TestStore
             => (RelationalTestStore)base.TestStore;

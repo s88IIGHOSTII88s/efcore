@@ -10,30 +10,25 @@ namespace Microsoft.EntityFrameworkCore.SqlAzure.Model;
 public class Address
 {
     public Address()
-    {
-        CustomerAddress = new HashSet<CustomerAddress>();
-    }
+        => CustomerAddress = new HashSet<CustomerAddress>();
 
     public int AddressID { get; set; }
 
-    [Required]
-    [MaxLength(60)]
-    public string AddressLine1 { get; set; }
+    [Required, MaxLength(60)]
+    public string AddressLine1 { get; set; } = null!;
 
     [MaxLength(60)]
-    public string AddressLine2 { get; set; }
+    public string? AddressLine2 { get; set; }
 
-    [Required]
-    [MaxLength(30)]
-    public string City { get; set; }
+    [Required, MaxLength(30)]
+    public string City { get; set; } = null!;
 
     public DateTime ModifiedDate { get; set; }
-    public string CountryRegion { get; set; }
-    public string StateProvince { get; set; }
+    public string? CountryRegion { get; set; }
+    public string? StateProvince { get; set; }
 
-    [Required]
-    [MaxLength(15)]
-    public string PostalCode { get; set; }
+    [Required, MaxLength(15)]
+    public string PostalCode { get; set; } = null!;
 
     public Guid rowguid { get; set; }
 

@@ -5,7 +5,7 @@ namespace Microsoft.EntityFrameworkCore;
 
 public class IntegerGeneratorEndToEndInMemoryTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Can_use_sequence_end_to_end()
     {
         var serviceProvider = new ServiceCollection()
@@ -40,7 +40,7 @@ public class IntegerGeneratorEndToEndInMemoryTest
         context.SaveChanges();
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_use_sequence_end_to_end_async()
     {
         var serviceProvider = new ServiceCollection()
@@ -66,16 +66,16 @@ public class IntegerGeneratorEndToEndInMemoryTest
         using var context = new BronieContext(serviceProvider);
         for (var i = 0; i < 50; i++)
         {
-            context.Add(
+            await context.AddAsync(
                 new Pegasus { Name = "Rainbow Dash " + i });
-            context.Add(
+            await context.AddAsync(
                 new Pegasus { Name = "Fluttershy " + i });
         }
 
         await context.SaveChangesAsync();
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_use_sequence_end_to_end_from_multiple_contexts_concurrently_async()
     {
         var serviceProvider = new ServiceCollection()
@@ -109,26 +109,22 @@ public class IntegerGeneratorEndToEndInMemoryTest
         }
     }
 
-    private class BronieContext : DbContext
+    private class BronieContext(IServiceProvider serviceProvider) : DbContext
     {
-        private readonly IServiceProvider _serviceProvider;
-
-        public BronieContext(IServiceProvider serviceProvider)
-        {
-            _serviceProvider = serviceProvider;
-        }
+        private readonly IServiceProvider _serviceProvider = serviceProvider;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder
                 .UseInMemoryDatabase(nameof(BronieContext))
                 .UseInternalServiceProvider(_serviceProvider);
 
-        public DbSet<Pegasus> Pegasuses { get; set; }
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        public DbSet<Pegasus> Pegasuses { get; set; } = null!;
     }
 
     private class Pegasus
     {
         public int Id { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 }

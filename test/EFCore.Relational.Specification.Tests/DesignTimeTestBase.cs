@@ -1,21 +1,16 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class DesignTimeTestBase<TFixture> : IClassFixture<TFixture>
+public abstract class DesignTimeTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : DesignTimeTestBase<TFixture>.DesignTimeFixtureBase
 {
-    protected TFixture Fixture { get; }
-
-    protected DesignTimeTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
+    protected TFixture Fixture { get; } = fixture;
 
     protected abstract Assembly ProviderAssembly { get; }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_reverse_engineering_services()
     {
         using var context = Fixture.CreateContext();
@@ -23,8 +18,8 @@ public abstract class DesignTimeTestBase<TFixture> : IClassFixture<TFixture>
             .AddEntityFrameworkDesignTimeServices();
         ((IDesignTimeServices)Activator.CreateInstance(
                 ProviderAssembly.GetType(
-                    ProviderAssembly.GetCustomAttribute<DesignTimeProviderServicesAttribute>().TypeName,
-                    throwOnError: true))!)
+                    ProviderAssembly.GetCustomAttribute<DesignTimeProviderServicesAttribute>()!.TypeName,
+                    throwOnError: true)!)!)
             .ConfigureDesignTimeServices(serviceCollection);
         using var services = serviceCollection.BuildServiceProvider(validateScopes: true);
 
@@ -33,7 +28,7 @@ public abstract class DesignTimeTestBase<TFixture> : IClassFixture<TFixture>
         Assert.NotNull(reverseEngineerScaffolder);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_migrations_services()
     {
         using var context = Fixture.CreateContext();
@@ -42,8 +37,8 @@ public abstract class DesignTimeTestBase<TFixture> : IClassFixture<TFixture>
             .AddDbContextDesignTimeServices(context);
         ((IDesignTimeServices)Activator.CreateInstance(
                 ProviderAssembly.GetType(
-                    ProviderAssembly.GetCustomAttribute<DesignTimeProviderServicesAttribute>().TypeName,
-                    throwOnError: true))!)
+                    ProviderAssembly.GetCustomAttribute<DesignTimeProviderServicesAttribute>()!.TypeName,
+                    throwOnError: true)!)!)
             .ConfigureDesignTimeServices(serviceCollection);
         using var services = serviceCollection.BuildServiceProvider(validateScopes: true);
 

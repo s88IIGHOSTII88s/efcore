@@ -10,29 +10,20 @@ public class OrderQuery
     }
 
     public OrderQuery(string customerID)
-    {
-        CustomerID = customerID;
-    }
+        => CustomerID = customerID;
 
-    public string CustomerID { get; set; }
+    public string? CustomerID { get; set; }
 
-    public Customer Customer { get; set; }
+    public Customer? Customer { get; set; }
 
     protected bool Equals(OrderQuery other)
         => string.Equals(CustomerID, other.CustomerID);
 
-    public override bool Equals(object obj)
-    {
-        if (obj is null)
-        {
-            return false;
-        }
-
-        return ReferenceEquals(this, obj)
-            ? true
-            : obj.GetType() == GetType()
-            && Equals((OrderQuery)obj);
-    }
+    public override bool Equals(object? obj)
+        => obj is not null
+            && (ReferenceEquals(this, obj)
+                || (obj.GetType() == GetType()
+                    && Equals((OrderQuery)obj)));
 
     public static bool operator ==(OrderQuery left, OrderQuery right)
         => Equals(left, right);
@@ -41,7 +32,7 @@ public class OrderQuery
         => !Equals(left, right);
 
     public override int GetHashCode()
-        => CustomerID.GetHashCode();
+        => CustomerID?.GetHashCode() ?? 0;
 
     public override string ToString()
         => "OrderView " + CustomerID;

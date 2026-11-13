@@ -11,7 +11,8 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
-public class SqlServerNavigationExpansionExtensibilityHelper : NavigationExpansionExtensibilityHelper
+public class SqlServerNavigationExpansionExtensibilityHelper : RelationalNavigationExpansionExtensibilityHelper,
+    INavigationExpansionExtensibilityHelper
 {
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -30,7 +31,7 @@ public class SqlServerNavigationExpansionExtensibilityHelper : NavigationExpansi
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public override QueryRootExpression CreateQueryRoot(IEntityType entityType, QueryRootExpression? source)
+    public override EntityQueryRootExpression CreateQueryRoot(IEntityType entityType, EntityQueryRootExpression? source)
     {
         if (source is TemporalAsOfQueryRootExpression asOf)
         {
@@ -49,9 +50,11 @@ public class SqlServerNavigationExpansionExtensibilityHelper : NavigationExpansi
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public override void ValidateQueryRootCreation(IEntityType entityType, QueryRootExpression? source)
+    public override void ValidateQueryRootCreation(IEntityType entityType, EntityQueryRootExpression? source)
     {
-        if (source is TemporalQueryRootExpression)
+        if (source is TemporalQueryRootExpression
+            && !entityType.IsMappedToJson()
+            && !OwnedEntityMappedToSameTableAsOwner(entityType))
         {
             if (!entityType.GetRootType().IsTemporal())
             {
@@ -69,13 +72,19 @@ public class SqlServerNavigationExpansionExtensibilityHelper : NavigationExpansi
         base.ValidateQueryRootCreation(entityType, source);
     }
 
+    private bool OwnedEntityMappedToSameTableAsOwner(IEntityType entityType)
+        => entityType.IsOwned()
+            && entityType.FindOwnership()!.PrincipalEntityType.GetTableMappings().FirstOrDefault()?.Table is { } ownerTable
+            && entityType.GetTableMappings().FirstOrDefault()?.Table is { } entityTable
+            && ownerTable == entityTable;
+
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
     ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public override bool AreQueryRootsCompatible(QueryRootExpression? first, QueryRootExpression? second)
+    public override bool AreQueryRootsCompatible(EntityQueryRootExpression? first, EntityQueryRootExpression? second)
     {
         if (!base.AreQueryRootsCompatible(first, second))
         {
@@ -118,4 +127,8 @@ public class SqlServerNavigationExpansionExtensibilityHelper : NavigationExpansi
 
         return true;
     }
+
+    /// <inheritdoc />
+    bool INavigationExpansionExtensibilityHelper.SupportsSingleResultLifting
+        => true;
 }

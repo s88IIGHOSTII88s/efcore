@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Runtime.CompilerServices;
 
@@ -24,10 +25,10 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         Fixture.TestSqlLoggerFactory.Clear();
     }
 
-    [ConditionalFact]
-    public void Can_use_decimal_and_byte_as_identity_columns()
+    [Fact]
+    public async Task Can_use_decimal_and_byte_as_identity_columns()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
         var nownNum1 = new NownNum { Id = 77.0m, TheWalrus = "Crying" };
         var nownNum2 = new NownNum { Id = 78.0m, TheWalrus = "Walrus" };
 
@@ -64,9 +65,9 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
                 nownNum1, nownNum2, numNum1, numNum2, adNum1, adNum2, anNum1, anNum2,
                 byteNownNum1, byteNownNum2, byteNum1, byteNum2, byteAdNum1, byteAdNum2, byteAnNum1, byteAnNum2);
 
-            preSaveValues = new[] { numNum1.Id, numNum2.Id, adNum1.Id, adNum2.Id, anNum1.Id, anNum2.Id };
+            preSaveValues = [numNum1.Id, numNum2.Id, adNum1.Id, adNum2.Id, anNum1.Id, anNum2.Id];
 
-            preSaveByteValues = new[] { byteNum1.Id, byteNum2.Id, byteAdNum1.Id, byteAdNum2.Id, byteAnNum1.Id, byteAnNum2.Id };
+            preSaveByteValues = [byteNum1.Id, byteNum2.Id, byteAdNum1.Id, byteAdNum2.Id, byteAnNum1.Id, byteAnNum2.Id];
 
             context.SaveChanges();
         }
@@ -115,22 +116,17 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         }
     }
 
-    private class NumNumContext : DbContext
+    private class NumNumContext(DbContextOptions options) : DbContext(options)
     {
-        public NumNumContext(DbContextOptions options)
-            : base(options)
-        {
-        }
+        public DbSet<NownNum> NownNums { get; set; } = null!;
+        public DbSet<NumNum> NumNums { get; set; } = null!;
+        public DbSet<AnNum> AnNums { get; set; } = null!;
+        public DbSet<AdNum> AdNums { get; set; } = null!;
 
-        public DbSet<NownNum> NownNums { get; set; }
-        public DbSet<NumNum> NumNums { get; set; }
-        public DbSet<AnNum> AnNums { get; set; }
-        public DbSet<AdNum> AdNums { get; set; }
-
-        public DbSet<ByteNownNum> ByteNownNums { get; set; }
-        public DbSet<ByteNum> ByteNums { get; set; }
-        public DbSet<ByteAnNum> ByteAnNums { get; set; }
-        public DbSet<ByteAdNum> ByteAdNums { get; set; }
+        public DbSet<ByteNownNum> ByteNownNums { get; set; } = null!;
+        public DbSet<ByteNum> ByteNums { get; set; } = null!;
+        public DbSet<ByteAnNum> ByteAnNums { get; set; } = null!;
+        public DbSet<ByteAdNum> ByteAdNums { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -166,40 +162,39 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
     private class NownNum
     {
         public decimal Id { get; set; }
-        public string TheWalrus { get; set; }
+        public string? TheWalrus { get; set; }
     }
 
     private class NumNum
     {
         public decimal Id { get; set; }
-        public string TheWalrus { get; set; }
+        public string? TheWalrus { get; set; }
     }
 
     private class AnNum
     {
-        [Column(TypeName = "decimal(18, 0)")]
-        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        [Column(TypeName = "decimal(18, 0)"), DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public decimal Id { get; set; }
 
-        public string TheWalrus { get; set; }
+        public string? TheWalrus { get; set; }
     }
 
     private class AdNum
     {
         public decimal Id { get; set; }
-        public string TheWalrus { get; set; }
+        public string? TheWalrus { get; set; }
     }
 
     private class ByteNownNum
     {
         public byte Id { get; set; }
-        public string Lucy { get; set; }
+        public string? Lucy { get; set; }
     }
 
     private class ByteNum
     {
         public byte Id { get; set; }
-        public string Lucy { get; set; }
+        public string? Lucy { get; set; }
     }
 
     private class ByteAnNum
@@ -207,19 +202,59 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public byte Id { get; set; }
 
-        public string Lucy { get; set; }
+        public string? Lucy { get; set; }
     }
 
     private class ByteAdNum
     {
         public byte Id { get; set; }
-        public string Lucy { get; set; }
+        public string? Lucy { get; set; }
     }
 
-    [ConditionalFact]
-    public void Can_use_string_enum_or_byte_array_as_key()
+    [Fact] // Issue #29931
+    public async Task Can_use_SqlQuery_when_context_has_DbFunction()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
+        var options = Fixture.CreateOptions(testDatabase);
+        await using (var context = new DbFunctionContext(options))
+        {
+            var result = context.Database
+                .SqlQueryRaw<RawResult>("SELECT Name from sys.databases")
+                .OrderBy(d => d.Name)
+                .ToList();
+        }
+    }
+
+    private class DbFunctionContext(DbContextOptions options) : DbContext(options)
+    {
+        [DbFunction("tvp", "dbo")]
+        public IQueryable<TvpResult> Tvp(int? storeid)
+            => FromExpression(() => Tvp(storeid));
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+            => modelBuilder.Entity<TvpResult>().HasNoKey();
+    }
+
+    private class TvpResult
+    {
+        public int Id { get; set; }
+
+        [Required]
+        public string Name { get; set; } = null!;
+
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal Total { get; set; }
+    }
+
+    private class RawResult
+    {
+        public string? Name { get; set; }
+    }
+
+    [Fact]
+    public async Task Can_use_string_enum_or_byte_array_as_key()
+    {
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
         var sNum1 = new SNum { TheWalrus = "I" };
         var sNum2 = new SNum { TheWalrus = "Am" };
 
@@ -230,7 +265,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         var bNum2 = new BNum { TheWalrus = "Eggmen" };
 
         var options = Fixture.CreateOptions(testDatabase);
-        using (var context = new ENumContext(options))
+        await using (var context = new ENumContext(options))
         {
             context.Database.EnsureCreatedResiliently();
 
@@ -239,7 +274,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             context.SaveChanges();
         }
 
-        using (var context = new ENumContext(options))
+        await using (var context = new ENumContext(options))
         {
             Assert.Equal(sNum1.Id, context.SNums.Single(e => e.TheWalrus == "I").Id);
             Assert.Equal(sNum2.Id, context.SNums.Single(e => e.TheWalrus == "Am").Id);
@@ -252,15 +287,15 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         }
     }
 
-    [ConditionalFact]
-    public void Can_remove_multiple_byte_array_as_key()
+    [Fact]
+    public async Task Can_remove_multiple_byte_array_as_key()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
         var bNum1 = new BNum { TheWalrus = "Eggman" };
         var bNum2 = new BNum { TheWalrus = "Eggmen" };
 
         var options = Fixture.CreateOptions(testDatabase);
-        using (var context = new ENumContext(options))
+        await using (var context = new ENumContext(options))
         {
             context.Database.EnsureCreatedResiliently();
 
@@ -269,7 +304,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             context.SaveChanges();
         }
 
-        using (var context = new ENumContext(options))
+        await using (var context = new ENumContext(options))
         {
             Assert.Equal(bNum1.Id, context.BNums.Single(e => e.TheWalrus == "Eggman").Id);
             Assert.Equal(bNum2.Id, context.BNums.Single(e => e.TheWalrus == "Eggmen").Id);
@@ -280,26 +315,21 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         }
     }
 
-    private class ENumContext : DbContext
+    private class ENumContext(DbContextOptions options) : DbContext(options)
     {
-        public ENumContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public DbSet<SNum> SNums { get; set; }
-        public DbSet<EnNum> EnNums { get; set; }
-        public DbSet<BNum> BNums { get; set; }
+        public DbSet<SNum> SNums { get; set; } = null!;
+        public DbSet<EnNum> EnNums { get; set; } = null!;
+        public DbSet<BNum> BNums { get; set; } = null!;
     }
 
-    [ConditionalFact]
-    public void Can_add_table_splitting_dependent_after_principal()
+    [Fact]
+    public async Task Can_add_table_splitting_dependent_after_principal()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
 
         var options = Fixture.CreateOptions(testDatabase);
-        EvaluationAction evaluationAction = null;
-        using (var context = new ProjectContext(options))
+        EvaluationAction evaluationAction = null!;
+        await using (var context = new ProjectContext(options))
         {
             context.Database.EnsureCreatedResiliently();
 
@@ -313,7 +343,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             context.SaveChanges();
         }
 
-        using (var context = new ProjectContext(options))
+        await using (var context = new ProjectContext(options))
         {
             context.Database.EnsureCreatedResiliently();
 
@@ -328,20 +358,20 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             context.SaveChanges();
         }
 
-        using (var context = new ProjectContext(options))
+        await using (var context = new ProjectContext(options))
         {
             Assert.NotNull(context.ProjectActions.Single());
             Assert.NotNull(context.EvaluationActions.Single());
         }
     }
 
-    [ConditionalFact]
-    public void Throws_when_adding_table_splitting_dependent_without_principal()
+    [Fact]
+    public async Task Throws_when_adding_table_splitting_dependent_without_principal()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
 
         var options = Fixture.CreateOptions(testDatabase);
-        using (var context = new ProjectContext(options))
+        await using (var context = new ProjectContext(options))
         {
             context.Database.EnsureCreatedResiliently();
 
@@ -358,15 +388,10 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         }
     }
 
-    private class ProjectContext : DbContext
+    private class ProjectContext(DbContextOptions options) : DbContext(options)
     {
-        public ProjectContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public DbSet<EvaluationAction> EvaluationActions { get; set; }
-        public DbSet<ProjectAction> ProjectActions { get; set; }
+        public DbSet<EvaluationAction> EvaluationActions { get; set; } = null!;
+        public DbSet<ProjectAction> ProjectActions { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -384,36 +409,36 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
 
     private class ProjectAction
     {
-        public string Id { get; set; }
-        public string CreateId { get; set; }
-        public string UpdateId { get; set; }
-        public string Name { get; set; }
+        public string Id { get; set; } = null!;
+        public string? CreateId { get; set; }
+        public string? UpdateId { get; set; }
+        public string Name { get; set; } = null!;
 
-        public EvaluationAction EvaluationAction { get; set; }
+        public EvaluationAction EvaluationAction { get; set; } = null!;
     }
 
     private class EvaluationAction
     {
-        public string Id { get; set; }
-        public string CreateId { get; set; }
-        public string UpdateId { get; set; }
+        public string Id { get; set; } = null!;
+        public string? CreateId { get; set; }
+        public string? UpdateId { get; set; }
 
-        public ProjectAction ProjectAction { get; set; }
+        public ProjectAction? ProjectAction { get; set; }
     }
 
     private class SNum
     {
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public string Id { get; set; }
+        public string Id { get; set; } = null!;
 
-        public string TheWalrus { get; set; }
+        public string? TheWalrus { get; set; }
     }
 
     private class EnNum
     {
         public ENum Id { get; set; }
 
-        public string TheWalrus { get; set; }
+        public string? TheWalrus { get; set; }
     }
 
     private enum ENum
@@ -427,31 +452,31 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
     private class BNum
     {
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public byte[] Id { get; set; }
+        public byte[] Id { get; set; } = null!;
 
-        public string TheWalrus { get; set; }
+        public string? TheWalrus { get; set; }
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_add_and_remove_entities_with_keys_of_different_type()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
 
         var options = Fixture.CreateOptions(testDatabase);
-        using (var context = new CompositeKeysDbContext(options))
+        await using (var context = new CompositeKeysDbContext(options))
         {
             context.Database.EnsureCreatedResiliently();
             var first = new Int32CompositeKeys { Id1 = 1, Id2 = 2 };
 
-            context.Add(first);
+            await context.AddAsync(first);
 
             var second = new Int64CompositeKeys { Id1 = 1, Id2 = 2 };
 
-            context.Add(second);
+            await context.AddAsync(second);
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CompositeKeysDbContext(options))
+        await using (var context = new CompositeKeysDbContext(options))
         {
             var first = context.Set<Int32CompositeKeys>().Single();
             context.Remove(first);
@@ -463,13 +488,8 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         }
     }
 
-    private class CompositeKeysDbContext : DbContext
+    private class CompositeKeysDbContext(DbContextOptions options) : DbContext(options)
     {
-        public CompositeKeysDbContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Int32CompositeKeys>().HasKey(i => new { i.Id1, i.Id2 });
@@ -489,13 +509,13 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         public long Id2 { get; set; }
     }
 
-    [ConditionalFact]
-    public void Can_insert_non_owner_principal_for_owned()
+    [Fact]
+    public async Task Can_insert_non_owner_principal_for_owned()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
 
         var options = Fixture.CreateOptions(testDatabase);
-        using (var context = new FileContext(options))
+        await using (var context = new FileContext(options))
         {
             context.Database.EnsureCreatedResiliently();
 
@@ -512,29 +532,23 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         }
     }
 
-    private class FileContext : DbContext
+    private class FileContext(DbContextOptions options) : DbContext(options)
     {
-        public FileContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public DbSet<FileMetadata> FileMetadata { get; set; }
-        public DbSet<Category> Categories { get; set; }
+        public DbSet<FileMetadata> FileMetadata { get; set; } = null!;
+        public DbSet<Category> Categories { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            modelBuilder.Entity<Category>(
-                builder =>
-                {
-                    builder.OwnsOne(
-                        x => x.Picture, fileSource =>
-                        {
-                            fileSource.HasOne<FileMetadata>().WithOne().HasForeignKey<FileSource>(x => x.FileId);
-                        });
-                });
+            modelBuilder.Entity<Category>(builder =>
+            {
+                builder.OwnsOne(
+                    x => x.Picture, fileSource =>
+                    {
+                        fileSource.HasOne<FileMetadata>().WithOne().HasForeignKey<FileSource>(x => x.FileId);
+                    });
+            });
         }
     }
 
@@ -547,7 +561,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
     {
         public Guid Id { get; set; }
 
-        public FileSource Picture { get; set; }
+        public FileSource? Picture { get; set; }
     }
 
     private sealed class FileSource
@@ -556,18 +570,18 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         public bool Deleted { get; set; }
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_insert_TPT_dependents_with_identity()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
 
         var options = Fixture.CreateOptions(testDatabase);
-        using (var context = new CarContext(options))
+        await using (var context = new CarContext(options))
         {
             context.Database.EnsureCreatedResiliently();
 
             var ferrari = new Ferrari { Special = new Car() };
-            context.Add(ferrari);
+            await context.AddAsync(ferrari);
 
             await context.SaveChangesAsync();
 
@@ -575,13 +589,8 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         }
     }
 
-    private class CarContext : DbContext
+    private class CarContext(DbContextOptions options) : DbContext(options)
     {
-        public CarContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Car>().ToTable("Car");
@@ -596,16 +605,16 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
 
     private class Ferrari : Car
     {
-        public Car Special { get; set; }
+        public Car? Special { get; set; }
     }
 
-    [ConditionalFact]
-    public void Can_run_linq_query_on_entity_set()
+    [Fact]
+    public async Task Can_run_linq_query_on_entity_set()
     {
-        using var testStore = SqlServerTestStore.GetNorthwindStore();
-        using var db = new NorthwindContext(Fixture.CreateOptions(testStore));
+        await using var testStore = await SqlServerTestStore.GetNorthwindStoreAsync();
+        await using var db = new NorthwindContext(Fixture.CreateOptions(testStore));
         var results = db.Customers
-            .Where(c => c.CompanyName.StartsWith("A"))
+            .Where(c => c.CompanyName!.StartsWith("A"))
             .OrderByDescending(c => c.CustomerID)
             .ToList();
 
@@ -621,13 +630,13 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         Assert.Equal("030-0076545", results[3].Fax);
     }
 
-    [ConditionalFact]
-    public void Can_run_linq_query_on_entity_set_with_value_buffer_reader()
+    [Fact]
+    public async Task Can_run_linq_query_on_entity_set_with_value_buffer_reader()
     {
-        using var testStore = SqlServerTestStore.GetNorthwindStore();
-        using var db = new NorthwindContext(Fixture.CreateOptions(testStore));
+        await using var testStore = await SqlServerTestStore.GetNorthwindStoreAsync();
+        await using var db = new NorthwindContext(Fixture.CreateOptions(testStore));
         var results = db.Customers
-            .Where(c => c.CompanyName.StartsWith("A"))
+            .Where(c => c.CompanyName!.StartsWith("A"))
             .OrderByDescending(c => c.CustomerID)
             .ToList();
 
@@ -643,11 +652,11 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         Assert.Equal("030-0076545", results[3].Fax);
     }
 
-    [ConditionalFact]
-    public void Can_enumerate_entity_set()
+    [Fact]
+    public async Task Can_enumerate_entity_set()
     {
-        using var testStore = SqlServerTestStore.GetNorthwindStore();
-        using var db = new NorthwindContext(Fixture.CreateOptions(testStore));
+        await using var testStore = await SqlServerTestStore.GetNorthwindStoreAsync();
+        await using var db = new NorthwindContext(Fixture.CreateOptions(testStore));
         var results = new List<Customer>();
         foreach (var item in db.Customers)
         {
@@ -659,19 +668,19 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         Assert.Equal("Alfreds Futterkiste", results[0].CompanyName);
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_save_changes()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
         var options = Fixture.CreateOptions(testDatabase);
-        using (var db = new BloggingContext(options))
+        await using (var db = new BloggingContext(options))
         {
             await CreateBlogDatabaseAsync<Blog>(db);
         }
 
         Fixture.TestSqlLoggerFactory.Clear();
 
-        using (var db = new BloggingContext(options))
+        await using (var db = new BloggingContext(options))
         {
             var toUpdate = db.Blogs.Single(b => b.Name == "Blog1");
             toUpdate.Name = "Blog is Updated";
@@ -707,13 +716,13 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             Assert.Equal(EntityState.Unchanged, db.Entry(toAdd).State);
             Assert.DoesNotContain(toDelete, db.ChangeTracker.Entries().Select(e => e.Entity));
 
-            Assert.Equal(4, Fixture.TestSqlLoggerFactory.SqlStatements.Count);
+            Assert.Equal(3, Fixture.TestSqlLoggerFactory.SqlStatements.Count);
             Assert.Contains("SELECT", Fixture.TestSqlLoggerFactory.SqlStatements[0]);
             Assert.Contains("SELECT", Fixture.TestSqlLoggerFactory.SqlStatements[1]);
             Assert.Contains("@p0='" + deletedId, Fixture.TestSqlLoggerFactory.SqlStatements[2]);
             Assert.Contains("DELETE", Fixture.TestSqlLoggerFactory.SqlStatements[2]);
             Assert.Contains("UPDATE", Fixture.TestSqlLoggerFactory.SqlStatements[2]);
-            Assert.Contains("INSERT", Fixture.TestSqlLoggerFactory.SqlStatements[3]);
+            Assert.Contains("INSERT", Fixture.TestSqlLoggerFactory.SqlStatements[2]);
 
             var rows = await testDatabase.ExecuteScalarAsync<int>(
                 $"SELECT Count(*) FROM [dbo].[Blog] WHERE Id = {updatedId} AND Name = 'Blog is Updated'");
@@ -732,15 +741,15 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_save_changes_in_tracked_entities()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
         int updatedId;
         int deletedId;
         int addedId;
         var options = Fixture.CreateOptions(testDatabase);
-        using (var db = new BloggingContext(options))
+        await using (var db = new BloggingContext(options))
         {
             var blogs = await CreateBlogDatabaseAsync<Blog>(db);
 
@@ -780,7 +789,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             Assert.DoesNotContain(toDelete, db.ChangeTracker.Entries().Select(e => e.Entity));
         }
 
-        using (var db = new BloggingContext(options))
+        await using (var db = new BloggingContext(options))
         {
             var toUpdate = db.Blogs.Single(b => b.Id == updatedId);
             Assert.Equal("Blog is Updated", toUpdate.Name);
@@ -789,12 +798,12 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         }
     }
 
-    [ConditionalFact]
-    public void Can_track_an_entity_with_more_than_10_properties()
+    [Fact]
+    public async Task Can_track_an_entity_with_more_than_10_properties()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
         var options = Fixture.CreateOptions(testDatabase);
-        using (var context = new GameDbContext(options))
+        await using (var context = new GameDbContext(options))
         {
             context.Database.EnsureCreatedResiliently();
 
@@ -805,7 +814,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             context.SaveChanges();
         }
 
-        using (var context = new GameDbContext(options))
+        await using (var context = new GameDbContext(options))
         {
             var character = context.Characters
                 .Include(c => c.Level.Game)
@@ -818,13 +827,13 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         }
     }
 
-    [ConditionalFact]
-    public void Can_replace_identifying_FK_entity_with_many_to_many()
+    [Fact]
+    public async Task Can_replace_identifying_FK_entity_with_many_to_many()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
         var options = Fixture.CreateOptions(testDatabase);
 
-        using (var context = new SomeDbContext(options))
+        await using (var context = new SomeDbContext(options))
         {
             context.Database.EnsureCreatedResiliently();
 
@@ -836,7 +845,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         var expectedCId = 0;
         using (var context = new SomeDbContext(options))
         {
-            var entityA = context.EntitiesA.Include(x => x.EntityB).ThenInclude(x => x.EntitiesC).OrderBy(x => x.Id).First();
+            var entityA = context.EntitiesA.Include(x => x.EntityB).ThenInclude(x => x!.EntitiesC).OrderBy(x => x.Id).First();
 
             entityA.EntityB = new EntityB { EntitiesC = { new EntityC() } };
 
@@ -847,21 +856,20 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
 
         using (var context = new SomeDbContext(options))
         {
-            var entityA = context.EntitiesA.Include(x => x.EntityB).ThenInclude(x => x.EntitiesC).OrderBy(x => x.Id).First();
+            var entityA = context.EntitiesA.Include(x => x.EntityB).ThenInclude(x => x!.EntitiesC).OrderBy(x => x.Id).First();
 
-            Assert.Equal(expectedCId, entityA.EntityB.EntitiesC.Single().Id);
+            Assert.Equal(expectedCId, entityA.EntityB!.EntitiesC.Single().Id);
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(
-        nameof(DataGenerator.GetCombinations),
-        new object[] { 0, 1, 2, 3, 4 },
-        2,
-        MemberType = typeof(DataGenerator))]
-    public void Can_insert_entities_with_generated_PKs(int studentCount, int courseCount)
+    [Theory, MemberData(
+         nameof(DataGenerator.GetCombinations),
+         new object[] { 0, 1, 2, 3, 4, 7 },
+         2,
+         MemberType = typeof(DataGenerator))]
+    public async Task Can_insert_entities_with_generated_PKs(int studentCount, int courseCount)
     {
-        var students = new[]
+        var students = new Student[]
         {
             new()
             {
@@ -869,43 +877,43 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
                 LastName = "Alexander",
                 EnrollmentDate = DateTime.Parse("2019-09-01")
             },
-            new Student
+            new()
             {
                 FirstMidName = "Meredith",
                 LastName = "Alonso",
                 EnrollmentDate = DateTime.Parse("2017-09-01")
             },
-            new Student
+            new()
             {
                 FirstMidName = "Arturo",
                 LastName = "Anand",
                 EnrollmentDate = DateTime.Parse("2018-09-01")
             },
-            new Student
+            new()
             {
                 FirstMidName = "Gytis",
                 LastName = "Barzdukas",
                 EnrollmentDate = DateTime.Parse("2017-09-01")
             },
-            new Student
+            new()
             {
                 FirstMidName = "Yan",
                 LastName = "Li",
                 EnrollmentDate = DateTime.Parse("2017-09-01")
             },
-            new Student
+            new()
             {
                 FirstMidName = "Peggy",
                 LastName = "Justice",
                 EnrollmentDate = DateTime.Parse("2016-09-01")
             },
-            new Student
+            new()
             {
                 FirstMidName = "Laura",
                 LastName = "Norman",
                 EnrollmentDate = DateTime.Parse("2018-09-01")
             },
-            new Student
+            new()
             {
                 FirstMidName = "Nino",
                 LastName = "Olivetto",
@@ -913,25 +921,41 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             }
         };
 
-        var courses = new[]
+        var courses = new Course[]
         {
             new() { Title = "Chemistry", Credits = 3 },
-            new Course { Title = "Microeconomics", Credits = 3 },
-            new Course { Title = "Macroeconomics", Credits = 3 },
-            new Course { Title = "Calculus", Credits = 4 },
-            new Course { Title = "Trigonometry", Credits = 4 },
-            new Course { Title = "Composition", Credits = 3 },
-            new Course { Title = "Literature", Credits = 4 }
+            new() { Title = "Microeconomics", Credits = 3 },
+            new() { Title = "Macroeconomics", Credits = 3 },
+            new() { Title = "Calculus", Credits = 4 },
+            new() { Title = "Trigonometry", Credits = 4 },
+            new() { Title = "Composition", Credits = 3 },
+            new() { Title = "Literature", Credits = 4 }
         };
 
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
         var options = Fixture.CreateOptions(testDatabase);
 
-        using (var context = new UniversityContext(options))
+        var nextCourse = 0;
+        await using (var context = new UniversityContext(options))
         {
             context.Database.EnsureCreatedResiliently();
             for (var i = 0; i < studentCount; i++)
             {
+                if (courseCount > 1)
+                {
+                    students[i].Courses.Add(courses[nextCourse++]);
+                    if (nextCourse >= courseCount)
+                    {
+                        nextCourse = 0;
+                    }
+
+                    students[i].Courses.Add(courses[nextCourse++]);
+                    if (nextCourse >= courseCount)
+                    {
+                        nextCourse = 0;
+                    }
+                }
+
                 context.Students.Add(students[i]);
             }
 
@@ -940,13 +964,51 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
                 context.Courses.Add(courses[i]);
             }
 
+            Assert.All(
+                context.Enrollments.Local, e =>
+                {
+                    var entry = context.Entry(e);
+                    var student = e.Student;
+                    var course = e.Course;
+                    Assert.Equal(student.Id, e.StudentId);
+                    Assert.Equal(course.Id, e.CourseId);
+                    Assert.Equal(context.Entry(student).Property(e => e.Id).CurrentValue, entry.Property(e => e.StudentId).CurrentValue);
+                    Assert.Equal(context.Entry(course).Property(e => e.Id).CurrentValue, entry.Property(e => e.CourseId).CurrentValue);
+                    Assert.True(entry.Property(e => e.StudentId).IsTemporary);
+                    Assert.True(entry.Property(e => e.CourseId).IsTemporary);
+                    Assert.True(context.Entry(student).Property(e => e.Id).IsTemporary);
+                    Assert.True(context.Entry(course).Property(e => e.Id).IsTemporary);
+                });
+
             context.SaveChanges();
+
+            Assert.All(
+                context.Enrollments.Local, e =>
+                {
+                    var entry = context.Entry(e);
+                    var student = e.Student;
+                    var course = e.Course;
+                    Assert.Equal(student.Id, e.StudentId);
+                    Assert.Equal(course.Id, e.CourseId);
+                    Assert.False(entry.Property(e => e.StudentId).IsTemporary);
+                    Assert.False(entry.Property(e => e.CourseId).IsTemporary);
+                });
         }
 
-        using (var context = new UniversityContext(options))
+        await using (var context = new UniversityContext(options))
         {
-            Assert.Equal(studentCount, context.Students.Count());
-            Assert.Equal(courseCount, context.Courses.Count());
+            Assert.Equal(studentCount, context.Students.ToList().Count());
+            Assert.Equal(courseCount, context.Courses.ToList().Count());
+
+            var enrollments = context.Enrollments.Include(e => e.Course).Include(e => e.Student).ToList();
+            Assert.All(
+                enrollments, e =>
+                {
+                    var student = e.Student;
+                    var course = e.Course;
+                    Assert.Equal(student.Id, e.StudentId);
+                    Assert.Equal(course.Id, e.CourseId);
+                });
         }
     }
 
@@ -960,7 +1022,9 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
 
         public virtual ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();
 
-        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+        public virtual ICollection<Student> Students { get; set; } = new List<Student>();
+
+        public byte[] RowVersion { get; set; } = [];
     }
 
     public class Student
@@ -975,14 +1039,14 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
 
         public virtual ICollection<Enrollment> Enrollments { get; } = new List<Enrollment>();
 
-        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+        public virtual ICollection<Course> Courses { get; set; } = new List<Course>();
+
+        public byte[] RowVersion { get; set; } = [];
     }
 
     public enum Grade
     {
-#pragma warning disable SA1602 // Enumeration items should be documented
         A, B, C, D, F
-#pragma warning restore SA1602 // Enumeration items should be documented
     }
 
     public class Enrollment
@@ -999,103 +1063,99 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
 
         public virtual Student Student { get; set; } = new();
 
-        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+        public byte[] RowVersion { get; set; } = [];
     }
 
-    private class UniversityContext : DbContext
+    private class UniversityContext(DbContextOptions options) : DbContext(options)
     {
-        public UniversityContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public DbSet<Student> Students { get; set; }
-        public DbSet<Course> Courses { get; set; }
-        public DbSet<Enrollment> Enrollments { get; set; }
+        public DbSet<Student> Students { get; set; } = null!;
+        public DbSet<Course> Courses { get; set; } = null!;
+        public DbSet<Enrollment> Enrollments { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Course>(
-                builder =>
-                {
-                    builder.ToTable("Courses");
+            modelBuilder.Entity<Course>(builder =>
+            {
+                builder.ToTable("Courses");
 
-                    builder.HasKey(x => x.Id);
+                builder.HasKey(x => x.Id);
 
-                    builder.Property(x => x.Id)
-                        .ValueGeneratedOnAdd()
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                builder.Property(x => x.Id)
+                    .ValueGeneratedOnAdd()
+                    .HasDefaultValueSql("NEWSEQUENTIALID()");
 
-                    builder.Property(x => x.Title)
-                        .IsRequired()
-                        .HasMaxLength(50);
+                builder.Property(x => x.Title)
+                    .IsRequired()
+                    .HasMaxLength(50);
 
-                    builder.Property(x => x.RowVersion)
-                        .IsRowVersion();
-                });
+                builder.Property(x => x.RowVersion)
+                    .IsRowVersion();
 
-            modelBuilder.Entity<Student>(
-                builder =>
-                {
-                    builder.ToTable("Students");
+                builder.HasMany(x => x.Students)
+                    .WithMany(x => x.Courses)
+                    .UsingEntity<Enrollment>();
+            });
 
-                    builder.HasKey(x => x.Id);
+            modelBuilder.Entity<Student>(builder =>
+            {
+                builder.ToTable("Students");
 
-                    builder.Property(x => x.Id)
-                        .ValueGeneratedOnAdd()
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                builder.HasKey(x => x.Id);
 
-                    builder.Property(x => x.LastName)
-                        .IsRequired()
-                        .HasMaxLength(50);
+                builder.Property(x => x.Id)
+                    .ValueGeneratedOnAdd()
+                    .HasDefaultValueSql("NEWSEQUENTIALID()");
 
-                    builder.Property(x => x.FirstMidName)
-                        .IsRequired()
-                        .HasMaxLength(50);
+                builder.Property(x => x.LastName)
+                    .IsRequired()
+                    .HasMaxLength(50);
 
-                    builder.Property(x => x.RowVersion)
-                        .IsRowVersion();
-                });
+                builder.Property(x => x.FirstMidName)
+                    .IsRequired()
+                    .HasMaxLength(50);
 
-            modelBuilder.Entity<Enrollment>(
-                builder =>
-                {
-                    builder.ToTable("Enrollments");
+                builder.Property(x => x.RowVersion)
+                    .IsRowVersion();
+            });
 
-                    builder.HasKey(x => x.Id);
+            modelBuilder.Entity<Enrollment>(builder =>
+            {
+                builder.ToTable("Enrollments");
 
-                    builder.Property(x => x.Id)
-                        .ValueGeneratedOnAdd()
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                builder.HasKey(x => x.Id);
 
-                    builder.Property(x => x.RowVersion)
-                        .IsRowVersion();
+                builder.Property(x => x.Id)
+                    .ValueGeneratedOnAdd()
+                    .HasDefaultValueSql("NEWSEQUENTIALID()");
 
-                    builder.HasOne(t => t.Course)
-                        .WithMany(t => t.Enrollments)
-                        .HasPrincipalKey(d => d.Id)
-                        .HasForeignKey(d => d.CourseId)
-                        .OnDelete(DeleteBehavior.Cascade);
+                builder.Property(x => x.RowVersion)
+                    .IsRowVersion();
 
-                    builder.HasOne(t => t.Student)
-                        .WithMany(t => t.Enrollments)
-                        .HasPrincipalKey(d => d.Id)
-                        .HasForeignKey(d => d.StudentId)
-                        .OnDelete(DeleteBehavior.Cascade);
-                });
+                builder.HasOne(t => t.Course)
+                    .WithMany(t => t.Enrollments)
+                    .HasPrincipalKey(d => d.Id)
+                    .HasForeignKey(d => d.CourseId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                builder.HasOne(t => t.Student)
+                    .WithMany(t => t.Enrollments)
+                    .HasPrincipalKey(d => d.Id)
+                    .HasForeignKey(d => d.StudentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
         }
     }
 
     private class EntityA
     {
         public int Id { get; set; }
-        public virtual EntityB EntityB { get; set; }
+        public virtual EntityB? EntityB { get; set; }
     }
 
     private class EntityB
     {
         public int Id { get; set; }
-        public virtual EntityA EntityA { get; set; }
+        public virtual EntityA EntityA { get; set; } = null!;
         public virtual ICollection<EntityC> EntitiesC { get; } = new List<EntityC>();
     }
 
@@ -1105,16 +1165,11 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         public virtual ICollection<EntityB> EntitiesB { get; } = new List<EntityB>();
     }
 
-    private class SomeDbContext : DbContext
+    private class SomeDbContext(DbContextOptions options) : DbContext(options)
     {
-        public SomeDbContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public DbSet<EntityA> EntitiesA { get; set; }
-        public DbSet<EntityB> EntitiesB { get; set; }
-        public DbSet<EntityC> EntitiesC { get; set; }
+        public DbSet<EntityA> EntitiesA { get; set; } = null!;
+        public DbSet<EntityB> EntitiesB { get; set; } = null!;
+        public DbSet<EntityC> EntitiesC { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder
@@ -1124,13 +1179,13 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
                 .HasForeignKey<EntityB>(e => e.Id);
     }
 
-    [ConditionalFact]
-    public void Adding_an_item_to_a_collection_marks_it_as_modified()
+    [Fact]
+    public async Task Adding_an_item_to_a_collection_marks_it_as_modified()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
         var options = Fixture.CreateOptions(testDatabase);
 
-        using var context = new GameDbContext(options);
+        await using var context = new GameDbContext(options);
         context.Database.EnsureCreatedResiliently();
 
         var player = new PlayerCharacter(
@@ -1149,13 +1204,13 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         Assert.True(context.Entry(player).Collection(p => p.Items).IsModified);
     }
 
-    [ConditionalFact]
-    public void Can_set_reference_twice()
+    [Fact]
+    public async Task Can_set_reference_twice()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
         var options = Fixture.CreateOptions(testDatabase);
 
-        using (var context = new GameDbContext(options))
+        await using (var context = new GameDbContext(options))
         {
             context.Database.EnsureCreatedResiliently();
 
@@ -1189,13 +1244,13 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         }
     }
 
-    [ConditionalFact]
-    public void Can_include_on_loaded_entity()
+    [Fact]
+    public async Task Can_include_on_loaded_entity()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
         var options = Fixture.CreateOptions(testDatabase);
 
-        using (var context = new GameDbContext(options))
+        await using (var context = new GameDbContext(options))
         {
             context.Database.EnsureCreatedResiliently();
 
@@ -1218,7 +1273,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             context.SaveChanges();
         }
 
-        using (var context = new GameDbContext(options))
+        await using (var context = new GameDbContext(options))
         {
             var player = context.Characters
                 .Include(p => p.CurrentWeapon)
@@ -1238,7 +1293,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             Assert.Equal(2, player.Items.Count);
         }
 
-        using (var context = new GameDbContext(options))
+        await using (var context = new GameDbContext(options))
         {
             var player = context.Characters
                 .Include(p => p.CurrentWeapon)
@@ -1247,7 +1302,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
 
             Assert.Equal(0, player.Items.Count);
 
-            context.Entry(player.CurrentWeapon).Property("ActorId").CurrentValue = 0;
+            context.Entry(player.CurrentWeapon!).Property("ActorId").CurrentValue = 0;
 
             context.Attach(player);
 
@@ -1275,9 +1330,9 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         }
 
         public virtual int Id { get; private set; }
-        public virtual Level Level { get; set; }
+        public virtual Level Level { get; set; } = null!;
         public virtual int GameId { get; private set; }
-        public virtual Game Game { get; set; }
+        public virtual Game Game { get; set; } = null!;
         public virtual ICollection<Item> Items { get; set; } = new HashSet<Item>();
     }
 
@@ -1292,7 +1347,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         {
         }
 
-        public virtual string Name { get; set; }
+        public virtual string? Name { get; set; }
 
         public virtual int Strength { get; set; }
         public virtual int Dexterity { get; set; }
@@ -1307,14 +1362,14 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         public virtual int MaxMP { get; set; }
         public virtual int MP { get; set; }
 
-        public virtual Item CurrentWeapon { get; set; }
+        public virtual Item? CurrentWeapon { get; set; }
     }
 
     public class Level
     {
         public virtual int Id { get; set; }
         public virtual int GameId { get; set; }
-        public virtual Game Game { get; set; }
+        public virtual Game Game { get; set; } = null!;
         public virtual ICollection<Actor> Actors { get; set; } = new HashSet<Actor>();
         public virtual ICollection<Item> Items { get; set; } = new HashSet<Item>();
     }
@@ -1323,9 +1378,9 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
     {
         public virtual int Id { get; set; }
         public virtual int GameId { get; set; }
-        public virtual Game Game { get; set; }
-        public virtual Level Level { get; set; }
-        public virtual Actor Actor { get; set; }
+        public virtual Game Game { get; set; } = null!;
+        public virtual Level? Level { get; set; }
+        public virtual Actor? Actor { get; set; }
     }
 
     public class Container : Item
@@ -1340,131 +1395,121 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         public virtual ICollection<Level> Levels { get; set; } = new HashSet<Level>();
     }
 
-    public class GameDbContext : DbContext
+    public class GameDbContext(DbContextOptions options) : DbContext(options)
     {
-        public GameDbContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public DbSet<Game> Games { get; set; }
-        public DbSet<Level> Levels { get; set; }
-        public DbSet<PlayerCharacter> Characters { get; set; }
-        public DbSet<Item> Items { get; set; }
+        public DbSet<Game> Games { get; set; } = null!;
+        public DbSet<Level> Levels { get; set; } = null!;
+        public DbSet<PlayerCharacter> Characters { get; set; } = null!;
+        public DbSet<Item> Items { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Level>(
-                eb =>
-                {
-                    eb.Property(g => g.Id)
-                        .ValueGeneratedNever();
+            modelBuilder.Entity<Level>(eb =>
+            {
+                eb.Property(g => g.Id)
+                    .ValueGeneratedNever();
 
-                    eb.HasKey(l => new { l.GameId, l.Id });
-                });
+                eb.HasKey(l => new { l.GameId, l.Id });
+            });
 
-            modelBuilder.Entity<Actor>(
-                eb =>
-                {
-                    eb.Property(g => g.Id)
-                        .ValueGeneratedNever();
+            modelBuilder.Entity<Actor>(eb =>
+            {
+                eb.Property(g => g.Id)
+                    .ValueGeneratedNever();
 
-                    eb.HasKey(a => new { a.GameId, a.Id });
+                eb.HasKey(a => new { a.GameId, a.Id });
 
-                    eb.HasOne(a => a.Level)
-                        .WithMany(l => l.Actors)
-                        .HasForeignKey(nameof(Actor.GameId), "LevelId")
-                        .IsRequired();
+                eb.HasOne(a => a.Level)
+                    .WithMany(l => l.Actors)
+                    .HasForeignKey(nameof(Actor.GameId), "LevelId")
+                    .IsRequired();
 
-                    eb.HasMany(a => a.Items)
-                        .WithOne(i => i.Actor)
-                        .HasForeignKey(nameof(Item.GameId), "ActorId");
-                });
+                eb.HasMany(a => a.Items)
+                    .WithOne(i => i.Actor)
+                    .HasForeignKey(nameof(Item.GameId), "ActorId");
+            });
 
-            modelBuilder.Entity<PlayerCharacter>(
-                eb =>
-                {
-                    eb.HasOne(p => p.CurrentWeapon)
-                        .WithOne()
-                        .HasForeignKey<PlayerCharacter>(nameof(PlayerCharacter.GameId), "CurrentWeaponId");
-                });
+            modelBuilder.Entity<PlayerCharacter>(eb =>
+            {
+                eb.HasOne(p => p.CurrentWeapon)
+                    .WithOne()
+                    .HasForeignKey<PlayerCharacter>(nameof(PlayerCharacter.GameId), "CurrentWeaponId");
+            });
 
-            modelBuilder.Entity<Item>(
-                eb =>
-                {
-                    eb.Property(g => g.Id)
-                        .ValueGeneratedNever();
+            modelBuilder.Entity<Item>(eb =>
+            {
+                eb.Property(g => g.Id)
+                    .ValueGeneratedNever();
 
-                    eb.HasKey(l => new { l.GameId, l.Id });
-                });
+                eb.HasKey(l => new { l.GameId, l.Id });
+            });
 
-            modelBuilder.Entity<Container>();
+            modelBuilder.Entity<Container>(eb =>
+            {
+                eb.HasMany(c => c.Items)
+                    .WithOne()
+                    .HasForeignKey("GameId", "ContainerId");
+            });
 
-            modelBuilder.Entity<Game>(
-                eb =>
-                {
-                    eb.Property(g => g.Id)
-                        .ValueGeneratedOnAdd();
-                    eb.HasMany(g => g.Levels)
-                        .WithOne(l => l.Game)
-                        .HasForeignKey(l => l.GameId);
-                    eb.HasMany(g => g.Actors)
-                        .WithOne(a => a.Game)
-                        .HasForeignKey(a => a.GameId)
-                        .OnDelete(DeleteBehavior.Restrict);
-                });
+            modelBuilder.Entity<Game>(eb =>
+            {
+                eb.Property(g => g.Id)
+                    .ValueGeneratedOnAdd();
+                eb.HasMany(g => g.Levels)
+                    .WithOne(l => l.Game)
+                    .HasForeignKey(l => l.GameId);
+                eb.HasMany(g => g.Actors)
+                    .WithOne(a => a.Game)
+                    .HasForeignKey(a => a.GameId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Tracking_entities_asynchronously_returns_tracked_entities_back()
     {
-        using var testStore = SqlServerTestStore.GetNorthwindStore();
-        using var db = new NorthwindContext(Fixture.CreateOptions(testStore));
+        await using var testStore = await SqlServerTestStore.GetNorthwindStoreAsync();
+        await using var db = new NorthwindContext(Fixture.CreateOptions(testStore));
         var customer = await db.Customers.OrderBy(c => c.CustomerID).FirstOrDefaultAsync();
 
         var trackedCustomerEntry = db.ChangeTracker.Entries().Single();
         Assert.Same(trackedCustomerEntry.Entity, customer);
 
         // if references are different this will throw
-        db.Customers.Remove(customer);
+        db.Customers.Remove(customer!);
     }
 
-    [ConditionalFact] // Issue #931
+    [Fact] // Issue #931
     public async Task Can_save_and_query_with_schema()
     {
-        using var testStore = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testStore = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
         var options = Fixture.CreateOptions(testStore);
 
         await testStore.ExecuteNonQueryAsync("CREATE SCHEMA Apple");
         await testStore.ExecuteNonQueryAsync("CREATE TABLE Apple.Jack (MyKey int)");
         await testStore.ExecuteNonQueryAsync("CREATE TABLE Apple.Black (MyKey int)");
 
-        using (var context = new SchemaContext(options))
+        await using (var context = new SchemaContext(options))
         {
-            context.Add(
+            await context.AddAsync(
                 new Jack { MyKey = 1 });
-            context.Add(
+            await context.AddAsync(
                 new Black { MyKey = 2 });
             context.SaveChanges();
         }
 
-        using (var context = new SchemaContext(options))
+        await using (var context = new SchemaContext(options))
         {
             Assert.Equal(1, context.Jacks.Count());
             Assert.Equal(1, context.Blacks.Count());
         }
     }
 
-    private class SchemaContext : DbContext
+    private class SchemaContext(DbContextOptions options) : DbContext(options)
     {
-        public SchemaContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public DbSet<Jack> Jacks { get; set; }
-        public DbSet<Black> Blacks { get; set; }
+        public DbSet<Jack> Jacks { get; set; } = null!;
+        public DbSet<Black> Blacks { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -1490,29 +1535,29 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         public int MyKey { get; set; }
     }
 
-    [ConditionalFact]
+    [Fact]
     public Task Can_round_trip_changes_with_snapshot_change_tracking()
         => RoundTripChanges<Blog>();
 
-    [ConditionalFact]
+    [Fact]
     public Task Can_round_trip_changes_with_full_notification_entities()
         => RoundTripChanges<ChangedChangingBlog>();
 
-    [ConditionalFact]
+    [Fact]
     public Task Can_round_trip_changes_with_changed_only_notification_entities()
         => RoundTripChanges<ChangedOnlyBlog>();
 
     private async Task RoundTripChanges<TBlog>()
         where TBlog : class, IBlog, new()
     {
-        using var testDatabase = SqlServerTestStore.CreateInitialized(DatabaseName);
+        await using var testDatabase = await SqlServerTestStore.CreateInitializedAsync(DatabaseName);
         var options = Fixture.CreateOptions(testDatabase);
 
         int blog1Id;
         int blog2Id;
         int blog3Id;
 
-        using (var context = new BloggingContext<TBlog>(options))
+        await using (var context = new BloggingContext<TBlog>(options))
         {
             var blogs = await CreateBlogDatabaseAsync<TBlog>(context);
             blog1Id = blogs[0].Id;
@@ -1523,7 +1568,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             Assert.NotEqual(blog1Id, blog2Id);
         }
 
-        using (var context = new BloggingContext<TBlog>(options))
+        await using (var context = new BloggingContext<TBlog>(options))
         {
             var blogs = context.Blogs.ToList();
             Assert.Equal(2, blogs.Count);
@@ -1551,7 +1596,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             blog2.NotFigTime = new DateTime();
             blog2.AndChew = null;
 
-            var blog3 = context.Add(new TBlog()).Entity;
+            var blog3 = (await context.AddAsync(new TBlog())).Entity;
 
             await context.SaveChangesAsync();
 
@@ -1559,7 +1604,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             Assert.NotEqual(0, blog3Id);
         }
 
-        using (var context = new BloggingContext<TBlog>(options))
+        await using (var context = new BloggingContext<TBlog>(options))
         {
             var blogs = context.Blogs.ToList();
             Assert.Equal(3, blogs.Count);
@@ -1583,7 +1628,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
     {
         context.Database.EnsureCreatedResiliently();
 
-        var blog1 = context.Add(
+        var blog1 = (await context.AddAsync(
             new TBlog
             {
                 Name = "Blog1",
@@ -1600,9 +1645,9 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
                 OrULong = 888,
                 OrUSkint = 8888888,
                 OrUShort = 888888888888888,
-                AndChew = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }
-            }).Entity;
-        var blog2 = context.Add(
+                AndChew = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            })).Entity;
+        var blog2 = (await context.AddAsync(
             new TBlog
             {
                 Name = "Blog2",
@@ -1620,49 +1665,37 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
                 OrUSkint = 8888888,
                 OrUShort = 888888888888888,
                 AndChew = new byte[16]
-            }).Entity;
+            })).Entity;
         await context.SaveChangesAsync();
 
-        return new[] { blog1, blog2 };
+        return [blog1, blog2];
     }
 
-    private class NorthwindContext : DbContext
+    private class NorthwindContext(DbContextOptions options) : DbContext(options)
     {
-        public NorthwindContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public DbSet<Customer> Customers { get; set; }
+        public DbSet<Customer> Customers { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<Customer>(
-                b =>
-                {
-                    b.HasKey(c => c.CustomerID);
-                    b.ToTable("Customers");
-                });
+            => modelBuilder.Entity<Customer>(b =>
+            {
+                b.HasKey(c => c.CustomerID);
+                b.ToTable("Customers");
+            });
     }
 
     private class Customer
     {
-        public string CustomerID { get; set; }
-        public string CompanyName { get; set; }
-        public string Fax { get; set; }
+        public string CustomerID { get; set; } = null!;
+        public string? CompanyName { get; set; }
+        public string? Fax { get; set; }
     }
 
-    private class BloggingContext : BloggingContext<Blog>
-    {
-        public BloggingContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-    }
+    private class BloggingContext(DbContextOptions options) : BloggingContext<Blog>(options);
 
     private class Blog : IBlog
     {
         public int Id { get; set; }
-        public string Name { get; set; }
+        public string? Name { get; set; }
         public bool George { get; set; }
         public Guid TheGu { get; set; }
         public DateTime NotFigTime { get; set; }
@@ -1682,17 +1715,12 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         public ushort OrULong { get; set; }
         public uint OrUSkint { get; set; }
         public ulong OrUShort { get; set; }
-        public byte[] AndChew { get; set; }
+        public byte[]? AndChew { get; set; }
     }
 
-    private class BloggingContext<TBlog> : DbContext
+    private class BloggingContext<TBlog>(DbContextOptions options) : DbContext(options)
         where TBlog : class, IBlog
     {
-        public BloggingContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             if (typeof(INotifyPropertyChanging).IsAssignableFrom(typeof(TBlog)))
@@ -1707,13 +1735,13 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             modelBuilder.Entity<TBlog>().ToTable("Blog", "dbo");
         }
 
-        public DbSet<TBlog> Blogs { get; set; }
+        public DbSet<TBlog> Blogs { get; set; } = null!;
     }
 
     private interface IBlog
     {
         int Id { get; set; }
-        string Name { get; set; }
+        string? Name { get; set; }
         bool George { get; set; }
         Guid TheGu { get; set; }
         DateTime NotFigTime { get; set; }
@@ -1733,13 +1761,13 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         ushort OrULong { get; set; }
         uint OrUSkint { get; set; }
         ulong OrUShort { get; set; }
-        byte[] AndChew { get; set; }
+        byte[]? AndChew { get; set; }
     }
 
     private class ChangedChangingBlog : INotifyPropertyChanging, INotifyPropertyChanged, IBlog
     {
         private int _id;
-        private string _name;
+        private string? _name;
         private bool _george;
         private Guid _theGu;
         private DateTime _notFigTime;
@@ -1759,7 +1787,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         private ushort _orULong;
         private uint _orUSkint;
         private ulong _orUShort;
-        private byte[] _andChew;
+        private byte[]? _andChew;
 
         public int Id
         {
@@ -1775,7 +1803,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             }
         }
 
-        public string Name
+        public string? Name
         {
             get => _name;
             set
@@ -1971,7 +1999,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             }
         }
 
-        public byte[] AndChew
+        public byte[]? AndChew
         {
             get => _andChew;
             set
@@ -1985,8 +2013,8 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             }
         }
 
-        public event PropertyChangingEventHandler PropertyChanging;
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangingEventHandler? PropertyChanging;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         private void NotifyChanged([CallerMemberName] string propertyName = "")
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -1998,7 +2026,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
     private class ChangedOnlyBlog : INotifyPropertyChanged, IBlog
     {
         private int _id;
-        private string _name;
+        private string? _name;
         private bool _george;
         private Guid _theGu;
         private DateTime _notFigTime;
@@ -2018,7 +2046,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
         private ushort _orULong;
         private uint _orUSkint;
         private ulong _orUShort;
-        private byte[] _andChew;
+        private byte[]? _andChew;
 
         public int Id
         {
@@ -2033,7 +2061,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             }
         }
 
-        public string Name
+        public string? Name
         {
             get => _name;
             set
@@ -2215,7 +2243,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             }
         }
 
-        public byte[] AndChew
+        public byte[]? AndChew
         {
             get => _andChew;
             set
@@ -2228,7 +2256,7 @@ public class SqlServerEndToEndTest : IClassFixture<SqlServerFixture>
             }
         }
 
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         private void NotifyChanged([CallerMemberName] string propertyName = "")
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

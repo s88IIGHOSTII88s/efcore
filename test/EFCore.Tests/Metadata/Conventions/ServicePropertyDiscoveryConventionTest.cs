@@ -1,7 +1,5 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
-
-#nullable enable
 
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
@@ -17,7 +15,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 public class ServicePropertyDiscoveryConventionTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Finds_service_properties_in_hierarchy()
     {
         using (var context = new ServicePropertiesContext())
@@ -28,11 +26,8 @@ public class ServicePropertyDiscoveryConventionTest
             foreach (var entityType in entityTypes)
             {
                 ValidateServiceProperty<DbContext, DbContext>(entityType, "Context");
-                ValidateServiceProperty<DbContext, DbContext>(entityType, "Context2");
                 ValidateServiceProperty<IEntityType, IEntityType>(entityType, "EntityType");
-                ValidateServiceProperty<IEntityType, IEntityType>(entityType, "EntityType2");
                 ValidateServiceProperty<ILazyLoader, ILazyLoader>(entityType, "ALazyLoader");
-                ValidateServiceProperty<ILazyLoader, ILazyLoader>(entityType, "ALazyLoader2");
                 ValidateServiceProperty<Action<object, string>, ILazyLoader>(entityType, "LazyLoader");
 
                 var clrType = entityType.ClrType;
@@ -42,31 +37,22 @@ public class ServicePropertyDiscoveryConventionTest
                 }
 
                 var contextProperty = clrType.GetAnyProperty("Context");
-                var context2Property = clrType.GetAnyProperty("Context2");
                 var entityTypeProperty = clrType.GetAnyProperty("EntityType");
-                var entityType2Property = clrType.GetAnyProperty("EntityType2");
                 var lazyLoaderProperty = clrType.GetAnyProperty("ALazyLoader");
-                var lazyLoader2Property = clrType.GetAnyProperty("ALazyLoader2");
                 var lazyLoaderServiceProperty = clrType.GetAnyProperty("LazyLoader");
 
                 var entity = Activator.CreateInstance(entityType.ClrType);
 
                 Assert.Null(contextProperty!.GetValue(entity));
-                Assert.Null(context2Property!.GetValue(entity));
                 Assert.Null(entityTypeProperty!.GetValue(entity));
-                Assert.Null(entityType2Property!.GetValue(entity));
                 Assert.Null(lazyLoaderProperty!.GetValue(entity));
-                Assert.Null(lazyLoader2Property!.GetValue(entity));
                 Assert.Null(lazyLoaderServiceProperty!.GetValue(entity));
 
                 context.Add(entity!);
 
                 Assert.Same(context, contextProperty!.GetValue(entity));
-                Assert.Same(context, context2Property!.GetValue(entity));
                 Assert.Same(entityType, entityTypeProperty!.GetValue(entity));
-                Assert.Same(entityType, entityType2Property!.GetValue(entity));
                 Assert.NotNull(lazyLoaderProperty!.GetValue(entity));
-                Assert.NotNull(lazyLoader2Property!.GetValue(entity));
                 Assert.NotNull(lazyLoaderServiceProperty!.GetValue(entity));
             }
 
@@ -100,11 +86,8 @@ public class ServicePropertyDiscoveryConventionTest
                 }
 
                 Assert.Same(context, clrType.GetAnyProperty("Context")!.GetValue(entry.Entity));
-                Assert.Same(context, clrType.GetAnyProperty("Context2")!.GetValue(entry.Entity));
                 Assert.Same(entry.Metadata, clrType.GetAnyProperty("EntityType")!.GetValue(entry.Entity));
-                Assert.Same(entry.Metadata, clrType.GetAnyProperty("EntityType2")!.GetValue(entry.Entity));
                 Assert.NotNull(clrType.GetAnyProperty("ALazyLoader")!.GetValue(entry.Entity));
-                Assert.NotNull(clrType.GetAnyProperty("ALazyLoader2")!.GetValue(entry.Entity));
                 Assert.NotNull(clrType.GetAnyProperty("LazyLoader")!.GetValue(entry.Entity));
             }
         }
@@ -119,7 +102,7 @@ public class ServicePropertyDiscoveryConventionTest
         Assert.Equal(typeof(TService), binding.ServiceType);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Finds_one_service_property()
     {
         var entityType = RunConvention<BlogOneService>();
@@ -131,7 +114,7 @@ public class ServicePropertyDiscoveryConventionTest
         Assert.Equal(typeof(ILazyLoader), binding.ServiceType);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Does_not_find_service_property_configured_as_property()
     {
         var entityType = new Model().AddEntityType(typeof(BlogOneService), owned: false, ConfigurationSource.Explicit);
@@ -144,7 +127,7 @@ public class ServicePropertyDiscoveryConventionTest
         Assert.Null(entityType.FindServiceProperty(nameof(BlogOneService.Loader)));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Does_not_find_service_property_configured_as_navigation()
     {
         var model = new Model();
@@ -159,7 +142,7 @@ public class ServicePropertyDiscoveryConventionTest
         Assert.Null(entityType.FindServiceProperty(nameof(BlogOneService.Loader)));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Finds_service_property_duplicate_ignored()
     {
         var entityType = RunConvention<BlogDuplicateService>();
@@ -207,8 +190,10 @@ public class ServicePropertyDiscoveryConventionTest
 
     private class ServicePropertiesContext : DbContext
     {
+        private static readonly InMemoryDatabaseRoot _databaseRoot = new();
+
         protected internal override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-            => optionsBuilder.UseInMemoryDatabase(GetType().Name);
+            => optionsBuilder.UseInMemoryDatabase(GetType().Name, _databaseRoot);
 
         public DbSet<PrivateUnmappedBaseSuper> PrivateUnmappedBaseSupers
             => Set<PrivateUnmappedBaseSuper>();
@@ -250,59 +235,41 @@ public class ServicePropertyDiscoveryConventionTest
             => Set<PrivateWithDuplicatesSub>();
 
         protected internal override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<PrivateUnmappedBaseSuper>(
-                b =>
-                {
-                    // Because private properties on un-mapped base types are not found by convention
-                    b.Metadata.AddServiceProperty(typeof(PrivateUnmappedBase).GetAnyProperty("Context")!);
-                    b.Metadata.AddServiceProperty(typeof(PrivateUnmappedBase).GetAnyProperty("Context2")!);
-                    b.Metadata.AddServiceProperty(typeof(PrivateUnmappedBase).GetAnyProperty("EntityType")!);
-                    b.Metadata.AddServiceProperty(typeof(PrivateUnmappedBase).GetAnyProperty("EntityType2")!);
-                    b.Metadata.AddServiceProperty(typeof(PrivateUnmappedBase).GetAnyProperty("ALazyLoader")!);
-                    b.Metadata.AddServiceProperty(typeof(PrivateUnmappedBase).GetAnyProperty("ALazyLoader2")!);
-                    b.Metadata.AddServiceProperty(typeof(PrivateUnmappedBase).GetAnyProperty("LazyLoader")!);
-                });
+            => modelBuilder.Entity<PrivateUnmappedBaseSuper>(b =>
+            {
+                // Because private properties on un-mapped base types are not found by convention
+                b.Metadata.AddServiceProperty(typeof(PrivateUnmappedBase).GetAnyProperty("Context")!);
+                b.Metadata.AddServiceProperty(typeof(PrivateUnmappedBase).GetAnyProperty("EntityType")!);
+                b.Metadata.AddServiceProperty(typeof(PrivateUnmappedBase).GetAnyProperty("ALazyLoader")!);
+                b.Metadata.AddServiceProperty(typeof(PrivateUnmappedBase).GetAnyProperty("LazyLoader")!);
+            });
     }
 
     protected class PrivateUnmappedBase
     {
         public int Id { get; set; }
         private DbContext? Context { get; set; }
-        private DbContext? Context2 { get; set; }
         private IEntityType? EntityType { get; set; }
-        private IEntityType? EntityType2 { get; set; }
         private ILazyLoader? ALazyLoader { get; set; }
-        private ILazyLoader? ALazyLoader2 { get; set; }
         private Action<object, string>? LazyLoader { get; set; }
     }
 
-    protected class PrivateUnmappedBaseSuper : PrivateUnmappedBase
-    {
-    }
+    protected class PrivateUnmappedBaseSuper : PrivateUnmappedBase;
 
-    protected class PrivateUnmappedBaseSub : PrivateUnmappedBaseSuper
-    {
-    }
+    protected class PrivateUnmappedBaseSub : PrivateUnmappedBaseSuper;
 
     protected class PrivateMappedBase
     {
         public int Id { get; set; }
         private DbContext? Context { get; set; }
-        private DbContext? Context2 { get; set; }
         private IEntityType? EntityType { get; set; }
-        private IEntityType? EntityType2 { get; set; }
         private ILazyLoader? ALazyLoader { get; set; }
-        private ILazyLoader? ALazyLoader2 { get; set; }
         private Action<object, string>? LazyLoader { get; set; }
     }
 
-    protected class PrivateMappedBaseSuper : PrivateMappedBase
-    {
-    }
+    protected class PrivateMappedBaseSuper : PrivateMappedBase;
 
-    protected class PrivateMappedBaseSub : PrivateMappedBaseSuper
-    {
-    }
+    protected class PrivateMappedBaseSub : PrivateMappedBaseSuper;
 
     protected class PublicUnmappedBase
     {
@@ -313,28 +280,19 @@ public class ServicePropertyDiscoveryConventionTest
         public PublicUnmappedBase(
             int id,
             DbContext? context,
-            DbContext? context2,
             IEntityType? entityType,
-            IEntityType? entityType2,
             ILazyLoader? aLazyLoader,
-            ILazyLoader? aLazyLoader2,
             Action<object, string>? lazyLoader)
         {
             Id = id;
             Context = context;
-            Context2 = context2;
             EntityType = entityType;
-            EntityType2 = entityType2;
             ALazyLoader = aLazyLoader;
-            ALazyLoader2 = aLazyLoader2;
             LazyLoader = lazyLoader;
 
             Assert.NotNull(context);
-            Assert.NotNull(context2);
             Assert.NotNull(entityType);
-            Assert.NotNull(entityType2);
             Assert.NotNull(aLazyLoader);
-            Assert.NotNull(aLazyLoader2);
             Assert.NotNull(lazyLoader);
 
             ConstructorCalled = true;
@@ -342,11 +300,8 @@ public class ServicePropertyDiscoveryConventionTest
 
         public int Id { get; set; }
         public DbContext? Context { get; set; }
-        public DbContext? Context2 { get; set; }
         public IEntityType? EntityType { get; set; }
-        public IEntityType? EntityType2 { get; set; }
         public ILazyLoader? ALazyLoader { get; set; }
-        public ILazyLoader? ALazyLoader2 { get; set; }
         public Action<object, string>? LazyLoader { get; set; }
 
         [NotMapped]
@@ -362,13 +317,10 @@ public class ServicePropertyDiscoveryConventionTest
         public PublicUnmappedBaseSuper(
             int id,
             DbContext? context,
-            DbContext? context2,
             IEntityType? entityType,
-            IEntityType? entityType2,
             ILazyLoader? aLazyLoader,
-            ILazyLoader? aLazyLoader2,
             Action<object, string>? lazyLoader)
-            : base(id, context, context2, entityType, entityType2, aLazyLoader, aLazyLoader2, lazyLoader)
+            : base(id, context, entityType, aLazyLoader, lazyLoader)
         {
         }
     }
@@ -382,13 +334,10 @@ public class ServicePropertyDiscoveryConventionTest
         public PublicUnmappedBaseSub(
             int id,
             DbContext? context,
-            DbContext? context2,
             IEntityType? entityType,
-            IEntityType? entityType2,
             ILazyLoader? aLazyLoader,
-            ILazyLoader? aLazyLoader2,
             Action<object, string>? lazyLoader)
-            : base(id, context, context2, entityType, entityType2, aLazyLoader, aLazyLoader2, lazyLoader)
+            : base(id, context, entityType, aLazyLoader, lazyLoader)
         {
         }
     }
@@ -397,55 +346,37 @@ public class ServicePropertyDiscoveryConventionTest
     {
         public int Id { get; set; }
         public DbContext? Context { get; set; }
-        public DbContext? Context2 { get; set; }
         public IEntityType? EntityType { get; set; }
-        public IEntityType? EntityType2 { get; set; }
         public ILazyLoader? ALazyLoader { get; set; }
-        public ILazyLoader? ALazyLoader2 { get; set; }
         public Action<object, string>? LazyLoader { get; set; }
     }
 
-    protected class PublicMappedBaseSuper : PublicMappedBase
-    {
-    }
+    protected class PublicMappedBaseSuper : PublicMappedBase;
 
-    protected class PublicMappedBaseSub : PublicMappedBaseSuper
-    {
-    }
+    protected class PublicMappedBaseSub : PublicMappedBaseSuper;
 
     protected class PrivateWithDuplicatesBase
     {
         public int Id { get; set; }
         private DbContext? Context { get; set; }
-        private DbContext? Context2 { get; set; }
         private IEntityType? EntityType { get; set; }
-        private IEntityType? EntityType2 { get; set; }
         private ILazyLoader? ALazyLoader { get; set; }
-        private ILazyLoader? ALazyLoader2 { get; set; }
         private Action<object, string>? LazyLoader { get; set; }
     }
 
     protected class PrivateWithDuplicatesSuper : PrivateWithDuplicatesBase
     {
         private DbContext? Context { get; set; }
-        private DbContext? Context2 { get; set; }
         private IEntityType? EntityType { get; set; }
-        private IEntityType? EntityType2 { get; set; }
         private ILazyLoader? ALazyLoader { get; set; }
-        private ILazyLoader? ALazyLoader2 { get; set; }
         private Action<object, string>? LazyLoader { get; set; }
     }
 
     protected class PrivateWithDuplicatesSub : PrivateWithDuplicatesSuper
     {
         private DbContext? Context { get; set; }
-        private DbContext? Context2 { get; set; }
         private IEntityType? EntityType { get; set; }
-        private IEntityType? EntityType2 { get; set; }
         private ILazyLoader? ALazyLoader { get; set; }
-        private ILazyLoader? ALazyLoader2 { get; set; }
         private Action<object, string>? LazyLoader { get; set; }
     }
 }
-
-#nullable restore

@@ -4,6 +4,7 @@
 using System.Data;
 using System.Text;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore.Storage.Json;
 
 namespace Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal;
 
@@ -18,10 +19,29 @@ public class SqlServerStringTypeMapping : StringTypeMapping
     private const int UnicodeMax = 4000;
     private const int AnsiMax = 8000;
 
+    private static readonly CaseInsensitiveValueComparer CaseInsensitiveValueComparer = new();
+
     private readonly bool _isUtf16;
     private readonly SqlDbType? _sqlDbType;
     private readonly int _maxSpecificSize;
     private readonly int _maxSize;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public static new SqlServerStringTypeMapping Default { get; } = new();
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public static SqlServerStringTypeMapping UnicodeDefault { get; } = new(
+        "nvarchar(max)", unicode: true, storeTypePostfix: StoreTypePostfix.None);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -35,10 +55,15 @@ public class SqlServerStringTypeMapping : StringTypeMapping
         int? size = null,
         bool fixedLength = false,
         SqlDbType? sqlDbType = null,
-        StoreTypePostfix? storeTypePostfix = null)
+        StoreTypePostfix? storeTypePostfix = null,
+        bool useKeyComparison = false)
         : this(
             new RelationalTypeMappingParameters(
-                new CoreTypeMappingParameters(typeof(string)),
+                new CoreTypeMappingParameters(
+                    typeof(string),
+                    comparer: useKeyComparison ? CaseInsensitiveValueComparer : null,
+                    keyComparer: useKeyComparison ? CaseInsensitiveValueComparer : null,
+                    jsonValueReaderWriter: JsonStringReaderWriter.Instance),
                 storeType ?? GetDefaultStoreName(unicode, fixedLength),
                 storeTypePostfix ?? StoreTypePostfix.Size,
                 GetDbType(unicode, fixedLength),
@@ -76,17 +101,18 @@ public class SqlServerStringTypeMapping : StringTypeMapping
     {
         if (parameters.Unicode)
         {
-            _maxSpecificSize = parameters.Size.HasValue && parameters.Size <= UnicodeMax ? parameters.Size.Value : UnicodeMax;
+            _maxSpecificSize = parameters.Size is > 0 and <= UnicodeMax ? parameters.Size.Value : UnicodeMax;
             _maxSize = UnicodeMax;
         }
         else
         {
-            _maxSpecificSize = parameters.Size.HasValue && parameters.Size <= AnsiMax ? parameters.Size.Value : AnsiMax;
+            _maxSpecificSize = parameters.Size is > 0 and <= AnsiMax ? parameters.Size.Value : AnsiMax;
             _maxSize = AnsiMax;
         }
 
-        _isUtf16 = parameters.Unicode && parameters.StoreType.StartsWith("n", StringComparison.OrdinalIgnoreCase);
         _sqlDbType = sqlDbType;
+        _isUtf16 = _sqlDbType == SqlDbType.Xml
+            || (parameters.Unicode && parameters.StoreType.StartsWith("n", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -98,7 +124,7 @@ public class SqlServerStringTypeMapping : StringTypeMapping
     {
         if (parameters.Unicode)
         {
-            parameters = new(
+            parameters = new RelationalTypeMappingParameters(
                 parameters.CoreParameters,
                 parameters.StoreType,
                 parameters.StoreTypePostfix,
@@ -130,8 +156,26 @@ public class SqlServerStringTypeMapping : StringTypeMapping
             sqlParameter.SqlDbType = _sqlDbType.Value;
         }
 
-        if ((value == null
-                || value == DBNull.Value)
+        if (_sqlDbType == SqlDbType.Xml)
+        {
+            // xml is a max-length type; pin the size to unbounded so SqlClient does not infer it from the
+            // value length (which would otherwise vary per value in logs and the query cache).
+            parameter.Size = -1;
+
+            // SqlClient sends a string parameter as 'nvarchar(max)' even when its SqlDbType is 'xml', which makes
+            // SQL Server reject an XML prolog that declares a non-UTF-16 encoding (e.g. utf-8) with "unable to switch
+            // the encoding". Only the XML declaration conflicts, and it can only appear at the very start, so it is
+            // sliced off and the rest of the value is sent verbatim.
+            if (value is string xml)
+            {
+                parameter.Value = RemoveXmlProlog(xml);
+            }
+
+            return;
+        }
+
+        if (value == null
+            || value == DBNull.Value
             || (IsFixedLength
                 && length == _maxSpecificSize
                 && Size.HasValue))
@@ -152,21 +196,32 @@ public class SqlServerStringTypeMapping : StringTypeMapping
             // 8000 bytes if no size facet specified, if the data will fit so as to avoid query cache
             // fragmentation by setting lots of different Size values otherwise set to the max bounded length
             // if the value will fit, otherwise set to -1 (unbounded) to avoid SQL client size inference.
-            if (length != null
-                && length <= _maxSpecificSize)
+            parameter.Size = length <= _maxSpecificSize ? _maxSpecificSize : length <= _maxSize ? _maxSize : -1;
+        }
+    }
+
+    private static string RemoveXmlProlog(string xml)
+    {
+        var start = 0;
+        while (start < xml.Length && char.IsWhiteSpace(xml[start]))
+        {
+            start++;
+        }
+
+        // An XML declaration starts with "<?xml" followed by mandatory whitespace. If present, remove everything
+        // up to and including the closing "?>" and return the remainder verbatim.
+        if (start + 5 < xml.Length
+            && string.CompareOrdinal(xml, start, "<?xml", 0, 5) == 0
+            && char.IsWhiteSpace(xml[start + 5]))
+        {
+            var end = xml.IndexOf("?>", start + 6, StringComparison.Ordinal);
+            if (end >= 0)
             {
-                parameter.Size = _maxSpecificSize;
-            }
-            else if (length != null
-                     && length <= _maxSize)
-            {
-                parameter.Size = _maxSize;
-            }
-            else
-            {
-                parameter.Size = -1;
+                return xml[(end + 2)..];
             }
         }
+
+        return xml;
     }
 
     /// <summary>
@@ -187,8 +242,9 @@ public class SqlServerStringTypeMapping : StringTypeMapping
         var lastConcatStartPoint = 0;
         var concatCount = 1;
         var concatStartList = new List<int>();
-        var castApplied = false;
-        for (i = 0; i < stringValue.Length; i++)
+        var insideConcat = false;
+
+        for (i = start; i < stringValue.Length; i++)
         {
             var lineFeed = stringValue[i] == '\n';
             var carriageReturn = stringValue[i] == '\r';
@@ -282,12 +338,7 @@ public class SqlServerStringTypeMapping : StringTypeMapping
 
         for (var j = concatStartList.Count - 1; j >= 0; j--)
         {
-            if (castApplied && j == 0)
-            {
-                builder.Insert(concatStartList[j], "CAST(");
-            }
-
-            builder.Insert(concatStartList[j], "CONCAT(");
+            builder.Insert(concatStartList[j], "CONCAT(CAST(");
             builder.Append(')');
         }
 
@@ -307,7 +358,7 @@ public class SqlServerStringTypeMapping : StringTypeMapping
         {
             if (builder.Length != 0)
             {
-                if (!castApplied)
+                if (!insideConcat)
                 {
                     builder.Append(" AS ");
                     if (_isUtf16)
@@ -316,7 +367,7 @@ public class SqlServerStringTypeMapping : StringTypeMapping
                     }
 
                     builder.Append("varchar(max))");
-                    castApplied = true;
+                    insideConcat = true;
                 }
 
                 builder.Append(", ");
@@ -331,6 +382,7 @@ public class SqlServerStringTypeMapping : StringTypeMapping
                 {
                     lastConcatStartPoint = builder.Length;
                     concatCount = 1;
+                    insideConcat = false;
                 }
             }
         }

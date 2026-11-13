@@ -14,7 +14,6 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
 /// </summary>
 public class SqlServerGeometryCollectionMethodTranslator : IMethodCallTranslator
 {
-    private static readonly MethodInfo Item = typeof(GeometryCollection).GetTypeInfo().GetRuntimeProperty("Item")!.GetMethod!;
     private readonly IRelationalTypeMappingSource _typeMappingSource;
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
@@ -43,26 +42,19 @@ public class SqlServerGeometryCollectionMethodTranslator : IMethodCallTranslator
         MethodInfo method,
         IReadOnlyList<SqlExpression> arguments,
         IDiagnosticsLogger<DbLoggerCategory.Query> logger)
-    {
-        if (Equals(method, Item)
-            && instance != null)
-        {
-            return _sqlExpressionFactory.Function(
-                instance,
-                "STGeometryN",
-                new[]
-                {
-                    _sqlExpressionFactory.Add(
-                        arguments[0],
-                        _sqlExpressionFactory.Constant(1))
-                },
-                nullable: true,
-                instancePropagatesNullability: true,
-                argumentsPropagateNullability: new[] { false },
-                method.ReturnType,
-                _typeMappingSource.FindMapping(typeof(Geometry), instance.TypeMapping!.StoreType));
-        }
-
-        return null;
-    }
+        => method.IsGenericMethod
+            && method.GetGenericMethodDefinition() == EnumerableMethods.ElementAt
+            && method.ReturnType == typeof(Geometry)
+            && arguments is [var collection, var index]
+            && _typeMappingSource.FindMapping(typeof(Geometry), collection.TypeMapping!.StoreType) is { } geometryTypeMapping
+                ? _sqlExpressionFactory.Function(
+                    collection,
+                    "STGeometryN",
+                    [_sqlExpressionFactory.Add(index, _sqlExpressionFactory.Constant(1))],
+                    nullable: true,
+                    instancePropagatesNullability: true,
+                    argumentsPropagateNullability: Statics.FalseArrays[1],
+                    method.ReturnType,
+                    geometryTypeMapping)
+                : null;
 }

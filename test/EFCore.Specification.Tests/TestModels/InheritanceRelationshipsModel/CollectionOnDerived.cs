@@ -6,8 +6,8 @@ namespace Microsoft.EntityFrameworkCore.TestModels.InheritanceRelationshipsModel
 public class CollectionOnDerived
 {
     public int Id { get; set; }
-    public string Name { get; set; }
+    public string? Name { get; set; }
 
     public int? ParentId { get; set; }
-    public DerivedInheritanceRelationshipEntity Parent { get; set; }
+    public DerivedInheritanceRelationshipEntity? Parent { get; set; }
 }

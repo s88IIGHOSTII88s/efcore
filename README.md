@@ -1,17 +1,17 @@
 # Repository
 
-[![build status](https://img.shields.io/azure-devops/build/dnceng/public/51/main)](https://dev.azure.com/dnceng/public/_build?definitionId=51) [![test results](https://img.shields.io/azure-devops/tests/dnceng/public/51/main)](https://dev.azure.com/dnceng/public/_build?definitionId=51)
+[![build status](https://img.shields.io/azure-devops/build/dnceng-public/public/17/main)](https://dev.azure.com/dnceng-public/public/_build?definitionId=17) [![test results](https://img.shields.io/azure-devops/tests/dnceng-public/public/17/main)](https://dev.azure.com/dnceng-public/public/_build?definitionId=17)
 
 This repository is home to the following [.NET Foundation](https://dotnetfoundation.org/) projects. These projects are maintained by [Microsoft](https://github.com/microsoft) and licensed under the [MIT License](LICENSE.txt).
 
 * [Entity Framework Core](#entity-framework-core)
 * [Microsoft.Data.Sqlite](#microsoftdatasqlite)
 
-## Entity Framework Core
+## <img alt="EF" src="./logo/ef-logo.png" width="32"/> Entity Framework Core
 
 [![latest version](https://img.shields.io/nuget/v/Microsoft.EntityFrameworkCore)](https://www.nuget.org/packages/Microsoft.EntityFrameworkCore) [![preview version](https://img.shields.io/nuget/vpre/Microsoft.EntityFrameworkCore)](https://www.nuget.org/packages/Microsoft.EntityFrameworkCore/absoluteLatest) [![downloads](https://img.shields.io/nuget/dt/Microsoft.EntityFrameworkCore)](https://www.nuget.org/packages/Microsoft.EntityFrameworkCore)
 
-EF Core is a modern object-database mapper for .NET. It supports LINQ queries, change tracking, updates, and schema migrations. EF Core works with SQL Server, Azure SQL Database, SQLite, Azure Cosmos DB, MySQL, PostgreSQL, and other databases through a provider plugin API.
+EF Core is a modern object-database mapper for .NET. It supports LINQ queries, change tracking, updates, and schema migrations. EF Core works with SQL Server, Azure SQL Database, SQLite, Azure Cosmos DB, MariaDB, MySQL, PostgreSQL, and other databases through a provider plugin API.
 
 ### Installation
 
@@ -34,36 +34,35 @@ We recommend using the [daily builds](docs/DailyBuilds.md) to get the latest cod
 The following code demonstrates basic usage of EF Core. For a full tutorial configuring the `DbContext`, defining the model, and creating the database, see [getting started](https://docs.microsoft.com/ef/core/get-started/) in the docs.
 
 ```cs
-using (var db = new BloggingContext())
-{
-    // Inserting data into the database
-    db.Add(new Blog { Url = "http://blogs.msdn.com/adonet" });
-    db.SaveChanges();
+using var db = new BloggingContext();
 
-    // Querying
-    var blog = db.Blogs
-        .OrderBy(b => b.BlogId)
-        .First();
+// Inserting data into the database
+db.Add(new Blog { Url = "http://blogs.msdn.com/adonet" });
+db.SaveChanges();
 
-    // Updating
-    blog.Url = "https://devblogs.microsoft.com/dotnet";
-    blog.Posts.Add(
-        new Post
-        {
-            Title = "Hello World",
-            Content = "I wrote an app using EF Core!"
-        });
-    db.SaveChanges();
+// Querying
+var blog = db.Blogs
+    .OrderBy(b => b.BlogId)
+    .First();
 
-    // Deleting
-    db.Remove(blog);
-    db.SaveChanges();
-}
+// Updating
+blog.Url = "https://devblogs.microsoft.com/dotnet";
+blog.Posts.Add(
+    new Post
+    {
+        Title = "Hello World",
+        Content = "I wrote an app using EF Core!"
+    });
+db.SaveChanges();
+
+// Deleting
+db.Remove(blog);
+db.SaveChanges();
 ```
 
 ### Build from source
 
-Most people use EF Core by installing pre-build NuGet packages, as shown above. Alternately, [the code can be built and packages can be created directly on your development machine](./docs/getting-and-building-the-code.md).
+Most people use EF Core by installing pre-built NuGet packages, as shown above. Alternatively, [the code can be built and packages can be created directly on your development machine](./docs/getting-and-building-the-code.md).
 
 ### Contributing
 
@@ -91,33 +90,29 @@ Use the `--version` option to specify a [preview version](https://www.nuget.org/
 
 ### Daily builds
 
-We recommend using the [daily builds](docs/DailyBuilds.md) to get the latest code and provide feedback on Microsoft.Data.Sqlite. These builds contain latest features and bug fixes; previews and official releases lag significantly behind.
+We recommend using the [daily builds](docs/DailyBuilds.md) to get the latest code and provide feedback on Microsoft.Data.Sqlite. These builds contain the latest features and bug fixes; previews and official releases lag significantly behind.
 
 ### Basic usage
 
 This library implements the common [ADO.NET](https://docs.microsoft.com/dotnet/framework/data/adonet/) abstractions for connections, commands, data readers, and so on. For more information, see [Microsoft.Data.Sqlite](https://docs.microsoft.com/dotnet/standard/data/sqlite/) on Microsoft Docs.
 
 ```cs
-using (var connection = new SqliteConnection("Data Source=Blogs.db"))
+using var connection = new SqliteConnection("Data Source=Blogs.db");
+connection.Open();
+
+using var command = connection.CreateCommand();
+command.CommandText = "SELECT Url FROM Blogs";
+
+using var reader = command.ExecuteReader();
+while (reader.Read())
 {
-    connection.Open();
-
-    var command = connection.CreateCommand();
-    command.CommandText = "SELECT Url FROM Blogs";
-
-    using (var reader = command.ExecuteReader())
-    {
-        while (reader.Read())
-        {
-            var url = reader.GetString(0);
-        }
-    }
+    var url = reader.GetString(0);
 }
 ```
 
 ### Build from source
 
-Most people use Microsoft.Data.Sqlite by installing pre-build NuGet packages, as shown above. Alternately, [the code can be built and packages can be created directly on your development machine](./docs/getting-and-building-the-code.md).
+Most people use Microsoft.Data.Sqlite by installing pre-built NuGet packages, as shown above. Alternatively, [the code can be built and packages can be created directly on your development machine](./docs/getting-and-building-the-code.md).
 
 ### Contributing
 

@@ -8,17 +8,17 @@ namespace Microsoft.EntityFrameworkCore;
 
 public abstract class LoggingTestBase
 {
-    [ConditionalFact]
+    [Fact]
     public void Logs_context_initialization_default_options()
-        => Assert.Equal(ExpectedMessage(DefaultOptions), ActualMessage(CreateOptionsBuilder));
+        => Assert.Equal(ExpectedMessage(DefaultOptions!), ActualMessage(CreateOptionsBuilder));
 
-    [ConditionalFact]
+    [Fact]
     public void Logs_context_initialization_no_tracking()
         => Assert.Equal(
             ExpectedMessage("NoTracking " + DefaultOptions),
             ActualMessage(s => CreateOptionsBuilder(s).UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)));
 
-    [ConditionalFact]
+    [Fact]
     public void Logs_context_initialization_sensitive_data_logging()
         => Assert.Equal(
             ExpectedMessage("SensitiveDataLoggingEnabled " + DefaultOptions),
@@ -32,13 +32,56 @@ public abstract class LoggingTestBase
             ProviderVersion,
             optionsFragment ?? "None").Trim();
 
+    [Fact]
+    public virtual void InvalidIncludePathError_throws_by_default()
+    {
+        using var context = new InvalidIncludePathErrorContext(CreateOptionsBuilder(new ServiceCollection()));
+
+        Assert.Equal(
+            CoreStrings.WarningAsErrorTemplate(
+                CoreEventId.InvalidIncludePathError.ToString(),
+                CoreResources.LogInvalidIncludePath(CreateTestLogger())
+                    .GenerateMessage("Wheels", "Wheels"),
+                "CoreEventId.InvalidIncludePathError"),
+            Assert.Throws<InvalidOperationException>(() => context.Set<Animal>().Include("Wheels").Load()).Message);
+    }
+
+    protected class InvalidIncludePathErrorContext(DbContextOptionsBuilder optionsBuilder) : DbContext(optionsBuilder.Options)
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+            => modelBuilder.Entity<Animal>();
+    }
+
+    protected class Animal
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = null!;
+        public Person FavoritePerson { get; set; } = null!;
+    }
+
+    protected class Cat : Animal
+    {
+        public string Breed { get; set; } = null!;
+        public string Type { get; set; } = null!;
+        public int Identity { get; set; }
+    }
+
+    protected class Person
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = null!;
+        public string FavoriteBreed { get; set; } = null!;
+    }
+
+    protected abstract TestLogger CreateTestLogger();
+
     protected abstract DbContextOptionsBuilder CreateOptionsBuilder(IServiceCollection services);
 
     protected abstract string ProviderName { get; }
 
     protected abstract string ProviderVersion { get; }
 
-    protected virtual string DefaultOptions
+    protected virtual string? DefaultOptions
         => null;
 
     protected virtual string ActualMessage(Func<IServiceCollection, DbContextOptionsBuilder> optionsActions)
@@ -51,14 +94,8 @@ public abstract class LoggingTestBase
             var _ = context.Model;
         }
 
-        return loggerFactory.Log.Single(t => t.Id.Id == CoreEventId.ContextInitialized.Id).Message;
+        return loggerFactory.Log.Single(t => t.Id.Id == CoreEventId.ContextInitialized.Id).Message!;
     }
 
-    protected class LoggingContext : DbContext
-    {
-        public LoggingContext(DbContextOptionsBuilder optionsBuilder)
-            : base(optionsBuilder.Options)
-        {
-        }
-    }
+    protected class LoggingContext(DbContextOptionsBuilder optionsBuilder) : DbContext(optionsBuilder.Options);
 }

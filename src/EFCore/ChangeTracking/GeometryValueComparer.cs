@@ -9,7 +9,12 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking;
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-value-comparers">EF Core value comparers</see> for more information and examples.
 /// </remarks>
-public class GeometryValueComparer<TGeometry> : ValueComparer<TGeometry>
+public class GeometryValueComparer
+<[DynamicallyAccessedMembers(
+        DynamicallyAccessedMemberTypes.PublicMethods
+        | DynamicallyAccessedMemberTypes.PublicProperties)]
+TGeometry>
+    : ValueComparer<TGeometry>
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="GeometryValueComparer{TGeometry}" /> class.
@@ -36,7 +41,7 @@ public class GeometryValueComparer<TGeometry> : ValueComparer<TGeometry>
         return Expression.Lambda<Func<TGeometry?, TGeometry?, bool>>(
             Expression.Block(
                 typeof(bool),
-                new[] { x, y, xNull, yNull },
+                [x, y, xNull, yNull],
                 Expression.Assign(x, left),
                 Expression.Assign(y, right),
                 Expression.Assign(xNull, Expression.ReferenceEqual(x, nullExpression)),
@@ -49,7 +54,7 @@ public class GeometryValueComparer<TGeometry> : ValueComparer<TGeometry>
                             Expression.IsFalse(yNull),
                             Expression.Call(
                                 x,
-                                typeof(TGeometry).GetRuntimeMethod("EqualsExact", new[] { typeof(TGeometry) })!,
+                                typeof(TGeometry).GetRuntimeMethod("EqualsExact", [typeof(TGeometry)])!,
                                 y))))),
             left,
             right);

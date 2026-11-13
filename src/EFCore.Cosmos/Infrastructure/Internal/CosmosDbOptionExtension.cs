@@ -4,7 +4,7 @@
 using System.Globalization;
 using System.Net;
 using System.Text;
-using Microsoft.EntityFrameworkCore.Cosmos.Internal;
+using Azure.Core;
 
 namespace Microsoft.EntityFrameworkCore.Cosmos.Infrastructure.Internal;
 
@@ -18,9 +18,11 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
 {
     private string? _accountEndpoint;
     private string? _accountKey;
+    private TokenCredential? _tokenCredential;
     private string? _connectionString;
     private string? _databaseName;
     private string? _region;
+    private IReadOnlyList<string>? _preferredRegions;
     private ConnectionMode? _connectionMode;
     private bool? _limitToEndpoint;
     private Func<ExecutionStrategyDependencies, IExecutionStrategy>? _executionStrategyFactory;
@@ -34,6 +36,8 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
     private bool? _enableContentResponseOnWrite;
     private DbContextOptionsExtensionInfo? _info;
     private Func<HttpClient>? _httpClientFactory;
+    private SessionTokenManagementMode _sessionTokenManagementMode = SessionTokenManagementMode.FullyAutomatic;
+    private bool? _enableBulkExecution;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -55,9 +59,11 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
     {
         _accountEndpoint = copyFrom._accountEndpoint;
         _accountKey = copyFrom._accountKey;
+        _tokenCredential = copyFrom._tokenCredential;
         _databaseName = copyFrom._databaseName;
         _connectionString = copyFrom._connectionString;
         _region = copyFrom._region;
+        _preferredRegions = copyFrom._preferredRegions;
         _connectionMode = copyFrom._connectionMode;
         _limitToEndpoint = copyFrom._limitToEndpoint;
         _executionStrategyFactory = copyFrom._executionStrategyFactory;
@@ -68,7 +74,10 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
         _gatewayModeMaxConnectionLimit = copyFrom._gatewayModeMaxConnectionLimit;
         _maxTcpConnectionsPerEndpoint = copyFrom._maxTcpConnectionsPerEndpoint;
         _maxRequestsPerTcpConnection = copyFrom._maxRequestsPerTcpConnection;
+        _enableContentResponseOnWrite = copyFrom._enableContentResponseOnWrite;
         _httpClientFactory = copyFrom._httpClientFactory;
+        _sessionTokenManagementMode = copyFrom._sessionTokenManagementMode;
+        _enableBulkExecution = copyFrom._enableBulkExecution;
     }
 
     /// <summary>
@@ -97,14 +106,13 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
     /// </summary>
     public virtual CosmosOptionsExtension WithAccountEndpoint(string? accountEndpoint)
     {
-        if (_connectionString != null)
-        {
-            throw new InvalidOperationException(CosmosStrings.ConnectionStringConflictingConfiguration);
-        }
-
         var clone = Clone();
 
         clone._accountEndpoint = accountEndpoint;
+        if (accountEndpoint is not null)
+        {
+            clone._connectionString = null;
+        }
 
         return clone;
     }
@@ -126,14 +134,43 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
     /// </summary>
     public virtual CosmosOptionsExtension WithAccountKey(string? accountKey)
     {
-        if (accountKey is not null && _connectionString is not null)
-        {
-            throw new InvalidOperationException(CosmosStrings.ConnectionStringConflictingConfiguration);
-        }
-
         var clone = Clone();
 
         clone._accountKey = accountKey;
+        if (accountKey is not null)
+        {
+            clone._connectionString = null;
+            clone._tokenCredential = null;
+        }
+
+        return clone;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual TokenCredential? TokenCredential
+        => _tokenCredential;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual CosmosOptionsExtension WithTokenCredential(TokenCredential? tokenCredential)
+    {
+        var clone = Clone();
+
+        clone._tokenCredential = tokenCredential;
+        if (tokenCredential is not null)
+        {
+            clone._connectionString = null;
+            clone._accountKey = null;
+        }
 
         return clone;
     }
@@ -155,14 +192,15 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
     /// </summary>
     public virtual CosmosOptionsExtension WithConnectionString(string? connectionString)
     {
-        if (connectionString is not null && (_accountEndpoint != null || _accountKey != null))
-        {
-            throw new InvalidOperationException(CosmosStrings.ConnectionStringConflictingConfiguration);
-        }
-
         var clone = Clone();
 
         clone._connectionString = connectionString;
+        if (connectionString is not null)
+        {
+            clone._accountEndpoint = null;
+            clone._accountKey = null;
+            clone._tokenCredential = null;
+        }
 
         return clone;
     }
@@ -211,6 +249,30 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
         var clone = Clone();
 
         clone._region = region;
+
+        return clone;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual IReadOnlyList<string>? PreferredRegions
+        => _preferredRegions;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual CosmosOptionsExtension WithPreferredRegions(IReadOnlyList<string>? regions)
+    {
+        var clone = Clone();
+
+        clone._preferredRegions = regions;
 
         return clone;
     }
@@ -513,6 +575,54 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    public virtual SessionTokenManagementMode SessionTokenManagementMode
+        => _sessionTokenManagementMode;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual CosmosOptionsExtension WithSessionTokenManagementMode(SessionTokenManagementMode mode)
+    {
+        var clone = Clone();
+
+        clone._sessionTokenManagementMode = mode;
+
+        return clone;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual bool? EnableBulkExecution
+        => _enableBulkExecution;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual CosmosOptionsExtension BulkExecutionAllowed(bool enabled)
+    {
+        var clone = Clone();
+
+        clone._enableBulkExecution = enabled;
+
+        return clone;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
     protected virtual CosmosOptionsExtension Clone()
         => new(this);
 
@@ -535,15 +645,10 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
     {
     }
 
-    private sealed class ExtensionInfo : DbContextOptionsExtensionInfo
+    private sealed class ExtensionInfo(IDbContextOptionsExtension extension) : DbContextOptionsExtensionInfo(extension)
     {
         private string? _logFragment;
         private int? _serviceProviderHash;
-
-        public ExtensionInfo(IDbContextOptionsExtension extension)
-            : base(extension)
-        {
-        }
 
         private new CosmosOptionsExtension Extension
             => (CosmosOptionsExtension)base.Extension;
@@ -565,6 +670,7 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
                 {
                     hashCode.Add(Extension._accountEndpoint);
                     hashCode.Add(Extension._accountKey);
+                    hashCode.Add(Extension._tokenCredential);
                 }
 
                 hashCode.Add(Extension._region);
@@ -579,6 +685,8 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
                 hashCode.Add(Extension._maxTcpConnectionsPerEndpoint);
                 hashCode.Add(Extension._maxRequestsPerTcpConnection);
                 hashCode.Add(Extension._httpClientFactory);
+                hashCode.Add(Extension._sessionTokenManagementMode);
+                hashCode.Add(Extension._enableBulkExecution);
 
                 _serviceProviderHash = hashCode.ToHashCode();
             }
@@ -591,6 +699,7 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
                 && Extension._connectionString == otherInfo.Extension._connectionString
                 && Extension._accountEndpoint == otherInfo.Extension._accountEndpoint
                 && Extension._accountKey == otherInfo.Extension._accountKey
+                && Extension._tokenCredential == otherInfo.Extension._tokenCredential
                 && Extension._region == otherInfo.Extension._region
                 && Extension._connectionMode == otherInfo.Extension._connectionMode
                 && Extension._limitToEndpoint == otherInfo.Extension._limitToEndpoint
@@ -602,7 +711,9 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
                 && Extension._gatewayModeMaxConnectionLimit == otherInfo.Extension._gatewayModeMaxConnectionLimit
                 && Extension._maxTcpConnectionsPerEndpoint == otherInfo.Extension._maxTcpConnectionsPerEndpoint
                 && Extension._maxRequestsPerTcpConnection == otherInfo.Extension._maxRequestsPerTcpConnection
-                && Extension._httpClientFactory == otherInfo.Extension._httpClientFactory;
+                && Extension._httpClientFactory == otherInfo.Extension._httpClientFactory
+                && Extension._sessionTokenManagementMode == otherInfo.Extension._sessionTokenManagementMode
+                && Extension._enableBulkExecution == otherInfo.Extension._enableBulkExecution;
 
         public override void PopulateDebugInfo(IDictionary<string, string> debugInfo)
         {
@@ -615,8 +726,17 @@ public class CosmosOptionsExtension : IDbContextOptionsExtension
             {
                 debugInfo["Cosmos:" + nameof(AccountEndpoint)] =
                     (Extension._accountEndpoint?.GetHashCode() ?? 0L).ToString(CultureInfo.InvariantCulture);
-                debugInfo["Cosmos:" + nameof(AccountKey)] =
-                    (Extension._accountKey?.GetHashCode() ?? 0L).ToString(CultureInfo.InvariantCulture);
+
+                if (Extension._accountKey == null)
+                {
+                    debugInfo["Cosmos:" + nameof(TokenCredential)] =
+                        (Extension._tokenCredential?.GetHashCode() ?? 0L).ToString(CultureInfo.InvariantCulture);
+                }
+                else
+                {
+                    debugInfo["Cosmos:" + nameof(AccountKey)] =
+                        (Extension._accountKey?.GetHashCode() ?? 0L).ToString(CultureInfo.InvariantCulture);
+                }
             }
 
             debugInfo["Cosmos:" + nameof(CosmosDbContextOptionsBuilder.Region)] =

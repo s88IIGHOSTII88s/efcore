@@ -10,15 +10,13 @@ public class CustomerAddress
 {
     public int CustomerID { get; set; }
     public int AddressID { get; set; }
-    public string AddressType { get; set; }
+    public string? AddressType { get; set; }
     public DateTime ModifiedDate { get; set; }
     public Guid rowguid { get; set; }
 
-    [ForeignKey("AddressID")]
-    [InverseProperty("CustomerAddress")]
-    public virtual Address Address { get; set; }
+    [ForeignKey("AddressID"), InverseProperty("CustomerAddress")]
+    public virtual Address Address { get; set; } = null!;
 
-    [ForeignKey("CustomerID")]
-    [InverseProperty("CustomerAddress")]
-    public virtual Customer Customer { get; set; }
+    [ForeignKey("CustomerID"), InverseProperty("CustomerAddress")]
+    public virtual Customer Customer { get; set; } = null!;
 }

@@ -1,8 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Diagnostics.CodeAnalysis;
-using Microsoft.EntityFrameworkCore.Internal;
+using System.Runtime.CompilerServices;
 
 namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 
@@ -15,7 +14,11 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 public class EntityReferenceMap
 {
     private readonly bool _hasSubMap;
-    private Dictionary<object, InternalEntityEntry>? _detachedReferenceMap;
+
+    // Detached entries are held weakly: an InternalEntityEntry can be created for an untracked entity
+    // (e.g. by DbContext.Entry) and cached so the same entry is returned for the same instance, but the
+    // context must not keep the entity alive once nothing else references it (issue #33557).
+    private ConditionalWeakTable<object, InternalEntityEntry>? _detachedReferenceMap;
     private Dictionary<object, InternalEntityEntry>? _unchangedReferenceMap;
     private Dictionary<object, InternalEntityEntry>? _addedReferenceMap;
     private Dictionary<object, InternalEntityEntry>? _modifiedReferenceMap;
@@ -29,9 +32,7 @@ public class EntityReferenceMap
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public EntityReferenceMap(bool hasSubMap)
-    {
-        _hasSubMap = hasSubMap;
-    }
+        => _hasSubMap = hasSubMap;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -48,7 +49,7 @@ public class EntityReferenceMap
         if (_hasSubMap
             && entityType.HasSharedClrType)
         {
-            _sharedTypeReferenceMap ??= new Dictionary<IEntityType, EntityReferenceMap>();
+            _sharedTypeReferenceMap ??= [];
 
             if (!_sharedTypeReferenceMap.TryGetValue(entityType, out var sharedMap))
             {
@@ -60,7 +61,7 @@ public class EntityReferenceMap
         }
         else
         {
-            var mapKey = entry.Entity ?? entry;
+            var mapKey = entry.Entity;
 
             if (oldState.HasValue)
             {
@@ -73,24 +74,24 @@ public class EntityReferenceMap
                 switch (state)
                 {
                     case EntityState.Detached:
-                        _detachedReferenceMap ??= new Dictionary<object, InternalEntityEntry>(LegacyReferenceEqualityComparer.Instance);
-                        _detachedReferenceMap[mapKey] = entry;
+                        _detachedReferenceMap ??= [];
+                        _detachedReferenceMap.AddOrUpdate(mapKey, entry);
                         break;
                     case EntityState.Unchanged:
                         _unchangedReferenceMap ??=
-                            new Dictionary<object, InternalEntityEntry>(LegacyReferenceEqualityComparer.Instance);
+                            [with(ReferenceEqualityComparer.Instance)];
                         _unchangedReferenceMap[mapKey] = entry;
                         break;
                     case EntityState.Deleted:
-                        _deletedReferenceMap ??= new Dictionary<object, InternalEntityEntry>(LegacyReferenceEqualityComparer.Instance);
+                        _deletedReferenceMap ??= [with(ReferenceEqualityComparer.Instance)];
                         _deletedReferenceMap[mapKey] = entry;
                         break;
                     case EntityState.Modified:
-                        _modifiedReferenceMap ??= new Dictionary<object, InternalEntityEntry>(LegacyReferenceEqualityComparer.Instance);
+                        _modifiedReferenceMap ??= [with(ReferenceEqualityComparer.Instance)];
                         _modifiedReferenceMap[mapKey] = entry;
                         break;
                     case EntityState.Added:
-                        _addedReferenceMap ??= new Dictionary<object, InternalEntityEntry>(LegacyReferenceEqualityComparer.Instance);
+                        _addedReferenceMap ??= [with(ReferenceEqualityComparer.Instance)];
                         _addedReferenceMap[mapKey] = entry;
                         break;
                 }
@@ -228,29 +229,11 @@ public class EntityReferenceMap
     {
         // Perf sensitive
 
-        var returnAdded
-            = added
-            && _addedReferenceMap != null
-            && _addedReferenceMap.Count > 0;
-
-        var returnModified
-            = modified
-            && _modifiedReferenceMap != null
-            && _modifiedReferenceMap.Count > 0;
-
-        var returnDeleted
-            = deleted
-            && _deletedReferenceMap != null
-            && _deletedReferenceMap.Count > 0;
-
-        var returnUnchanged
-            = unchanged
-            && _unchangedReferenceMap != null
-            && _unchangedReferenceMap.Count > 0;
-
-        var hasSharedTypes
-            = _sharedTypeReferenceMap != null
-            && _sharedTypeReferenceMap.Count > 0;
+        var returnAdded = added && _addedReferenceMap is { Count: > 0 };
+        var returnModified = modified && _modifiedReferenceMap is { Count: > 0 };
+        var returnDeleted = deleted && _deletedReferenceMap is { Count: > 0 };
+        var returnUnchanged = unchanged && _unchangedReferenceMap is { Count: > 0 };
+        var hasSharedTypes = _sharedTypeReferenceMap is { Count: > 0 };
 
         if (!hasSharedTypes)
         {
@@ -271,7 +254,7 @@ public class EntityReferenceMap
                 case 1 when returnDeleted:
                     return _deletedReferenceMap!.Values;
                 case 0:
-                    return Enumerable.Empty<InternalEntityEntry>();
+                    return [];
             }
         }
 
@@ -403,8 +386,7 @@ public class EntityReferenceMap
     {
         // Perf sensitive
 
-        if (_addedReferenceMap != null
-            && _addedReferenceMap.Count > 0)
+        if (_addedReferenceMap is { Count: > 0 })
         {
             foreach (var entry in _addedReferenceMap.Values)
             {
@@ -415,8 +397,7 @@ public class EntityReferenceMap
             }
         }
 
-        if (_modifiedReferenceMap != null
-            && _modifiedReferenceMap.Count > 0)
+        if (_modifiedReferenceMap is { Count: > 0 })
         {
             foreach (var entry in _modifiedReferenceMap.Values)
             {
@@ -427,8 +408,7 @@ public class EntityReferenceMap
             }
         }
 
-        if (_unchangedReferenceMap != null
-            && _unchangedReferenceMap.Count > 0)
+        if (_unchangedReferenceMap is { Count: > 0 })
         {
             foreach (var entry in _unchangedReferenceMap.Values)
             {
@@ -439,8 +419,7 @@ public class EntityReferenceMap
             }
         }
 
-        if (_sharedTypeReferenceMap != null
-            && _sharedTypeReferenceMap.Count > 0)
+        if (_sharedTypeReferenceMap is { Count: > 0 })
         {
             foreach (var subMap in _sharedTypeReferenceMap.Values)
             {

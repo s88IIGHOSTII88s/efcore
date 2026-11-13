@@ -8,27 +8,19 @@ using Microsoft.EntityFrameworkCore.TestModels.GearsOfWarModel;
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public class GearsController : TestODataController, IDisposable
+public class GearsController(GearsOfWarODataContext context) : TestODataController, IDisposable
 {
-    private readonly GearsOfWarODataContext _context;
+    private readonly GearsOfWarODataContext _context = context;
 
-    public GearsController(GearsOfWarODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Gear> Get()
         => _context.Gears;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Officer> GetFromOfficer()
         => _context.Gears.OfType<Officer>();
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] string keyNickname, [FromODataUri] int keySquadId)
     {
         var result = _context.Gears.FirstOrDefault(e => e.Nickname == keyNickname && e.SquadId == keySquadId);
@@ -41,22 +33,15 @@ public class GearsController : TestODataController, IDisposable
     }
 }
 
-public class SquadsController : TestODataController, IDisposable
+public class SquadsController(GearsOfWarODataContext context) : TestODataController, IDisposable
 {
-    private readonly GearsOfWarODataContext _context;
+    private readonly GearsOfWarODataContext _context = context;
 
-    public SquadsController(GearsOfWarODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Squad> Get()
         => _context.Squads;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] int key)
     {
         var result = _context.Squads.FirstOrDefault(e => e.Id == key);
@@ -69,22 +54,15 @@ public class SquadsController : TestODataController, IDisposable
     }
 }
 
-public class TagsController : TestODataController, IDisposable
+public class TagsController(GearsOfWarODataContext context) : TestODataController, IDisposable
 {
-    private readonly GearsOfWarODataContext _context;
+    private readonly GearsOfWarODataContext _context = context;
 
-    public TagsController(GearsOfWarODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<CogTag> Get()
         => _context.Tags;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] Guid key)
     {
         var result = _context.Tags.FirstOrDefault(e => e.Id == key);
@@ -97,22 +75,15 @@ public class TagsController : TestODataController, IDisposable
     }
 }
 
-public class WeaponsController : TestODataController, IDisposable
+public class WeaponsController(GearsOfWarODataContext context) : TestODataController, IDisposable
 {
-    private readonly GearsOfWarODataContext _context;
+    private readonly GearsOfWarODataContext _context = context;
 
-    public WeaponsController(GearsOfWarODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Weapon> Get()
         => _context.Weapons;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] int key)
     {
         var result = _context.Weapons.FirstOrDefault(e => e.Id == key);
@@ -125,22 +96,15 @@ public class WeaponsController : TestODataController, IDisposable
     }
 }
 
-public class CitiesController : TestODataController, IDisposable
+public class CitiesController(GearsOfWarODataContext context) : TestODataController, IDisposable
 {
-    private readonly GearsOfWarODataContext _context;
+    private readonly GearsOfWarODataContext _context = context;
 
-    public CitiesController(GearsOfWarODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<City> Get()
         => _context.Cities;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] string key)
     {
         var result = _context.Cities.FirstOrDefault(e => e.Name == key);
@@ -153,22 +117,15 @@ public class CitiesController : TestODataController, IDisposable
     }
 }
 
-public class MissionsController : TestODataController, IDisposable
+public class MissionsController(GearsOfWarODataContext context) : TestODataController, IDisposable
 {
-    private readonly GearsOfWarODataContext _context;
+    private readonly GearsOfWarODataContext _context = context;
 
-    public MissionsController(GearsOfWarODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Mission> Get()
         => _context.Missions;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] int key)
     {
         var result = _context.Missions.FirstOrDefault(e => e.Id == key);
@@ -181,22 +138,15 @@ public class MissionsController : TestODataController, IDisposable
     }
 }
 
-public class SquadMissionsController : TestODataController, IDisposable
+public class SquadMissionsController(GearsOfWarODataContext context) : TestODataController, IDisposable
 {
-    private readonly GearsOfWarODataContext _context;
+    private readonly GearsOfWarODataContext _context = context;
 
-    public SquadMissionsController(GearsOfWarODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<SquadMission> Get()
         => _context.SquadMissions;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] int keySquadId, [FromODataUri] int keyMissionId)
     {
         var result = _context.SquadMissions.FirstOrDefault(e => e.SquadId == keySquadId && e.MissionId == keyMissionId);
@@ -209,27 +159,19 @@ public class SquadMissionsController : TestODataController, IDisposable
     }
 }
 
-public class FactionsController : TestODataController, IDisposable
+public class FactionsController(GearsOfWarODataContext context) : TestODataController, IDisposable
 {
-    private readonly GearsOfWarODataContext _context;
+    private readonly GearsOfWarODataContext _context = context;
 
-    public FactionsController(GearsOfWarODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Faction> Get()
         => _context.Factions;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<LocustHorde> GetFromLocustHorde()
         => _context.Factions.OfType<LocustHorde>();
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] int key)
     {
         var result = _context.Factions.FirstOrDefault(e => e.Id == key);
@@ -242,27 +184,19 @@ public class FactionsController : TestODataController, IDisposable
     }
 }
 
-public class LocustLeadersController : TestODataController, IDisposable
+public class LocustLeadersController(GearsOfWarODataContext context) : TestODataController, IDisposable
 {
-    private readonly GearsOfWarODataContext _context;
+    private readonly GearsOfWarODataContext _context = context;
 
-    public LocustLeadersController(GearsOfWarODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<LocustLeader> Get()
         => _context.LocustLeaders;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<LocustCommander> GetFromLocustCommander()
         => _context.LocustLeaders.OfType<LocustCommander>();
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] string key)
     {
         var result = _context.LocustLeaders.FirstOrDefault(e => e.Name == key);
@@ -275,22 +209,15 @@ public class LocustLeadersController : TestODataController, IDisposable
     }
 }
 
-public class LocustHighCommandsController : TestODataController, IDisposable
+public class LocustHighCommandsController(GearsOfWarODataContext context) : TestODataController, IDisposable
 {
-    private readonly GearsOfWarODataContext _context;
+    private readonly GearsOfWarODataContext _context = context;
 
-    public LocustHighCommandsController(GearsOfWarODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<LocustHighCommand> Get()
         => _context.LocustHighCommands;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] int key)
     {
         var result = _context.LocustHighCommands.FirstOrDefault(e => e.Id == key);

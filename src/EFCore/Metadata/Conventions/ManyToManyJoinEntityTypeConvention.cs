@@ -24,9 +24,7 @@ public class ManyToManyJoinEntityTypeConvention :
     /// </summary>
     /// <param name="dependencies">Parameter object containing dependencies for this convention.</param>
     public ManyToManyJoinEntityTypeConvention(ProviderConventionSetBuilderDependencies dependencies)
-    {
-        Dependencies = dependencies;
-    }
+        => Dependencies = dependencies;
 
     /// <summary>
     ///     Dependencies for this service.
@@ -99,9 +97,7 @@ public class ManyToManyJoinEntityTypeConvention :
         var inverseSkipNavigation = skipNavigation.Inverse;
         return skipNavigation.ForeignKey == null
             && skipNavigation.IsCollection
-            && inverseSkipNavigation != null
-            && inverseSkipNavigation.ForeignKey == null
-            && inverseSkipNavigation.IsCollection;
+            && inverseSkipNavigation is { ForeignKey: null, IsCollection: true };
     }
 
     /// <summary>
@@ -119,8 +115,12 @@ public class ManyToManyJoinEntityTypeConvention :
         var declaringEntityType = skipNavigation.DeclaringEntityType;
         var inverseEntityType = inverseSkipNavigation.DeclaringEntityType;
         var model = declaringEntityType.Model;
-        var joinEntityTypeName = declaringEntityType.ShortName();
-        var inverseName = inverseEntityType.ShortName();
+        var joinEntityTypeName = !declaringEntityType.HasSharedClrType
+            ? declaringEntityType.ClrType.ShortDisplayName()
+            : declaringEntityType.ShortName();
+        var inverseName = !inverseEntityType.HasSharedClrType
+            ? inverseEntityType.ClrType.ShortDisplayName()
+            : inverseEntityType.ShortName();
         joinEntityTypeName = StringComparer.Ordinal.Compare(joinEntityTypeName, inverseName) < 0
             ? joinEntityTypeName + inverseName
             : inverseName + joinEntityTypeName;

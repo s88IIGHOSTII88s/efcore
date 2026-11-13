@@ -1,14 +1,13 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore.Storage;
 
 public class SqlServerRetryingExecutionStrategyTests
 {
-    [ConditionalFact]
+    [Fact]
     public void GetNextDelay_returns_shorter_delay_for_InMemory_transient_errors()
     {
         var strategy = new TestSqlServerRetryingExecutionStrategy(CreateContext());
@@ -36,7 +35,7 @@ public class SqlServerRetryingExecutionStrategyTests
         {
             Assert.True(
                 Math.Abs((delays[i] - expectedDelays[i]).TotalMilliseconds)
-                <= expectedDelays[i].TotalMilliseconds * 0.1 + 1,
+                <= (expectedDelays[i].TotalMilliseconds * 0.1) + 1,
                 $"Expected: {expectedDelays[i]}; Actual: {delays[i]}");
         }
     }

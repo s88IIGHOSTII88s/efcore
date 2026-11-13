@@ -8,18 +8,17 @@ namespace Microsoft.EntityFrameworkCore;
 
 public class SqlServerOptionsExtensionTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Compiled_model_is_thread_safe()
     {
         var tasks = new Task[Environment.ProcessorCount];
         for (var i = 0; i < tasks.Length; i++)
         {
-            tasks[i] = Task.Run(
-                () =>
-                {
-                    using var ctx = new EmptyContext();
-                    Assert.NotNull(ctx.Model.GetRelationalDependencies());
-                });
+            tasks[i] = Task.Run(() =>
+            {
+                using var ctx = new EmptyContext();
+                Assert.NotNull(ctx.Model.GetRelationalDependencies());
+            });
         }
 
         Task.WaitAll(tasks);
@@ -37,11 +36,12 @@ public class SqlServerOptionsExtensionTest
     }
 
     [DbContext(typeof(EmptyContext))]
-    private class EmptyContextModel : RuntimeModel
+    private class EmptyContextModel(bool skipDetectChanges, Guid modelId, int entityTypeCount, int typeConfigurationCount) : RuntimeModel(
+        skipDetectChanges, modelId, entityTypeCount, typeConfigurationCount)
     {
         static EmptyContextModel()
         {
-            var model = new EmptyContextModel();
+            var model = new EmptyContextModel(false, Guid.NewGuid(), 0, 0);
             _instance = model;
         }
 
@@ -51,29 +51,27 @@ public class SqlServerOptionsExtensionTest
             => _instance;
     }
 
-    [ConditionalFact]
-    public void ApplyServices_adds_SQL_server_services()
+    [Fact]
+    public void ApplyServices_adds_correct_services()
     {
         var services = new ServiceCollection();
 
-        new SqlServerOptionsExtension().ApplyServices(services);
+        new SqlServerOptionsExtension()
+            .WithEngineType(SqlServerEngineType.SqlServer)
+            .ApplyServices(services);
 
         Assert.Contains(services, sd => sd.ServiceType == typeof(ISqlServerConnection));
+        Assert.Contains(services, sd => sd.ServiceType == typeof(ISqlServerSingletonOptions));
     }
 
-    private class ChangedRowNumberContext : DbContext
+    private class ChangedRowNumberContext(bool setInternalServiceProvider) : DbContext
     {
         private static readonly IServiceProvider _serviceProvider
             = new ServiceCollection()
                 .AddEntityFrameworkSqlServer()
                 .BuildServiceProvider(validateScopes: true);
 
-        private readonly bool _setInternalServiceProvider;
-
-        public ChangedRowNumberContext(bool setInternalServiceProvider)
-        {
-            _setInternalServiceProvider = setInternalServiceProvider;
-        }
+        private readonly bool _setInternalServiceProvider = setInternalServiceProvider;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

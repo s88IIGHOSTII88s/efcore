@@ -14,8 +14,20 @@ namespace Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 /// </remarks>
 public class ValueConverter<TModel, TProvider> : ValueConverter
 {
-    private Func<object?, object?>? _convertToProvider;
-    private Func<object?, object?>? _convertFromProvider;
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="ValueConverter{TModel,TProvider}" /> class.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-value-converters">EF Core value converters</see> for more information and examples.
+    /// </remarks>
+    /// <param name="convertToProviderExpression">An expression to convert objects when writing data to the store.</param>
+    /// <param name="convertFromProviderExpression">An expression to convert objects when reading data from the store.</param>
+    public ValueConverter(
+        Expression<Func<TModel, TProvider>> convertToProviderExpression,
+        Expression<Func<TProvider, TModel>> convertFromProviderExpression)
+        : base(convertToProviderExpression, convertFromProviderExpression)
+    {
+    }
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="ValueConverter{TModel,TProvider}" /> class.
@@ -32,8 +44,37 @@ public class ValueConverter<TModel, TProvider> : ValueConverter
     public ValueConverter(
         Expression<Func<TModel, TProvider>> convertToProviderExpression,
         Expression<Func<TProvider, TModel>> convertFromProviderExpression,
-        ConverterMappingHints? mappingHints = null)
+        ConverterMappingHints? mappingHints)
         : base(convertToProviderExpression, convertFromProviderExpression, mappingHints)
+    {
+    }
+
+    /// <summary>
+    ///     <para>
+    ///         Initializes a new instance of the <see cref="ValueConverter{TModel,TProvider}" /> class, allowing conversion of
+    ///         nulls.
+    ///     </para>
+    ///     <para>
+    ///         Warning: this is currently an internal API since converting nulls to and from the database can lead to broken
+    ///         queries and other issues. See <see href="https://github.com/dotnet/efcore/issues/26230">GitHub issue #26230</see>
+    ///         for more information and examples.
+    ///     </para>
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-value-converters">EF Core value converters</see> for more information and examples.
+    /// </remarks>
+    /// <param name="convertToProviderExpression">An expression to convert objects when writing data to the store.</param>
+    /// <param name="convertFromProviderExpression">An expression to convert objects when reading data from the store.</param>
+    /// <param name="convertsNulls">
+    ///     If <see langword="true" />, then the nulls will be passed to the converter for conversion. Otherwise null
+    ///     values always remain null.
+    /// </param>
+    [EntityFrameworkInternal]
+    public ValueConverter(
+        Expression<Func<TModel, TProvider>> convertToProviderExpression,
+        Expression<Func<TProvider, TModel>> convertFromProviderExpression,
+        bool convertsNulls)
+        : base(convertToProviderExpression, convertFromProviderExpression, convertsNulls)
     {
     }
 
@@ -66,31 +107,32 @@ public class ValueConverter<TModel, TProvider> : ValueConverter
         Expression<Func<TModel, TProvider>> convertToProviderExpression,
         Expression<Func<TProvider, TModel>> convertFromProviderExpression,
         bool convertsNulls,
-        ConverterMappingHints? mappingHints = null)
+        ConverterMappingHints? mappingHints)
         : base(convertToProviderExpression, convertFromProviderExpression, convertsNulls, mappingHints)
     {
     }
 
     private static Func<object?, object?> SanitizeConverter<TIn, TOut>(
-        Expression<Func<TIn, TOut>> convertExpression,
+        Func<TIn, TOut> convertFunc,
         bool convertsNulls)
-    {
-        var compiled = convertExpression.Compile();
-
-        return convertsNulls
-            ? v => compiled((TIn)v!)
+        => convertsNulls
+            ? v => convertFunc((TIn)v!)
             : v => v == null
                 ? null
-                : compiled(Sanitize<TIn>(v));
-    }
+                : convertFunc(Sanitize<TIn>(v));
 
     private static T Sanitize<T>(object value)
     {
         var unwrappedType = typeof(T).UnwrapNullableType();
 
-        return (T)(!unwrappedType.IsInstanceOfType(value)
-            ? Convert.ChangeType(value, unwrappedType)
-            : value);
+        if (unwrappedType.IsInstanceOfType(value))
+        {
+            return (T)value;
+        }
+
+        // Convert.ChangeType cannot convert to enum types; use Enum.ToObject instead, which handles
+        // conversion from different enum types (with the same underlying type) or from integral types.
+        return unwrappedType.IsEnum ? (T)Enum.ToObject(unwrappedType, value) : (T)Convert.ChangeType(value, unwrappedType);
     }
 
     /// <summary>
@@ -100,9 +142,10 @@ public class ValueConverter<TModel, TProvider> : ValueConverter
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-value-converters">EF Core value converters</see> for more information and examples.
     /// </remarks>
+    [field: AllowNull, MaybeNull]
     public override Func<object?, object?> ConvertToProvider
         => NonCapturingLazyInitializer.EnsureInitialized(
-            ref _convertToProvider, this, static c => SanitizeConverter(c.ConvertToProviderExpression, c.ConvertsNulls));
+            ref field, this, static c => SanitizeConverter(c.ConvertToProviderTyped, c.ConvertsNulls));
 
     /// <summary>
     ///     Gets the function to convert objects when reading data from the store,
@@ -111,9 +154,32 @@ public class ValueConverter<TModel, TProvider> : ValueConverter
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-value-converters">EF Core value converters</see> for more information and examples.
     /// </remarks>
+    [field: AllowNull, MaybeNull]
     public override Func<object?, object?> ConvertFromProvider
         => NonCapturingLazyInitializer.EnsureInitialized(
-            ref _convertFromProvider, this, static c => SanitizeConverter(c.ConvertFromProviderExpression, c.ConvertsNulls));
+            ref field, this, static c => SanitizeConverter(c.ConvertFromProviderTyped, c.ConvertsNulls));
+
+    /// <summary>
+    ///     Gets the function to convert objects when writing data to the store.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-value-converters">EF Core value converters</see> for more information and examples.
+    /// </remarks>
+    [field: AllowNull, MaybeNull]
+    public virtual Func<TModel, TProvider> ConvertToProviderTyped
+        => NonCapturingLazyInitializer.EnsureInitialized(
+            ref field, this, static c => c.ConvertToProviderExpression.Compile());
+
+    /// <summary>
+    ///     Gets the function to convert objects when reading data from the store.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-value-converters">EF Core value converters</see> for more information and examples.
+    /// </remarks>
+    [field: AllowNull, MaybeNull]
+    public virtual Func<TProvider, TModel> ConvertFromProviderTyped
+        => NonCapturingLazyInitializer.EnsureInitialized(
+            ref field, this, static c => c.ConvertFromProviderExpression.Compile());
 
     /// <summary>
     ///     Gets the expression to convert objects when writing data to the store,
@@ -154,4 +220,80 @@ public class ValueConverter<TModel, TProvider> : ValueConverter
     /// </remarks>
     public override Type ProviderClrType
         => typeof(TProvider);
+
+    private readonly ConstructorInfo _constructorInfo = typeof(ValueConverter<TModel, TProvider>).GetConstructor(
+    [
+        typeof(Expression<Func<TModel, TProvider>>),
+        typeof(Expression<Func<TProvider, TModel>>),
+        typeof(ConverterMappingHints)
+    ])!;
+
+    private readonly ConstructorInfo _constructorInfoWithoutMappingHints = typeof(ValueConverter<TModel, TProvider>).GetConstructor(
+    [
+        typeof(Expression<Func<TModel, TProvider>>),
+        typeof(Expression<Func<TProvider, TModel>>)
+    ])!;
+
+    private readonly ConstructorInfo _constructorInfoWithConvertsNulls = typeof(ValueConverter<TModel, TProvider>).GetConstructor(
+    [
+        typeof(Expression<Func<TModel, TProvider>>),
+        typeof(Expression<Func<TProvider, TModel>>),
+        typeof(bool),
+        typeof(ConverterMappingHints)
+    ])!;
+
+    private readonly ConstructorInfo _constructorInfoWithConvertsNullsWithoutMappingHints =
+        typeof(ValueConverter<TModel, TProvider>).GetConstructor(
+        [
+            typeof(Expression<Func<TModel, TProvider>>),
+            typeof(Expression<Func<TProvider, TModel>>),
+            typeof(bool)
+        ])!;
+
+    private Expression ConstructorExpressionCore(bool includeMappingHints)
+    {
+        if (!includeMappingHints)
+        {
+            return ConvertsNulls
+                ? Expression.New(
+                    _constructorInfoWithConvertsNullsWithoutMappingHints,
+                    ConvertToProviderExpression,
+                    ConvertFromProviderExpression,
+                    Expression.Constant(true))
+                : Expression.New(
+                    _constructorInfoWithoutMappingHints,
+                    ConvertToProviderExpression,
+                    ConvertFromProviderExpression);
+        }
+
+        var mappingHintsExpression = MappingHints != null
+            ? (Expression)Expression.New(
+                MappingHintsCtor,
+                Expression.Constant(MappingHints.Size, typeof(int?)),
+                Expression.Constant(MappingHints.Precision, typeof(int?)),
+                Expression.Constant(MappingHints.Scale, typeof(int?)),
+                Expression.Constant(MappingHints.IsUnicode, typeof(bool?)))
+            : Expression.Default(typeof(ConverterMappingHints));
+
+        return ConvertsNulls
+            ? Expression.New(
+                _constructorInfoWithConvertsNulls,
+                ConvertToProviderExpression,
+                ConvertFromProviderExpression,
+                Expression.Constant(true),
+                mappingHintsExpression)
+            : Expression.New(
+                _constructorInfo,
+                ConvertToProviderExpression,
+                ConvertFromProviderExpression,
+                mappingHintsExpression);
+    }
+
+    /// <inheritdoc />
+    public override Expression ConstructorExpression
+        => ConstructorExpressionCore(includeMappingHints: true);
+
+    /// <inheritdoc />
+    public override Expression ConstructorExpressionWithoutMappingHints
+        => ConstructorExpressionCore(includeMappingHints: false);
 }

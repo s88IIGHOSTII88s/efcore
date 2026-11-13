@@ -5,13 +5,22 @@ using Microsoft.EntityFrameworkCore.InMemory.Internal;
 
 namespace Microsoft.EntityFrameworkCore;
 
-public class UpdatesInMemoryWithoutSensitiveDataLoggingTest : UpdatesInMemoryTestBase<UpdatesInMemoryWithoutSensitiveDataLoggingFixture>
+public class UpdatesInMemoryWithoutSensitiveDataLoggingTest(
+    UpdatesInMemoryWithoutSensitiveDataLoggingTest.UpdatesInMemoryWithoutSensitiveDataLoggingFixture fixture)
+    : UpdatesInMemoryTestBase<UpdatesInMemoryWithoutSensitiveDataLoggingTest.UpdatesInMemoryWithoutSensitiveDataLoggingFixture>(fixture)
 {
-    public UpdatesInMemoryWithoutSensitiveDataLoggingTest(UpdatesInMemoryWithoutSensitiveDataLoggingFixture fixture)
-        : base(fixture)
-    {
-    }
-
     protected override string UpdateConcurrencyTokenMessage
         => InMemoryStrings.UpdateConcurrencyTokenException("Product", "{'Price'}");
+
+    public class UpdatesInMemoryWithoutSensitiveDataLoggingFixture : UpdatesInMemoryFixtureBase
+    {
+        protected override string StoreName
+            => "UpdateTestInsensitive";
+
+        protected override ITestStoreFactory TestStoreFactory
+            => InMemoryTestStoreFactory.Instance;
+
+        public override DbContextOptionsBuilder AddOptions(DbContextOptionsBuilder builder)
+            => base.AddOptions(builder).EnableSensitiveDataLogging(false);
+    }
 }

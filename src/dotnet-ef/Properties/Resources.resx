@@ -1,17 +1,17 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
-  <!--
-    Microsoft ResX Schema
-
+  <!-- 
+    Microsoft ResX Schema 
+    
     Version 2.0
-
-    The primary goals of this format is to allow a simple XML format
-    that is mostly human readable. The generation and parsing of the
-    various data types are done through the TypeConverter classes
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
     associated with the data types.
-
+    
     Example:
-
+    
     ... ado.net/XML headers & schema ...
     <resheader name="resmimetype">text/microsoft-resx</resheader>
     <resheader name="version">2.0</resheader>
@@ -26,36 +26,36 @@
         <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
         <comment>This is a comment</comment>
     </data>
-
-    There are any number of "resheader" rows that contain simple
+                
+    There are any number of "resheader" rows that contain simple 
     name/value pairs.
-
-    Each data row contains a name, and value. The row also contains a
-    type or mimetype. Type corresponds to a .NET class that support
-    text/value conversion through the TypeConverter architecture.
-    Classes that don't support this are serialized and stored with the
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
     mimetype set.
-
-    The mimetype is used for serialized objects, and tells the
-    ResXResourceReader how to depersist the object. This is currently not
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
     extensible. For a given mimetype the value must be set accordingly:
-
-    Note - application/x-microsoft.net.object.binary.base64 is the format
-    that the ResXResourceWriter will generate, however the reader can
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
     read any of the formats listed below.
-
+    
     mimetype: application/x-microsoft.net.object.binary.base64
-    value   : The object must be serialized with
+    value   : The object must be serialized with 
             : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
             : and then encoded with base64 encoding.
-
+    
     mimetype: application/x-microsoft.net.object.soap.base64
-    value   : The object must be serialized with
+    value   : The object must be serialized with 
             : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
             : and then encoded with base64 encoding.
 
     mimetype: application/x-microsoft.net.object.bytearray.base64
-    value   : The object must be serialized into a byte array
+    value   : The object must be serialized into a byte array 
             : using a System.ComponentModel.TypeConverter
             : and then encoded with base64 encoding.
     -->
@@ -133,10 +133,10 @@
     <value>The connection string to the database.</value>
   </data>
   <data name="ContextDescription" xml:space="preserve">
-    <value>The DbContext to use.</value>
+    <value>The DbContext to use. "*" can be used to run the command for all contexts found. This will also disable service discovery through the startup project if a corresponding IDesignTimeDbContextFactory implementation is found.</value>
   </data>
   <data name="ContextDirDescription" xml:space="preserve">
-    <value>The directory to put the DbContext file in. Paths are relative to the project directory.</value>
+    <value>The directory to put the DbContext file in. Paths are relative to the project or file-based app directory.</value>
   </data>
   <data name="ContextNameDescription" xml:space="preserve">
     <value>The name of the DbContext. Defaults to the database name.</value>
@@ -158,6 +158,9 @@
   </data>
   <data name="DatabaseDropForceDescription" xml:space="preserve">
     <value>Don't confirm.</value>
+  </data>
+  <data name="DatabaseUpdateAddDescription" xml:space="preserve">
+    <value>Create a new migration with the given name and apply it immediately.</value>
   </data>
   <data name="DatabaseUpdateDescription" xml:space="preserve">
     <value>Updates the database to a specified migration.</value>
@@ -189,6 +192,27 @@
   <data name="DotnetEfFullName" xml:space="preserve">
     <value>Entity Framework Core .NET Command-line Tools</value>
   </data>
+  <data name="FileDescription" xml:space="preserve">
+    <value>The file-based app to use. An alias for --project.</value>
+  </data>
+  <data name="DotNetEfConfigInvalidJson" xml:space="preserve">
+    <value>Unable to read '{configFile}'. Fix the JSON and try again. {details}</value>
+  </data>
+  <data name="DotNetEfConfigInvalidRoot" xml:space="preserve">
+    <value>Unable to read '{configFile}'. The file must contain a JSON object.</value>
+  </data>
+  <data name="DotNetEfConfigInvalidValue" xml:space="preserve">
+    <value>Unable to read '{configFile}'. The '{propertyName}' property must be a non-empty JSON string.</value>
+  </data>
+  <data name="DotNetEfConfigInvalidBoolValue" xml:space="preserve">
+    <value>Unable to read '{configFile}'. The '{propertyName}' property must be a boolean.</value>
+  </data>
+  <data name="DotNetEfConfigReadFailed" xml:space="preserve">
+    <value>Unable to read '{configFile}'. Ensure the file is accessible and try again. {details}</value>
+  </data>
+  <data name="DotNetEfConfigUnknownProperty" xml:space="preserve">
+    <value>Unable to read '{configFile}'. Remove the unsupported '{propertyName}' property.</value>
+  </data>
   <data name="EFFullName" xml:space="preserve">
     <value>Entity Framework Core Command-line Tools</value>
   </data>
@@ -196,13 +220,19 @@
     <value>The target framework. Defaults to the first one in the project.</value>
   </data>
   <data name="GetMetadataFailed" xml:space="preserve">
-    <value>Unable to retrieve project metadata. Ensure it's an SDK-style project. If you're using a custom BaseIntermediateOutputPath or MSBuildProjectExtensionsPath values, Use the --msbuildprojectextensionspath option.</value>
+    <value>Unable to retrieve project metadata. Ensure it's an SDK-style project or a file-based app.</value>
+  </data>
+  <data name="RestoreRequired" xml:space="preserve">
+    <value>Unable to retrieve project metadata. Restore the project or file-based app (e.g. by running 'dotnet restore') and try again.</value>
+  </data>
+  <data name="ProjectFileNotFound" xml:space="preserve">
+    <value>The file '{file}' could not be found.</value>
   </data>
   <data name="IdempotentDescription" xml:space="preserve">
     <value>Generate a script that can be used on a database at any migration.</value>
   </data>
   <data name="JsonDescription" xml:space="preserve">
-    <value>Show JSON output. Use with --prefix-output to parse programatically.</value>
+    <value>Show JSON output. Use with --prefix-output to parse programmatically.</value>
   </data>
   <data name="MigrationDescription" xml:space="preserve">
     <value>The target migration. If '0', all migrations will be reverted. Defaults to the last migration.</value>
@@ -228,6 +258,9 @@
   <data name="MigrationsDescription" xml:space="preserve">
     <value>Commands to manage migrations.</value>
   </data>
+  <data name="MigrationsHasPendingModelChangesDescription" xml:space="preserve">
+    <value>Checks if any changes have been made to the model since the last migration.</value>
+  </data>
   <data name="MigrationsListDescription" xml:space="preserve">
     <value>Lists available migrations.</value>
   </data>
@@ -235,7 +268,7 @@
     <value>The namespace to use. Matches the directory by default.</value>
   </data>
   <data name="MigrationsOutputDirDescription" xml:space="preserve">
-    <value>The directory to put files in. Paths are relative to the project directory. Defaults to "Migrations".</value>
+    <value>The directory to put files in. Paths are relative to the project or file-based app directory. Defaults to "Migrations".</value>
   </data>
   <data name="MigrationsRemoveDescription" xml:space="preserve">
     <value>Removes the last migration.</value>
@@ -243,11 +276,20 @@
   <data name="MigrationsRemoveForceDescription" xml:space="preserve">
     <value>Revert the migration if it has been applied to the database.</value>
   </data>
+  <data name="MigrationsRemoveOfflineDescription" xml:space="preserve">
+    <value>Remove the migration without connecting to the database.</value>
+  </data>
   <data name="MigrationsScriptDescription" xml:space="preserve">
     <value>Generates a SQL script from migrations.</value>
   </data>
   <data name="MigrationToDescription" xml:space="preserve">
     <value>The target migration. Defaults to the last migration.</value>
+  </data>
+  <data name="MissingArgument" xml:space="preserve">
+    <value>Missing required argument '{arg}'.</value>
+  </data>
+  <data name="MissingConditionalOption" xml:space="preserve">
+    <value>Option '--{requiredOption}' must be specified if '--{conditionalOption}' is used.</value>
   </data>
   <data name="MultipleProjects" xml:space="preserve">
     <value>More than one project was found in the current working directory. Use the --project option.</value>
@@ -258,14 +300,32 @@
   <data name="MultipleStartupProjects" xml:space="preserve">
     <value>More than one project was found in the current working directory. Use the --startup-project option.</value>
   </data>
+  <data name="MutuallyExclusiveOptions" xml:space="preserve">
+    <value>The --{option1} and --{option2} options cannot be used together.</value>
+  </data>
+  <data name="MultipleTargetFrameworks" xml:space="preserve">
+    <value>The project targets multiple frameworks. Use the --framework option to specify which target framework to use.</value>
+  </data>
   <data name="NamespaceDescription" xml:space="preserve">
     <value>The namespace to use. Matches the directory by default.</value>
   </data>
+  <data name="LanguageVersionDescription" xml:space="preserve">
+    <value>The C# language version to use when generating code.</value>
+  </data>
+  <data name="NativeAotDescription" xml:space="preserve">
+    <value>Generate additional code in the compiled model required for NativeAOT compilation and precompiled queries (experimental).</value>
+  </data>
+  <data name="NativeAotWarning" xml:space="preserve">
+    <value>NativeAOT support is experimental and can change in the future.</value>
+  </data>
   <data name="NETCoreApp1StartupProject" xml:space="preserve">
-    <value>Startup project '{startupProject}' targets framework '.NETCoreApp' version '{targetFrameworkVersion}'. This version of the Entity Framework Core .NET Command-line Tools only supports version 2.0 or higher. For information on using older versions of the tools, see https://go.microsoft.com/fwlink/?linkid=871254</value>
+    <value>Startup project '{startupProject}' targets framework '.NETCoreApp' version '{targetFrameworkVersion}'. This version of the Entity Framework Core .NET Command-line Tools only supports version 10.0 or higher.</value>
+  </data>
+  <data name="NETFrameworkStartupProject" xml:space="preserve">
+    <value>Startup project '{startupProject}' targets framework '.NETFramework'. The Entity Framework Core .NET Command-line Tools don't support .NET Framework projects. Consider updating the project to target .NET.</value>
   </data>
   <data name="NETStandardStartupProject" xml:space="preserve">
-    <value>Startup project '{startupProject}' targets framework '.NETStandard'. There is no runtime associated with this framework, and projects targeting it cannot be executed directly. To use the Entity Framework Core .NET Command-line Tools with this project, add an executable project targeting .NET Core or .NET Framework that references this project, and set it as the startup project using --startup-project; or, update this project to cross-target .NET Core or .NET Framework. For more information on using the Entity Framework Tools with .NET Standard projects, see https://go.microsoft.com/fwlink/?linkid=2034781</value>
+    <value>Startup project '{startupProject}' targets framework '.NETStandard'. There is no runtime associated with this framework, and projects targeting it cannot be executed directly. To use the Entity Framework Core .NET Command-line Tools with this project, add an executable project targeting .NET Core or .NET Framework that references this project, and set it as the startup project using --startup-project; or update this project to cross-target .NET Core or .NET Framework. For more information on using the Entity Framework Tools with .NET Standard projects, see https://go.microsoft.com/fwlink/?linkid=2034781</value>
   </data>
   <data name="NoBuildDescription" xml:space="preserve">
     <value>Don't build the project. Intended to be used when the build is up-to-date.</value>
@@ -285,6 +345,9 @@
   <data name="NoProjectInDirectory" xml:space="preserve">
     <value>No project was found in directory '{projectDir}'.</value>
   </data>
+  <data name="NoScaffoldDescription" xml:space="preserve">
+    <value>Don't generate a compiled model.</value>
+  </data>
   <data name="NoTransactionsDescription" xml:space="preserve">
     <value>Don't generate SQL transaction statements.</value>
   </data>
@@ -292,7 +355,16 @@
     <value>The file to write the result to.</value>
   </data>
   <data name="OutputDirDescription" xml:space="preserve">
-    <value>The directory to put files in. Paths are relative to the project directory.</value>
+    <value>The directory to put files in. Paths are relative to the project or file-based app directory.</value>
+  </data>
+  <data name="PrecompileQueriesDescription" xml:space="preserve">
+    <value>Generate precompiled queries.</value>
+  </data>
+  <data name="PrecompileQueriesWarning" xml:space="preserve">
+    <value>Query precompilation is an experimental feature and should be used with caution.</value>
+  </data>
+  <data name="PlatformSpecificProject" xml:space="preserve">
+    <value>Startup project '{startupProject}' targets a platform-specific framework: '{targetFrameworkValue}'. The Entity Framework Core .NET Command-line Tools might not function correctly. Implement IDesignTimeDbContextFactory&lt;&gt; to ensure design-time tools work correctly with this project. See https://aka.ms/efcore-docs-migrations-projects for more information.</value>
   </data>
   <data name="PrefixDescription" xml:space="preserve">
     <value>Prefix output with level.</value>
@@ -301,16 +373,19 @@
     <value>The project to use. Defaults to the current working directory.</value>
   </data>
   <data name="ProjectExtensionsDescription" xml:space="preserve">
-    <value>The MSBuild project extensions path. Defaults to "obj".</value>
+    <value>Obsolete</value>
   </data>
   <data name="ProviderDescription" xml:space="preserve">
     <value>The provider to use. (E.g. Microsoft.EntityFrameworkCore.SqlServer)</value>
+  </data>
+  <data name="RunningCommand" xml:space="preserve">
+    <value>Running '{command}'</value>
   </data>
   <data name="RuntimeDescription" xml:space="preserve">
     <value>The runtime to use.</value>
   </data>
   <data name="SchemasDescription" xml:space="preserve">
-    <value>The schemas of tables to generate entity types for.</value>
+    <value>The schemas of tables and views to generate entity types for. All tables and views in the schemas will be included in the model, even if they are not explicitly included with the --table parameter.</value>
   </data>
   <data name="SelfContainedDescription" xml:space="preserve">
     <value>Also bundle the .NET runtime so it doesn't need to be installed on the machine.</value>
@@ -318,11 +393,17 @@
   <data name="StartupProjectDescription" xml:space="preserve">
     <value>The startup project to use. Defaults to the current working directory.</value>
   </data>
+  <data name="StartupFileDescription" xml:space="preserve">
+    <value>The startup file-based app to use. An alias for --startup-project.</value>
+  </data>
+  <data name="SuffixDescription" xml:space="preserve">
+    <value>The suffix to attach to the name of all the generated files</value>
+  </data>
   <data name="SuppressOnConfiguringDescription" xml:space="preserve">
     <value>Don't generate DbContext.OnConfiguring.</value>
   </data>
   <data name="TablesDescription" xml:space="preserve">
-    <value>The tables to generate entity types for.</value>
+    <value>The tables and views to generate entity types for. Tables or views in a specific schema can be included using the 'schema.table' or 'schema.view' format.</value>
   </data>
   <data name="UnsupportedFramework" xml:space="preserve">
     <value>Startup project '{startupProject}' targets framework '{targetFramework}'. The Entity Framework Core .NET Command-line Tools don't support this framework. See https://aka.ms/efcore-docs-cli-tfms for more information.</value>
@@ -331,10 +412,16 @@
     <value>Startup project '{startupProject}' targets platform '{targetPlatform}'. The Entity Framework Core .NET Command-line Tools don't support this platform. See https://aka.ms/efcore-docs-cli-tfms for more information.</value>
   </data>
   <data name="UseDatabaseNamesDescription" xml:space="preserve">
-    <value>Use table and column names directly from the database.</value>
+    <value>Use table, view, sequence, and column names directly from the database.</value>
+  </data>
+  <data name="UsingFileBasedApp" xml:space="preserve">
+    <value>Using file-based app '{file}'.</value>
   </data>
   <data name="UsingProject" xml:space="preserve">
     <value>Using project '{project}'.</value>
+  </data>
+  <data name="UsingStartupFileBasedApp" xml:space="preserve">
+    <value>Using startup file-based app '{file}'.</value>
   </data>
   <data name="UsingStartupProject" xml:space="preserve">
     <value>Using startup project '{startupProject}'.</value>

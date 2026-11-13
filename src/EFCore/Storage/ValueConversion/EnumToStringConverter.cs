@@ -12,7 +12,7 @@ namespace Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 ///     See <see href="https://aka.ms/efcore-docs-value-converters">EF Core value converters</see> for more information and examples.
 /// </remarks>
 public class EnumToStringConverter<TEnum> : StringEnumConverter<TEnum, string, TEnum>
-    where TEnum : struct
+    where TEnum : struct, Enum
 {
     /// <summary>
     ///     Creates a new instance of this converter. This converter does not preserve order.
@@ -44,8 +44,15 @@ public class EnumToStringConverter<TEnum> : StringEnumConverter<TEnum, string, T
     }
 
     /// <summary>
+    ///     A cached, default instance of this converter.
+    /// </summary>
+    public static EnumToStringConverter<TEnum> Instance { get; } = new();
+
+    /// <summary>
     ///     A <see cref="ValueConverterInfo" /> for the default use of this converter.
     /// </summary>
     public static ValueConverterInfo DefaultInfo { get; }
-        = new(typeof(TEnum), typeof(string), i => new EnumToStringConverter<TEnum>(i.MappingHints));
+        = new(
+            typeof(TEnum), typeof(string),
+            i => ReferenceEquals(i.MappingHints, Instance.MappingHints) ? Instance : new EnumToStringConverter<TEnum>(i.MappingHints));
 }

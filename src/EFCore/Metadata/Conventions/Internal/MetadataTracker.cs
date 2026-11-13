@@ -13,7 +13,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions.Internal;
 /// </summary>
 public class MetadataTracker : IReferenceRoot<IConventionForeignKey>
 {
-    private readonly Dictionary<IConventionForeignKey, Reference<IConventionForeignKey>> _trackedForeignKeys = new();
+    private readonly Dictionary<IConventionForeignKey, Reference<IConventionForeignKey>> _trackedForeignKeys = [];
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -27,9 +27,8 @@ public class MetadataTracker : IReferenceRoot<IConventionForeignKey>
             !oldForeignKey.IsInModel && newForeignKey.IsInModel,
             $"{nameof(oldForeignKey)} is in the model or {nameof(newForeignKey)} isn't");
 
-        if (_trackedForeignKeys.TryGetValue(oldForeignKey, out var reference))
+        if (_trackedForeignKeys.Remove(oldForeignKey, out var reference))
         {
-            _trackedForeignKeys.Remove(oldForeignKey);
             reference.Object = newForeignKey;
             _trackedForeignKeys.Add(newForeignKey, reference);
         }

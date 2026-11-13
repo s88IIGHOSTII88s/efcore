@@ -5,19 +5,28 @@ using Microsoft.EntityFrameworkCore.TestModels.ManyToManyModel;
 
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class ManyToManyTrackingSqlServerTestBase<TFixture> : ManyToManyTrackingTestBase<TFixture>
+public abstract class ManyToManyTrackingSqlServerTestBase<TFixture>(TFixture fixture)
+    : ManyToManyTrackingRelationalTestBase<TFixture>(fixture)
     where TFixture : ManyToManyTrackingSqlServerTestBase<TFixture>.ManyToManyTrackingSqlServerFixtureBase
 {
-    protected ManyToManyTrackingSqlServerTestBase(TFixture fixture)
-        : base(fixture)
+    protected override Dictionary<string, DeleteBehavior> CustomDeleteBehaviors { get; } = new()
     {
-    }
+        { "EntityBranch.RootSkipShared", DeleteBehavior.ClientCascade },
+        { "EntityBranch2.Leaf2SkipShared", DeleteBehavior.ClientCascade },
+        { "EntityBranch2.SelfSkipSharedLeft", DeleteBehavior.ClientCascade },
+        { "EntityOne.SelfSkipPayloadLeft", DeleteBehavior.ClientCascade },
+        { "EntityTableSharing1.TableSharing2Shared", DeleteBehavior.ClientCascade },
+        { "EntityTwo.SelfSkipSharedLeft", DeleteBehavior.ClientCascade },
+        { "UnidirectionalEntityBranch.UnidirectionalEntityRoot", DeleteBehavior.ClientCascade },
+        { "UnidirectionalEntityOne.SelfSkipPayloadLeft", DeleteBehavior.ClientCascade },
+        { "UnidirectionalEntityTwo.SelfSkipSharedRight", DeleteBehavior.ClientCascade },
+    };
 
-    protected override void UseTransaction(DatabaseFacade facade, IDbContextTransaction transaction)
-        => facade.UseTransaction(transaction.GetDbTransaction());
-
-    public class ManyToManyTrackingSqlServerFixtureBase : ManyToManyTrackingFixtureBase
+    public class ManyToManyTrackingSqlServerFixtureBase : ManyToManyTrackingRelationalFixture, ITestSqlLoggerFactory
     {
+        public TestSqlLoggerFactory TestSqlLoggerFactory
+            => (TestSqlLoggerFactory)ListLoggerFactory;
+
         protected override ITestStoreFactory TestStoreFactory
             => SqlServerTestStoreFactory.Instance;
 
@@ -37,6 +46,21 @@ public abstract class ManyToManyTrackingSqlServerTestBase<TFixture> : ManyToMany
 
             modelBuilder
                 .Entity<JoinOneToThreePayloadFull>()
+                .Property(e => e.Payload)
+                .HasDefaultValue("Generated");
+
+            modelBuilder
+                .Entity<UnidirectionalJoinOneSelfPayload>()
+                .Property(e => e.Payload)
+                .HasDefaultValueSql("GETUTCDATE()");
+
+            modelBuilder
+                .SharedTypeEntity<Dictionary<string, object>>("UnidirectionalJoinOneToThreePayloadFullShared")
+                .IndexerProperty<string>("Payload")
+                .HasDefaultValue("Generated");
+
+            modelBuilder
+                .Entity<UnidirectionalJoinOneToThreePayloadFull>()
                 .Property(e => e.Payload)
                 .HasDefaultValue("Generated");
         }

@@ -21,13 +21,11 @@ public abstract class QueryLoggingCosmosTestBase
     protected virtual bool ExpectSensitiveData
         => true;
 
-    [ConditionalFact]
-    public virtual void Queryable_simple()
+    [Fact]
+    public virtual async Task Queryable_simple()
     {
         using var context = CreateContext();
-        var customers
-            = context.Set<Customer>()
-                .ToList();
+        var customers = await context.Set<Customer>().ToListAsync();
 
         Assert.NotNull(customers);
 
@@ -43,26 +41,22 @@ public abstract class QueryLoggingCosmosTestBase
         {
             Assert.Equal(
                 CosmosResources.LogExecutingSqlQuery(new TestLogger<CosmosLoggingDefinitions>()).GenerateMessage(
-                    "NorthwindContext", "(null)", "", Environment.NewLine,
-                    @"SELECT c
-FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")"),
+                    "Customers", "None", "", Environment.NewLine,
+                    "SELECT VALUE c" + Environment.NewLine + "FROM root c"),
                 Fixture.TestSqlLoggerFactory.Log[2].Message);
         }
         else
         {
             Assert.Equal(
                 CosmosResources.LogExecutingSqlQuery(new TestLogger<CosmosLoggingDefinitions>()).GenerateMessage(
-                    "NorthwindContext", "?", "", Environment.NewLine,
-                    @"SELECT c
-FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")"),
+                    "Customers", "?", "", Environment.NewLine,
+                    "SELECT VALUE c" + Environment.NewLine + "FROM root c"),
                 Fixture.TestSqlLoggerFactory.Log[2].Message);
         }
     }
 
-    [ConditionalFact]
-    public virtual void Queryable_with_parameter_outputs_parameter_value_logging_warning()
+    [Fact]
+    public virtual async Task Queryable_with_parameter_outputs_parameter_value_logging_warning()
     {
         using var context = CreateContext();
         context.GetInfrastructure().GetRequiredService<IDiagnosticsLogger<DbLoggerCategory.Query>>()
@@ -70,10 +64,7 @@ WHERE (c[""Discriminator""] = ""Customer"")"),
         // ReSharper disable once ConvertToConstant.Local
         var city = "Redmond";
 
-        var customers
-            = context.Customers
-                .Where(c => c.City == city)
-                .ToList();
+        var customers = await context.Customers.Where(c => c.City == city).ToListAsync();
 
         Assert.NotNull(customers);
 
@@ -88,29 +79,25 @@ WHERE (c[""Discriminator""] = ""Customer"")"),
         {
             Assert.Equal(
                 CosmosResources.LogExecutingSqlQuery(new TestLogger<CosmosLoggingDefinitions>()).GenerateMessage(
-                    "NorthwindContext", "(null)", "@__city_0='Redmond'", Environment.NewLine,
-                    @"SELECT c
-FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND (c[""City""] = @__city_0))"),
+                    "Customers", "None", "@city='Redmond'", Environment.NewLine,
+                    "SELECT VALUE c" + Environment.NewLine + "FROM root c" + Environment.NewLine + """WHERE (c["City"] = @city)"""),
                 Fixture.TestSqlLoggerFactory.Log[3].Message);
         }
         else
         {
             Assert.Equal(
                 CosmosResources.LogExecutingSqlQuery(new TestLogger<CosmosLoggingDefinitions>()).GenerateMessage(
-                    "NorthwindContext", "?", "@__city_0=?", Environment.NewLine,
-                    @"SELECT c
-FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND (c[""City""] = @__city_0))"),
+                    "Customers", "?", "@city=?", Environment.NewLine,
+                    "SELECT VALUE c" + Environment.NewLine + "FROM root c" + Environment.NewLine + """WHERE (c["City"] = @city)"""),
                 Fixture.TestSqlLoggerFactory.Log[2].Message);
         }
     }
 
-    [ConditionalFact]
-    public virtual void Skip_without_order_by()
+    [Fact]
+    public virtual async Task Skip_without_order_by()
     {
         using var context = CreateContext();
-        var customers = context.Set<Customer>().Skip(85).Take(5).ToList();
+        var customers = await context.Set<Customer>().Skip(85).Take(5).ToListAsync();
 
         Assert.NotNull(customers);
 
@@ -119,11 +106,11 @@ WHERE ((c[""Discriminator""] = ""Customer"") AND (c[""City""] = @__city_0))"),
             Fixture.TestSqlLoggerFactory.Log[1].Message);
     }
 
-    [ConditionalFact]
-    public virtual void Take_without_order_by()
+    [Fact]
+    public virtual async Task Take_without_order_by()
     {
         using var context = CreateContext();
-        var customers = context.Set<Customer>().Take(5).ToList();
+        var customers = await context.Set<Customer>().Take(5).ToListAsync();
 
         Assert.NotNull(customers);
 

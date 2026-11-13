@@ -58,7 +58,7 @@ public class ReferenceEntry<TEntity, TProperty> : ReferenceEntry
     /// </remarks>
     /// <value> An entry for the entity that owns this member. </value>
     public new virtual EntityEntry<TEntity> EntityEntry
-        => new(InternalEntry);
+        => new(InternalEntityEntry);
 
     /// <summary>
     ///     The <see cref="EntityEntry{TEntity}" /> of the entity this navigation targets.
@@ -89,12 +89,12 @@ public class ReferenceEntry<TEntity, TProperty> : ReferenceEntry
     /// </remarks>
     public new virtual TProperty? CurrentValue
     {
-        get => this.GetInfrastructure().GetCurrentValue<TProperty>(Metadata);
+        get => InternalEntityEntry.GetCurrentValue<TProperty>(Metadata);
         set => base.CurrentValue = value;
     }
 
     /// <summary>
-    ///     Returns the query that would be used by <see cref="NavigationEntry.Load" /> to load the entity referenced by
+    ///     Returns the query that would be used by <see cref="NavigationEntry.Load()" /> to load the entity referenced by
     ///     this navigation property.
     /// </summary>
     /// <remarks>

@@ -37,27 +37,26 @@ public abstract class InternalEntityEntryTestBase<
     where TKContext : DbContext, new()
     where TKSnapContext : DbContext, new()
 {
-    [ConditionalFact]
+    [Fact]
     public virtual void Store_setting_null_for_non_nullable_store_generated_property_throws()
     {
         using var context = new TKContext();
         var entry = context.Add(new TSomeEntity()).GetInfrastructure();
-        var keyProperty = entry.EntityType.FindProperty("Id");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
 
         entry.PrepareToSave();
 
         Assert.Equal(
             CoreStrings.ValueCannotBeNull("Id", "SomeSimpleEntityBase", "int"),
-            Assert.Throws<InvalidOperationException>(
-                () => entry.SetStoreGeneratedValue(keyProperty, null)).Message);
+            Assert.Throws<InvalidOperationException>(() => entry.SetStoreGeneratedValue(keyProperty, null)).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Changing_state_from_Unknown_causes_entity_to_start_tracking()
     {
         using var context = new TKContext();
         var entry = context.Entry(new TSomeEntity()).GetInfrastructure();
-        var keyProperty = entry.EntityType.FindProperty("Id");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
 
         entry[keyProperty] = 1;
 
@@ -67,14 +66,12 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Contains(entry, context.GetService<IStateManager>().Entries);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Changing_state_to_Unknown_causes_entity_to_stop_tracking(bool useTempValue)
     {
         using var context = new TKContext();
         var entry1 = context.Entry(new TSomeEntity()).GetInfrastructure();
-        var keyProperty = entry1.EntityType.FindProperty("Id");
+        var keyProperty = entry1.EntityType.FindProperty("Id")!;
 
         if (useTempValue)
         {
@@ -101,12 +98,12 @@ public abstract class InternalEntityEntryTestBase<
         Assert.DoesNotContain(entry2, context.GetService<IStateManager>().Entries);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Changing_state_to_Unknown_causes_entity_with_temporary_key_to_stop_tracking()
     {
         using var context = new TKContext();
         var entry = context.Entry(new TSomeEntity()).GetInfrastructure();
-        var keyProperty = entry.EntityType.FindProperty("Id");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
 
         entry.SetTemporaryValue(keyProperty, -1, setModified: false);
 
@@ -117,7 +114,7 @@ public abstract class InternalEntityEntryTestBase<
         Assert.DoesNotContain(entry, context.GetService<IStateManager>().Entries);
     }
 
-    [ConditionalFact] // GitHub #251, #1247
+    [Fact] // GitHub #251, #1247
     public virtual void Changing_state_from_Added_to_Deleted_does_what_you_ask()
     {
         using var context = new TKContext();
@@ -130,14 +127,14 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Contains(entry, context.GetService<IStateManager>().Entries);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Changing_state_to_Modified_or_Unchanged_causes_all_properties_to_be_marked_accordingly()
     {
         using var context = new TKContext();
         var entry = context.Add(new TSomeEntity()).GetInfrastructure();
 
-        var keyProperty = entry.EntityType.FindProperty("Id");
-        var nonKeyProperty = entry.EntityType.FindProperty("Name");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
+        var nonKeyProperty = entry.EntityType.FindProperty("Name")!;
 
         Assert.False(entry.IsModified(keyProperty));
         Assert.False(entry.IsModified(nonKeyProperty));
@@ -159,12 +156,12 @@ public abstract class InternalEntityEntryTestBase<
         Assert.True(entry.IsModified(nonKeyProperty));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Key_properties_throw_immediately_if_modified()
     {
         using var context = new TKContext();
         var entry = context.Add(new TSomeEntity()).GetInfrastructure();
-        var keyProperty = entry.EntityType.FindProperty("Id");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
 
         entry.SetEntityState(EntityState.Modified);
 
@@ -176,28 +173,26 @@ public abstract class InternalEntityEntryTestBase<
 
         Assert.Equal(
             CoreStrings.KeyReadOnly("Id", "SomeEntity"),
-            Assert.Throws<InvalidOperationException>(
-                () => entry.SetPropertyModified(keyProperty)).Message);
+            Assert.Throws<InvalidOperationException>(() => entry.SetPropertyModified(keyProperty)).Message);
 
         Assert.Equal(EntityState.Unchanged, entry.EntityState);
         Assert.False(entry.IsModified(keyProperty));
 
         Assert.Equal(
             CoreStrings.KeyReadOnly("Id", "SomeEntity"),
-            Assert.Throws<InvalidOperationException>(
-                () => entry[keyProperty] = 2).Message);
+            Assert.Throws<InvalidOperationException>(() => entry[keyProperty] = 2).Message);
 
         Assert.Equal(EntityState.Unchanged, entry.EntityState);
         Assert.False(entry.IsModified(keyProperty));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Added_entities_can_have_temporary_values()
     {
         using var context = new TKContext();
         var entry = context.Add(new TSomeEntity()).GetInfrastructure();
-        var keyProperty = entry.EntityType.FindProperty("Id");
-        var nonKeyProperty = entry.EntityType.FindProperty("Name");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
+        var nonKeyProperty = entry.EntityType.FindProperty("Name")!;
 
         entry[keyProperty] = 1;
 
@@ -254,15 +249,12 @@ public abstract class InternalEntityEntryTestBase<
         Assert.False(entry.IsModified(nonKeyProperty));
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Unchanged)]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Deleted)]
+    [Theory, InlineData(EntityState.Unchanged), InlineData(EntityState.Modified), InlineData(EntityState.Deleted)]
     public virtual void Changing_state_with_temp_value_throws(EntityState targetState)
     {
         using var context = new TKContext();
         var entry = context.Add(new TSomeEntity()).GetInfrastructure();
-        var keyProperty = entry.EntityType.FindProperty("Id");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
 
         entry.SetEntityState(EntityState.Added);
         entry.SetTemporaryValue(keyProperty, -1);
@@ -272,12 +264,12 @@ public abstract class InternalEntityEntryTestBase<
             Assert.Throws<InvalidOperationException>(() => entry.SetEntityState(targetState)).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Detaching_with_temp_values_does_not_throw()
     {
         using var context = new TKContext();
         var entry = context.Add(new TSomeEntity()).GetInfrastructure();
-        var keyProperty = entry.EntityType.FindProperty("Id");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
 
         entry[keyProperty] = 1;
         entry.SetEntityState(EntityState.Added);
@@ -295,12 +287,12 @@ public abstract class InternalEntityEntryTestBase<
         Assert.False(entry.HasTemporaryValue(keyProperty));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Setting_an_explicit_value_marks_property_as_not_temporary()
     {
         using var context = new TKContext();
         var entry = context.Add(new TSomeEntity()).GetInfrastructure();
-        var keyProperty = entry.EntityType.FindProperty("Id");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
 
         entry.SetEntityState(EntityState.Added);
         entry.SetTemporaryValue(keyProperty, -1);
@@ -314,13 +306,13 @@ public abstract class InternalEntityEntryTestBase<
         entry.SetEntityState(EntityState.Unchanged); // Does not throw
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Key_properties_share_value_generation_space_with_base()
     {
         using var context = new TKContext();
         var entry = context.Add(new TSomeEntity()).GetInfrastructure();
-        var keyProperty = entry.EntityType.FindProperty("Id");
-        var altKeyProperty = entry.EntityType.FindProperty("NonId");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
+        var altKeyProperty = entry.EntityType.FindProperty("NonId")!;
 
         Assert.NotEqual(0, entry[keyProperty]);
         Assert.Equal(entry[keyProperty], entry[altKeyProperty]);
@@ -334,12 +326,12 @@ public abstract class InternalEntityEntryTestBase<
         Assert.NotEqual(entry[altKeyProperty], baseEntry[altKeyProperty]);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Value_generation_does_not_happen_if_property_has_non_default_value()
     {
         using var context = new TKContext();
         var entry = context.Add(new TSomeEntity()).GetInfrastructure();
-        var keyProperty = entry.EntityType.FindProperty("Id");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
 
         entry[keyProperty] = 31143;
 
@@ -348,14 +340,14 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal(31143, entry[keyProperty]);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Modified_values_are_reset_when_entity_is_changed_to_Added()
     {
         using var context = new TKContext();
         var entry = context.Update(new TSomeEntity()).GetInfrastructure();
-        var property = entry.EntityType.FindProperty("Name");
+        var property = entry.EntityType.FindProperty("Name")!;
 
-        entry[entry.EntityType.FindProperty("Id")] = 1;
+        entry[entry.EntityType.FindProperty("Id")!] = 1;
 
         entry.SetEntityState(EntityState.Modified);
         entry.SetPropertyModified(property);
@@ -365,34 +357,34 @@ public abstract class InternalEntityEntryTestBase<
         Assert.False(entry.HasTemporaryValue(property));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Changing_state_to_Added_triggers_value_generation_for_any_property()
     {
         using var context = new TKContext();
         var entry = context.Entry(new TSomeDependentEntity()).GetInfrastructure();
 
         var entityType = entry.EntityType;
-        entry[entityType.FindProperty("Id1")] = 77;
-        entry[entityType.FindProperty("Id2")] = "Ready Salted";
+        entry[entityType.FindProperty("Id1")!] = 77;
+        entry[entityType.FindProperty("Id2")!] = "Ready Salted";
         entry.SetEntityState(EntityState.Added);
 
-        var property = entityType.FindProperty("JustAProperty");
+        var property = entityType.FindProperty("JustAProperty")!;
 
         Assert.NotEqual(0, entry[property]);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Notification_that_an_FK_property_has_changed_updates_the_snapshot()
     {
         using var context = new TKContext();
         var entry = context.Entry(new TSomeDependentEntity()).GetInfrastructure();
 
         var entityType = entry.EntityType;
-        entry[entityType.FindProperty("Id1")] = 77;
-        entry[entityType.FindProperty("Id2")] = "Ready Salted";
+        entry[entityType.FindProperty("Id1")!] = 77;
+        entry[entityType.FindProperty("Id2")!] = "Ready Salted";
         entry.SetEntityState(EntityState.Added);
 
-        var fkProperty = entityType.FindProperty("SomeEntityId");
+        var fkProperty = entityType.FindProperty("SomeEntityId")!;
 
         entry[fkProperty] = 77;
         entry.SetRelationshipSnapshotValue(fkProperty, 78);
@@ -403,18 +395,18 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal(79, keyValue);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Setting_property_to_the_same_value_does_not_update_the_snapshot()
     {
         using var context = new TKContext();
         var entry = context.Entry(new TSomeDependentEntity()).GetInfrastructure();
 
         var entityType = entry.EntityType;
-        entry[entityType.FindProperty("Id1")] = 77;
-        entry[entityType.FindProperty("Id2")] = "Ready Salted";
+        entry[entityType.FindProperty("Id1")!] = 77;
+        entry[entityType.FindProperty("Id2")!] = "Ready Salted";
         entry.SetEntityState(EntityState.Unchanged);
 
-        var fkProperty = entityType.FindProperty("SomeEntityId");
+        var fkProperty = entityType.FindProperty("SomeEntityId")!;
 
         entry[fkProperty] = 77;
         entry.SetRelationshipSnapshotValue(fkProperty, 78);
@@ -425,68 +417,108 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal(78, keyValue);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Can_get_property_value_after_creation_from_value_buffer()
     {
         using var context = new TKContext();
         var stateManager = context.GetService<IStateManager>();
-        var entityType = context.Model.FindEntityType(typeof(TSomeEntity));
+        var entityType = context.Model.FindEntityType(typeof(TSomeEntity))!;
+
+        var keyProperty = entityType.FindProperty("Id")!;
+        var property = entityType.FindProperty("Name")!;
 
         var entry = stateManager.CreateEntry(
-            new Dictionary<string, object> { { "Id", 1 }, { "Name", "Kool" } },
+            new Dictionary<IProperty, object?> { { keyProperty, 1 }, { property, "Kool" } },
             entityType
         );
-
-        var keyProperty = entityType.FindProperty("Id");
-        var property = entityType.FindProperty("Name");
 
         Assert.Equal(1, entry[keyProperty]);
         Assert.Equal("Kool", entry[property]);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Can_set_property_value_after_creation_from_value_buffer()
     {
         using var context = new TKContext();
         var stateManager = context.GetService<IStateManager>();
-        var entityType = context.Model.FindEntityType(typeof(TSomeEntity));
+        var entityType = context.Model.FindEntityType(typeof(TSomeEntity))!;
+
+        var keyProperty = entityType.FindProperty("Id")!;
+        var nameProperty = entityType.FindProperty("Name")!;
 
         var entry = stateManager.CreateEntry(
-            new Dictionary<string, object> { { "Id", 1 }, { "Name", "Kool" } },
+            new Dictionary<IProperty, object?> { { keyProperty, 1 }, { nameProperty, "Kool" } },
             entityType
         );
 
-        var nameProperty = entityType.FindProperty("Name");
         entry[nameProperty] = "Mule";
 
         Assert.Equal("Mule", entry[nameProperty]);
     }
 
-    [ConditionalFact]
+    [Fact, Obsolete("Tests the obsolete name-keyed CreateEntry overload.")]
+    public virtual void Can_get_property_value_after_creation_from_value_buffer_using_property_names()
+    {
+        using var context = new TKContext();
+        var stateManager = context.GetService<IStateManager>();
+        var entityType = context.Model.FindEntityType(typeof(TSomeEntity))!;
+
+        var keyProperty = entityType.FindProperty("Id")!;
+        var property = entityType.FindProperty("Name")!;
+
+        var entry = stateManager.CreateEntry(
+            new Dictionary<string, object?> { { "Id", 1 }, { "Name", "Kool" } },
+            entityType
+        );
+
+        Assert.Equal(1, entry[keyProperty]);
+        Assert.Equal("Kool", entry[property]);
+    }
+
+    [Fact, Obsolete("Tests the obsolete name-keyed CreateEntry overload.")]
+    public virtual void Can_set_property_value_after_creation_from_value_buffer_using_property_names()
+    {
+        using var context = new TKContext();
+        var stateManager = context.GetService<IStateManager>();
+        var entityType = context.Model.FindEntityType(typeof(TSomeEntity))!;
+
+        var nameProperty = entityType.FindProperty("Name")!;
+
+        var entry = stateManager.CreateEntry(
+            new Dictionary<string, object?> { { "Id", 1 }, { "Name", "Kool" } },
+            entityType
+        );
+
+        entry[nameProperty] = "Mule";
+
+        Assert.Equal("Mule", entry[nameProperty]);
+    }
+
+    [Fact]
     public virtual void Can_get_value_buffer_from_properties()
     {
         using var context = new TKContext();
         var entry = context.Add(new TSomeEntity()).GetInfrastructure();
-        var keyProperty = entry.EntityType.FindProperty("Id");
-        var nonKeyProperty = entry.EntityType.FindProperty("Name");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
+        var nonKeyProperty = entry.EntityType.FindProperty("Name")!;
 
         entry[keyProperty] = 77;
         entry[nonKeyProperty] = "Magic Tree House";
 
         Assert.Equal(
-            new object[] { 77, "SomeEntity", 1, "Magic Tree House" },
+            [77, "SomeEntity", 1, "Magic Tree House"],
             CreateValueBuffer(entry));
     }
 
-    private static object[] CreateValueBuffer(IUpdateEntry entry)
+    private static object?[] CreateValueBuffer(IUpdateEntry entry)
         => entry.EntityType.GetProperties().Select(entry.GetCurrentValue).ToArray();
 
     protected void AllOriginalValuesTest(object entity)
     {
         using var context = new TKSnapContext();
         var entry = context.Entry(entity).GetInfrastructure();
-        var idProperty = entry.EntityType.FindProperty("Id");
-        var nameProperty = entry.EntityType.FindProperty("Name");
+        var idProperty = entry.EntityType.FindProperty("Id")!;
+        var nameProperty = entry.EntityType.FindProperty("Name")!;
 
         entry[idProperty] = 1;
         entry[nameProperty] = "Kool";
@@ -512,7 +544,7 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal("Beans", entry[nameProperty]);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Required_original_values_can_be_accessed_for_entity_that_does_no_notification()
         => OriginalValuesTest(new TSomeEntity());
 
@@ -520,8 +552,8 @@ public abstract class InternalEntityEntryTestBase<
     {
         using var context = new TKContext();
         var entry = context.Entry(entity).GetInfrastructure();
-        entry[entry.EntityType.FindProperty("Id")] = 1;
-        var nameProperty = entry.EntityType.FindProperty("Name");
+        entry[entry.EntityType.FindProperty("Id")!] = 1;
+        var nameProperty = entry.EntityType.FindProperty("Name")!;
         entry[nameProperty] = "Kool";
         entry.SetEntityState(EntityState.Unchanged);
 
@@ -539,7 +571,7 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal("Beans", entry[nameProperty]);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Required_original_values_can_be_accessed_generically_for_entity_that_does_no_notification()
         => GenericOriginalValuesTest(new TSomeEntity());
 
@@ -547,8 +579,8 @@ public abstract class InternalEntityEntryTestBase<
     {
         using var context = new TKContext();
         var entry = context.Entry(entity).GetInfrastructure();
-        var idProperty = entry.EntityType.FindProperty("Id");
-        var nameProperty = entry.EntityType.FindProperty("Name");
+        var idProperty = entry.EntityType.FindProperty("Id")!;
+        var nameProperty = entry.EntityType.FindProperty("Name")!;
 
         entry[idProperty] = 77;
         entry[nameProperty] = "Kool";
@@ -568,7 +600,7 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal("Beans", entry.GetCurrentValue<string>(nameProperty));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Null_original_values_are_handled_for_entity_that_does_no_notification()
         => NullOriginalValuesTest(new TSomeEntity());
 
@@ -576,8 +608,8 @@ public abstract class InternalEntityEntryTestBase<
     {
         using var context = new TKContext();
         var entry = context.Entry(entity).GetInfrastructure();
-        var idProperty = entry.EntityType.FindProperty("Id");
-        var nameProperty = entry.EntityType.FindProperty("Name");
+        var idProperty = entry.EntityType.FindProperty("Id")!;
+        var nameProperty = entry.EntityType.FindProperty("Name")!;
 
         entry[idProperty] = 77;
         entry.SetEntityState(EntityState.Unchanged);
@@ -601,7 +633,7 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal("Beans", entry[nameProperty]);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Null_original_values_are_handled_generically_for_entity_that_does_no_notification()
         => GenericNullOriginalValuesTest(new TSomeEntity());
 
@@ -609,8 +641,8 @@ public abstract class InternalEntityEntryTestBase<
     {
         using var context = new TKContext();
         var entry = context.Entry(entity).GetInfrastructure();
-        var idProperty = entry.EntityType.FindProperty("Id");
-        var nameProperty = entry.EntityType.FindProperty("Name");
+        var idProperty = entry.EntityType.FindProperty("Id")!;
+        var nameProperty = entry.EntityType.FindProperty("Name")!;
 
         entry[idProperty] = 77;
         entry.SetEntityState(EntityState.Unchanged);
@@ -634,7 +666,7 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal("Beans", entry.GetCurrentValue<string>(nameProperty));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Setting_property_using_state_entry_always_marks_as_modified_no_notifications()
         => SetPropertyInternalEntityEntryTest(new TSomeEntity());
 
@@ -642,8 +674,8 @@ public abstract class InternalEntityEntryTestBase<
     {
         using var context = new TKContext();
         var entry = context.Entry(entity).GetInfrastructure();
-        var idProperty = entry.EntityType.FindProperty("Id");
-        var nameProperty = entry.EntityType.FindProperty("Name");
+        var idProperty = entry.EntityType.FindProperty("Id")!;
+        var nameProperty = entry.EntityType.FindProperty("Name")!;
 
         entry[idProperty] = 77;
         entry[nameProperty] = "Kool";
@@ -664,7 +696,7 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal(EntityState.Modified, entry.EntityState);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_entity()
     {
         using var context = new TKContext();
@@ -674,15 +706,15 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Same(entity, entry.Entity);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_set_and_get_property_value_from_CLR_object()
     {
         using var context = new TKContext();
         var entity = new TSomeEntity();
         var entry = context.Entry(entity).GetInfrastructure();
         var entityType = entry.EntityType;
-        var keyProperty = entityType.FindProperty("Id");
-        var nonKeyProperty = entityType.FindProperty("Name");
+        var keyProperty = entityType.FindProperty("Id")!;
+        var nonKeyProperty = entityType.FindProperty("Name")!;
 
         entry[keyProperty] = 77;
         entry[nonKeyProperty] = "Magic Tree House";
@@ -698,15 +730,15 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal("Normal Tree House", entry[nonKeyProperty]);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void All_original_values_can_be_accessed_for_entity_that_does_no_notification()
         => AllOriginalValuesTest(new TSomeEntity());
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AcceptChanges_does_nothing_for_unchanged_entities()
         => AcceptChangesNoop(EntityState.Unchanged);
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AcceptChanges_does_nothing_for_unknown_entities()
         => AcceptChangesNoop(EntityState.Detached);
 
@@ -715,8 +747,8 @@ public abstract class InternalEntityEntryTestBase<
         using var context = new TKContext();
         var entry = context.Entry(new TSomeEntity()).GetInfrastructure();
         var entityType = entry.EntityType;
-        var keyProperty = entityType.FindProperty("Id");
-        var nonKeyProperty = entityType.FindProperty("Name");
+        var keyProperty = entityType.FindProperty("Id")!;
+        var nonKeyProperty = entityType.FindProperty("Name")!;
         entry[keyProperty] = 1;
         entry[nonKeyProperty] = "Kool";
 
@@ -727,16 +759,14 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal(entityState, entry.EntityState);
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Added)]
+    [Theory, InlineData(EntityState.Modified), InlineData(EntityState.Added)]
     public void AcceptChanges_makes_entities_Unchanged(EntityState entityState)
     {
         using var context = new TKContext();
         var entry = context.Entry(new TSomeEntity()).GetInfrastructure();
         var entityType = entry.EntityType;
-        var keyProperty = entityType.FindProperty("Id");
-        var nameProperty = entityType.FindProperty("Name");
+        var keyProperty = entityType.FindProperty("Id")!;
+        var nameProperty = entityType.FindProperty("Name")!;
 
         entry[keyProperty] = 1;
         entry[nameProperty] = "Kool";
@@ -753,14 +783,14 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal("Pickle", entry.GetOriginalValue(nameProperty));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AcceptChanges_makes_Modified_entities_Unchanged_and_effectively_resets_unused_original_values()
     {
         using var context = new TKContext();
         var entry = context.Entry(new TSomeEntity()).GetInfrastructure();
         var entityType = entry.EntityType;
-        var keyProperty = entityType.FindProperty("Id");
-        var nameProperty = entityType.FindProperty("Name");
+        var keyProperty = entityType.FindProperty("Id")!;
+        var nameProperty = entityType.FindProperty("Name")!;
 
         entry[keyProperty] = 1;
         entry[nameProperty] = "Kool";
@@ -776,14 +806,14 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal("Pickle", entry.GetOriginalValue(nameProperty));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AcceptChanges_detaches_Deleted_entities()
     {
         using var context = new TKContext();
         var entry = context.Entry(new TSomeEntity()).GetInfrastructure();
         var entityType = entry.EntityType;
-        var keyProperty = entityType.FindProperty("Id");
-        var nameProperty = entityType.FindProperty("Name");
+        var keyProperty = entityType.FindProperty("Id")!;
+        var nameProperty = entityType.FindProperty("Name")!;
 
         entry[keyProperty] = 1;
         entry[nameProperty] = "Kool";
@@ -795,12 +825,12 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal(EntityState.Detached, entry.EntityState);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Unchanged_entity_with_conceptually_null_FK_with_cascade_delete_is_marked_Deleted()
     {
         using var context = new KcContext();
         var entry = context.Entry(new TSecondDependent()).GetInfrastructure();
-        var fkProperty = entry.EntityType.FindProperty("Id");
+        var fkProperty = entry.EntityType.FindProperty("Id")!;
 
         entry[fkProperty] = 77;
         entry.SetEntityState(EntityState.Unchanged);
@@ -811,12 +841,12 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal(EntityState.Deleted, entry.EntityState);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Added_entity_with_conceptually_null_FK_with_cascade_delete_is_detached()
     {
         using var context = new KcContext();
         var entry = context.Entry(new TSecondDependent()).GetInfrastructure();
-        var fkProperty = entry.EntityType.FindProperty("Id");
+        var fkProperty = entry.EntityType.FindProperty("Id")!;
 
         entry[fkProperty] = 77;
         entry.SetEntityState(EntityState.Added);
@@ -827,17 +857,17 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal(EntityState.Detached, entry.EntityState);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Entity_with_partially_null_composite_FK_with_cascade_delete_is_marked_Deleted()
     {
         using var context = new KcrContext();
         var entry = context.Entry(new TCompositeSecondDependent()).GetInfrastructure();
         var entityType = entry.EntityType;
-        var fkProperty1 = entityType.FindProperty("FirstId1");
-        var fkProperty2 = entityType.FindProperty("FirstId2");
+        var fkProperty1 = entityType.FindProperty("FirstId1")!;
+        var fkProperty2 = entityType.FindProperty("FirstId2")!;
 
-        entry[entityType.FindProperty("Id1")] = 66;
-        entry[entityType.FindProperty("Id2")] = "Bar";
+        entry[entityType.FindProperty("Id1")!] = 66;
+        entry[entityType.FindProperty("Id2")!] = "Bar";
         entry[fkProperty1] = 77;
         entry[fkProperty2] = "Foo";
         entry.SetEntityState(EntityState.Unchanged);
@@ -848,17 +878,17 @@ public abstract class InternalEntityEntryTestBase<
         Assert.Equal(EntityState.Deleted, entry.EntityState);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Entity_with_partially_null_composite_FK_without_cascade_delete_is_orphaned()
     {
         using var context = new KcContext();
         var entry = context.Entry(new TCompositeSecondDependent()).GetInfrastructure();
         var entityType = entry.EntityType;
-        var fkProperty1 = entityType.FindProperty("FirstId1");
-        var fkProperty2 = entityType.FindProperty("FirstId2");
+        var fkProperty1 = entityType.FindProperty("FirstId1")!;
+        var fkProperty2 = entityType.FindProperty("FirstId2")!;
 
-        entry[entityType.FindProperty("Id1")] = 66;
-        entry[entityType.FindProperty("Id2")] = "Bar";
+        entry[entityType.FindProperty("Id1")!] = 66;
+        entry[entityType.FindProperty("Id2")!] = "Bar";
         entry[fkProperty1] = 77;
         entry[fkProperty2] = "Foo";
         entry.SetEntityState(EntityState.Unchanged);
@@ -879,40 +909,36 @@ public abstract class InternalEntityEntryTestBase<
 
         protected internal override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<TSomeSimpleEntityBase>(
-                b =>
-                {
-                    b.Property<int>("Id");
-                    b.HasKey("Id");
-                    b.Property<int>("NonId").ValueGeneratedOnAdd();
-                    b.HasAlternateKey("NonId");
-                });
+            modelBuilder.Entity<TSomeSimpleEntityBase>(b =>
+            {
+                b.Property<int>("Id");
+                b.HasKey("Id");
+                b.Property<int>("NonId").ValueGeneratedOnAdd();
+                b.HasAlternateKey("NonId");
+            });
 
             modelBuilder.Entity<TSomeEntity>().Property<string>("Name").IsConcurrencyToken().ValueGeneratedOnAdd();
 
-            modelBuilder.Entity<TSomeCompositeEntityBase>(
-                b =>
-                {
-                    b.Property<int>("Id1");
-                    b.Property<string>("Id2");
-                    b.HasKey("Id1", "Id2");
-                });
+            modelBuilder.Entity<TSomeCompositeEntityBase>(b =>
+            {
+                b.Property<int>("Id1");
+                b.Property<string>("Id2");
+                b.HasKey("Id1", "Id2");
+            });
 
-            modelBuilder.Entity<TSomeDependentEntity>(
-                b =>
-                {
-                    b.Property<int>("SomeEntityId");
-                    b.HasOne<TSomeEntity>().WithMany().HasForeignKey("SomeEntityId");
-                    b.Property<int>("JustAProperty").HasValueGenerator((p, e) => new InMemoryIntegerValueGenerator<int>(p.GetIndex()));
-                });
+            modelBuilder.Entity<TSomeDependentEntity>(b =>
+            {
+                b.Property<int>("SomeEntityId");
+                b.HasOne<TSomeEntity>().WithMany().HasForeignKey("SomeEntityId");
+                b.Property<int>("JustAProperty").HasValueGenerator((p, e) => new InMemoryIntegerValueGenerator<int>(p.GetIndex()));
+            });
 
-            modelBuilder.Entity<TSomeMoreDependentEntity>(
-                b =>
-                {
-                    b.Property<int>("Fk11");
-                    b.Property<string>("Fk2");
-                    b.HasOne<TSomeDependentEntity>().WithMany().HasForeignKey("Fk1", "Fk2");
-                });
+            modelBuilder.Entity<TSomeMoreDependentEntity>(b =>
+            {
+                b.Property<int>("Fk11");
+                b.Property<string>("Fk2");
+                b.HasOne<TSomeDependentEntity>().WithMany().HasForeignKey("Fk1", "Fk2");
+            });
         }
     }
 
@@ -920,71 +946,64 @@ public abstract class InternalEntityEntryTestBase<
     {
         protected internal override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<TFirstDependent>(
-                b =>
-                {
-                    b.Property<int>("Id");
-                    b.HasOne(e => (TSecondDependent)e.Second)
-                        .WithOne(e => (TFirstDependent)e.First)
-                        .HasForeignKey<TSecondDependent>("Id")
-                        .OnDelete(DeleteBehavior.Cascade);
-                });
+            modelBuilder.Entity<TFirstDependent>(b =>
+            {
+                b.Property<int>("Id");
+                b.HasOne(e => (TSecondDependent)e.Second)
+                    .WithOne(e => (TFirstDependent)e.First)
+                    .HasForeignKey<TSecondDependent>("Id")
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
 
             modelBuilder
-                .Entity<TRoot>(
-                    b =>
-                    {
-                        b.Property<int>("Id").ValueGeneratedNever();
-                        b.HasOne(e => (TFirstDependent)e.First)
-                            .WithOne(e => (TRoot)e.Root)
-                            .HasForeignKey<TFirstDependent>("Id");
-                    });
-
-            modelBuilder.Entity<TCompositeRoot>(
-                b =>
+                .Entity<TRoot>(b =>
                 {
-                    b.Property<int>("Id1");
-                    b.Property<string>("Id2");
-                    b.HasKey("Id1", "Id2");
+                    b.Property<int>("Id").ValueGeneratedNever();
+                    b.HasOne(e => (TFirstDependent)e.First)
+                        .WithOne(e => (TRoot)e.Root)
+                        .HasForeignKey<TFirstDependent>("Id");
                 });
 
-            modelBuilder.Entity<TCompositeFirstDependent>(
-                b =>
-                {
-                    b.Property<int>("Id1");
-                    b.Property<string>("Id2");
-                    b.Property<int>("RootId1");
-                    b.Property<string>("RootId2");
-                    b.HasKey("Id1", "Id2");
-                });
+            modelBuilder.Entity<TCompositeRoot>(b =>
+            {
+                b.Property<int>("Id1");
+                b.Property<string>("Id2");
+                b.HasKey("Id1", "Id2");
+            });
 
-            modelBuilder.Entity<TCompositeSecondDependent>(
-                b =>
-                {
-                    b.Property<int>("FirstId1");
-                    b.Property<string>("FirstId2");
-                    b.Property<int>("Id1");
-                    b.Property<string>("Id2");
-                    b.HasKey("Id1", "Id2");
-                });
+            modelBuilder.Entity<TCompositeFirstDependent>(b =>
+            {
+                b.Property<int>("Id1");
+                b.Property<string>("Id2");
+                b.Property<int>("RootId1");
+                b.Property<string>("RootId2");
+                b.HasKey("Id1", "Id2");
+            });
 
-            modelBuilder.Entity<TCompositeRoot>(
-                b =>
-                {
-                    b.HasOne(e => (TCompositeFirstDependent)e.First)
-                        .WithOne(e => (TCompositeRoot)e.Root)
-                        .HasForeignKey<TCompositeFirstDependent>("RootId1", "RootId2")
-                        .IsRequired(false);
-                });
+            modelBuilder.Entity<TCompositeSecondDependent>(b =>
+            {
+                b.Property<int>("FirstId1");
+                b.Property<string>("FirstId2");
+                b.Property<int>("Id1");
+                b.Property<string>("Id2");
+                b.HasKey("Id1", "Id2");
+            });
 
-            modelBuilder.Entity<TCompositeFirstDependent>(
-                b =>
-                {
-                    b.HasOne(e => (TCompositeSecondDependent)e.Second)
-                        .WithOne(e => (TCompositeFirstDependent)e.First)
-                        .HasForeignKey<TCompositeSecondDependent>("FirstId1", "FirstId2")
-                        .IsRequired(false);
-                });
+            modelBuilder.Entity<TCompositeRoot>(b =>
+            {
+                b.HasOne(e => (TCompositeFirstDependent)e.First)
+                    .WithOne(e => (TCompositeRoot)e.Root)
+                    .HasForeignKey<TCompositeFirstDependent>("RootId1", "RootId2")
+                    .IsRequired(false);
+            });
+
+            modelBuilder.Entity<TCompositeFirstDependent>(b =>
+            {
+                b.HasOne(e => (TCompositeSecondDependent)e.Second)
+                    .WithOne(e => (TCompositeFirstDependent)e.First)
+                    .HasForeignKey<TCompositeSecondDependent>("FirstId1", "FirstId2")
+                    .IsRequired(false);
+            });
         }
     }
 
@@ -994,71 +1013,68 @@ public abstract class InternalEntityEntryTestBase<
         {
             base.OnModelCreating(modelBuilder);
 
-            modelBuilder.Entity<TCompositeRoot>(
-                b =>
-                {
-                    b.Property<int>("Id1");
-                    b.Property<string>("Id2");
-                    b.HasKey("Id1", "Id2");
-                    b.HasOne(e => (TCompositeFirstDependent)e.First)
-                        .WithOne(e => (TCompositeRoot)e.Root)
-                        .HasForeignKey<TCompositeFirstDependent>("RootId1", "RootId2")
-                        .IsRequired();
-                });
+            modelBuilder.Entity<TCompositeRoot>(b =>
+            {
+                b.Property<int>("Id1");
+                b.Property<string>("Id2");
+                b.HasKey("Id1", "Id2");
+                b.HasOne(e => (TCompositeFirstDependent)e.First)
+                    .WithOne(e => (TCompositeRoot)e.Root)
+                    .HasForeignKey<TCompositeFirstDependent>("RootId1", "RootId2")
+                    .IsRequired();
+            });
 
-            modelBuilder.Entity<TCompositeFirstDependent>(
-                b =>
-                {
-                    b.HasOne(e => (TCompositeSecondDependent)e.Second)
-                        .WithOne(e => (TCompositeFirstDependent)e.First)
-                        .HasForeignKey<TCompositeSecondDependent>("FirstId1", "FirstId2")
-                        .IsRequired();
-                });
+            modelBuilder.Entity<TCompositeFirstDependent>(b =>
+            {
+                b.HasOne(e => (TCompositeSecondDependent)e.Second)
+                    .WithOne(e => (TCompositeFirstDependent)e.First)
+                    .HasForeignKey<TCompositeSecondDependent>("FirstId1", "FirstId2")
+                    .IsRequired();
+            });
         }
     }
 
     public class KSnapContext : KContext
     {
         protected internal override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<TSomeEntity>(
-                b =>
-                {
-                    b.Property<int>("Id");
-                    b.HasKey("Id");
-                    b.Property<string>("Name").IsConcurrencyToken();
-                    b.HasChangeTrackingStrategy(ChangeTrackingStrategy.Snapshot);
-                });
+            => modelBuilder.Entity<TSomeEntity>(b =>
+            {
+                b.Property<int>("Id");
+                b.HasKey("Id");
+                b.Property<string>("Name").IsConcurrencyToken();
+                b.HasChangeTrackingStrategy(ChangeTrackingStrategy.Snapshot);
+            });
     }
 }
 
 public interface IRoot
 {
-    IFirstDependent First { get; set; }
+    public IFirstDependent First { get; set; }
 }
 
 public interface ICompositeSecondDependent
 {
-    ICompositeFirstDependent First { get; set; }
+    public ICompositeFirstDependent First { get; set; }
 }
 
 public interface IFirstDependent
 {
-    IRoot Root { get; set; }
-    ISecondDependent Second { get; set; }
+    public IRoot Root { get; set; }
+    public ISecondDependent Second { get; set; }
 }
 
 public interface ISecondDependent
 {
-    IFirstDependent First { get; set; }
+    public IFirstDependent First { get; set; }
 }
 
 public interface ICompositeRoot
 {
-    ICompositeFirstDependent First { get; set; }
+    public ICompositeFirstDependent First { get; set; }
 }
 
 public interface ICompositeFirstDependent
 {
-    ICompositeRoot Root { get; set; }
-    ICompositeSecondDependent Second { get; set; }
+    public ICompositeRoot Root { get; set; }
+    public ICompositeSecondDependent Second { get; set; }
 }

@@ -10,36 +10,32 @@ namespace Microsoft.EntityFrameworkCore;
 public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixture<TFixture>
     where TFixture : ProxyGraphUpdatesTestBase<TFixture>.ProxyGraphUpdatesFixtureBase, new()
 {
-    [ConditionalTheory]
-    [InlineData((int)ChangeMechanism.Principal, false)]
-    [InlineData((int)ChangeMechanism.Principal, true)]
-    [InlineData((int)ChangeMechanism.Dependent, false)]
-    [InlineData((int)ChangeMechanism.Dependent, true)]
-    [InlineData((int)ChangeMechanism.Fk, false)]
-    [InlineData((int)ChangeMechanism.Fk, true)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent), false)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent), true)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Fk), false)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Fk), true)]
-    [InlineData((int)(ChangeMechanism.Fk | ChangeMechanism.Dependent), false)]
-    [InlineData((int)(ChangeMechanism.Fk | ChangeMechanism.Dependent), true)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent | ChangeMechanism.Fk), false)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent | ChangeMechanism.Fk), true)]
-    public virtual void Save_optional_many_to_one_dependents_with_alternate_key(
+    [Theory, InlineData((int)ChangeMechanism.Principal, false), InlineData((int)ChangeMechanism.Principal, true),
+     InlineData((int)ChangeMechanism.Dependent, false), InlineData((int)ChangeMechanism.Dependent, true),
+     InlineData((int)ChangeMechanism.Fk, false), InlineData((int)ChangeMechanism.Fk, true),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent), false),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent), true),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Fk), false),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Fk), true),
+     InlineData((int)(ChangeMechanism.Fk | ChangeMechanism.Dependent), false),
+     InlineData((int)(ChangeMechanism.Fk | ChangeMechanism.Dependent), true),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent | ChangeMechanism.Fk), false),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent | ChangeMechanism.Fk), true)]
+    public virtual Task Save_optional_many_to_one_dependents_with_alternate_key(
         ChangeMechanism changeMechanism,
         bool useExistingEntities)
     {
-        OptionalAk1 new1 = null;
-        OptionalAk1Derived new1d = null;
-        OptionalAk1MoreDerived new1dd = null;
-        OptionalAk2 new2a = null;
-        OptionalAk2 new2b = null;
-        OptionalComposite2 new2ca = null;
-        OptionalComposite2 new2cb = null;
-        OptionalAk2Derived new2d = null;
-        OptionalAk2MoreDerived new2dd = null;
+        OptionalAk1 new1 = null!;
+        OptionalAk1Derived new1d = null!;
+        OptionalAk1MoreDerived new1dd = null!;
+        OptionalAk2 new2a = null!;
+        OptionalAk2 new2b = null!;
+        OptionalComposite2 new2ca = null!;
+        OptionalComposite2 new2cb = null!;
+        OptionalAk2Derived new2d = null!;
+        OptionalAk2MoreDerived new2dd = null!;
 
-        ExecuteWithStrategyInTransaction(
+        return ExecuteWithStrategyInTransactionAsync(
             context =>
             {
                 new1 = context.CreateProxy<OptionalAk1>(e => e.AlternateId = Guid.NewGuid());
@@ -57,10 +53,11 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                     context.AddRange(new1, new1d, new1dd, new2a, new2d, new2dd, new2b, new2ca, new2cb);
                     context.SaveChanges();
                 }
-            },
-            context =>
+
+                return Task.CompletedTask;
+            }, async context =>
             {
-                var root = LoadRoot(context);
+                var root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -71,19 +68,19 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
 
                 if (useExistingEntities)
                 {
-                    new1 = context.Set<OptionalAk1>().Single(e => e.Id == new1.Id);
-                    new1d = (OptionalAk1Derived)context.Set<OptionalAk1>().Single(e => e.Id == new1d.Id);
-                    new1dd = (OptionalAk1MoreDerived)context.Set<OptionalAk1>().Single(e => e.Id == new1dd.Id);
-                    new2a = context.Set<OptionalAk2>().Single(e => e.Id == new2a.Id);
-                    new2b = context.Set<OptionalAk2>().Single(e => e.Id == new2b.Id);
-                    new2ca = context.Set<OptionalComposite2>().Single(e => e.Id == new2ca.Id);
-                    new2cb = context.Set<OptionalComposite2>().Single(e => e.Id == new2cb.Id);
-                    new2d = (OptionalAk2Derived)context.Set<OptionalAk2>().Single(e => e.Id == new2d.Id);
-                    new2dd = (OptionalAk2MoreDerived)context.Set<OptionalAk2>().Single(e => e.Id == new2dd.Id);
+                    new1 = context.Set<OptionalAk1>().Single(e => e.Id == new1!.Id);
+                    new1d = (OptionalAk1Derived)context.Set<OptionalAk1>().Single(e => e.Id == new1d!.Id);
+                    new1dd = (OptionalAk1MoreDerived)context.Set<OptionalAk1>().Single(e => e.Id == new1dd!.Id);
+                    new2a = context.Set<OptionalAk2>().Single(e => e.Id == new2a!.Id);
+                    new2b = context.Set<OptionalAk2>().Single(e => e.Id == new2b!.Id);
+                    new2ca = context.Set<OptionalComposite2>().Single(e => e.Id == new2ca!.Id);
+                    new2cb = context.Set<OptionalComposite2>().Single(e => e.Id == new2cb!.Id);
+                    new2d = (OptionalAk2Derived)context.Set<OptionalAk2>().Single(e => e.Id == new2d!.Id);
+                    new2dd = (OptionalAk2MoreDerived)context.Set<OptionalAk2>().Single(e => e.Id == new2dd!.Id);
                 }
                 else
                 {
-                    context.AddRange(new1, new1d, new1dd, new2a, new2d, new2dd, new2b, new2ca, new2cb);
+                    context.AddRange(new1!, new1d!, new1dd!, new2a!, new2d!, new2dd!, new2b!, new2ca!, new2cb!);
                 }
 
                 if ((changeMechanism & ChangeMechanism.Principal) != 0)
@@ -167,94 +164,84 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
             });
     }
 
-    [ConditionalTheory]
-    [InlineData((int)ChangeMechanism.Principal, false)]
-    [InlineData((int)ChangeMechanism.Principal, true)]
-    [InlineData((int)ChangeMechanism.Dependent, false)]
-    [InlineData((int)ChangeMechanism.Dependent, true)]
-    [InlineData((int)ChangeMechanism.Fk, false)]
-    [InlineData((int)ChangeMechanism.Fk, true)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent), false)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent), true)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Fk), false)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Fk), true)]
-    [InlineData((int)(ChangeMechanism.Fk | ChangeMechanism.Dependent), false)]
-    [InlineData((int)(ChangeMechanism.Fk | ChangeMechanism.Dependent), true)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent | ChangeMechanism.Fk), false)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent | ChangeMechanism.Fk), true)]
-    public virtual void Save_required_many_to_one_dependents_with_alternate_key(
+    [Theory, InlineData((int)ChangeMechanism.Principal, false), InlineData((int)ChangeMechanism.Principal, true),
+     InlineData((int)ChangeMechanism.Dependent, false), InlineData((int)ChangeMechanism.Dependent, true),
+     InlineData((int)ChangeMechanism.Fk, false), InlineData((int)ChangeMechanism.Fk, true),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent), false),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent), true),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Fk), false),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Fk), true),
+     InlineData((int)(ChangeMechanism.Fk | ChangeMechanism.Dependent), false),
+     InlineData((int)(ChangeMechanism.Fk | ChangeMechanism.Dependent), true),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent | ChangeMechanism.Fk), false),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent | ChangeMechanism.Fk), true)]
+    public virtual Task Save_required_many_to_one_dependents_with_alternate_key(
         ChangeMechanism changeMechanism,
         bool useExistingEntities)
     {
         Root newRoot;
-        RequiredAk1 new1 = null;
-        RequiredAk1Derived new1d = null;
-        RequiredAk1MoreDerived new1dd = null;
-        RequiredAk2 new2a = null;
-        RequiredAk2 new2b = null;
-        RequiredComposite2 new2ca = null;
-        RequiredComposite2 new2cb = null;
-        RequiredAk2Derived new2d = null;
-        RequiredAk2MoreDerived new2dd = null;
+        RequiredAk1 new1 = null!;
+        RequiredAk1Derived new1d = null!;
+        RequiredAk1MoreDerived new1dd = null!;
+        RequiredAk2 new2a = null!;
+        RequiredAk2 new2b = null!;
+        RequiredComposite2 new2ca = null!;
+        RequiredComposite2 new2cb = null!;
+        RequiredAk2Derived new2d = null!;
+        RequiredAk2MoreDerived new2dd = null!;
 
-        ExecuteWithStrategyInTransaction(
+        return ExecuteWithStrategyInTransactionAsync(
             context =>
             {
                 newRoot = context.CreateProxy<Root>(e => e.AlternateId = Guid.NewGuid());
-                new1 = context.CreateProxy<RequiredAk1>(
-                    e =>
-                    {
-                        e.AlternateId = Guid.NewGuid();
-                        e.Parent = newRoot;
-                    });
-                new1d = context.CreateProxy<RequiredAk1Derived>(
-                    e =>
-                    {
-                        e.AlternateId = Guid.NewGuid();
-                        e.Parent = newRoot;
-                    });
-                new1dd = context.CreateProxy<RequiredAk1MoreDerived>(
-                    e =>
-                    {
-                        e.AlternateId = Guid.NewGuid();
-                        e.Parent = newRoot;
-                    });
-                new2a = context.CreateProxy<RequiredAk2>(
-                    e =>
-                    {
-                        e.AlternateId = Guid.NewGuid();
-                        e.Parent = new1;
-                    });
-                new2b = context.CreateProxy<RequiredAk2>(
-                    e =>
-                    {
-                        e.AlternateId = Guid.NewGuid();
-                        e.Parent = new1;
-                    });
+                new1 = context.CreateProxy<RequiredAk1>(e =>
+                {
+                    e.AlternateId = Guid.NewGuid();
+                    e.Parent = newRoot;
+                });
+                new1d = context.CreateProxy<RequiredAk1Derived>(e =>
+                {
+                    e.AlternateId = Guid.NewGuid();
+                    e.Parent = newRoot;
+                });
+                new1dd = context.CreateProxy<RequiredAk1MoreDerived>(e =>
+                {
+                    e.AlternateId = Guid.NewGuid();
+                    e.Parent = newRoot;
+                });
+                new2a = context.CreateProxy<RequiredAk2>(e =>
+                {
+                    e.AlternateId = Guid.NewGuid();
+                    e.Parent = new1;
+                });
+                new2b = context.CreateProxy<RequiredAk2>(e =>
+                {
+                    e.AlternateId = Guid.NewGuid();
+                    e.Parent = new1;
+                });
                 new2ca = context.CreateProxy<RequiredComposite2>(e => e.Parent = new1);
                 new2cb = context.CreateProxy<RequiredComposite2>(e => e.Parent = new1);
-                new2d = context.CreateProxy<RequiredAk2Derived>(
-                    e =>
-                    {
-                        e.AlternateId = Guid.NewGuid();
-                        e.Parent = new1;
-                    });
-                new2dd = context.CreateProxy<RequiredAk2MoreDerived>(
-                    e =>
-                    {
-                        e.AlternateId = Guid.NewGuid();
-                        e.Parent = new1;
-                    });
+                new2d = context.CreateProxy<RequiredAk2Derived>(e =>
+                {
+                    e.AlternateId = Guid.NewGuid();
+                    e.Parent = new1;
+                });
+                new2dd = context.CreateProxy<RequiredAk2MoreDerived>(e =>
+                {
+                    e.AlternateId = Guid.NewGuid();
+                    e.Parent = new1;
+                });
 
                 if (useExistingEntities)
                 {
                     context.AddRange(newRoot, new1, new1d, new1dd, new2a, new2d, new2dd, new2b, new2ca, new2cb);
                     context.SaveChanges();
                 }
-            },
-            context =>
+
+                return Task.CompletedTask;
+            }, async context =>
             {
-                var root = LoadRoot(context);
+                var root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -265,23 +252,23 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
 
                 if (useExistingEntities)
                 {
-                    new1 = context.Set<RequiredAk1>().Single(e => e.Id == new1.Id);
-                    new1d = (RequiredAk1Derived)context.Set<RequiredAk1>().Single(e => e.Id == new1d.Id);
-                    new1dd = (RequiredAk1MoreDerived)context.Set<RequiredAk1>().Single(e => e.Id == new1dd.Id);
-                    new2a = context.Set<RequiredAk2>().Single(e => e.Id == new2a.Id);
-                    new2b = context.Set<RequiredAk2>().Single(e => e.Id == new2b.Id);
-                    new2ca = context.Set<RequiredComposite2>().Single(e => e.Id == new2ca.Id);
-                    new2cb = context.Set<RequiredComposite2>().Single(e => e.Id == new2cb.Id);
-                    new2d = (RequiredAk2Derived)context.Set<RequiredAk2>().Single(e => e.Id == new2d.Id);
-                    new2dd = (RequiredAk2MoreDerived)context.Set<RequiredAk2>().Single(e => e.Id == new2dd.Id);
+                    new1 = context.Set<RequiredAk1>().Single(e => e.Id == new1!.Id);
+                    new1d = (RequiredAk1Derived)context.Set<RequiredAk1>().Single(e => e.Id == new1d!.Id);
+                    new1dd = (RequiredAk1MoreDerived)context.Set<RequiredAk1>().Single(e => e.Id == new1dd!.Id);
+                    new2a = context.Set<RequiredAk2>().Single(e => e.Id == new2a!.Id);
+                    new2b = context.Set<RequiredAk2>().Single(e => e.Id == new2b!.Id);
+                    new2ca = context.Set<RequiredComposite2>().Single(e => e.Id == new2ca!.Id);
+                    new2cb = context.Set<RequiredComposite2>().Single(e => e.Id == new2cb!.Id);
+                    new2d = (RequiredAk2Derived)context.Set<RequiredAk2>().Single(e => e.Id == new2d!.Id);
+                    new2dd = (RequiredAk2MoreDerived)context.Set<RequiredAk2>().Single(e => e.Id == new2dd!.Id);
                 }
                 else
                 {
-                    new1.Parent = null;
-                    new1d.Parent = null;
-                    new1dd.Parent = null;
+                    new1!.Parent = null!;
+                    new1d!.Parent = null!;
+                    new1dd!.Parent = null!;
 
-                    context.AddRange(new1, new1d, new1dd, new2a, new2d, new2dd, new2b, new2ca, new2cb);
+                    context.AddRange(new1, new1d, new1dd, new2a!, new2d!, new2dd!, new2b!, new2ca!, new2cb!);
                 }
 
                 if ((changeMechanism & ChangeMechanism.Principal) != 0)
@@ -365,21 +352,17 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
             });
     }
 
-    [ConditionalTheory]
-    [InlineData((int)ChangeMechanism.Principal)]
-    [InlineData((int)ChangeMechanism.Dependent)]
-    [InlineData((int)ChangeMechanism.Fk)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent))]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Fk))]
-    [InlineData((int)(ChangeMechanism.Fk | ChangeMechanism.Dependent))]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent | ChangeMechanism.Fk))]
-    public virtual void Save_removed_optional_many_to_one_dependents_with_alternate_key(ChangeMechanism changeMechanism)
+    [Theory, InlineData((int)ChangeMechanism.Principal), InlineData((int)ChangeMechanism.Dependent),
+     InlineData((int)ChangeMechanism.Fk), InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent)),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Fk)), InlineData((int)(ChangeMechanism.Fk | ChangeMechanism.Dependent)),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent | ChangeMechanism.Fk))]
+    public virtual Task Save_removed_optional_many_to_one_dependents_with_alternate_key(ChangeMechanism changeMechanism)
     {
         Root root;
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                root = LoadRoot(context);
+                root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -403,9 +386,9 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
 
                 if ((changeMechanism & ChangeMechanism.Dependent) != 0)
                 {
-                    removed2.Parent = null;
-                    removed2c.Parent = null;
-                    removed1.Parent = null;
+                    removed2.Parent = null!;
+                    removed2c.Parent = null!;
+                    removed1.Parent = null!;
                 }
 
                 if ((changeMechanism & ChangeMechanism.Fk) != 0)
@@ -432,12 +415,11 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                 Assert.Null(removed1.ParentId);
                 Assert.Null(removed2.ParentId);
                 Assert.Null(removed2c.ParentId);
-            },
-            context =>
+            }, async context =>
             {
                 if ((changeMechanism & ChangeMechanism.Fk) == 0)
                 {
-                    var loadedRoot = LoadRoot(context);
+                    var loadedRoot = await LoadRootAsync(context);
 
                     if (!DoesLazyLoading)
                     {
@@ -451,21 +433,19 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
             });
     }
 
-    [ConditionalTheory]
-    [InlineData((int)ChangeMechanism.Principal)]
-    [InlineData((int)ChangeMechanism.Dependent)]
-    [InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent))]
-    public virtual void Save_removed_required_many_to_one_dependents_with_alternate_key(ChangeMechanism changeMechanism)
+    [Theory, InlineData((int)ChangeMechanism.Principal), InlineData((int)ChangeMechanism.Dependent),
+     InlineData((int)(ChangeMechanism.Principal | ChangeMechanism.Dependent))]
+    public virtual Task Save_removed_required_many_to_one_dependents_with_alternate_key(ChangeMechanism changeMechanism)
     {
-        Root root = null;
-        RequiredAk2 removed2 = null;
-        RequiredComposite2 removed2c = null;
-        RequiredAk1 removed1 = null;
+        Root root = null!;
+        RequiredAk2 removed2 = null!;
+        RequiredComposite2 removed2c = null!;
+        RequiredAk1 removed1 = null!;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                root = LoadRoot(context);
+                root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -489,9 +469,9 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
 
                 if ((changeMechanism & ChangeMechanism.Dependent) != 0)
                 {
-                    removed2.Parent = null;
-                    removed2c.Parent = null;
-                    removed1.Parent = null;
+                    removed2.Parent = null!;
+                    removed2c.Parent = null!;
+                    removed1.Parent = null!;
                 }
 
                 if ((changeMechanism & ChangeMechanism.Fk) != 0)
@@ -512,10 +492,9 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                 Assert.Null(removed1.Parent);
                 Assert.Null(removed2.Parent);
                 Assert.Null(removed2c.Parent);
-            },
-            context =>
+            }, async context =>
             {
-                var loadedRoot = LoadRoot(context);
+                var loadedRoot = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -524,9 +503,9 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                     context.Entry(loadedRoot.RequiredChildrenAk.First()).Collection(e => e.CompositeChildren).Load();
                 }
 
-                Assert.False(context.Set<RequiredAk1>().Any(e => e.Id == removed1.Id));
-                Assert.False(context.Set<RequiredAk2>().Any(e => e.Id == removed2.Id));
-                Assert.False(context.Set<RequiredComposite2>().Any(e => e.Id == removed2c.Id));
+                Assert.False(context.Set<RequiredAk1>().Any(e => e.Id == removed1!.Id));
+                Assert.False(context.Set<RequiredAk2>().Any(e => e.Id == removed2!.Id));
+                Assert.False(context.Set<RequiredComposite2>().Any(e => e.Id == removed2c!.Id));
 
                 Assert.Single(loadedRoot.RequiredChildrenAk);
                 Assert.Single(loadedRoot.RequiredChildrenAk.First().Children);
@@ -534,30 +513,25 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Never)]
-    public virtual void Optional_many_to_one_dependents_with_alternate_key_are_orphaned(
+    [Theory, InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate), InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges), InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.Never), InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.Never, CascadeTiming.Immediate), InlineData(CascadeTiming.Never, CascadeTiming.Never)]
+    public virtual Task Optional_many_to_one_dependents_with_alternate_key_are_orphaned(
         CascadeTiming cascadeDeleteTiming,
         CascadeTiming deleteOrphansTiming)
     {
         var removedId = 0;
-        List<int> orphanedIds = null;
+        List<int> orphanedIds = null!;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
                 context.ChangeTracker.CascadeDeleteTiming = cascadeDeleteTiming;
                 context.ChangeTracker.DeleteOrphansTiming = deleteOrphansTiming;
 
-                var root = LoadRoot(context);
+                var root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -599,10 +573,9 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
 
                 Assert.Same(root, removed.Parent);
                 Assert.Equal(2, removed.Children.Count());
-            },
-            context =>
+            }, async context =>
             {
-                var root = LoadRoot(context);
+                var root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -613,35 +586,30 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                 Assert.DoesNotContain(removedId, root.OptionalChildrenAk.Select(e => e.Id));
 
                 Assert.Empty(context.Set<OptionalAk1>().Where(e => e.Id == removedId));
-                Assert.Equal(orphanedIds.Count, context.Set<OptionalAk2>().Count(e => orphanedIds.Contains(e.Id)));
+                Assert.Equal(orphanedIds!.Count, context.Set<OptionalAk2>().Count(e => orphanedIds.Contains(e.Id)));
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Never)]
-    public virtual void Required_many_to_one_dependents_with_alternate_key_are_cascade_deleted(
+    [Theory, InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate), InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges), InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.Never), InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.Never, CascadeTiming.Immediate), InlineData(CascadeTiming.Never, CascadeTiming.Never)]
+    public virtual Task Required_many_to_one_dependents_with_alternate_key_are_cascade_deleted(
         CascadeTiming cascadeDeleteTiming,
         CascadeTiming deleteOrphansTiming)
     {
         var removedId = 0;
-        List<int> orphanedIds = null;
-        List<int> orphanedIdCs = null;
+        List<int> orphanedIds = null!;
+        List<int> orphanedIdCs = null!;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
                 context.ChangeTracker.CascadeDeleteTiming = cascadeDeleteTiming;
                 context.ChangeTracker.DeleteOrphansTiming = deleteOrphansTiming;
 
-                var root = LoadRoot(context);
+                var root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -694,12 +662,11 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                     Assert.Same(root, removed.Parent);
                     Assert.Equal(2, removed.Children.Count());
                 }
-            },
-            context =>
+            }, async context =>
             {
                 if (cascadeDeleteTiming != CascadeTiming.Never)
                 {
-                    var root = LoadRoot(context);
+                    var root = await LoadRootAsync(context);
 
                     if (!DoesLazyLoading)
                     {
@@ -710,34 +677,29 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                     Assert.DoesNotContain(removedId, root.RequiredChildrenAk.Select(e => e.Id));
 
                     Assert.Empty(context.Set<RequiredAk1>().Where(e => e.Id == removedId));
-                    Assert.Empty(context.Set<RequiredAk2>().Where(e => orphanedIds.Contains(e.Id)));
-                    Assert.Empty(context.Set<RequiredComposite2>().Where(e => orphanedIdCs.Contains(e.Id)));
+                    Assert.Empty(context.Set<RequiredAk2>().Where(e => orphanedIds!.Contains(e.Id)));
+                    Assert.Empty(context.Set<RequiredComposite2>().Where(e => orphanedIdCs!.Contains(e.Id)));
                 }
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Never)]
-    public virtual void Required_many_to_one_dependents_with_alternate_key_are_cascade_deleted_in_store(
+    [Theory, InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate), InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges), InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.Never), InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.Never, CascadeTiming.Immediate), InlineData(CascadeTiming.Never, CascadeTiming.Never)]
+    public virtual Task Required_many_to_one_dependents_with_alternate_key_are_cascade_deleted_in_store(
         CascadeTiming cascadeDeleteTiming,
         CascadeTiming deleteOrphansTiming)
     {
         var removedId = 0;
-        List<int> orphanedIds = null;
-        List<int> orphanedIdCs = null;
+        List<int> orphanedIds = null!;
+        List<int> orphanedIdCs = null!;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var root = LoadRoot(context);
+                var root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -782,15 +744,15 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                 Assert.DoesNotContain(removedId, root.RequiredChildrenAk.Select(e => e.Id));
 
                 Assert.Empty(context.Set<RequiredAk1>().Where(e => e.Id == removedId));
-                Assert.Empty(context.Set<RequiredAk2>().Where(e => orphanedIds.Contains(e.Id)));
-                Assert.Empty(context.Set<RequiredComposite2>().Where(e => orphanedIdCs.Contains(e.Id)));
+                Assert.Empty(context.Set<RequiredAk2>().Where(e => orphanedIds!.Contains(e.Id)));
+                Assert.Empty(context.Set<RequiredComposite2>().Where(e => orphanedIdCs!.Contains(e.Id)));
 
                 Assert.Same(root, removed.Parent);
                 Assert.Empty(removed.Children); // Never loaded
-            },
-            context =>
+                return Task.CompletedTask;
+            }, async context =>
             {
-                var root = LoadRoot(context);
+                var root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -801,33 +763,28 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                 Assert.DoesNotContain(removedId, root.RequiredChildrenAk.Select(e => e.Id));
 
                 Assert.Empty(context.Set<RequiredAk1>().Where(e => e.Id == removedId));
-                Assert.Empty(context.Set<RequiredAk2>().Where(e => orphanedIds.Contains(e.Id)));
-                Assert.Empty(context.Set<RequiredComposite2>().Where(e => orphanedIdCs.Contains(e.Id)));
+                Assert.Empty(context.Set<RequiredAk2>().Where(e => orphanedIds!.Contains(e.Id)));
+                Assert.Empty(context.Set<RequiredComposite2>().Where(e => orphanedIdCs!.Contains(e.Id)));
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Never)]
-    public virtual void Optional_many_to_one_dependents_with_alternate_key_are_orphaned_in_store(
+    [Theory, InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate), InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges), InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.Never), InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.Never, CascadeTiming.Immediate), InlineData(CascadeTiming.Never, CascadeTiming.Never)]
+    public virtual Task Optional_many_to_one_dependents_with_alternate_key_are_orphaned_in_store(
         CascadeTiming cascadeDeleteTiming,
         CascadeTiming deleteOrphansTiming)
     {
         var removedId = 0;
-        List<int> orphanedIds = null;
-        List<int> orphanedIdCs = null;
+        List<int> orphanedIds = null!;
+        List<int> orphanedIdCs = null!;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var root = LoadRoot(context);
+                var root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -860,7 +817,7 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
 
                 context.Remove(removed);
 
-                foreach (var toOrphan in context.Set<OptionalComposite2>().Where(e => orphanedIdCs.Contains(e.Id)).ToList())
+                foreach (var toOrphan in context.Set<OptionalComposite2>().Where(e => orphanedIdCs!.Contains(e.Id)).ToList())
                 {
                     toOrphan.ParentId = null;
                 }
@@ -878,20 +835,20 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
 
                 Assert.Empty(context.Set<OptionalAk1>().Where(e => e.Id == removedId));
 
-                var orphaned = context.Set<OptionalAk2>().Where(e => orphanedIds.Contains(e.Id)).ToList();
-                Assert.Equal(orphanedIds.Count, orphaned.Count);
+                var orphaned = context.Set<OptionalAk2>().Where(e => orphanedIds!.Contains(e.Id)).ToList();
+                Assert.Equal(orphanedIds!.Count, orphaned.Count);
                 Assert.True(orphaned.All(e => e.ParentId == null));
 
-                var orphanedC = context.Set<OptionalComposite2>().Where(e => orphanedIdCs.Contains(e.Id)).ToList();
-                Assert.Equal(orphanedIdCs.Count, orphanedC.Count);
+                var orphanedC = context.Set<OptionalComposite2>().Where(e => orphanedIdCs!.Contains(e.Id)).ToList();
+                Assert.Equal(orphanedIdCs!.Count, orphanedC.Count);
                 Assert.True(orphanedC.All(e => e.ParentId == null));
 
                 Assert.Same(root, removed.Parent);
                 Assert.Empty(removed.Children); // Never loaded
-            },
-            context =>
+                return Task.CompletedTask;
+            }, async context =>
             {
-                var root = LoadRoot(context);
+                var root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -903,42 +860,37 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
 
                 Assert.Empty(context.Set<OptionalAk1>().Where(e => e.Id == removedId));
 
-                var orphaned = context.Set<OptionalAk2>().Where(e => orphanedIds.Contains(e.Id)).ToList();
-                Assert.Equal(orphanedIds.Count, orphaned.Count);
+                var orphaned = context.Set<OptionalAk2>().Where(e => orphanedIds!.Contains(e.Id)).ToList();
+                Assert.Equal(orphanedIds!.Count, orphaned.Count);
                 Assert.True(orphaned.All(e => e.ParentId == null));
 
-                var orphanedC = context.Set<OptionalComposite2>().Where(e => orphanedIdCs.Contains(e.Id)).ToList();
-                Assert.Equal(orphanedIdCs.Count, orphanedC.Count);
+                var orphanedC = context.Set<OptionalComposite2>().Where(e => orphanedIdCs!.Contains(e.Id)).ToList();
+                Assert.Equal(orphanedIdCs!.Count, orphanedC.Count);
                 Assert.True(orphanedC.All(e => e.ParentId == null));
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Never)]
-    public virtual void Optional_many_to_one_dependents_with_alternate_key_are_orphaned_starting_detached(
+    [Theory, InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate), InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges), InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.Never), InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.Never, CascadeTiming.Immediate), InlineData(CascadeTiming.Never, CascadeTiming.Never)]
+    public virtual Task Optional_many_to_one_dependents_with_alternate_key_are_orphaned_starting_detached(
         CascadeTiming cascadeDeleteTiming,
         CascadeTiming deleteOrphansTiming)
     {
         var removedId = 0;
-        List<int> orphanedIds = null;
-        List<int> orphanedIdCs = null;
-        Root root = null;
-        OptionalAk1 removed = null;
-        List<OptionalAk2> orphaned = null;
-        List<OptionalComposite2> orphanedC = null;
+        List<int> orphanedIds = null!;
+        List<int> orphanedIdCs = null!;
+        Root root = null!;
+        OptionalAk1 removed = null!;
+        List<OptionalAk2> orphaned = null!;
+        List<OptionalComposite2> orphanedC = null!;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                root = LoadRoot(context);
+                root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -963,9 +915,9 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                 context.ChangeTracker.CascadeDeleteTiming = cascadeDeleteTiming;
                 context.ChangeTracker.DeleteOrphansTiming = deleteOrphansTiming;
 
-                removedId = removed.Id;
-                orphanedIds = orphaned.Select(e => e.Id).ToList();
-                orphanedIdCs = orphanedC.Select(e => e.Id).ToList();
+                removedId = removed!.Id;
+                orphanedIds = orphaned!.Select(e => e.Id).ToList();
+                orphanedIdCs = orphanedC!.Select(e => e.Id).ToList();
 
                 Assert.Equal(2, orphanedIds.Count);
                 Assert.Equal(2, orphanedIdCs.Count);
@@ -993,10 +945,10 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
 
                 Assert.Same(root, removed.Parent);
                 Assert.Equal(2, removed.Children.Count());
-            },
-            context =>
+                return Task.CompletedTask;
+            }, async context =>
             {
-                root = LoadRoot(context);
+                root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -1007,37 +959,32 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                 Assert.DoesNotContain(removedId, root.OptionalChildrenAk.Select(e => e.Id));
 
                 Assert.Empty(context.Set<OptionalAk1>().Where(e => e.Id == removedId));
-                Assert.Equal(orphanedIds.Count, context.Set<OptionalAk2>().Count(e => orphanedIds.Contains(e.Id)));
-                Assert.Equal(orphanedIdCs.Count, context.Set<OptionalComposite2>().Count(e => orphanedIdCs.Contains(e.Id)));
+                Assert.Equal(orphanedIds!.Count, context.Set<OptionalAk2>().Count(e => orphanedIds.Contains(e.Id)));
+                Assert.Equal(orphanedIdCs!.Count, context.Set<OptionalComposite2>().Count(e => orphanedIdCs.Contains(e.Id)));
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Never)]
-    public virtual void Required_many_to_one_dependents_with_alternate_key_are_cascade_deleted_starting_detached(
+    [Theory, InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate), InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges), InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.Never), InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.Never, CascadeTiming.Immediate), InlineData(CascadeTiming.Never, CascadeTiming.Never)]
+    public virtual Task Required_many_to_one_dependents_with_alternate_key_are_cascade_deleted_starting_detached(
         CascadeTiming cascadeDeleteTiming,
         CascadeTiming deleteOrphansTiming)
     {
         var removedId = 0;
-        List<int> orphanedIds = null;
-        List<int> orphanedIdCs = null;
-        Root root = null;
-        RequiredAk1 removed = null;
-        List<RequiredAk2> cascadeRemoved = null;
-        List<RequiredComposite2> cascadeRemovedC = null;
+        List<int> orphanedIds = null!;
+        List<int> orphanedIdCs = null!;
+        Root root = null!;
+        RequiredAk1 removed = null!;
+        List<RequiredAk2> cascadeRemoved = null!;
+        List<RequiredComposite2> cascadeRemovedC = null!;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                root = LoadRoot(context);
+                root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -1062,9 +1009,9 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                 context.ChangeTracker.CascadeDeleteTiming = cascadeDeleteTiming;
                 context.ChangeTracker.DeleteOrphansTiming = deleteOrphansTiming;
 
-                removedId = removed.Id;
-                orphanedIds = cascadeRemoved.Select(e => e.Id).ToList();
-                orphanedIdCs = cascadeRemovedC.Select(e => e.Id).ToList();
+                removedId = removed!.Id;
+                orphanedIds = cascadeRemoved!.Select(e => e.Id).ToList();
+                orphanedIdCs = cascadeRemovedC!.Select(e => e.Id).ToList();
 
                 Assert.Equal(2, orphanedIds.Count);
 
@@ -1098,12 +1045,13 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                     Assert.Same(root, removed.Parent);
                     Assert.Equal(2, removed.Children.Count());
                 }
-            },
-            context =>
+
+                return Task.CompletedTask;
+            }, async context =>
             {
                 if (cascadeDeleteTiming != CascadeTiming.Never)
                 {
-                    root = LoadRoot(context);
+                    root = await LoadRootAsync(context);
 
                     if (!DoesLazyLoading)
                     {
@@ -1114,37 +1062,32 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                     Assert.DoesNotContain(removedId, root.RequiredChildrenAk.Select(e => e.Id));
 
                     Assert.Empty(context.Set<RequiredAk1>().Where(e => e.Id == removedId));
-                    Assert.Empty(context.Set<RequiredAk2>().Where(e => orphanedIds.Contains(e.Id)));
-                    Assert.Empty(context.Set<RequiredComposite2>().Where(e => orphanedIdCs.Contains(e.Id)));
+                    Assert.Empty(context.Set<RequiredAk2>().Where(e => orphanedIds!.Contains(e.Id)));
+                    Assert.Empty(context.Set<RequiredComposite2>().Where(e => orphanedIdCs!.Contains(e.Id)));
                 }
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Immediate, CascadeTiming.Never)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Immediate)]
-    [InlineData(CascadeTiming.Never, CascadeTiming.Never)]
-    public virtual void Required_many_to_one_dependents_with_alternate_key_are_cascade_detached_when_Added(
+    [Theory, InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Immediate), InlineData(CascadeTiming.OnSaveChanges, CascadeTiming.Never),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.OnSaveChanges), InlineData(CascadeTiming.Immediate, CascadeTiming.Immediate),
+     InlineData(CascadeTiming.Immediate, CascadeTiming.Never), InlineData(CascadeTiming.Never, CascadeTiming.OnSaveChanges),
+     InlineData(CascadeTiming.Never, CascadeTiming.Immediate), InlineData(CascadeTiming.Never, CascadeTiming.Never)]
+    public virtual Task Required_many_to_one_dependents_with_alternate_key_are_cascade_detached_when_Added(
         CascadeTiming cascadeDeleteTiming,
         CascadeTiming deleteOrphansTiming)
     {
         var removedId = 0;
-        List<int> orphanedIds = null;
-        List<int> orphanedIdCs = null;
+        List<int> orphanedIds = null!;
+        List<int> orphanedIdCs = null!;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
                 context.ChangeTracker.CascadeDeleteTiming = cascadeDeleteTiming;
                 context.ChangeTracker.DeleteOrphansTiming = deleteOrphansTiming;
 
-                var root = LoadRoot(context);
+                var root = await LoadRootAsync(context);
 
                 if (!DoesLazyLoading)
                 {
@@ -1227,12 +1170,11 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                     Assert.Same(root, removed.Parent);
                     Assert.Equal(3, removed.Children.Count());
                 }
-            },
-            context =>
+            }, async context =>
             {
                 if (cascadeDeleteTiming != CascadeTiming.Never)
                 {
-                    var root = LoadRoot(context);
+                    var root = await LoadRootAsync(context);
 
                     if (!DoesLazyLoading)
                     {
@@ -1243,8 +1185,8 @@ public abstract partial class ProxyGraphUpdatesTestBase<TFixture> : IClassFixtur
                     Assert.DoesNotContain(removedId, root.RequiredChildrenAk.Select(e => e.Id));
 
                     Assert.Empty(context.Set<RequiredAk1>().Where(e => e.Id == removedId));
-                    Assert.Empty(context.Set<RequiredAk2>().Where(e => orphanedIds.Contains(e.Id)));
-                    Assert.Empty(context.Set<RequiredComposite2>().Where(e => orphanedIdCs.Contains(e.Id)));
+                    Assert.Empty(context.Set<RequiredAk2>().Where(e => orphanedIds!.Contains(e.Id)));
+                    Assert.Empty(context.Set<RequiredComposite2>().Where(e => orphanedIdCs!.Contains(e.Id)));
                 }
             });
     }

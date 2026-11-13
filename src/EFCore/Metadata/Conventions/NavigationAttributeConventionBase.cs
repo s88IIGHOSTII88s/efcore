@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions.Internal;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
@@ -13,15 +14,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 ///     See <see href="https://aka.ms/efcore-docs-conventions">Model building conventions</see> for more information and examples.
 /// </remarks>
 /// <typeparam name="TAttribute">The attribute type to look for.</typeparam>
-public abstract class NavigationAttributeConventionBase<TAttribute> :
-    IEntityTypeAddedConvention,
-    IEntityTypeIgnoredConvention,
-    IEntityTypeRemovedConvention,
-    IEntityTypeBaseTypeChangedConvention,
-    IEntityTypeMemberIgnoredConvention,
-    INavigationAddedConvention,
-    ISkipNavigationAddedConvention,
-    IForeignKeyPrincipalEndChangedConvention
+public abstract class NavigationAttributeConventionBase<TAttribute>
     where TAttribute : Attribute
 {
     /// <summary>
@@ -29,43 +22,21 @@ public abstract class NavigationAttributeConventionBase<TAttribute> :
     /// </summary>
     /// <param name="dependencies">Parameter object containing dependencies for this convention.</param>
     protected NavigationAttributeConventionBase(ProviderConventionSetBuilderDependencies dependencies)
-    {
-        Dependencies = dependencies;
-    }
+        => Dependencies = dependencies;
 
     /// <summary>
     ///     Dependencies for this service.
     /// </summary>
     protected virtual ProviderConventionSetBuilderDependencies Dependencies { get; }
 
-    /// <inheritdoc />
-    public virtual void ProcessEntityTypeAdded(
-        IConventionEntityTypeBuilder entityTypeBuilder,
-        IConventionContext<IConventionEntityTypeBuilder> context)
-    {
-        var navigations = GetNavigationsWithAttribute(entityTypeBuilder.Metadata);
-        if (navigations == null)
-        {
-            return;
-        }
-
-        foreach (var navigationTuple in navigations)
-        {
-            var (navigationPropertyInfo, targetClrType) = navigationTuple;
-            var attributes = navigationPropertyInfo.GetCustomAttributes<TAttribute>(inherit: true);
-            foreach (var attribute in attributes)
-            {
-                ProcessEntityTypeAdded(entityTypeBuilder, navigationPropertyInfo, targetClrType, attribute, context);
-                if (((ConventionContext<IConventionEntityTypeBuilder>)context).ShouldStopProcessing())
-                {
-                    return;
-                }
-            }
-        }
-    }
-
-    /// <inheritdoc />
-    public virtual void ProcessEntityTypeIgnored(
+    /// <summary>
+    ///     Called after an entity type is ignored.
+    /// </summary>
+    /// <param name="modelBuilder">The builder for the model.</param>
+    /// <param name="name">The name of the ignored entity type.</param>
+    /// <param name="type">The ignored entity type.</param>
+    /// <param name="context">Additional information associated with convention execution.</param>
+    public virtual void ProcessTypeIgnored(
         IConventionModelBuilder modelBuilder,
         string name,
         Type? type,
@@ -101,7 +72,7 @@ public abstract class NavigationAttributeConventionBase<TAttribute> :
             var attributes = navigationPropertyInfo.GetCustomAttributes<TAttribute>(inherit: true);
             foreach (var attribute in attributes)
             {
-                ProcessEntityTypeIgnored(modelBuilder, type, navigationPropertyInfo, targetClrType, attribute, context);
+                ProcessTypeIgnored(modelBuilder, type, navigationPropertyInfo, targetClrType, attribute, context);
                 if (((ConventionContext<string>)context).ShouldStopProcessing())
                 {
                     return;
@@ -110,7 +81,42 @@ public abstract class NavigationAttributeConventionBase<TAttribute> :
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Called after an entity type is added to the model.
+    /// </summary>
+    /// <param name="entityTypeBuilder">The builder for the entity type.</param>
+    /// <param name="context">Additional information associated with convention execution.</param>
+    public virtual void ProcessEntityTypeAdded(
+        IConventionEntityTypeBuilder entityTypeBuilder,
+        IConventionContext<IConventionEntityTypeBuilder> context)
+    {
+        var navigations = GetNavigationsWithAttribute(entityTypeBuilder.Metadata);
+        if (navigations == null)
+        {
+            return;
+        }
+
+        foreach (var navigationTuple in navigations)
+        {
+            var (navigationPropertyInfo, targetClrType) = navigationTuple;
+            var attributes = navigationPropertyInfo.GetCustomAttributes<TAttribute>(inherit: true);
+            foreach (var attribute in attributes)
+            {
+                ProcessEntityTypeAdded(entityTypeBuilder, navigationPropertyInfo, targetClrType, attribute, context);
+                if (((ConventionContext<IConventionEntityTypeBuilder>)context).ShouldStopProcessing())
+                {
+                    return;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Called after an entity type is removed from the model.
+    /// </summary>
+    /// <param name="modelBuilder">The builder for the model.</param>
+    /// <param name="entityType">The removed entity type.</param>
+    /// <param name="context">Additional information associated with convention execution.</param>
     public virtual void ProcessEntityTypeRemoved(
         IConventionModelBuilder modelBuilder,
         IConventionEntityType entityType,
@@ -137,7 +143,13 @@ public abstract class NavigationAttributeConventionBase<TAttribute> :
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Called after the base type of an entity type changes.
+    /// </summary>
+    /// <param name="entityTypeBuilder">The builder for the entity type.</param>
+    /// <param name="newBaseType">The new base entity type.</param>
+    /// <param name="oldBaseType">The old base entity type.</param>
+    /// <param name="context">Additional information associated with convention execution.</param>
     public virtual void ProcessEntityTypeBaseTypeChanged(
         IConventionEntityTypeBuilder entityTypeBuilder,
         IConventionEntityType? newBaseType,
@@ -199,7 +211,11 @@ public abstract class NavigationAttributeConventionBase<TAttribute> :
     private static void Sort(List<(PropertyInfo, Type)> navigations)
         => navigations.Sort((x, y) => StringComparer.Ordinal.Compare(x.Item1.Name, y.Item1.Name));
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Called after a navigation is added to the entity type.
+    /// </summary>
+    /// <param name="navigationBuilder">The builder for the navigation.</param>
+    /// <param name="context">Additional information associated with convention execution.</param>
     public virtual void ProcessNavigationAdded(
         IConventionNavigationBuilder navigationBuilder,
         IConventionContext<IConventionNavigationBuilder> context)
@@ -216,7 +232,11 @@ public abstract class NavigationAttributeConventionBase<TAttribute> :
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Called after a skip navigation is added to the entity type.
+    /// </summary>
+    /// <param name="skipNavigationBuilder">The builder for the skip navigation.</param>
+    /// <param name="context">Additional information associated with convention execution.</param>
     public virtual void ProcessSkipNavigationAdded(
         IConventionSkipNavigationBuilder skipNavigationBuilder,
         IConventionContext<IConventionSkipNavigationBuilder> context)
@@ -233,7 +253,11 @@ public abstract class NavigationAttributeConventionBase<TAttribute> :
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Called after the principal end of a foreign key is changed.
+    /// </summary>
+    /// <param name="relationshipBuilder">The builder for the foreign key.</param>
+    /// <param name="context">Additional information associated with convention execution.</param>
     public virtual void ProcessForeignKeyPrincipalEndChanged(
         IConventionForeignKeyBuilder relationshipBuilder,
         IConventionContext<IConventionForeignKeyBuilder> context)
@@ -249,7 +273,12 @@ public abstract class NavigationAttributeConventionBase<TAttribute> :
             relationshipBuilder, dependentToPrincipalAttributes, principalToDependentAttributes, context);
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Called after an entity type member is ignored.
+    /// </summary>
+    /// <param name="entityTypeBuilder">The builder for the entity type.</param>
+    /// <param name="name">The name of the ignored member.</param>
+    /// <param name="context">Additional information associated with convention execution.</param>
     public virtual void ProcessEntityTypeMemberIgnored(
         IConventionEntityTypeBuilder entityTypeBuilder,
         string name,
@@ -279,16 +308,14 @@ public abstract class NavigationAttributeConventionBase<TAttribute> :
     }
 
     private Type? FindCandidateNavigationWithAttributePropertyType(PropertyInfo propertyInfo, IConventionModel model)
-    {
-        var targetClrType = Dependencies.MemberClassifier.FindCandidateNavigationPropertyType(propertyInfo, model, out _);
-        return targetClrType != null
+        => Dependencies.MemberClassifier.IsCandidateNavigationProperty(
+                propertyInfo, model, useAttributes: true, out var elementType, out _, out _)
             && Attribute.IsDefined(propertyInfo, typeof(TAttribute), inherit: true)
-                ? targetClrType
+                ? elementType ?? propertyInfo.GetMemberType()
                 : null;
-    }
 
     private Type? FindCandidateNavigationWithAttributePropertyType(PropertyInfo propertyInfo, IConventionEntityType entityType)
-        => Dependencies.MemberClassifier.GetNavigationCandidates(entityType)
+        => Dependencies.MemberClassifier.GetNavigationCandidates(entityType, useAttributes: true)
                 .TryGetValue(propertyInfo, out var target)
             && Attribute.IsDefined(propertyInfo, typeof(TAttribute), inherit: true)
                 ? target.Type
@@ -322,16 +349,29 @@ public abstract class NavigationAttributeConventionBase<TAttribute> :
 
     private static IEnumerable<TCustomAttribute> GetAttributes<TCustomAttribute>(MemberInfo? memberInfo)
         where TCustomAttribute : Attribute
-    {
-        if (memberInfo == null)
-        {
-            return Enumerable.Empty<TCustomAttribute>();
-        }
+        => memberInfo == null
+            ? []
+            : Attribute.IsDefined(memberInfo, typeof(TCustomAttribute), inherit: true)
+                ? memberInfo.GetCustomAttributes<TCustomAttribute>(true)
+                : [];
 
-        return Attribute.IsDefined(memberInfo, typeof(TCustomAttribute), inherit: true)
-            ? memberInfo.GetCustomAttributes<TCustomAttribute>(true)
-            : Enumerable.Empty<TCustomAttribute>();
-    }
+    /// <summary>
+    ///     Called for every navigation property that has an attribute after an entity type is ignored.
+    /// </summary>
+    /// <param name="modelBuilder">The builder for the model.</param>
+    /// <param name="type">The ignored entity type.</param>
+    /// <param name="navigationMemberInfo">The navigation member info.</param>
+    /// <param name="targetClrType">The CLR type of the target entity type.</param>
+    /// <param name="attribute">The attribute.</param>
+    /// <param name="context">Additional information associated with convention execution.</param>
+    public virtual void ProcessTypeIgnored(
+        IConventionModelBuilder modelBuilder,
+        Type type,
+        MemberInfo navigationMemberInfo,
+        Type targetClrType,
+        TAttribute attribute,
+        IConventionContext<string> context)
+        => throw new NotSupportedException();
 
     /// <summary>
     ///     Called for every navigation property that has an attribute after an entity type is added to the model.
@@ -347,24 +387,6 @@ public abstract class NavigationAttributeConventionBase<TAttribute> :
         Type targetClrType,
         TAttribute attribute,
         IConventionContext<IConventionEntityTypeBuilder> context)
-        => throw new NotSupportedException();
-
-    /// <summary>
-    ///     Called for every navigation property that has an attribute after an entity type is ignored.
-    /// </summary>
-    /// <param name="modelBuilder">The builder for the model.</param>
-    /// <param name="type">The ignored entity type.</param>
-    /// <param name="navigationMemberInfo">The navigation member info.</param>
-    /// <param name="targetClrType">The CLR type of the target entity type.</param>
-    /// <param name="attribute">The attribute.</param>
-    /// <param name="context">Additional information associated with convention execution.</param>
-    public virtual void ProcessEntityTypeIgnored(
-        IConventionModelBuilder modelBuilder,
-        Type type,
-        MemberInfo navigationMemberInfo,
-        Type targetClrType,
-        TAttribute attribute,
-        IConventionContext<string> context)
         => throw new NotSupportedException();
 
     /// <summary>

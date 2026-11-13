@@ -1,15 +1,10 @@
-<Project>
-
-  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp2.0</TargetFramework>
+    <TargetFramework>$(NetMinimum)</TargetFramework>
     <PackageId>Microsoft.EntityFrameworkCore.Tools</PackageId>
-    <NuspecFile>$(MSBuildThisFileDirectory)$(MSBuildProjectName).nuspec</NuspecFile>
-    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
-    <NoPackageAnalysis>true</NoPackageAnalysis>
-    <IncludeBuildOutput>false</IncludeBuildOutput>
-    <IncludeSource>false</IncludeSource>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
     <Description>Entity Framework Core Tools for the NuGet Package Manager Console in Visual Studio.
 
 Enables these commonly used commands:
@@ -23,72 +18,51 @@ Remove-Migration
 Scaffold-DbContext
 Script-Migration
 Update-Database
-  </Description>
-    <CheckEolTargetFramework>False</CheckEolTargetFramework>
-    <ImplicitUsings>true</ImplicitUsings>
+    </Description>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddPackContent</TargetsForTfmSpecificContentInPackage>
+    <!-- Necessary to include pdbs -->
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
   </PropertyGroup>
 
   <ItemGroup>
-    <Using Include="System.Diagnostics" />
-    <Using Include="System.Linq.Expressions" />
-    <Using Include="System.Reflection" />
-    <Using Include="Microsoft.EntityFrameworkCore" />
-    <Using Include="Microsoft.EntityFrameworkCore.ChangeTracking" />
-    <Using Include="Microsoft.EntityFrameworkCore.Diagnostics" />
-    <Using Include="Microsoft.EntityFrameworkCore.Design" />
-    <Using Include="Microsoft.EntityFrameworkCore.Infrastructure" />
-    <Using Include="Microsoft.EntityFrameworkCore.Metadata" />
-    <Using Include="Microsoft.EntityFrameworkCore.Metadata.Builders" />
-    <Using Include="Microsoft.EntityFrameworkCore.Metadata.Conventions" />
-    <Using Include="Microsoft.EntityFrameworkCore.Metadata.Conventions.Infrastructure" />
-    <Using Include="Microsoft.EntityFrameworkCore.Migrations" />
-    <Using Include="Microsoft.EntityFrameworkCore.Migrations.Design" />
-    <Using Include="Microsoft.EntityFrameworkCore.Migrations.Operations" />
-    <Using Include="Microsoft.EntityFrameworkCore.Query" />
-    <Using Include="Microsoft.EntityFrameworkCore.Scaffolding" />
-    <Using Include="Microsoft.EntityFrameworkCore.Storage" />
-    <Using Include="Microsoft.EntityFrameworkCore.Storage.ValueConversion" />
-    <Using Include="Microsoft.EntityFrameworkCore.Update" />
-    <Using Include="Microsoft.EntityFrameworkCore.ValueGeneration" />
-    <Using Include="Microsoft.EntityFrameworkCore.Utilities" />
-    <Using Include="Microsoft.Extensions.Logging" />
-    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <ProjectReference Include="..\ef\ef.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ef\ef.csproj" />
+    <PackageReference Include="Microsoft.DotNet.Build.Tasks.Templating" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
     <GeneratedContent Include="*.psd1.in" />
   </ItemGroup>
 
-  <Target Name="SetPackageProperties" BeforeTargets="InitializeStandardNuspecProperties" DependsOnTargets="Build">
-    <PropertyGroup>
-      <DevelopmentDependency>true</DevelopmentDependency>
+  <Target Name="GenerateContent"
+    Inputs="$(MSBuildAllProjects);@(GeneratedContent)"
+    Outputs="@(GeneratedContent->'$(IntermediateOutputPath)%(FileName)')">
+    <GenerateFileFromTemplate
+      TemplateFile="%(GeneratedContent.Identity)"
+      Properties="VersionPrefix=$(VersionPrefix)"
+      OutputPath="$(IntermediateOutputPath)%(FileName)" />
+  </Target>
 
-      <!-- Make sure we create a symbols.nupkg -->
-      <IncludeSymbols>true</IncludeSymbols>
-    </PropertyGroup>
+  <Target Name="AddPackContent" DependsOnTargets="GenerateContent">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="tools/**/*" PackagePath="tools/" />
+      <TfmSpecificPackageFile Include="$(IntermediateOutputPath)*.psd1" PackagePath="tools/" />
+      <TfmSpecificPackageFile Include="$(ArtifactsBinDir)ef/$(Configuration)/$(TargetFramework)/ef.dll" PackagePath="tools/net" />
+      <TfmSpecificPackageFile Include="$(ArtifactsBinDir)ef/$(Configuration)/$(TargetFramework)/ef.runtimeconfig.json" PackagePath="tools/net" />
+      <TfmSpecificPackageFile Include="$(ArtifactsBinDir)ef/$(Configuration)/$(TargetFramework)/ef.pdb" PackagePath="tools/net" />
+    </ItemGroup>
 
     <ItemGroup>
-      <NuspecProperty Include="version=$(PackageVersion)" />
-      <NuspecProperty Include="configuration=$(Configuration)" />
-      <NuspecProperty Include="intermediateOutputPath=$(IntermediateOutputPath)" />
+      <TfmSpecificDebugSymbolsFile Include="@(TfmSpecificPackageFile->WithMetadataValue('Extension', '.pdb'))"
+                                   TargetPath="/%(TfmSpecificPackageFile.PackagePath)/%(Filename)%(Extension)"
+                                   TargetFramework="$(TargetFramework)"
+                                   Condition="'$(IncludeSymbols)' == 'true'" />
+      <!-- Remove symbols from the non symbol package. -->
+      <TfmSpecificPackageFile Remove="@(TfmSpecificPackageFile->WithMetadataValue('Extension', '.pdb'))" />
     </ItemGroup>
   </Target>
-
-  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
-
-  <Target Name="GenerateContent"
-    BeforeTargets="GenerateNuspec"
-    Inputs="$(MSBuildAllProjects);@(GeneratedContent)"
-    Outputs="@(GeneratedContent->'$(IntermediateOutputPath)%(FileName)'">
-    <!-- TODO: Use dotnet/arcade#204 when available -->
-    <WriteLinesToFile Lines="$([System.IO.File]::ReadAllText('%(GeneratedContent.Identity)').Replace('${VersionPrefix}', $(VersionPrefix)))" File="$(IntermediateOutputPath)%(FileName)" Overwrite="True" />
-  </Target>
-
-  <Target Name="Compile" />
-  <Target Name="CopyFilesToOutputDirectory" />
 
 </Project>

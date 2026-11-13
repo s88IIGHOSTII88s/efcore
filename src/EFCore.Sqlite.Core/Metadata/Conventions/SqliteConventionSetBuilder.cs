@@ -1,9 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable once CheckNamespace
+
 namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 /// <summary>
@@ -44,13 +43,10 @@ public class SqliteConventionSetBuilder : RelationalConventionSetBuilder
     {
         var conventionSet = base.CreateConventionSet();
 
-        ReplaceConvention(
-            conventionSet.ModelFinalizingConventions,
-            (SharedTableConvention)new SqliteSharedTableConvention(Dependencies, RelationalDependencies));
-
-        ReplaceConvention(
-            conventionSet.ModelFinalizedConventions,
-            (RuntimeModelConvention)new SqliteRuntimeModelConvention(Dependencies, RelationalDependencies));
+        conventionSet.Replace<SharedTableConvention>(new SqliteSharedTableConvention(Dependencies, RelationalDependencies));
+        conventionSet.Replace<RuntimeModelConvention>(new SqliteRuntimeModelConvention(Dependencies, RelationalDependencies));
+        conventionSet.Replace<ValueGenerationConvention>(new SqliteValueGenerationConvention(Dependencies, RelationalDependencies));
+        conventionSet.Replace<StoreGenerationConvention>(new SqliteStoreGenerationConvention(Dependencies, RelationalDependencies));
 
         return conventionSet;
     }
@@ -90,10 +86,9 @@ public class SqliteConventionSetBuilder : RelationalConventionSetBuilder
     {
         var serviceProvider = new ServiceCollection()
             .AddEntityFrameworkSqlite()
-            .AddDbContext<DbContext>(
-                (p, o) =>
-                    o.UseSqlite("Filename=_.db")
-                        .UseInternalServiceProvider(p))
+            .AddDbContext<DbContext>((p, o) =>
+                o.UseSqlite("Filename=_.db")
+                    .UseInternalServiceProvider(p))
             .BuildServiceProvider();
         return serviceProvider.GetRequiredService<IServiceScopeFactory>().CreateScope();
     }

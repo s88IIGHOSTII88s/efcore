@@ -7,8 +7,8 @@ public class InheritanceBase2
 {
     public int Id { get; set; }
 
-    public string Name { get; set; }
+    public string? Name { get; set; }
 
-    public InheritanceBase1 Reference { get; set; }
-    public List<InheritanceBase1> Collection { get; set; }
+    public InheritanceBase1? Reference { get; set; }
+    public List<InheritanceBase1> Collection { get; set; } = null!;
 }

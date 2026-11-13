@@ -7,17 +7,12 @@ using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 // ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public abstract class QueryNoClientEvalTestBase<TFixture> : IClassFixture<TFixture>
+public abstract class QueryNoClientEvalTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : NorthwindQueryRelationalFixture<NoopModelCustomizer>, new()
 {
-    protected QueryNoClientEvalTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
+    protected TFixture Fixture { get; } = fixture;
 
-    protected TFixture Fixture { get; }
-
-    [ConditionalFact]
+    [Fact]
     public virtual void Throws_when_where()
     {
         using var context = CreateContext();
@@ -26,7 +21,7 @@ public abstract class QueryNoClientEvalTestBase<TFixture> : IClassFixture<TFixtu
             CoreStrings.QueryUnableToTranslateMember(nameof(Customer.IsLondon), nameof(Customer)));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Throws_when_orderby()
     {
         using var context = CreateContext();
@@ -35,7 +30,7 @@ public abstract class QueryNoClientEvalTestBase<TFixture> : IClassFixture<TFixtu
             CoreStrings.QueryUnableToTranslateMember(nameof(Customer.IsLondon), nameof(Customer)));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Throws_when_orderby_multiple()
     {
         using var context = CreateContext();
@@ -50,7 +45,7 @@ public abstract class QueryNoClientEvalTestBase<TFixture> : IClassFixture<TFixtu
     private static object ClientMethod(object o)
         => o.GetHashCode();
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Throws_when_where_subquery_correlated()
     {
         using var context = CreateContext();
@@ -61,7 +56,7 @@ public abstract class QueryNoClientEvalTestBase<TFixture> : IClassFixture<TFixtu
             CoreStrings.QueryUnableToTranslateMember(nameof(Customer.IsLondon), nameof(Customer)));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Throws_when_all()
     {
         using var context = CreateContext();
@@ -70,7 +65,7 @@ public abstract class QueryNoClientEvalTestBase<TFixture> : IClassFixture<TFixtu
             CoreStrings.QueryUnableToTranslateMember(nameof(Customer.IsLondon), nameof(Customer)));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Throws_when_from_sql_composed()
     {
         using var context = CreateContext();
@@ -82,7 +77,7 @@ public abstract class QueryNoClientEvalTestBase<TFixture> : IClassFixture<TFixtu
             CoreStrings.QueryUnableToTranslateMember(nameof(Customer.IsLondon), nameof(Customer)));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Doesnt_throw_when_from_sql_not_composed()
     {
         using var context = CreateContext();
@@ -94,7 +89,7 @@ public abstract class QueryNoClientEvalTestBase<TFixture> : IClassFixture<TFixtu
         Assert.Equal(91, customers.Count);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Throws_when_subquery_main_from_clause()
     {
         using var context = CreateContext();
@@ -108,41 +103,17 @@ public abstract class QueryNoClientEvalTestBase<TFixture> : IClassFixture<TFixtu
             CoreStrings.QueryUnableToTranslateMember(nameof(Customer.IsLondon), nameof(Customer)));
     }
 
-    [ConditionalFact]
-    public virtual void Throws_when_select_many()
+    [Fact]
+    public virtual void Does_not_throws_when_group_join()
     {
         using var context = CreateContext();
-
-        AssertTranslationFailed(
-            () => (from c1 in context.Customers
-                   from i in new[] { 1, 2, 3 }
-                   select c1)
-                .ToList());
+        (from e1 in context.Employees
+         join i in new uint[] { 1, 2, 3 } on e1.EmployeeID equals i into g
+         select e1)
+            .ToList();
     }
 
-    [ConditionalFact]
-    public virtual void Throws_when_join()
-    {
-        using var context = CreateContext();
-        AssertTranslationFailed(
-            () => (from e1 in context.Employees
-                   join i in new uint[] { 1, 2, 3 } on e1.EmployeeID equals i
-                   select e1)
-                .ToList());
-    }
-
-    [ConditionalFact]
-    public virtual void Throws_when_group_join()
-    {
-        using var context = CreateContext();
-        AssertTranslationFailed(
-            () => (from e1 in context.Employees
-                   join i in new uint[] { 1, 2, 3 } on e1.EmployeeID equals i into g
-                   select e1)
-                .ToList());
-    }
-
-    [ConditionalFact(Skip = "Issue#18923")]
+    [Fact(Skip = "Issue#18923")]
     public virtual void Throws_when_group_by()
     {
         using var context = CreateContext();
@@ -150,13 +121,12 @@ public abstract class QueryNoClientEvalTestBase<TFixture> : IClassFixture<TFixtu
             .GroupBy(c => c.CustomerID)
             .ToList();
 
-        AssertTranslationFailed(
-            () => context.Customers
-                .GroupBy(c => c.CustomerID)
-                .ToList());
+        AssertTranslationFailed(() => context.Customers
+            .GroupBy(c => c.CustomerID)
+            .ToList());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Throws_when_first()
     {
         using var context = CreateContext();
@@ -165,7 +135,7 @@ public abstract class QueryNoClientEvalTestBase<TFixture> : IClassFixture<TFixtu
             CoreStrings.QueryUnableToTranslateMember(nameof(Customer.IsLondon), nameof(Customer)));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Throws_when_single()
     {
         using var context = CreateContext();
@@ -174,7 +144,7 @@ public abstract class QueryNoClientEvalTestBase<TFixture> : IClassFixture<TFixtu
             CoreStrings.QueryUnableToTranslateMember(nameof(Customer.IsLondon), nameof(Customer)));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Throws_when_first_or_default()
     {
         using var context = CreateContext();
@@ -183,7 +153,7 @@ public abstract class QueryNoClientEvalTestBase<TFixture> : IClassFixture<TFixtu
             CoreStrings.QueryUnableToTranslateMember(nameof(Customer.IsLondon), nameof(Customer)));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Throws_when_single_or_default()
     {
         using var context = CreateContext();

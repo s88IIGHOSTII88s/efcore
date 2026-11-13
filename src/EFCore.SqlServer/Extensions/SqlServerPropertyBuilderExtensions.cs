@@ -11,7 +11,7 @@ namespace Microsoft.EntityFrameworkCore;
 /// </summary>
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
 ///     for more information and examples.
 /// </remarks>
 public static class SqlServerPropertyBuilderExtensions
@@ -22,7 +22,7 @@ public static class SqlServerPropertyBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="propertyBuilder">The builder for the property being configured.</param>
@@ -34,14 +34,14 @@ public static class SqlServerPropertyBuilderExtensions
         string? name = null,
         string? schema = null)
     {
-        Check.NullButNotEmpty(name, nameof(name));
-        Check.NullButNotEmpty(schema, nameof(schema));
+        Check.NullButNotEmpty(name);
+        Check.NullButNotEmpty(schema);
 
         var property = propertyBuilder.Metadata;
 
         name ??= SqlServerModelExtensions.DefaultHiLoSequenceName;
 
-        var model = property.DeclaringEntityType.Model;
+        var model = property.DeclaringType.Model;
 
         if (model.FindSequence(name, schema) == null)
         {
@@ -63,7 +63,7 @@ public static class SqlServerPropertyBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <typeparam name="TProperty">The type of the property being configured.</typeparam>
@@ -75,7 +75,7 @@ public static class SqlServerPropertyBuilderExtensions
         this PropertyBuilder<TProperty> propertyBuilder,
         string? name = null,
         string? schema = null)
-        => (PropertyBuilder<TProperty>)UseHiLo((PropertyBuilder)propertyBuilder, name, schema);
+        => (PropertyBuilder<TProperty>)((PropertyBuilder)propertyBuilder).UseHiLo(name, schema);
 
     /// <summary>
     ///     Configures the database sequence used for the hi-lo pattern to generate values for the key property,
@@ -83,7 +83,7 @@ public static class SqlServerPropertyBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="propertyBuilder">The builder for the property being configured.</param>
@@ -107,7 +107,7 @@ public static class SqlServerPropertyBuilderExtensions
 
         return name == null
             ? null
-            : propertyBuilder.Metadata.DeclaringEntityType.Model.Builder.HasSequence(name, schema, fromDataAnnotation);
+            : propertyBuilder.Metadata.DeclaringType.Model.Builder.HasSequence(name, schema, fromDataAnnotation);
     }
 
     /// <summary>
@@ -115,7 +115,7 @@ public static class SqlServerPropertyBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="propertyBuilder">The builder for the property being configured.</param>
@@ -129,11 +129,124 @@ public static class SqlServerPropertyBuilderExtensions
         string? schema,
         bool fromDataAnnotation = false)
     {
-        Check.NullButNotEmpty(name, nameof(name));
-        Check.NullButNotEmpty(schema, nameof(schema));
+        Check.NullButNotEmpty(name);
+        Check.NullButNotEmpty(schema);
 
         return propertyBuilder.CanSetAnnotation(SqlServerAnnotationNames.HiLoSequenceName, name, fromDataAnnotation)
             && propertyBuilder.CanSetAnnotation(SqlServerAnnotationNames.HiLoSequenceSchema, schema, fromDataAnnotation);
+    }
+
+    /// <summary>
+    ///     Configures the key property to use a sequence-based key value generation pattern to generate values for new entities,
+    ///     when targeting SQL Server. This method sets the property to be <see cref="ValueGenerated.OnAdd" />.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="name">The name of the sequence.</param>
+    /// <param name="schema">The schema of the sequence.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public static PropertyBuilder UseSequence(
+        this PropertyBuilder propertyBuilder,
+        string? name = null,
+        string? schema = null)
+    {
+        Check.NullButNotEmpty(name);
+        Check.NullButNotEmpty(schema);
+
+        var property = propertyBuilder.Metadata;
+
+        property.SetValueGenerationStrategy(SqlServerValueGenerationStrategy.Sequence);
+        property.SetSequenceName(name);
+        property.SetSequenceSchema(schema);
+        property.SetHiLoSequenceName(null);
+        property.SetHiLoSequenceSchema(null);
+        property.SetIdentitySeed(null);
+        property.SetIdentityIncrement(null);
+
+        return propertyBuilder;
+    }
+
+    /// <summary>
+    ///     Configures the key property to use a sequence-based key value generation pattern to generate values for new entities,
+    ///     when targeting SQL Server. This method sets the property to be <see cref="ValueGenerated.OnAdd" />.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <typeparam name="TProperty">The type of the property being configured.</typeparam>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="name">The name of the sequence.</param>
+    /// <param name="schema">The schema of the sequence.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public static PropertyBuilder<TProperty> UseSequence<TProperty>(
+        this PropertyBuilder<TProperty> propertyBuilder,
+        string? name = null,
+        string? schema = null)
+        => (PropertyBuilder<TProperty>)((PropertyBuilder)propertyBuilder).UseSequence(name, schema);
+
+    /// <summary>
+    ///     Configures the database sequence used for the key value generation pattern to generate values for the key property,
+    ///     when targeting SQL Server.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="name">The name of the sequence.</param>
+    /// <param name="schema">The schema of the sequence.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>A builder to further configure the sequence.</returns>
+    public static IConventionSequenceBuilder? HasSequence(
+        this IConventionPropertyBuilder propertyBuilder,
+        string? name,
+        string? schema,
+        bool fromDataAnnotation = false)
+    {
+        if (!propertyBuilder.CanSetSequence(name, schema, fromDataAnnotation))
+        {
+            return null;
+        }
+
+        propertyBuilder.Metadata.SetSequenceName(name, fromDataAnnotation);
+        propertyBuilder.Metadata.SetSequenceSchema(schema, fromDataAnnotation);
+
+        return name == null
+            ? null
+            : propertyBuilder.Metadata.DeclaringType.Model.Builder.HasSequence(name, schema, fromDataAnnotation);
+    }
+
+    /// <summary>
+    ///     Returns a value indicating whether the given name and schema can be set for the key value generation sequence.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="name">The name of the sequence.</param>
+    /// <param name="schema">The schema of the sequence.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns><see langword="true" /> if the given name and schema can be set for the key value generation sequence.</returns>
+    public static bool CanSetSequence(
+        this IConventionPropertyBuilder propertyBuilder,
+        string? name,
+        string? schema,
+        bool fromDataAnnotation = false)
+    {
+        Check.NullButNotEmpty(name);
+        Check.NullButNotEmpty(schema);
+
+        return propertyBuilder.CanSetAnnotation(SqlServerAnnotationNames.SequenceName, name, fromDataAnnotation)
+            && propertyBuilder.CanSetAnnotation(SqlServerAnnotationNames.SequenceSchema, schema, fromDataAnnotation);
     }
 
     /// <summary>
@@ -142,7 +255,7 @@ public static class SqlServerPropertyBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="propertyBuilder">The builder for the property being configured.</param>
@@ -160,6 +273,8 @@ public static class SqlServerPropertyBuilderExtensions
         property.SetIdentityIncrement(increment);
         property.SetHiLoSequenceName(null);
         property.SetHiLoSequenceSchema(null);
+        property.SetSequenceName(null);
+        property.SetSequenceSchema(null);
 
         return propertyBuilder;
     }
@@ -170,7 +285,7 @@ public static class SqlServerPropertyBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="propertyBuilder">The builder for the property being configured.</param>
@@ -184,12 +299,38 @@ public static class SqlServerPropertyBuilderExtensions
         => propertyBuilder.UseIdentityColumn((long)seed, increment);
 
     /// <summary>
+    ///     Configures the key column to use the SQL Server IDENTITY feature to generate values for new entities,
+    ///     when targeting SQL Server. This method sets the property to be <see cref="ValueGenerated.OnAdd" />.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="columnBuilder">The builder for the column being configured.</param>
+    /// <param name="seed">The value that is used for the very first row loaded into the table.</param>
+    /// <param name="increment">The incremental value that is added to the identity value of the previous row that was loaded.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public static ColumnBuilder UseIdentityColumn(
+        this ColumnBuilder columnBuilder,
+        long seed = 1,
+        int increment = 1)
+    {
+        var overrides = columnBuilder.Overrides;
+        overrides.SetValueGenerationStrategy(SqlServerValueGenerationStrategy.IdentityColumn);
+        overrides.SetIdentitySeed(seed);
+        overrides.SetIdentityIncrement(increment);
+
+        return columnBuilder;
+    }
+
+    /// <summary>
     ///     Configures the key property to use the SQL Server IDENTITY feature to generate values for new entities,
     ///     when targeting SQL Server. This method sets the property to be <see cref="ValueGenerated.OnAdd" />.
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <typeparam name="TProperty">The type of the property being configured.</typeparam>
@@ -201,7 +342,7 @@ public static class SqlServerPropertyBuilderExtensions
         this PropertyBuilder<TProperty> propertyBuilder,
         long seed = 1,
         int increment = 1)
-        => (PropertyBuilder<TProperty>)UseIdentityColumn((PropertyBuilder)propertyBuilder, seed, increment);
+        => (PropertyBuilder<TProperty>)((PropertyBuilder)propertyBuilder).UseIdentityColumn(seed, increment);
 
     /// <summary>
     ///     Configures the key property to use the SQL Server IDENTITY feature to generate values for new entities,
@@ -209,7 +350,7 @@ public static class SqlServerPropertyBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <typeparam name="TProperty">The type of the property being configured.</typeparam>
@@ -221,14 +362,34 @@ public static class SqlServerPropertyBuilderExtensions
         this PropertyBuilder<TProperty> propertyBuilder,
         int seed,
         int increment = 1)
-        => (PropertyBuilder<TProperty>)UseIdentityColumn((PropertyBuilder)propertyBuilder, (long)seed, increment);
+        => (PropertyBuilder<TProperty>)((PropertyBuilder)propertyBuilder).UseIdentityColumn((long)seed, increment);
+
+    /// <summary>
+    ///     Configures the key column to use the SQL Server IDENTITY feature to generate values for new entities,
+    ///     when targeting SQL Server. This method sets the property to be <see cref="ValueGenerated.OnAdd" />.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <typeparam name="TProperty">The type of the property being configured.</typeparam>
+    /// <param name="columnBuilder">The builder for the column being configured.</param>
+    /// <param name="seed">The value that is used for the very first row loaded into the table.</param>
+    /// <param name="increment">The incremental value that is added to the identity value of the previous row that was loaded.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public static ColumnBuilder<TProperty> UseIdentityColumn<TProperty>(
+        this ColumnBuilder<TProperty> columnBuilder,
+        long seed = 1,
+        int increment = 1)
+        => (ColumnBuilder<TProperty>)((ColumnBuilder)columnBuilder).UseIdentityColumn(seed, increment);
 
     /// <summary>
     ///     Configures the seed for SQL Server IDENTITY.
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="propertyBuilder">The builder for the property being configured.</param>
@@ -253,11 +414,42 @@ public static class SqlServerPropertyBuilderExtensions
     }
 
     /// <summary>
+    ///     Configures the seed for SQL Server IDENTITY for a particular table.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="seed">The value that is used for the very first row loaded into the table.</param>
+    /// <param name="storeObject">The table identifier.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The same builder instance if the configuration was applied,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    public static IConventionPropertyBuilder? HasIdentityColumnSeed(
+        this IConventionPropertyBuilder propertyBuilder,
+        long? seed,
+        in StoreObjectIdentifier storeObject,
+        bool fromDataAnnotation = false)
+    {
+        if (propertyBuilder.CanSetIdentityColumnSeed(seed, storeObject, fromDataAnnotation))
+        {
+            propertyBuilder.Metadata.SetIdentitySeed(seed, storeObject, fromDataAnnotation);
+            return propertyBuilder;
+        }
+
+        return null;
+    }
+
+    /// <summary>
     ///     Returns a value indicating whether the given value can be set as the seed for SQL Server IDENTITY.
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="propertyBuilder">The builder for the property being configured.</param>
@@ -271,11 +463,37 @@ public static class SqlServerPropertyBuilderExtensions
         => propertyBuilder.CanSetAnnotation(SqlServerAnnotationNames.IdentitySeed, seed, fromDataAnnotation);
 
     /// <summary>
+    ///     Returns a value indicating whether the given value can be set as the seed for SQL Server IDENTITY
+    ///     for a particular table.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="seed">The value that is used for the very first row loaded into the table.</param>
+    /// <param name="storeObject">The table identifier.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns><see langword="true" /> if the given value can be set as the seed for SQL Server IDENTITY.</returns>
+    public static bool CanSetIdentityColumnSeed(
+        this IConventionPropertyBuilder propertyBuilder,
+        long? seed,
+        in StoreObjectIdentifier storeObject,
+        bool fromDataAnnotation = false)
+        => propertyBuilder.Metadata.FindOverrides(storeObject)?.Builder
+                .CanSetAnnotation(
+                    SqlServerAnnotationNames.IdentitySeed,
+                    seed,
+                    fromDataAnnotation)
+            ?? true;
+
+    /// <summary>
     ///     Configures the increment for SQL Server IDENTITY.
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="propertyBuilder">The builder for the property being configured.</param>
@@ -300,11 +518,42 @@ public static class SqlServerPropertyBuilderExtensions
     }
 
     /// <summary>
+    ///     Configures the increment for SQL Server IDENTITY for a particular table.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="increment">The incremental value that is added to the identity value of the previous row that was loaded.</param>
+    /// <param name="storeObject">The table identifier.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The same builder instance if the configuration was applied,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    public static IConventionPropertyBuilder? HasIdentityColumnIncrement(
+        this IConventionPropertyBuilder propertyBuilder,
+        int? increment,
+        in StoreObjectIdentifier storeObject,
+        bool fromDataAnnotation = false)
+    {
+        if (propertyBuilder.CanSetIdentityColumnIncrement(increment, storeObject, fromDataAnnotation))
+        {
+            propertyBuilder.Metadata.SetIdentityIncrement(increment, storeObject, fromDataAnnotation);
+            return propertyBuilder;
+        }
+
+        return null;
+    }
+
+    /// <summary>
     ///     Returns a value indicating whether the given value can be set as the increment for SQL Server IDENTITY.
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="propertyBuilder">The builder for the property being configured.</param>
@@ -318,11 +567,37 @@ public static class SqlServerPropertyBuilderExtensions
         => propertyBuilder.CanSetAnnotation(SqlServerAnnotationNames.IdentityIncrement, increment, fromDataAnnotation);
 
     /// <summary>
+    ///     Returns a value indicating whether the given value can be set as the increment for SQL Server IDENTITY
+    ///     for a particular table.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="increment">The incremental value that is added to the identity value of the previous row that was loaded.</param>
+    /// <param name="storeObject">The table identifier.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns><see langword="true" /> if the given value can be set as the default increment for SQL Server IDENTITY.</returns>
+    public static bool CanSetIdentityColumnIncrement(
+        this IConventionPropertyBuilder propertyBuilder,
+        int? increment,
+        in StoreObjectIdentifier storeObject,
+        bool fromDataAnnotation = false)
+        => propertyBuilder.Metadata.FindOverrides(storeObject)?.Builder
+                .CanSetAnnotation(
+                    SqlServerAnnotationNames.IdentityIncrement,
+                    increment,
+                    fromDataAnnotation)
+            ?? true;
+
+    /// <summary>
     ///     Configures the value generation strategy for the key property, when targeting SQL Server.
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="propertyBuilder">The builder for the property being configured.</param>
@@ -345,11 +620,57 @@ public static class SqlServerPropertyBuilderExtensions
             {
                 propertyBuilder.HasIdentityColumnSeed(null, fromDataAnnotation);
                 propertyBuilder.HasIdentityColumnIncrement(null, fromDataAnnotation);
+                propertyBuilder.HasSequence(null, null, fromDataAnnotation);
             }
 
             if (valueGenerationStrategy != SqlServerValueGenerationStrategy.SequenceHiLo)
             {
                 propertyBuilder.HasHiLoSequence(null, null, fromDataAnnotation);
+                propertyBuilder.HasSequence(null, null, fromDataAnnotation);
+            }
+
+            if (valueGenerationStrategy != SqlServerValueGenerationStrategy.Sequence)
+            {
+                propertyBuilder.HasIdentityColumnSeed(null, fromDataAnnotation);
+                propertyBuilder.HasIdentityColumnIncrement(null, fromDataAnnotation);
+                propertyBuilder.HasHiLoSequence(null, null, fromDataAnnotation);
+            }
+
+            return propertyBuilder;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Configures the value generation strategy for the key property, when targeting SQL Server for a particular table.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="valueGenerationStrategy">The value generation strategy.</param>
+    /// <param name="storeObject">The table identifier.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The same builder instance if the configuration was applied,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    public static IConventionPropertyBuilder? HasValueGenerationStrategy(
+        this IConventionPropertyBuilder propertyBuilder,
+        SqlServerValueGenerationStrategy? valueGenerationStrategy,
+        in StoreObjectIdentifier storeObject,
+        bool fromDataAnnotation = false)
+    {
+        if (propertyBuilder.CanSetValueGenerationStrategy(valueGenerationStrategy, storeObject, fromDataAnnotation))
+        {
+            propertyBuilder.Metadata.SetValueGenerationStrategy(valueGenerationStrategy, storeObject, fromDataAnnotation);
+            if (valueGenerationStrategy != SqlServerValueGenerationStrategy.IdentityColumn)
+            {
+                propertyBuilder.HasIdentityColumnSeed(null, storeObject, fromDataAnnotation);
+                propertyBuilder.HasIdentityColumnIncrement(null, storeObject, fromDataAnnotation);
             }
 
             return propertyBuilder;
@@ -363,7 +684,7 @@ public static class SqlServerPropertyBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="propertyBuilder">The builder for the property being configured.</param>
@@ -374,17 +695,40 @@ public static class SqlServerPropertyBuilderExtensions
         this IConventionPropertyBuilder propertyBuilder,
         SqlServerValueGenerationStrategy? valueGenerationStrategy,
         bool fromDataAnnotation = false)
-        => (valueGenerationStrategy == null
-                || SqlServerPropertyExtensions.IsCompatibleWithValueGeneration(propertyBuilder.Metadata))
-            && propertyBuilder.CanSetAnnotation(
-                SqlServerAnnotationNames.ValueGenerationStrategy, valueGenerationStrategy, fromDataAnnotation);
+        => propertyBuilder.CanSetAnnotation(
+            SqlServerAnnotationNames.ValueGenerationStrategy, valueGenerationStrategy, fromDataAnnotation);
+
+    /// <summary>
+    ///     Returns a value indicating whether the given value can be set as the value generation strategy for a particular table.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="valueGenerationStrategy">The value generation strategy.</param>
+    /// <param name="storeObject">The table identifier.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns><see langword="true" /> if the given value can be set as the default value generation strategy.</returns>
+    public static bool CanSetValueGenerationStrategy(
+        this IConventionPropertyBuilder propertyBuilder,
+        SqlServerValueGenerationStrategy? valueGenerationStrategy,
+        in StoreObjectIdentifier storeObject,
+        bool fromDataAnnotation = false)
+        => propertyBuilder.Metadata.FindOverrides(storeObject)?.Builder
+                .CanSetAnnotation(
+                    SqlServerAnnotationNames.ValueGenerationStrategy,
+                    valueGenerationStrategy,
+                    fromDataAnnotation)
+            ?? true;
 
     /// <summary>
     ///     Configures whether the property's column is created as sparse when targeting SQL Server.
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples. Also see
     ///     <see href="https://docs.microsoft.com/sql/relational-databases/tables/use-sparse-columns">Sparse columns</see> for
     ///     general information on SQL Server sparse columns.
@@ -404,7 +748,7 @@ public static class SqlServerPropertyBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples. Also see
     ///     <see href="https://docs.microsoft.com/sql/relational-databases/tables/use-sparse-columns">Sparse columns</see> for
     ///     general information on SQL Server sparse columns.
@@ -415,14 +759,14 @@ public static class SqlServerPropertyBuilderExtensions
     public static PropertyBuilder<TProperty> IsSparse<TProperty>(
         this PropertyBuilder<TProperty> propertyBuilder,
         bool sparse = true)
-        => (PropertyBuilder<TProperty>)IsSparse((PropertyBuilder)propertyBuilder, sparse);
+        => (PropertyBuilder<TProperty>)((PropertyBuilder)propertyBuilder).IsSparse(sparse);
 
     /// <summary>
     ///     Configures whether the property's column is created as sparse when targeting SQL Server.
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples. Also see
     ///     <see href="https://docs.microsoft.com/sql/relational-databases/tables/use-sparse-columns">Sparse columns</see> for
     ///     general information on SQL Server sparse columns.
@@ -451,7 +795,7 @@ public static class SqlServerPropertyBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples. Also see
     ///     <see href="https://docs.microsoft.com/sql/relational-databases/tables/use-sparse-columns">Sparse columns</see> for
     ///     general information on SQL Server sparse columns.
@@ -468,4 +812,253 @@ public static class SqlServerPropertyBuilderExtensions
         bool? sparse,
         bool fromDataAnnotation = false)
         => property.CanSetAnnotation(SqlServerAnnotationNames.Sparse, sparse, fromDataAnnotation);
+
+    /// <summary>
+    ///     Configures whether the property's column is defined with the SQL Server <c>HIDDEN</c> flag, which excludes the
+    ///     column from <c>SELECT *</c> results. This applies to generated columns such as temporal table period columns.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-temporal">Using SQL Server temporal tables with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="hidden">A value indicating whether the property's column is hidden.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>The same builder instance if the configuration was applied, <see langword="null" /> otherwise.</returns>
+    public static IConventionPropertyBuilder? IsHidden(
+        this IConventionPropertyBuilder propertyBuilder,
+        bool? hidden,
+        bool fromDataAnnotation = false)
+    {
+        if (propertyBuilder.CanSetIsHidden(hidden, fromDataAnnotation))
+        {
+            propertyBuilder.Metadata.SetIsHidden(hidden, fromDataAnnotation);
+
+            return propertyBuilder;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Returns a value indicating whether the property's column can be configured with the SQL Server <c>HIDDEN</c> flag.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-temporal">Using SQL Server temporal tables with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="hidden">A value indicating whether the property's column is hidden.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     <see langword="true" /> if the property's column can be configured with the <c>HIDDEN</c> flag.
+    /// </returns>
+    public static bool CanSetIsHidden(
+        this IConventionPropertyBuilder propertyBuilder,
+        bool? hidden,
+        bool fromDataAnnotation = false)
+        => propertyBuilder.CanSetAnnotation(SqlServerAnnotationNames.IsHidden, hidden, fromDataAnnotation);
+
+    /// <summary>
+    ///     Configures the default value for the column that the property maps to when targeting SQL Server.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="value">The default value of the column.</param>
+    /// <param name="defaultConstraintName">The default constraint name.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public static PropertyBuilder HasDefaultValue(
+        this PropertyBuilder propertyBuilder,
+        object? value,
+        string defaultConstraintName)
+    {
+        Check.NotEmpty(defaultConstraintName);
+
+        propertyBuilder.Metadata.SetDefaultValue(value);
+        propertyBuilder.Metadata.SetDefaultConstraintName(defaultConstraintName);
+
+        return propertyBuilder;
+    }
+
+    /// <summary>
+    ///     Configures the default value for the column that the property maps to when targeting SQL Server.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="value">The default value of the column.</param>
+    /// <param name="defaultConstraintName">The default constraint name.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public static PropertyBuilder<TProperty> HasDefaultValue<TProperty>(
+        this PropertyBuilder<TProperty> propertyBuilder,
+        object? value,
+        string defaultConstraintName)
+        => (PropertyBuilder<TProperty>)((PropertyBuilder)propertyBuilder).HasDefaultValue(value, defaultConstraintName);
+
+    /// <summary>
+    ///     Configures the default value for the column that the property maps to when targeting SQL Server.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="value">The default value of the column.</param>
+    /// <param name="defaultConstraintName">The default constraint name.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The same builder instance if the configuration was applied,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    public static IConventionPropertyBuilder? HasDefaultValue(
+        this IConventionPropertyBuilder propertyBuilder,
+        object? value,
+        string defaultConstraintName,
+        bool fromDataAnnotation = false)
+    {
+        if (!propertyBuilder.CanSetDefaultValue(value, defaultConstraintName, fromDataAnnotation))
+        {
+            return null;
+        }
+
+        propertyBuilder.Metadata.SetDefaultValue(value, fromDataAnnotation);
+        propertyBuilder.Metadata.SetDefaultConstraintName(defaultConstraintName, fromDataAnnotation);
+        return propertyBuilder;
+    }
+
+    /// <summary>
+    ///     Returns a value indicating whether the given value can be set as default for the column.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="value">The default value of the column.</param>
+    /// <param name="defaultConstraintName">The default constraint name.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns><see langword="true" /> if the given value can be set as default for the column.</returns>
+    public static bool CanSetDefaultValue(
+        this IConventionPropertyBuilder propertyBuilder,
+        object? value,
+        string defaultConstraintName,
+        bool fromDataAnnotation = false)
+        => propertyBuilder.CanSetAnnotation(
+                RelationalAnnotationNames.DefaultValue,
+                value,
+                fromDataAnnotation)
+            && propertyBuilder.CanSetAnnotation(
+                RelationalAnnotationNames.DefaultConstraintName,
+                defaultConstraintName,
+                fromDataAnnotation);
+
+    /// <summary>
+    ///     Configures the default value expression for the column that the property maps to when targeting SQL Server.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="sql">The SQL expression for the default value of the column.</param>
+    /// <param name="defaultConstraintName">The default constraint name.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public static PropertyBuilder HasDefaultValueSql(
+        this PropertyBuilder propertyBuilder,
+        string? sql,
+        string defaultConstraintName)
+    {
+        Check.NotEmpty(defaultConstraintName);
+
+        propertyBuilder.Metadata.SetDefaultValueSql(sql);
+        propertyBuilder.Metadata.SetDefaultConstraintName(defaultConstraintName);
+
+        return propertyBuilder;
+    }
+
+    /// <summary>
+    ///     Configures the default value expression for the column that the property maps to when targeting SQL Server.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <typeparam name="TProperty">The type of the property being configured.</typeparam>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="sql">The SQL expression for the default value of the column.</param>
+    /// <param name="defaultConstraintName">The default constraint name.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public static PropertyBuilder<TProperty> HasDefaultValueSql<TProperty>(
+        this PropertyBuilder<TProperty> propertyBuilder,
+        string? sql,
+        string defaultConstraintName)
+        => (PropertyBuilder<TProperty>)((PropertyBuilder)propertyBuilder).HasDefaultValueSql(sql, defaultConstraintName);
+
+    /// <summary>
+    ///     Configures the default value expression for the column that the property maps to when targeting SQL Server.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="sql">The SQL expression for the default value of the column.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <param name="defaultConstraintName">The default constraint name.</param>
+    /// <returns>
+    ///     The same builder instance if the configuration was applied,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    public static IConventionPropertyBuilder? HasDefaultValueSql(
+        this IConventionPropertyBuilder propertyBuilder,
+        string? sql,
+        string defaultConstraintName,
+        bool fromDataAnnotation = false)
+    {
+        if (!propertyBuilder.CanSetDefaultValueSql(sql, defaultConstraintName, fromDataAnnotation))
+        {
+            return null;
+        }
+
+        propertyBuilder.Metadata.SetDefaultValueSql(sql, fromDataAnnotation);
+        propertyBuilder.Metadata.SetDefaultConstraintName(defaultConstraintName, fromDataAnnotation);
+        return propertyBuilder;
+    }
+
+    /// <summary>
+    ///     Returns a value indicating whether the given default value expression can be set for the column.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-default-values">Database default values</see> for more information and examples.
+    /// </remarks>
+    /// <param name="propertyBuilder">The builder for the property being configured.</param>
+    /// <param name="sql">The SQL expression for the default value of the column.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <param name="defaultConstraintName">The default constraint name.</param>
+    /// <returns><see langword="true" /> if the given default value expression can be set for the column.</returns>
+    public static bool CanSetDefaultValueSql(
+        this IConventionPropertyBuilder propertyBuilder,
+        string? sql,
+        string defaultConstraintName,
+        bool fromDataAnnotation = false)
+        => propertyBuilder.CanSetAnnotation(
+                RelationalAnnotationNames.DefaultValueSql,
+                sql,
+                fromDataAnnotation)
+            && propertyBuilder.CanSetAnnotation(
+                RelationalAnnotationNames.DefaultConstraintName,
+                defaultConstraintName,
+                fromDataAnnotation);
 }

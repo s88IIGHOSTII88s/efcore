@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -16,7 +17,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Builders;
 ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and examples.
 /// </remarks>
 /// <typeparam name="TEntity">The entity type being configured.</typeparam>
-public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
+public class EntityTypeBuilder<[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TEntity> : EntityTypeBuilder
     where TEntity : class
 {
     /// <summary>
@@ -81,7 +82,7 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     public virtual KeyBuilder HasKey(Expression<Func<TEntity, object?>> keyExpression)
         => new KeyBuilder<TEntity>(
             Builder.PrimaryKey(
-                Check.NotNull(keyExpression, nameof(keyExpression)).GetMemberAccessList(),
+                Check.NotNull(keyExpression).GetMemberAccessChainList(),
                 ConfigurationSource.Explicit)!.Metadata);
 
     /// <summary>
@@ -92,7 +93,7 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     public new virtual KeyBuilder<TEntity> HasKey(params string[] propertyNames)
         => new(
             Builder.PrimaryKey(
-                Check.NotEmpty(propertyNames, nameof(propertyNames)), ConfigurationSource.Explicit)!.Metadata);
+                Check.NotEmpty(propertyNames), ConfigurationSource.Explicit)!.Metadata);
 
     /// <summary>
     ///     Creates an alternate key in the model for this entity type if one does not already exist over the specified
@@ -113,7 +114,7 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     public virtual KeyBuilder<TEntity> HasAlternateKey(Expression<Func<TEntity, object?>> keyExpression)
         => new(
             Builder.HasKey(
-                Check.NotNull(keyExpression, nameof(keyExpression)).GetMemberAccessList(),
+                Check.NotNull(keyExpression).GetMemberAccessChainList(),
                 ConfigurationSource.Explicit)!.Metadata);
 
     /// <summary>
@@ -127,7 +128,7 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     public new virtual KeyBuilder<TEntity> HasAlternateKey(params string[] propertyNames)
         => new(
             Builder.HasKey(
-                Check.NotEmpty(propertyNames, nameof(propertyNames)), ConfigurationSource.Explicit)!.Metadata);
+                Check.NotEmpty(propertyNames), ConfigurationSource.Explicit)!.Metadata);
 
     /// <summary>
     ///     Configures the entity type to have no keys. It will only be usable for queries.
@@ -146,10 +147,623 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// </param>
     /// <returns>An object that can be used to configure the property.</returns>
     public virtual PropertyBuilder<TProperty> Property<TProperty>(Expression<Func<TEntity, TProperty>> propertyExpression)
-        => new(
-            Builder.Property(
-                    Check.NotNull(propertyExpression, nameof(propertyExpression)).GetMemberAccess(), ConfigurationSource.Explicit)!
-                .Metadata);
+    {
+        Check.NotNull(propertyExpression);
+
+        var memberChain = propertyExpression.GetMemberAccessChain(nameof(propertyExpression));
+        var (innerBuilder, leafMember) = Builder.ResolveComplexChain(memberChain);
+        return new PropertyBuilder<TProperty>(innerBuilder.Property(leafMember, ConfigurationSource.Explicit)!.Metadata);
+    }
+
+    /// <summary>
+    ///     Returns an object that can be used to configure a property of the entity type where that property represents
+    ///     a collection of primitive values, such as strings or integers.
+    /// </summary>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <returns>An object that can be used to configure the property.</returns>
+    public virtual PrimitiveCollectionBuilder<TProperty> PrimitiveCollection<TProperty>(
+        Expression<Func<TEntity, TProperty>> propertyExpression)
+    {
+        Check.NotNull(propertyExpression);
+
+        var memberChain = propertyExpression.GetMemberAccessChain(nameof(propertyExpression));
+        var (innerBuilder, leafMember) = Builder.ResolveComplexChain(memberChain);
+        return new PrimitiveCollectionBuilder<TProperty>(
+            innerBuilder.PrimitiveCollection(leafMember, ConfigurationSource.Explicit)!.Metadata);
+    }
+
+    /// <summary>
+    ///     Configures a complex property of the entity type.
+    ///     If no property with the given name exists, then a new property will be added.
+    /// </summary>
+    /// <remarks>
+    ///     When adding a new property with this overload the property name must match the
+    ///     name of a CLR property or field on the complex type. This overload cannot be used to
+    ///     add a new shadow state complex property.
+    /// </remarks>
+    /// <param name="propertyName">The name of the property to be configured.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public new virtual EntityTypeBuilder<TEntity> ComplexProperty(string propertyName, Action<ComplexPropertyBuilder> buildAction)
+        => (EntityTypeBuilder<TEntity>)base.ComplexProperty(propertyName, buildAction);
+
+    /// <summary>
+    ///     Configures a complex property of the entity type.
+    ///     If no property with the given name exists, then a new property will be added.
+    /// </summary>
+    /// <remarks>
+    ///     When adding a new property, if a property with the same name exists in the complex class
+    ///     then it will be added to the model. If no property exists in the complex class, then
+    ///     a new shadow state complex property will be added. A shadow state property is one that does not have a
+    ///     corresponding property in the complex class. The current value for the property is stored in
+    ///     the <see cref="ChangeTracker" /> rather than being stored in instances of the complex class.
+    /// </remarks>
+    /// <typeparam name="TProperty">The type of the property to be configured.</typeparam>
+    /// <param name="propertyName">The name of the property to be configured.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public new virtual EntityTypeBuilder<TEntity> ComplexProperty<TProperty>(
+        string propertyName,
+        Action<ComplexPropertyBuilder<TProperty>> buildAction)
+        where TProperty : notnull
+        => (EntityTypeBuilder<TEntity>)base.ComplexProperty(propertyName, buildAction);
+
+    /// <summary>
+    ///     Configures a complex property of the entity type.
+    ///     If no property with the given name exists, then a new property will be added.
+    /// </summary>
+    /// <remarks>
+    ///     When adding a new property, if a property with the same name exists in the complex class
+    ///     then it will be added to the model. If no property exists in the complex class, then
+    ///     a new shadow state complex property will be added. A shadow state property is one that does not have a
+    ///     corresponding property in the complex class. The current value for the property is stored in
+    ///     the <see cref="ChangeTracker" /> rather than being stored in instances of the complex class.
+    /// </remarks>
+    /// <typeparam name="TProperty">The type of the property to be configured.</typeparam>
+    /// <param name="propertyName">The name of the property to be configured.</param>
+    /// <param name="complexTypeName">The name of the complex type.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public new virtual EntityTypeBuilder<TEntity> ComplexProperty<TProperty>(
+        string propertyName,
+        string complexTypeName,
+        Action<ComplexPropertyBuilder<TProperty>> buildAction)
+        where TProperty : notnull
+        => (EntityTypeBuilder<TEntity>)base.ComplexProperty(propertyName, complexTypeName, buildAction);
+
+    /// <summary>
+    ///     Configures a complex property of the entity type.
+    ///     If no property with the given name exists, then a new property will be added.
+    /// </summary>
+    /// <remarks>
+    ///     When adding a new complex property, if a property with the same name exists in the complex class
+    ///     then it will be added to the model. If no property exists in the complex class, then
+    ///     a new shadow state complex property will be added. A shadow state property is one that does not have a
+    ///     corresponding property in the complex class. The current value for the property is stored in
+    ///     the <see cref="ChangeTracker" /> rather than being stored in instances of the complex class.
+    /// </remarks>
+    /// <param name="propertyType">The type of the property to be configured.</param>
+    /// <param name="propertyName">The name of the property to be configured.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public new virtual EntityTypeBuilder<TEntity> ComplexProperty(
+        Type propertyType,
+        string propertyName,
+        Action<ComplexPropertyBuilder> buildAction)
+        => (EntityTypeBuilder<TEntity>)base.ComplexProperty(propertyType, propertyName, buildAction);
+
+    /// <summary>
+    ///     Configures a complex property of the entity type.
+    ///     If no property with the given name exists, then a new property will be added.
+    /// </summary>
+    /// <remarks>
+    ///     When adding a new complex property, if a property with the same name exists in the complex class
+    ///     then it will be added to the model. If no property exists in the complex class, then
+    ///     a new shadow state complex property will be added. A shadow state property is one that does not have a
+    ///     corresponding property in the complex class. The current value for the property is stored in
+    ///     the <see cref="ChangeTracker" /> rather than being stored in instances of the complex class.
+    /// </remarks>
+    /// <param name="propertyType">The type of the property to be configured.</param>
+    /// <param name="propertyName">The name of the property to be configured.</param>
+    /// <param name="complexTypeName">The name of the complex type.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public new virtual EntityTypeBuilder<TEntity> ComplexProperty(
+        Type propertyType,
+        string propertyName,
+        string complexTypeName,
+        Action<ComplexPropertyBuilder> buildAction)
+        => (EntityTypeBuilder<TEntity>)base.ComplexProperty(propertyType, propertyName, complexTypeName, buildAction);
+
+    /// <summary>
+    ///     Returns an object that can be used to configure a complex property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <returns>An object that can be used to configure the complex property.</returns>
+    public virtual ComplexPropertyBuilder<TProperty> ComplexProperty<TProperty>(
+        Expression<Func<TEntity, TProperty?>> propertyExpression)
+        where TProperty : notnull
+    {
+        Check.NotNull(propertyExpression);
+
+        var memberChain = propertyExpression.GetMemberAccessChain(nameof(propertyExpression));
+        var (innerBuilder, leafMember) = Builder.ResolveComplexChain(memberChain);
+        return new ComplexPropertyBuilder<TProperty>(
+            innerBuilder.ComplexProperty(
+                leafMember, complexTypeName: null, collection: false, ConfigurationSource.Explicit)!.Metadata);
+    }
+
+    /// <summary>
+    ///     Returns an object that can be used to configure a complex property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <param name="complexTypeName">The name of the complex type.</param>
+    /// <returns>An object that can be used to configure the complex property.</returns>
+    public virtual ComplexPropertyBuilder<TProperty> ComplexProperty<TProperty>(
+        Expression<Func<TEntity, TProperty?>> propertyExpression,
+        string complexTypeName)
+        where TProperty : notnull
+    {
+        Check.NotNull(propertyExpression);
+        Check.NotEmpty(complexTypeName);
+
+        var memberChain = propertyExpression.GetMemberAccessChain(nameof(propertyExpression));
+        var (innerBuilder, leafMember) = Builder.ResolveComplexChain(memberChain);
+        return new ComplexPropertyBuilder<TProperty>(
+            innerBuilder.ComplexProperty(
+                leafMember, complexTypeName, collection: false, ConfigurationSource.Explicit)!.Metadata);
+    }
+
+    /// <summary>
+    ///     Configures a complex property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public virtual EntityTypeBuilder<TEntity> ComplexProperty<TProperty>(
+        Expression<Func<TEntity, TProperty?>> propertyExpression,
+        Action<ComplexPropertyBuilder<TProperty>> buildAction)
+        where TProperty : notnull
+    {
+        Check.NotNull(buildAction);
+
+        buildAction(ComplexProperty(propertyExpression));
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Configures a complex property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <param name="complexTypeName">The name of the complex type.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public virtual EntityTypeBuilder<TEntity> ComplexProperty<TProperty>(
+        Expression<Func<TEntity, TProperty?>> propertyExpression,
+        string complexTypeName,
+        Action<ComplexPropertyBuilder<TProperty>> buildAction)
+        where TProperty : notnull
+    {
+        Check.NotNull(buildAction);
+
+        buildAction(ComplexProperty(propertyExpression, complexTypeName));
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Returns an object that can be used to configure a complex property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <returns>An object that can be used to configure the complex property.</returns>
+    public virtual ComplexPropertyBuilder<TProperty> ComplexProperty<TProperty>(
+        Expression<Func<TEntity, TProperty?>> propertyExpression)
+        where TProperty : struct
+    {
+        Check.NotNull(propertyExpression);
+
+        var memberChain = propertyExpression.GetMemberAccessChain(nameof(propertyExpression));
+        var (innerBuilder, leafMember) = Builder.ResolveComplexChain(memberChain);
+        return new ComplexPropertyBuilder<TProperty>(
+            innerBuilder.ComplexProperty(
+                leafMember, complexTypeName: null, collection: false, ConfigurationSource.Explicit)!.Metadata);
+    }
+
+    /// <summary>
+    ///     Returns an object that can be used to configure a complex property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <param name="complexTypeName">The name of the complex type.</param>
+    /// <returns>An object that can be used to configure the complex property.</returns>
+    public virtual ComplexPropertyBuilder<TProperty> ComplexProperty<TProperty>(
+        Expression<Func<TEntity, TProperty?>> propertyExpression,
+        string complexTypeName)
+        where TProperty : struct
+    {
+        Check.NotNull(propertyExpression);
+        Check.NotEmpty(complexTypeName);
+
+        var memberChain = propertyExpression.GetMemberAccessChain(nameof(propertyExpression));
+        var (innerBuilder, leafMember) = Builder.ResolveComplexChain(memberChain);
+        return new ComplexPropertyBuilder<TProperty>(
+            innerBuilder.ComplexProperty(
+                leafMember, complexTypeName, collection: false, ConfigurationSource.Explicit)!.Metadata);
+    }
+
+    /// <summary>
+    ///     Configures a complex property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public virtual EntityTypeBuilder<TEntity> ComplexProperty<TProperty>(
+        Expression<Func<TEntity, TProperty?>> propertyExpression,
+        Action<ComplexPropertyBuilder<TProperty>> buildAction)
+        where TProperty : struct
+    {
+        Check.NotNull(buildAction);
+
+        buildAction(ComplexProperty(propertyExpression));
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Configures a complex property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <param name="complexTypeName">The name of the complex type.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public virtual EntityTypeBuilder<TEntity> ComplexProperty<TProperty>(
+        Expression<Func<TEntity, TProperty?>> propertyExpression,
+        string complexTypeName,
+        Action<ComplexPropertyBuilder<TProperty>> buildAction)
+        where TProperty : struct
+    {
+        Check.NotNull(buildAction);
+
+        buildAction(ComplexProperty(propertyExpression, complexTypeName));
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Configures a complex collection of the entity type.
+    ///     If no property with the given name exists, then a new property will be added.
+    /// </summary>
+    /// <remarks>
+    ///     When adding a new property with this overload the property name must match the
+    ///     name of a CLR property or field on the complex type. This overload cannot be used to
+    ///     add a new shadow state complex property.
+    /// </remarks>
+    /// <param name="propertyName">The name of the property to be configured.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>An object that can be used to configure the property.</returns>
+    public new virtual EntityTypeBuilder<TEntity> ComplexCollection(string propertyName, Action<ComplexCollectionBuilder> buildAction)
+        => (EntityTypeBuilder<TEntity>)base.ComplexCollection(propertyName, buildAction);
+
+    /// <summary>
+    ///     Configures a complex collection of the entity type.
+    ///     If no property with the given name exists, then a new property will be added.
+    /// </summary>
+    /// <remarks>
+    ///     When adding a new property, if a property with the same name exists in the complex class
+    ///     then it will be added to the model. If no property exists in the complex class, then
+    ///     a new shadow state complex property will be added. A shadow state property is one that does not have a
+    ///     corresponding property in the complex class. The current value for the property is stored in
+    ///     the <see cref="ChangeTracker" /> rather than being stored in instances of the complex class.
+    /// </remarks>
+    /// <typeparam name="TProperty">The type of the property to be configured.</typeparam>
+    /// <typeparam name="TElement">The element type.</typeparam>
+    /// <param name="propertyName">The name of the property to be configured.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>An object that can be used to configure the property.</returns>
+    public new virtual EntityTypeBuilder<TEntity> ComplexCollection<TProperty, TElement>(
+        string propertyName,
+        Action<ComplexCollectionBuilder<TElement>> buildAction)
+        where TProperty : IEnumerable<TElement>
+        where TElement : notnull
+        => (EntityTypeBuilder<TEntity>)base.ComplexCollection<TProperty, TElement>(propertyName, buildAction);
+
+    /// <summary>
+    ///     Configures a complex collection of the entity type.
+    ///     If no property with the given name exists, then a new property will be added.
+    /// </summary>
+    /// <remarks>
+    ///     When adding a new property, if a property with the same name exists in the complex class
+    ///     then it will be added to the model. If no property exists in the complex class, then
+    ///     a new shadow state complex property will be added. A shadow state property is one that does not have a
+    ///     corresponding property in the complex class. The current value for the property is stored in
+    ///     the <see cref="ChangeTracker" /> rather than being stored in instances of the complex class.
+    /// </remarks>
+    /// <typeparam name="TProperty">The type of the property to be configured.</typeparam>
+    /// <typeparam name="TElement">The element type.</typeparam>
+    /// <param name="propertyName">The name of the property to be configured.</param>
+    /// <param name="complexTypeName">The name of the complex type.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>An object that can be used to configure the property.</returns>
+    public new virtual EntityTypeBuilder<TEntity> ComplexCollection<TProperty, TElement>(
+        string propertyName,
+        string complexTypeName,
+        Action<ComplexCollectionBuilder<TElement>> buildAction)
+        where TProperty : IEnumerable<TElement>
+        where TElement : notnull
+        => (EntityTypeBuilder<TEntity>)base.ComplexCollection<TProperty, TElement>(propertyName, complexTypeName, buildAction);
+
+    /// <summary>
+    ///     Configures a complex collection of the entity type.
+    ///     If no property with the given name exists, then a new property will be added.
+    /// </summary>
+    /// <remarks>
+    ///     When adding a new complex property, if a property with the same name exists in the complex class
+    ///     then it will be added to the model. If no property exists in the complex class, then
+    ///     a new shadow state complex property will be added. A shadow state property is one that does not have a
+    ///     corresponding property in the complex class. The current value for the property is stored in
+    ///     the <see cref="ChangeTracker" /> rather than being stored in instances of the complex class.
+    /// </remarks>
+    /// <param name="propertyType">The type of the property to be configured.</param>
+    /// <param name="propertyName">The name of the property to be configured.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>An object that can be used to configure the property.</returns>
+    public new virtual EntityTypeBuilder<TEntity> ComplexCollection(
+        Type propertyType,
+        string propertyName,
+        Action<ComplexCollectionBuilder> buildAction)
+        => (EntityTypeBuilder<TEntity>)base.ComplexCollection(propertyType, propertyName, buildAction);
+
+    /// <summary>
+    ///     Configures a complex collection of the entity type.
+    ///     If no property with the given name exists, then a new property will be added.
+    /// </summary>
+    /// <remarks>
+    ///     When adding a new complex property, if a property with the same name exists in the complex class
+    ///     then it will be added to the model. If no property exists in the complex class, then
+    ///     a new shadow state complex property will be added. A shadow state property is one that does not have a
+    ///     corresponding property in the complex class. The current value for the property is stored in
+    ///     the <see cref="ChangeTracker" /> rather than being stored in instances of the complex class.
+    /// </remarks>
+    /// <param name="propertyType">The type of the property to be configured.</param>
+    /// <param name="propertyName">The name of the property to be configured.</param>
+    /// <param name="complexTypeName">The name of the complex type.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>An object that can be used to configure the property.</returns>
+    public new virtual EntityTypeBuilder<TEntity> ComplexCollection(
+        Type propertyType,
+        string propertyName,
+        string complexTypeName,
+        Action<ComplexCollectionBuilder> buildAction)
+        => (EntityTypeBuilder<TEntity>)base.ComplexCollection(propertyType, propertyName, complexTypeName, buildAction);
+
+    /// <summary>
+    ///     Returns an object that can be used to configure a complex collection property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <typeparam name="TElement">The element type.</typeparam>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <returns>An object that can be used to configure the complex collection property.</returns>
+    public virtual ComplexCollectionBuilder<TElement> ComplexCollection<TElement>(
+        Expression<Func<TEntity, IEnumerable<TElement?>?>> propertyExpression)
+        where TElement : notnull
+    {
+        Check.NotNull(propertyExpression);
+
+        var memberChain = propertyExpression.GetMemberAccessChain(nameof(propertyExpression));
+        var (innerBuilder, leafMember) = Builder.ResolveComplexChain(memberChain);
+        return new ComplexCollectionBuilder<TElement>(
+            innerBuilder.ComplexProperty(
+                leafMember, complexTypeName: null, collection: true, ConfigurationSource.Explicit)!.Metadata);
+    }
+
+    /// <summary>
+    ///     Returns an object that can be used to configure a complex collection property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <typeparam name="TElement">The element type.</typeparam>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <param name="complexTypeName">The name of the complex type.</param>
+    /// <returns>An object that can be used to configure the complex collection property.</returns>
+    public virtual ComplexCollectionBuilder<TElement> ComplexCollection<TElement>(
+        Expression<Func<TEntity, IEnumerable<TElement?>?>> propertyExpression,
+        string complexTypeName)
+        where TElement : notnull
+    {
+        Check.NotNull(propertyExpression);
+        Check.NotEmpty(complexTypeName);
+
+        var memberChain = propertyExpression.GetMemberAccessChain(nameof(propertyExpression));
+        var (innerBuilder, leafMember) = Builder.ResolveComplexChain(memberChain);
+        return new ComplexCollectionBuilder<TElement>(
+            innerBuilder.ComplexProperty(
+                leafMember, complexTypeName, collection: true, ConfigurationSource.Explicit)!.Metadata);
+    }
+
+    /// <summary>
+    ///     Configures a complex collection property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <typeparam name="TElement">The element type.</typeparam>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>An object that can be used to configure the complex collection property.</returns>
+    public virtual EntityTypeBuilder<TEntity> ComplexCollection<TElement>(
+        Expression<Func<TEntity, IEnumerable<TElement?>?>> propertyExpression,
+        Action<ComplexCollectionBuilder<TElement>> buildAction)
+        where TElement : notnull
+    {
+        Check.NotNull(buildAction);
+
+        buildAction(ComplexCollection(propertyExpression));
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Configures a complex collection property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <typeparam name="TElement">The element type.</typeparam>
+    /// <param name="complexTypeName">The name of the complex type.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>An object that can be used to configure the complex collection property.</returns>
+    public virtual EntityTypeBuilder<TEntity> ComplexCollection<TElement>(
+        Expression<Func<TEntity, IEnumerable<TElement?>?>> propertyExpression,
+        string complexTypeName,
+        Action<ComplexCollectionBuilder<TElement>> buildAction)
+        where TElement : notnull
+    {
+        Check.NotNull(buildAction);
+
+        buildAction(ComplexCollection(propertyExpression, complexTypeName));
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Returns an object that can be used to configure a complex collection property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <typeparam name="TElement">The element type.</typeparam>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <returns>An object that can be used to configure the complex collection property.</returns>
+    public virtual ComplexCollectionBuilder<TElement> ComplexCollection<TElement>(
+        Expression<Func<TEntity, IEnumerable<TElement?>?>> propertyExpression)
+        where TElement : struct
+    {
+        Check.NotNull(propertyExpression);
+
+        var memberChain = propertyExpression.GetMemberAccessChain(nameof(propertyExpression));
+        var (innerBuilder, leafMember) = Builder.ResolveComplexChain(memberChain);
+        return new ComplexCollectionBuilder<TElement>(
+            innerBuilder.ComplexProperty(
+                leafMember, complexTypeName: null, collection: true, ConfigurationSource.Explicit)!.Metadata);
+    }
+
+    /// <summary>
+    ///     Returns an object that can be used to configure a complex collection property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <typeparam name="TElement">The element type.</typeparam>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <param name="complexTypeName">The name of the complex type.</param>
+    /// <returns>An object that can be used to configure the complex collection property.</returns>
+    public virtual ComplexCollectionBuilder<TElement> ComplexCollection<TElement>(
+        Expression<Func<TEntity, IEnumerable<TElement?>?>> propertyExpression,
+        string complexTypeName)
+        where TElement : struct
+    {
+        Check.NotNull(propertyExpression);
+        Check.NotEmpty(complexTypeName);
+
+        var memberChain = propertyExpression.GetMemberAccessChain(nameof(propertyExpression));
+        var (innerBuilder, leafMember) = Builder.ResolveComplexChain(memberChain);
+        return new ComplexCollectionBuilder<TElement>(
+            innerBuilder.ComplexProperty(
+                leafMember, complexTypeName, collection: true, ConfigurationSource.Explicit)!.Metadata);
+    }
+
+    /// <summary>
+    ///     Configures a complex collection property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <typeparam name="TElement">The element type.</typeparam>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>An object that can be used to configure the complex collection property.</returns>
+    public virtual EntityTypeBuilder<TEntity> ComplexCollection<TElement>(
+        Expression<Func<TEntity, IEnumerable<TElement?>?>> propertyExpression,
+        Action<ComplexCollectionBuilder<TElement>> buildAction)
+        where TElement : struct
+    {
+        Check.NotNull(buildAction);
+
+        buildAction(ComplexCollection(propertyExpression));
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Configures a complex collection property of the entity type.
+    ///     If the specified property is not already part of the model, it will be added.
+    /// </summary>
+    /// <param name="propertyExpression">
+    ///     A lambda expression representing the property to be configured (
+    ///     <c>blog => blog.Url</c>).
+    /// </param>
+    /// <typeparam name="TElement">The element type.</typeparam>
+    /// <param name="complexTypeName">The name of the complex type.</param>
+    /// <param name="buildAction">An action that performs configuration of the property.</param>
+    /// <returns>An object that can be used to configure the complex collection property.</returns>
+    public virtual EntityTypeBuilder<TEntity> ComplexCollection<TElement>(
+        Expression<Func<TEntity, IEnumerable<TElement?>?>> propertyExpression,
+        string complexTypeName,
+        Action<ComplexCollectionBuilder<TElement>> buildAction)
+        where TElement : struct
+    {
+        Check.NotNull(buildAction);
+
+        buildAction(ComplexCollection(propertyExpression, complexTypeName));
+
+        return this;
+    }
 
     /// <summary>
     ///     Returns an object that can be used to configure an existing navigation property of the entity type.
@@ -166,7 +780,7 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
         where TNavigation : class
         => new(
             Builder.Navigation(
-                Check.NotNull(navigationExpression, nameof(navigationExpression)).GetMemberAccess()));
+                Check.NotNull(navigationExpression).GetMemberAccess()));
 
     /// <summary>
     ///     Returns an object that can be used to configure an existing navigation property of the entity type.
@@ -183,7 +797,7 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
         where TNavigation : class
         => new(
             Builder.Navigation(
-                Check.NotNull(navigationExpression, nameof(navigationExpression)).GetMemberAccess()));
+                Check.NotNull(navigationExpression).GetMemberAccess()));
 
     /// <summary>
     ///     Excludes the given property from the entity type. This method is typically used to remove properties
@@ -194,8 +808,14 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     (<c>blog => blog.Url</c>).
     /// </param>
     public virtual EntityTypeBuilder<TEntity> Ignore(Expression<Func<TEntity, object?>> propertyExpression)
-        => (EntityTypeBuilder<TEntity>)base.Ignore(
-            Check.NotNull(propertyExpression, nameof(propertyExpression)).GetMemberAccess().GetSimpleMemberName());
+    {
+        Check.NotNull(propertyExpression);
+
+        var memberChain = propertyExpression.GetMemberAccessChain(nameof(propertyExpression));
+        var (innerBuilder, leafMember) = Builder.ResolveComplexChain(memberChain);
+        innerBuilder.Ignore(leafMember.GetSimpleMemberName(), ConfigurationSource.Explicit);
+        return this;
+    }
 
     /// <summary>
     ///     Excludes the given property from the entity type. This method is typically used to remove properties
@@ -218,25 +838,30 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     Specifies a LINQ predicate expression that will automatically be applied to any queries targeting
     ///     this entity type.
     /// </summary>
+    /// <param name="filterKey">The filter key.</param>
+    /// <param name="filter">The LINQ predicate expression.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public new virtual EntityTypeBuilder<TEntity> HasQueryFilter(string filterKey, LambdaExpression? filter)
+        => (EntityTypeBuilder<TEntity>)base.HasQueryFilter(filterKey, filter);
+
+    /// <summary>
+    ///     Specifies a LINQ predicate expression that will automatically be applied to any queries targeting
+    ///     this entity type.
+    /// </summary>
     /// <param name="filter">The LINQ predicate expression.</param>
     /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
     public virtual EntityTypeBuilder<TEntity> HasQueryFilter(Expression<Func<TEntity, bool>>? filter)
         => (EntityTypeBuilder<TEntity>)base.HasQueryFilter(filter);
 
     /// <summary>
-    ///     Configures a query used to provide data for a keyless entity type.
+    ///     Specifies a LINQ predicate expression that will automatically be applied to any queries targeting
+    ///     this entity type.
     /// </summary>
-    /// <param name="query">The query that will provide the underlying data for the keyless entity type.</param>
-    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
-    [Obsolete("Use InMemoryEntityTypeBuilderExtensions.ToInMemoryQuery")]
-    public virtual EntityTypeBuilder<TEntity> ToQuery(Expression<Func<IQueryable<TEntity>>> query)
-    {
-        Check.NotNull(query, nameof(query));
-
-        Builder.HasDefiningQuery(query, ConfigurationSource.Explicit);
-
-        return this;
-    }
+    /// <param name="filterKey">The filter key.</param>
+    /// <param name="filter">The LINQ predicate expression.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public virtual EntityTypeBuilder<TEntity> HasQueryFilter(string filterKey, Expression<Func<TEntity, bool>>? filter)
+        => (EntityTypeBuilder<TEntity>)base.HasQueryFilter(filterKey, filter);
 
     /// <summary>
     ///     Configures an unnamed index on the specified properties.
@@ -252,13 +877,25 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///         If the index is made up of multiple properties then specify an anonymous type including the
     ///         properties (<c>post => new { post.Title, post.BlogId }</c>).
     ///     </para>
+    ///     <para>
+    ///         Properties of complex types are also supported by chaining member accesses (e.g.
+    ///         <c>order => order.ShippingAddress.City</c>). For properties reached through a complex
+    ///         collection, use <c>Select</c> projection over the whole collection
+    ///         (<c>blog => blog.Posts.Select(p => p.Title)</c>) or a constant indexer to target a single
+    ///         element (<c>blog => blog.Posts[0].Title</c>).
+    ///     </para>
     /// </param>
     /// <returns>An object that can be used to configure the index.</returns>
     public virtual IndexBuilder<TEntity> HasIndex(Expression<Func<TEntity, object?>> indexExpression)
-        => new(
-            Builder.HasIndex(
-                Check.NotNull(indexExpression, nameof(indexExpression)).GetMemberAccessList(),
-                ConfigurationSource.Explicit)!.Metadata);
+    {
+        Check.NotNull(indexExpression);
+
+        var (members, isCollection, collectionIndices) = indexExpression.MatchComplexMemberAccessList(nameof(indexExpression));
+        var properties = Builder.GetOrCreateProperties(members, isCollection, ConfigurationSource.Explicit)!;
+
+        return new IndexBuilder<TEntity>(
+            Builder.HasIndex(properties, collectionIndices, name: null, ConfigurationSource.Explicit)!.Metadata);
+    }
 
     /// <summary>
     ///     Configures an index on the specified properties with the given name.
@@ -274,17 +911,29 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///         If the index is made up of multiple properties then specify an anonymous type including the
     ///         properties (<c>post => new { post.Title, post.BlogId }</c>).
     ///     </para>
+    ///     <para>
+    ///         Properties of complex types are also supported by chaining member accesses (e.g.
+    ///         <c>order => order.ShippingAddress.City</c>). For properties reached through a complex
+    ///         collection, use <c>Select</c> projection over the whole collection
+    ///         (<c>blog => blog.Posts.Select(p => p.Title)</c>) or a constant indexer to target a single
+    ///         element (<c>blog => blog.Posts[0].Title</c>).
+    ///     </para>
     /// </param>
     /// <param name="name">The name to assign to the index.</param>
     /// <returns>An object that can be used to configure the index.</returns>
     public virtual IndexBuilder<TEntity> HasIndex(
         Expression<Func<TEntity, object?>> indexExpression,
         string name)
-        => new(
-            Builder.HasIndex(
-                Check.NotNull(indexExpression, nameof(indexExpression)).GetMemberAccessList(),
-                name,
-                ConfigurationSource.Explicit)!.Metadata);
+    {
+        Check.NotNull(indexExpression);
+        Check.NotEmpty(name);
+
+        var (members, isCollection, collectionIndices) = indexExpression.MatchComplexMemberAccessList(nameof(indexExpression));
+        var properties = Builder.GetOrCreateProperties(members, isCollection, ConfigurationSource.Explicit)!;
+
+        return new IndexBuilder<TEntity>(
+            Builder.HasIndex(properties, collectionIndices, name, ConfigurationSource.Explicit)!.Metadata);
+    }
 
     /// <summary>
     ///     Configures an unnamed index on the specified properties.
@@ -296,7 +945,7 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     public new virtual IndexBuilder<TEntity> HasIndex(params string[] propertyNames)
         => new(
             Builder.HasIndex(
-                Check.NotEmpty(propertyNames, nameof(propertyNames)),
+                Check.NotEmpty(propertyNames),
                 ConfigurationSource.Explicit)!.Metadata);
 
     /// <summary>
@@ -312,7 +961,7 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
         string name)
         => new(
             Builder.HasIndex(
-                Check.NotEmpty(propertyNames, nameof(propertyNames)),
+                Check.NotEmpty(propertyNames),
                 name,
                 ConfigurationSource.Explicit)!.Metadata);
 
@@ -338,12 +987,12 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     The name of the reference navigation property on this entity type that represents the relationship.
     /// </param>
     /// <returns>An object that can be used to configure the owned type and the relationship.</returns>
-    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsOne<TRelatedEntity>(
-        string navigationName)
+    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsOne
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(string navigationName)
         where TRelatedEntity : class
         => OwnsOneBuilder<TRelatedEntity>(
             new TypeIdentity(typeof(TRelatedEntity), (Model)Metadata.Model),
-            new MemberIdentity(Check.NotEmpty(navigationName, nameof(navigationName))));
+            new MemberIdentity(Check.NotEmpty(navigationName)));
 
     /// <summary>
     ///     Configures a relationship where the target entity is owned by (or part of) this entity.
@@ -368,13 +1017,14 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     The name of the reference navigation property on this entity type that represents the relationship.
     /// </param>
     /// <returns>An object that can be used to configure the owned type and the relationship.</returns>
-    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsOne<TRelatedEntity>(
-        string ownedTypeName,
-        string navigationName)
+    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsOne
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            string ownedTypeName,
+            string navigationName)
         where TRelatedEntity : class
         => OwnsOneBuilder<TRelatedEntity>(
-            new TypeIdentity(Check.NotEmpty(ownedTypeName, nameof(ownedTypeName)), typeof(TRelatedEntity)),
-            new MemberIdentity(Check.NotEmpty(navigationName, nameof(navigationName))));
+            new TypeIdentity(Check.NotEmpty(ownedTypeName), typeof(TRelatedEntity)),
+            new MemberIdentity(Check.NotEmpty(navigationName)));
 
     /// <summary>
     ///     Configures a relationship where the target entity is owned by (or part of) this entity.
@@ -399,12 +1049,13 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     the relationship (<c>customer => customer.Address</c>).
     /// </param>
     /// <returns>An object that can be used to configure the owned type and the relationship.</returns>
-    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsOne<TRelatedEntity>(
-        Expression<Func<TEntity, TRelatedEntity?>> navigationExpression)
+    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsOne
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            Expression<Func<TEntity, TRelatedEntity?>> navigationExpression)
         where TRelatedEntity : class
         => OwnsOneBuilder<TRelatedEntity>(
             new TypeIdentity(typeof(TRelatedEntity), (Model)Metadata.Model),
-            new MemberIdentity(Check.NotNull(navigationExpression, nameof(navigationExpression)).GetMemberAccess()));
+            new MemberIdentity(Check.NotNull(navigationExpression).GetMemberAccess()));
 
     /// <summary>
     ///     Configures a relationship where the target entity is owned by (or part of) this entity.
@@ -430,13 +1081,14 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     the relationship (<c>customer => customer.Address</c>).
     /// </param>
     /// <returns>An object that can be used to configure the owned type and the relationship.</returns>
-    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsOne<TRelatedEntity>(
-        string ownedTypeName,
-        Expression<Func<TEntity, TRelatedEntity?>> navigationExpression)
+    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsOne
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            string ownedTypeName,
+            Expression<Func<TEntity, TRelatedEntity?>> navigationExpression)
         where TRelatedEntity : class
         => OwnsOneBuilder<TRelatedEntity>(
-            new TypeIdentity(Check.NotEmpty(ownedTypeName, nameof(ownedTypeName)), typeof(TRelatedEntity)),
-            new MemberIdentity(Check.NotNull(navigationExpression, nameof(navigationExpression)).GetMemberAccess()));
+            new TypeIdentity(Check.NotEmpty(ownedTypeName), typeof(TRelatedEntity)),
+            new MemberIdentity(Check.NotNull(navigationExpression).GetMemberAccess()));
 
     /// <summary>
     ///     Configures a relationship where the target entity is owned by (or part of) this entity.
@@ -461,13 +1113,14 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// </param>
     /// <param name="buildAction">An action that performs configuration of the owned type and the relationship.</param>
     /// <returns>An object that can be used to configure the entity type.</returns>
-    public virtual EntityTypeBuilder<TEntity> OwnsOne<TRelatedEntity>(
-        string navigationName,
-        Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
+    public virtual EntityTypeBuilder<TEntity> OwnsOne
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            string navigationName,
+            Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
         where TRelatedEntity : class
     {
-        Check.NotEmpty(navigationName, nameof(navigationName));
-        Check.NotNull(buildAction, nameof(buildAction));
+        Check.NotEmpty(navigationName);
+        Check.NotNull(buildAction);
 
         buildAction(
             OwnsOneBuilder<TRelatedEntity>(
@@ -528,7 +1181,7 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// <param name="buildAction">An action that performs configuration of the owned type and the relationship.</param>
     /// <returns>An object that can be used to configure the entity type.</returns>
     public new virtual EntityTypeBuilder<TEntity> OwnsOne(
-        Type ownedType,
+        [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type ownedType,
         string navigationName,
         Action<OwnedNavigationBuilder> buildAction)
         => (EntityTypeBuilder<TEntity>)base.OwnsOne(ownedType, navigationName, buildAction);
@@ -559,7 +1212,7 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// <returns>An object that can be used to configure the entity type.</returns>
     public new virtual EntityTypeBuilder<TEntity> OwnsOne(
         string ownedTypeName,
-        Type ownedType,
+        [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type ownedType,
         string navigationName,
         Action<OwnedNavigationBuilder> buildAction)
         => (EntityTypeBuilder<TEntity>)base.OwnsOne(ownedTypeName, ownedType, navigationName, buildAction);
@@ -588,15 +1241,16 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// </param>
     /// <param name="buildAction">An action that performs configuration of the owned type and the relationship.</param>
     /// <returns>An object that can be used to configure the entity type.</returns>
-    public virtual EntityTypeBuilder<TEntity> OwnsOne<TRelatedEntity>(
-        string ownedTypeName,
-        string navigationName,
-        Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
+    public virtual EntityTypeBuilder<TEntity> OwnsOne
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            string ownedTypeName,
+            string navigationName,
+            Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
         where TRelatedEntity : class
     {
-        Check.NotEmpty(ownedTypeName, nameof(ownedTypeName));
-        Check.NotEmpty(navigationName, nameof(navigationName));
-        Check.NotNull(buildAction, nameof(buildAction));
+        Check.NotEmpty(ownedTypeName);
+        Check.NotEmpty(navigationName);
+        Check.NotNull(buildAction);
 
         buildAction(
             OwnsOneBuilder<TRelatedEntity>(
@@ -628,13 +1282,14 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// </param>
     /// <param name="buildAction">An action that performs configuration of the owned type and the relationship.</param>
     /// <returns>An object that can be used to configure the entity type.</returns>
-    public virtual EntityTypeBuilder<TEntity> OwnsOne<TRelatedEntity>(
-        Expression<Func<TEntity, TRelatedEntity?>> navigationExpression,
-        Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
+    public virtual EntityTypeBuilder<TEntity> OwnsOne
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            Expression<Func<TEntity, TRelatedEntity?>> navigationExpression,
+            Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
         where TRelatedEntity : class
     {
-        Check.NotNull(navigationExpression, nameof(navigationExpression));
-        Check.NotNull(buildAction, nameof(buildAction));
+        Check.NotNull(navigationExpression);
+        Check.NotNull(buildAction);
 
         buildAction(
             OwnsOneBuilder<TRelatedEntity>(
@@ -668,15 +1323,16 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// </param>
     /// <param name="buildAction">An action that performs configuration of the owned type and the relationship.</param>
     /// <returns>An object that can be used to configure the entity type.</returns>
-    public virtual EntityTypeBuilder<TEntity> OwnsOne<TRelatedEntity>(
-        string ownedTypeName,
-        Expression<Func<TEntity, TRelatedEntity?>> navigationExpression,
-        Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
+    public virtual EntityTypeBuilder<TEntity> OwnsOne
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            string ownedTypeName,
+            Expression<Func<TEntity, TRelatedEntity?>> navigationExpression,
+            Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
         where TRelatedEntity : class
     {
-        Check.NotEmpty(ownedTypeName, nameof(ownedTypeName));
-        Check.NotNull(navigationExpression, nameof(navigationExpression));
-        Check.NotNull(buildAction, nameof(buildAction));
+        Check.NotEmpty(ownedTypeName);
+        Check.NotNull(navigationExpression);
+        Check.NotNull(buildAction);
 
         buildAction(
             OwnsOneBuilder<TRelatedEntity>(
@@ -684,9 +1340,10 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
         return this;
     }
 
-    private OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsOneBuilder<TRelatedEntity>(
-        TypeIdentity ownedType,
-        MemberIdentity navigation)
+    private OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsOneBuilder
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            TypeIdentity ownedType,
+            MemberIdentity navigation)
         where TRelatedEntity : class
     {
         InternalForeignKeyBuilder relationship;
@@ -722,12 +1379,13 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     The name of the reference navigation property on this entity type that represents the relationship.
     /// </param>
     /// <returns>An object that can be used to configure the owned type and the relationship.</returns>
-    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsMany<TRelatedEntity>(
-        string navigationName)
+    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsMany
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            string navigationName)
         where TRelatedEntity : class
         => OwnsManyBuilder<TRelatedEntity>(
             new TypeIdentity(typeof(TRelatedEntity), (Model)Metadata.Model),
-            new MemberIdentity(Check.NotEmpty(navigationName, nameof(navigationName))));
+            new MemberIdentity(Check.NotEmpty(navigationName)));
 
     /// <summary>
     ///     Configures a relationship where the target entity is owned by (or part of) this entity.
@@ -752,13 +1410,14 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     The name of the reference navigation property on this entity type that represents the relationship.
     /// </param>
     /// <returns>An object that can be used to configure the owned type and the relationship.</returns>
-    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsMany<TRelatedEntity>(
-        string ownedTypeName,
-        string navigationName)
+    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity>
+        OwnsMany<[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            string ownedTypeName,
+            string navigationName)
         where TRelatedEntity : class
         => OwnsManyBuilder<TRelatedEntity>(
             new TypeIdentity(ownedTypeName, typeof(TRelatedEntity)),
-            new MemberIdentity(Check.NotEmpty(navigationName, nameof(navigationName))));
+            new MemberIdentity(Check.NotEmpty(navigationName)));
 
     /// <summary>
     ///     Configures a relationship where the target entity is owned by (or part of) this entity.
@@ -783,12 +1442,13 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     the relationship (<c>customer => customer.Address</c>).
     /// </param>
     /// <returns>An object that can be used to configure the owned type and the relationship.</returns>
-    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsMany<TRelatedEntity>(
-        Expression<Func<TEntity, IEnumerable<TRelatedEntity>?>> navigationExpression)
+    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsMany
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            Expression<Func<TEntity, IEnumerable<TRelatedEntity>?>> navigationExpression)
         where TRelatedEntity : class
         => OwnsManyBuilder<TRelatedEntity>(
             new TypeIdentity(typeof(TRelatedEntity), (Model)Metadata.Model),
-            new MemberIdentity(Check.NotNull(navigationExpression, nameof(navigationExpression)).GetMemberAccess()));
+            new MemberIdentity(Check.NotNull(navigationExpression).GetMemberAccess()));
 
     /// <summary>
     ///     Configures a relationship where the target entity is owned by (or part of) this entity.
@@ -814,13 +1474,14 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     the relationship (<c>customer => customer.Address</c>).
     /// </param>
     /// <returns>An object that can be used to configure the owned type and the relationship.</returns>
-    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsMany<TRelatedEntity>(
-        string ownedTypeName,
-        Expression<Func<TEntity, IEnumerable<TRelatedEntity>?>> navigationExpression)
+    public virtual OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsMany
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            string ownedTypeName,
+            Expression<Func<TEntity, IEnumerable<TRelatedEntity>?>> navigationExpression)
         where TRelatedEntity : class
         => OwnsManyBuilder<TRelatedEntity>(
             new TypeIdentity(ownedTypeName, typeof(TRelatedEntity)),
-            new MemberIdentity(Check.NotNull(navigationExpression, nameof(navigationExpression)).GetMemberAccess()));
+            new MemberIdentity(Check.NotNull(navigationExpression).GetMemberAccess()));
 
     /// <summary>
     ///     Configures a relationship where the target entity is owned by (or part of) this entity.
@@ -845,13 +1506,14 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// </param>
     /// <param name="buildAction">An action that performs configuration of the owned type and the relationship.</param>
     /// <returns>An object that can be used to configure the entity type.</returns>
-    public virtual EntityTypeBuilder<TEntity> OwnsMany<TRelatedEntity>(
-        string navigationName,
-        Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
+    public virtual EntityTypeBuilder<TEntity> OwnsMany
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            string navigationName,
+            Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
         where TRelatedEntity : class
     {
-        Check.NotEmpty(navigationName, nameof(navigationName));
-        Check.NotNull(buildAction, nameof(buildAction));
+        Check.NotEmpty(navigationName);
+        Check.NotNull(buildAction);
 
         buildAction(
             OwnsManyBuilder<TRelatedEntity>(
@@ -912,7 +1574,7 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// <param name="buildAction">An action that performs configuration of the owned type and the relationship.</param>
     /// <returns>An object that can be used to configure the entity type.</returns>
     public new virtual EntityTypeBuilder<TEntity> OwnsMany(
-        Type ownedType,
+        [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type ownedType,
         string navigationName,
         Action<OwnedNavigationBuilder> buildAction)
         => (EntityTypeBuilder<TEntity>)base.OwnsMany(ownedType, navigationName, buildAction);
@@ -943,7 +1605,7 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// <returns>An object that can be used to configure the entity type.</returns>
     public new virtual EntityTypeBuilder<TEntity> OwnsMany(
         string ownedTypeName,
-        Type ownedType,
+        [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type ownedType,
         string navigationName,
         Action<OwnedNavigationBuilder> buildAction)
         => (EntityTypeBuilder<TEntity>)base.OwnsMany(ownedTypeName, ownedType, navigationName, buildAction);
@@ -972,15 +1634,16 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// </param>
     /// <param name="buildAction">An action that performs configuration of the owned type and the relationship.</param>
     /// <returns>An object that can be used to configure the entity type.</returns>
-    public virtual EntityTypeBuilder<TEntity> OwnsMany<TRelatedEntity>(
-        string ownedTypeName,
-        string navigationName,
-        Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
+    public virtual EntityTypeBuilder<TEntity> OwnsMany
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            string ownedTypeName,
+            string navigationName,
+            Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
         where TRelatedEntity : class
     {
-        Check.NotEmpty(ownedTypeName, nameof(ownedTypeName));
-        Check.NotEmpty(navigationName, nameof(navigationName));
-        Check.NotNull(buildAction, nameof(buildAction));
+        Check.NotEmpty(ownedTypeName);
+        Check.NotEmpty(navigationName);
+        Check.NotNull(buildAction);
 
         buildAction(
             OwnsManyBuilder<TRelatedEntity>(
@@ -1012,13 +1675,14 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// </param>
     /// <param name="buildAction">An action that performs configuration of the owned type and the relationship.</param>
     /// <returns>An object that can be used to configure the entity type.</returns>
-    public virtual EntityTypeBuilder<TEntity> OwnsMany<TRelatedEntity>(
-        Expression<Func<TEntity, IEnumerable<TRelatedEntity>?>> navigationExpression,
-        Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
+    public virtual EntityTypeBuilder<TEntity> OwnsMany
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            Expression<Func<TEntity, IEnumerable<TRelatedEntity>?>> navigationExpression,
+            Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
         where TRelatedEntity : class
     {
-        Check.NotNull(navigationExpression, nameof(navigationExpression));
-        Check.NotNull(buildAction, nameof(buildAction));
+        Check.NotNull(navigationExpression);
+        Check.NotNull(buildAction);
 
         buildAction(
             OwnsManyBuilder<TRelatedEntity>(
@@ -1052,15 +1716,16 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// </param>
     /// <param name="buildAction">An action that performs configuration of the owned type and the relationship.</param>
     /// <returns>An object that can be used to configure the entity type.</returns>
-    public virtual EntityTypeBuilder<TEntity> OwnsMany<TRelatedEntity>(
-        string ownedTypeName,
-        Expression<Func<TEntity, IEnumerable<TRelatedEntity>?>> navigationExpression,
-        Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
+    public virtual EntityTypeBuilder<TEntity> OwnsMany
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            string ownedTypeName,
+            Expression<Func<TEntity, IEnumerable<TRelatedEntity>?>> navigationExpression,
+            Action<OwnedNavigationBuilder<TEntity, TRelatedEntity>> buildAction)
         where TRelatedEntity : class
     {
-        Check.NotEmpty(ownedTypeName, nameof(ownedTypeName));
-        Check.NotNull(navigationExpression, nameof(navigationExpression));
-        Check.NotNull(buildAction, nameof(buildAction));
+        Check.NotEmpty(ownedTypeName);
+        Check.NotNull(navigationExpression);
+        Check.NotNull(buildAction);
 
         buildAction(
             OwnsManyBuilder<TRelatedEntity>(
@@ -1068,9 +1733,10 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
         return this;
     }
 
-    private OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsManyBuilder<TRelatedEntity>(
-        TypeIdentity ownedType,
-        MemberIdentity navigation)
+    private OwnedNavigationBuilder<TEntity, TRelatedEntity> OwnsManyBuilder
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            TypeIdentity ownedType,
+            MemberIdentity navigation)
         where TRelatedEntity : class
     {
         InternalForeignKeyBuilder relationship;
@@ -1111,13 +1777,13 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     end.
     /// </param>
     /// <returns>An object that can be used to configure the relationship.</returns>
-    public virtual ReferenceNavigationBuilder<TEntity, TRelatedEntity> HasOne<TRelatedEntity>(
-        string? navigationName)
+    public virtual ReferenceNavigationBuilder<TEntity, TRelatedEntity> HasOne
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            string? navigationName)
         where TRelatedEntity : class
     {
         var relatedEntityType = FindRelatedEntityType(typeof(TRelatedEntity), navigationName);
-        var foreignKey = HasOneBuilder(
-            MemberIdentity.Create(navigationName), relatedEntityType);
+        var foreignKey = HasOneBuilder(MemberIdentity.Create(navigationName), relatedEntityType);
 
         return new ReferenceNavigationBuilder<TEntity, TRelatedEntity>(
             Builder.Metadata,
@@ -1154,14 +1820,14 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     configured without a navigation property on this end.
     /// </param>
     /// <returns>An object that can be used to configure the relationship.</returns>
-    public virtual ReferenceNavigationBuilder<TEntity, TRelatedEntity> HasOne<TRelatedEntity>(
-        Expression<Func<TEntity, TRelatedEntity?>>? navigationExpression = null)
+    public virtual ReferenceNavigationBuilder<TEntity, TRelatedEntity> HasOne
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            Expression<Func<TEntity, TRelatedEntity?>>? navigationExpression = null)
         where TRelatedEntity : class
     {
         var navigationMember = navigationExpression?.GetMemberAccess();
         var relatedEntityType = FindRelatedEntityType(typeof(TRelatedEntity), navigationMember?.GetSimpleMemberName());
-        var foreignKey = HasOneBuilder(
-            MemberIdentity.Create(navigationMember), relatedEntityType);
+        var foreignKey = HasOneBuilder(MemberIdentity.Create(navigationMember), relatedEntityType);
 
         return new ReferenceNavigationBuilder<TEntity, TRelatedEntity>(
             Builder.Metadata,
@@ -1195,11 +1861,11 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     end.
     /// </param>
     /// <returns>An object that can be used to configure the relationship.</returns>
-    public virtual CollectionNavigationBuilder<TEntity, TRelatedEntity> HasMany<TRelatedEntity>(
-        string? navigationName)
+    public virtual CollectionNavigationBuilder<TEntity, TRelatedEntity> HasMany
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(string? navigationName)
         where TRelatedEntity : class
     {
-        Check.NullButNotEmpty(navigationName, nameof(navigationName));
+        Check.NullButNotEmpty(navigationName);
 
         var relatedEntityType = FindRelatedEntityType(typeof(TRelatedEntity), navigationName);
 
@@ -1250,8 +1916,9 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     ///     configured without a navigation property on this end.
     /// </param>
     /// <returns>An object that can be used to configure the relationship.</returns>
-    public virtual CollectionNavigationBuilder<TEntity, TRelatedEntity> HasMany<TRelatedEntity>(
-        Expression<Func<TEntity, IEnumerable<TRelatedEntity>?>>? navigationExpression = null)
+    public virtual CollectionNavigationBuilder<TEntity, TRelatedEntity> HasMany
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TRelatedEntity>(
+            Expression<Func<TEntity, IEnumerable<TRelatedEntity>?>>? navigationExpression = null)
         where TRelatedEntity : class
     {
         var navigationMember = navigationExpression?.GetMemberAccess();
@@ -1364,7 +2031,7 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     public virtual DiscriminatorBuilder<TDiscriminator> HasDiscriminator<TDiscriminator>(
         Expression<Func<TEntity, TDiscriminator>> propertyExpression)
     {
-        Check.NotNull(propertyExpression, nameof(propertyExpression));
+        Check.NotNull(propertyExpression);
 
         return new DiscriminatorBuilder<TDiscriminator>(
             Builder.HasDiscriminator(propertyExpression.GetMemberAccess(), ConfigurationSource.Explicit)!);
@@ -1376,7 +2043,4 @@ public class EntityTypeBuilder<TEntity> : EntityTypeBuilder
     /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
     public new virtual EntityTypeBuilder<TEntity> HasNoDiscriminator()
         => (EntityTypeBuilder<TEntity>)base.HasNoDiscriminator();
-
-    private InternalEntityTypeBuilder Builder
-        => (InternalEntityTypeBuilder)this.GetInfrastructure();
 }

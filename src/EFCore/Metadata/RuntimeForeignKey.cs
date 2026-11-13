@@ -1,7 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
@@ -14,16 +13,17 @@ namespace Microsoft.EntityFrameworkCore.Metadata;
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and examples.
 /// </remarks>
-public class RuntimeForeignKey : AnnotatableBase, IRuntimeForeignKey
+public class RuntimeForeignKey : RuntimeAnnotatableBase, IRuntimeForeignKey
 {
     private readonly DeleteBehavior _deleteBehavior;
     private readonly bool _isUnique;
     private readonly bool _isRequired;
     private readonly bool _isRequiredDependent;
     private readonly bool _isOwnership;
+    private readonly bool _isConstrained;
 
-    private object? _dependentKeyValueFactory;
-    private Func<IDependentsMap>? _dependentsMapFactory;
+    // Note: This is set and used only by KeyValueFactoryFactory, which ensures thread-safety
+    private IDependentKeyValueFactory? _dependentKeyValueFactory;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -41,7 +41,8 @@ public class RuntimeForeignKey : AnnotatableBase, IRuntimeForeignKey
         bool unique,
         bool required,
         bool requiredDependent,
-        bool ownership)
+        bool ownership,
+        bool constrained = true)
     {
         Properties = dependentProperties;
         PrincipalKey = principalKey;
@@ -52,6 +53,7 @@ public class RuntimeForeignKey : AnnotatableBase, IRuntimeForeignKey
         _deleteBehavior = deleteBehavior;
         _isUnique = unique;
         _isOwnership = ownership;
+        _isConstrained = constrained;
     }
 
     /// <summary>
@@ -232,6 +234,13 @@ public class RuntimeForeignKey : AnnotatableBase, IRuntimeForeignKey
     }
 
     /// <inheritdoc />
+    bool IReadOnlyForeignKey.IsConstrained
+    {
+        [DebuggerStepThrough]
+        get => _isConstrained;
+    }
+
+    /// <inheritdoc />
     bool IReadOnlyForeignKey.IsRequiredDependent
     {
         [DebuggerStepThrough]
@@ -259,28 +268,34 @@ public class RuntimeForeignKey : AnnotatableBase, IRuntimeForeignKey
 
     /// <inheritdoc />
     [DebuggerStepThrough]
-    IDependentKeyValueFactory<TKey>? IForeignKey.GetDependentKeyValueFactory<TKey>()
-        => (IDependentKeyValueFactory<TKey>?)((IRuntimeForeignKey)this).DependentKeyValueFactory;
+    IDependentKeyValueFactory<TKey> IForeignKey.GetDependentKeyValueFactory<TKey>()
+        => (IDependentKeyValueFactory<TKey>)((IRuntimeForeignKey)this).DependentKeyValueFactory;
 
-    // Note: This is set and used only by IdentityMapFactoryFactory, which ensures thread-safety
     /// <inheritdoc />
-    object IRuntimeForeignKey.DependentKeyValueFactory
+    [DebuggerStepThrough]
+    IDependentKeyValueFactory IForeignKey.GetDependentKeyValueFactory()
+        => ((IRuntimeForeignKey)this).DependentKeyValueFactory;
+
+    /// <inheritdoc />
+    IDependentKeyValueFactory IRuntimeForeignKey.DependentKeyValueFactory
     {
         [DebuggerStepThrough]
-        get => _dependentKeyValueFactory!;
+        get
+        {
+            if (_dependentKeyValueFactory == null)
+            {
+                // The principal key value factory creates the dependent key value factory
+                _ = ((IKey)PrincipalKey).GetPrincipalKeyValueFactory();
+            }
+
+            return _dependentKeyValueFactory!;
+        }
 
         [DebuggerStepThrough]
         set => _dependentKeyValueFactory = value;
     }
 
-    // Note: This is set and used only by IdentityMapFactoryFactory, which ensures thread-safety
     /// <inheritdoc />
-    Func<IDependentsMap> IRuntimeForeignKey.DependentsMapFactory
-    {
-        [DebuggerStepThrough]
-        get => _dependentsMapFactory!;
-
-        [DebuggerStepThrough]
-        set => _dependentsMapFactory = value;
-    }
+    [field: AllowNull, MaybeNull]
+    Func<IDependentsMap> IRuntimeForeignKey.DependentsMapFactory { get; set; } = null!;
 }

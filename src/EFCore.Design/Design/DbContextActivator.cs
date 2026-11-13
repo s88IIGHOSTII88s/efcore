@@ -41,17 +41,18 @@ public static class DbContextActivator
         IOperationReportHandler? reportHandler,
         string[]? args)
     {
-        Check.NotNull(contextType, nameof(contextType));
+        Check.NotNull(contextType);
 
         return new DbContextOperations(
                 new OperationReporter(reportHandler),
                 contextType.Assembly,
                 startupAssembly ?? contextType.Assembly,
+                project: "",
                 projectDir: "",
                 rootNamespace: null,
                 language: "C#",
                 nullable: false,
-                args: args ?? Array.Empty<string>())
+                args: args ?? [])
             .CreateContext(contextType.FullName!);
     }
 }

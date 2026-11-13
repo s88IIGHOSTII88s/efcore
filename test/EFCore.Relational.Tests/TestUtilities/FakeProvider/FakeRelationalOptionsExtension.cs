@@ -5,7 +5,7 @@ namespace Microsoft.EntityFrameworkCore.TestUtilities.FakeProvider;
 
 public class FakeRelationalOptionsExtension : RelationalOptionsExtension
 {
-    private DbContextOptionsExtensionInfo _info;
+    private DbContextOptionsExtensionInfo? _info;
 
     public FakeRelationalOptionsExtension()
     {
@@ -27,7 +27,7 @@ public class FakeRelationalOptionsExtension : RelationalOptionsExtension
 
     public static IServiceCollection AddEntityFrameworkRelationalDatabase(IServiceCollection serviceCollection)
     {
-        var builder = new EntityFrameworkRelationalServicesBuilder(serviceCollection)
+        new EntityFrameworkRelationalServicesBuilder(serviceCollection)
             .TryAdd<LoggingDefinitions, TestRelationalLoggingDefinitions>()
             .TryAdd<IDatabaseProvider, DatabaseProvider<FakeRelationalOptionsExtension>>()
             .TryAdd<ISqlGenerationHelper, RelationalSqlGenerationHelper>()
@@ -35,23 +35,17 @@ public class FakeRelationalOptionsExtension : RelationalOptionsExtension
             .TryAdd<IMigrationsSqlGenerator, TestRelationalMigrationSqlGenerator>()
             .TryAdd<IProviderConventionSetBuilder, TestRelationalConventionSetBuilder>()
             .TryAdd<IRelationalConnection, FakeRelationalConnection>()
-            .TryAdd<IHistoryRepository>(_ => null)
+            .TryAdd<IHistoryRepository>(_ => null!)
             .TryAdd<IUpdateSqlGenerator, FakeSqlGenerator>()
             .TryAdd<IModificationCommandBatchFactory, TestModificationCommandBatchFactory>()
-            .TryAdd<IRelationalDatabaseCreator, FakeRelationalDatabaseCreator>();
-
-        builder.TryAddCoreServices();
+            .TryAdd<IRelationalDatabaseCreator, FakeRelationalDatabaseCreator>()
+            .TryAddCoreServices();
 
         return serviceCollection;
     }
 
-    private sealed class ExtensionInfo : RelationalExtensionInfo
+    private sealed class ExtensionInfo(IDbContextOptionsExtension extension) : RelationalExtensionInfo(extension)
     {
-        public ExtensionInfo(IDbContextOptionsExtension extension)
-            : base(extension)
-        {
-        }
-
         public override void PopulateDebugInfo(IDictionary<string, string> debugInfo)
         {
         }

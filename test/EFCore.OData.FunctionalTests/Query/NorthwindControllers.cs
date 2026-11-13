@@ -8,22 +8,15 @@ using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public class CustomersController : TestODataController, IDisposable
+public class CustomersController(NorthwindODataContext context) : TestODataController, IDisposable
 {
-    private readonly NorthwindODataContext _context;
+    private readonly NorthwindODataContext _context = context;
 
-    public CustomersController(NorthwindODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Customer> Get()
         => _context.Customers;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] string key)
     {
         var result = _context.Customers.FirstOrDefault(g => g.CustomerID == key);
@@ -36,22 +29,15 @@ public class CustomersController : TestODataController, IDisposable
     }
 }
 
-public class OrdersController : TestODataController, IDisposable
+public class OrdersController(NorthwindODataContext context) : TestODataController, IDisposable
 {
-    private readonly NorthwindODataContext _context;
+    private readonly NorthwindODataContext _context = context;
 
-    public OrdersController(NorthwindODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Order> Get()
         => _context.Orders;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] int key)
     {
         var result = _context.Orders.FirstOrDefault(e => e.OrderID == key);
@@ -64,22 +50,15 @@ public class OrdersController : TestODataController, IDisposable
     }
 }
 
-public class OrderDetailsController : TestODataController, IDisposable
+public class OrderDetailsController(NorthwindODataContext context) : TestODataController, IDisposable
 {
-    private readonly NorthwindODataContext _context;
+    private readonly NorthwindODataContext _context = context;
 
-    public OrderDetailsController(NorthwindODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<OrderDetail> Get()
         => _context.OrderDetails;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] int keyOrderId, [FromODataUri] int keyProductId)
     {
         var result = _context.OrderDetails.FirstOrDefault(e => e.OrderID == keyOrderId && e.ProductID == keyProductId);
@@ -92,22 +71,15 @@ public class OrderDetailsController : TestODataController, IDisposable
     }
 }
 
-public class EmployeesController : TestODataController, IDisposable
+public class EmployeesController(NorthwindODataContext context) : TestODataController, IDisposable
 {
-    private readonly NorthwindODataContext _context;
+    private readonly NorthwindODataContext _context = context;
 
-    public EmployeesController(NorthwindODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Employee> Get()
         => _context.Employees;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] uint key)
     {
         var result = _context.Employees.FirstOrDefault(e => e.EmployeeID == key);
@@ -120,22 +92,15 @@ public class EmployeesController : TestODataController, IDisposable
     }
 }
 
-public class ProductsController : TestODataController, IDisposable
+public class ProductsController(NorthwindODataContext context) : TestODataController, IDisposable
 {
-    private readonly NorthwindODataContext _context;
+    private readonly NorthwindODataContext _context = context;
 
-    public ProductsController(NorthwindODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Product> Get()
         => _context.Products;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] uint key)
     {
         var result = _context.Products.FirstOrDefault(e => e.ProductID == key);

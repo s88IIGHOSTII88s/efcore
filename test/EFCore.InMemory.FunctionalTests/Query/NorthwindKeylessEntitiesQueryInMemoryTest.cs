@@ -3,19 +3,9 @@
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public class NorthwindKeylessEntitiesQueryInMemoryTest : NorthwindKeylessEntitiesQueryTestBase<
-    NorthwindQueryInMemoryFixture<NoopModelCustomizer>>
+public class NorthwindKeylessEntitiesQueryInMemoryTest(NorthwindQueryInMemoryFixture<NoopModelCustomizer> fixture)
+    : NorthwindKeylessEntitiesQueryTestBase<NorthwindQueryInMemoryFixture<NoopModelCustomizer>>(fixture)
 {
-    public NorthwindKeylessEntitiesQueryInMemoryTest(
-        NorthwindQueryInMemoryFixture<NoopModelCustomizer> fixture,
-#pragma warning disable IDE0060 // Remove unused parameter
-        ITestOutputHelper testOutputHelper)
-#pragma warning restore IDE0060 // Remove unused parameter
-        : base(fixture)
-    {
-        //TestLoggerFactory.TestOutputHelper = testOutputHelper;
-    }
-
     // mapping to view not supported on InMemory
     public override Task KeylessEntity_by_database_view(bool async)
         => Task.CompletedTask;
@@ -24,10 +14,8 @@ public class NorthwindKeylessEntitiesQueryInMemoryTest : NorthwindKeylessEntitie
         => Task.CompletedTask;
 
     public override async Task KeylessEntity_with_included_nav(bool async)
-        => await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.KeylessEntity_with_included_nav(async));
+        => await Assert.ThrowsAsync<InvalidOperationException>(() => base.KeylessEntity_with_included_nav(async));
 
     public override async Task KeylessEntity_with_included_navs_multi_level(bool async)
-        => await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.KeylessEntity_with_included_navs_multi_level(async));
+        => await Assert.ThrowsAsync<InvalidOperationException>(() => base.KeylessEntity_with_included_navs_multi_level(async));
 }

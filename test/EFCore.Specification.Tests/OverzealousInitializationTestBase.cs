@@ -5,15 +5,10 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class OverzealousInitializationTestBase<TFixture> : IClassFixture<TFixture>
+public abstract class OverzealousInitializationTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : OverzealousInitializationTestBase<TFixture>.OverzealousInitializationFixtureBase, new()
 {
-    protected OverzealousInitializationTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
-
-    [ConditionalFact]
+    [Fact]
     public virtual void Fixup_ignores_eagerly_initialized_reference_navs()
     {
         using var context = CreateContext();
@@ -35,9 +30,9 @@ public abstract class OverzealousInitializationTestBase<TFixture> : IClassFixtur
     }
 
     private static readonly Artist[] _artists =
-    {
+    [
         new() { Id = 1, Name = "Freddie" }, new() { Id = 2, Name = "Kendrick" }, new() { Id = 3, Name = "Jarvis" }
-    };
+    ];
 
     protected class Album
     {
@@ -52,7 +47,7 @@ public abstract class OverzealousInitializationTestBase<TFixture> : IClassFixtur
         public Album()
         {
             Artist = new Artist();
-            Tracks = new List<Track>();
+            Tracks = [];
         }
     }
 
@@ -61,7 +56,7 @@ public abstract class OverzealousInitializationTestBase<TFixture> : IClassFixtur
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id { get; set; }
 
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 
     public class Track
@@ -72,13 +67,8 @@ public abstract class OverzealousInitializationTestBase<TFixture> : IClassFixtur
         public int AlbumId { get; set; }
     }
 
-    public class AlbumViewerContext : PoolableDbContext
+    public class AlbumViewerContext(DbContextOptions<AlbumViewerContext> options) : PoolableDbContext(options)
     {
-        public AlbumViewerContext(DbContextOptions<AlbumViewerContext> options)
-            : base(options)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Album>();
@@ -87,7 +77,7 @@ public abstract class OverzealousInitializationTestBase<TFixture> : IClassFixtur
         }
     }
 
-    protected TFixture Fixture { get; }
+    protected TFixture Fixture { get; } = fixture;
 
     protected AlbumViewerContext CreateContext()
         => Fixture.CreateContext();
@@ -97,9 +87,10 @@ public abstract class OverzealousInitializationTestBase<TFixture> : IClassFixtur
         public virtual IDisposable BeginTransaction(DbContext context)
             => context.Database.BeginTransaction();
 
-        protected override string StoreName { get; } = "OverzealousInitialization";
+        protected override string StoreName
+            => "OverzealousInitialization";
 
-        protected override void Seed(AlbumViewerContext context)
+        protected override Task SeedAsync(AlbumViewerContext context)
         {
             for (var i = 1; i <= 10; i++)
             {
@@ -108,11 +99,11 @@ public abstract class OverzealousInitializationTestBase<TFixture> : IClassFixtur
                     {
                         Id = i,
                         Artist = _artists[(i - 1) % 3],
-                        Tracks = new List<Track> { new() { Id = i * 2 }, new() { Id = i * 2 + 1 } }
+                        Tracks = [new Track { Id = i * 2 }, new Track { Id = (i * 2) + 1 }]
                     });
             }
 
-            context.SaveChanges();
+            return context.SaveChangesAsync();
         }
     }
 }

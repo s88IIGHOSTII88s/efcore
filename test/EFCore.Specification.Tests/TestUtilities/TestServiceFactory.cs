@@ -20,7 +20,7 @@ public class TestServiceFactory
     private readonly IReadOnlyList<(Type Type, object Implementation)> _wellKnownExceptions
         = new List<(Type, object)>
         {
-            (typeof(IRegisteredServices), new RegisteredServices(Enumerable.Empty<Type>())),
+            (typeof(IRegisteredServices), new RegisteredServices([])),
             (typeof(ServiceParameterBindingFactory), new ServiceParameterBindingFactory(typeof(IStateManager))),
             (typeof(IDiagnosticsLogger<DbLoggerCategory.Model>), new TestLogger<DbLoggerCategory.Model, TestLoggingDefinitions>()),
             (typeof(IDiagnosticsLogger<DbLoggerCategory.Model.Validation>),
@@ -35,8 +35,8 @@ public class TestServiceFactory
 
         return _factories.GetOrAdd(
                 typeof(TService),
-                t => AddType(new ServiceCollection(), typeof(TService), exceptions).BuildServiceProvider(validateScopes: true))
-            .GetService<TService>();
+                t => AddType([], typeof(TService), exceptions).BuildServiceProvider(validateScopes: true))
+            .GetService<TService>()!;
     }
 
     private static ServiceCollection AddType(
@@ -89,7 +89,7 @@ public class TestServiceFactory
     {
         if (!serviceType.IsInterface)
         {
-            return new[] { (serviceType, serviceType) };
+            return [(serviceType, serviceType)];
         }
 
         var elementType = TryGetEnumerableType(serviceType);
@@ -100,21 +100,15 @@ public class TestServiceFactory
             .Where(t => (elementType ?? serviceType).IsAssignableFrom(t) && !t.IsAbstract)
             .ToList();
 
-        if (elementType == null)
-        {
-            if (implementationTypes.Count != 1)
-            {
-                throw new InvalidOperationException(
-                    $"Cannot use 'TestServiceFactory' for '{serviceType.ShortDisplayName()}': no single implementation type in same assembly.");
-            }
-
-            return new[] { (serviceType, implementationTypes[0]) };
-        }
-
-        return implementationTypes.Select(t => (elementType, t)).ToList();
+        return elementType == null
+            ? implementationTypes.Count != 1
+                ? throw new InvalidOperationException(
+                    $"Cannot use 'TestServiceFactory' for '{serviceType.ShortDisplayName()}': no single implementation type in same assembly.")
+                : [(serviceType, implementationTypes[0])]
+            : (IList<(Type ServiceType, Type ImplementationType)>)implementationTypes.Select(t => (elementType, t)).ToList();
     }
 
-    private static Type TryGetEnumerableType(Type type)
+    private static Type? TryGetEnumerableType(Type type)
         => !type.IsGenericTypeDefinition
             && type.IsGenericType
             && type.GetGenericTypeDefinition() == typeof(IEnumerable<>)

@@ -26,15 +26,15 @@ public class FactoryMethodBinding : InstantiationBinding
         Type runtimeType)
         : base(parameterBindings)
     {
-        Check.NotNull(factoryMethod, nameof(factoryMethod));
-        Check.NotNull(runtimeType, nameof(runtimeType));
+        Check.NotNull(factoryMethod);
+        Check.NotNull(runtimeType);
 
         _factoryMethod = factoryMethod;
         RuntimeType = runtimeType;
     }
 
     /// <summary>
-    ///     Creates a new <see cref="FactoryMethodBinding" /> instance for a static factory method.
+    ///     Creates a new <see cref="FactoryMethodBinding" /> instance for a non-static factory method.
     /// </summary>
     /// <param name="factoryInstance">The object on which the factory method should be called.</param>
     /// <param name="factoryMethod">The factory method to bind to.</param>
@@ -47,7 +47,7 @@ public class FactoryMethodBinding : InstantiationBinding
         Type runtimeType)
         : this(factoryMethod, parameterBindings, runtimeType)
     {
-        Check.NotNull(factoryInstance, nameof(factoryInstance));
+        Check.NotNull(factoryInstance);
 
         _factoryInstance = factoryInstance;
     }

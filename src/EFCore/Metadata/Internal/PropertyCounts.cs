@@ -20,6 +20,8 @@ public class PropertyCounts
     public PropertyCounts(
         int propertyCount,
         int navigationCount,
+        int complexPropertyCount,
+        int complexCollectionCount,
         int originalValueCount,
         int shadowCount,
         int relationshipCount,
@@ -27,6 +29,8 @@ public class PropertyCounts
     {
         PropertyCount = propertyCount;
         NavigationCount = navigationCount;
+        ComplexPropertyCount = complexPropertyCount;
+        ComplexCollectionCount = complexCollectionCount;
         OriginalValueCount = originalValueCount;
         ShadowCount = shadowCount;
         RelationshipCount = relationshipCount;
@@ -48,6 +52,22 @@ public class PropertyCounts
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual int NavigationCount { get; }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual int ComplexPropertyCount { get; }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual int ComplexCollectionCount { get; }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to

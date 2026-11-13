@@ -1,0 +1,57 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+namespace Microsoft.EntityFrameworkCore.Metadata;
+
+/// <summary>
+///     Represents entity type mapping for a particular table-like store object.
+/// </summary>
+/// <remarks>
+///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and examples.
+/// </remarks>
+public interface IConventionEntityTypeMappingFragment : IReadOnlyEntityTypeMappingFragment, IConventionAnnotatable
+{
+    /// <summary>
+    ///     Gets the entity type for which the fragment is defined.
+    /// </summary>
+    new IConventionEntityType EntityType { get; }
+
+    /// <summary>
+    ///     Gets the builder that can be used to configure this fragment.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">If the fragment has been removed from the model.</exception>
+    new IConventionEntityTypeMappingFragmentBuilder Builder { get; }
+
+    /// <summary>
+    ///     Returns the configuration source for this fragment.
+    /// </summary>
+    /// <returns>The configuration source.</returns>
+    ConfigurationSource GetConfigurationSource();
+
+    /// <summary>
+    ///     Sets a value indicating whether the associated table is ignored by Migrations.
+    /// </summary>
+    /// <param name="excluded">A value indicating whether the associated table is ignored by Migrations.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    bool? SetIsTableExcludedFromMigrations(bool? excluded, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Gets the <see cref="ConfigurationSource" /> for <see cref="IReadOnlyEntityTypeMappingFragment.IsTableExcludedFromMigrations" />.
+    /// </summary>
+    /// <returns>The <see cref="ConfigurationSource" /> for <see cref="IReadOnlyEntityTypeMappingFragment.IsTableExcludedFromMigrations" />.</returns>
+    ConfigurationSource? GetIsTableExcludedFromMigrationsConfigurationSource();
+
+    /// <summary>
+    ///     Sets a value indicating whether a row might not exist for this fragment's store object even when the
+    ///     principal row exists in the main table for the entity type.
+    /// </summary>
+    /// <param name="optional">A value indicating whether a row for this fragment is optional.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    bool? SetIsOptional(bool? optional, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Gets the <see cref="ConfigurationSource" /> for <see cref="IReadOnlyEntityTypeMappingFragment.IsOptional" />.
+    /// </summary>
+    /// <returns>The <see cref="ConfigurationSource" /> for <see cref="IReadOnlyEntityTypeMappingFragment.IsOptional" />.</returns>
+    ConfigurationSource? GetIsOptionalConfigurationSource();
+}

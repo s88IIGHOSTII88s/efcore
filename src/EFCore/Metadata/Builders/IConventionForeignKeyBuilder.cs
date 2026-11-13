@@ -23,6 +23,45 @@ public interface IConventionForeignKeyBuilder : IConventionAnnotatableBuilder
     new IConventionForeignKey Metadata { get; }
 
     /// <summary>
+    ///     Sets the annotation stored under the given name. Overwrites the existing annotation if an
+    ///     annotation with the specified name already exists with same or lower <see cref="ConfigurationSource" />.
+    /// </summary>
+    /// <param name="name">The name of the annotation to be set.</param>
+    /// <param name="value">The value to be stored in the annotation.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     An <see cref="IConventionForeignKeyBuilder" /> to continue configuration if the annotation was set, <see langword="null" /> otherwise.
+    /// </returns>
+    new IConventionForeignKeyBuilder? HasAnnotation(string name, object? value, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Sets the annotation stored under the given name. Overwrites the existing annotation if an
+    ///     annotation with the specified name already exists with same or lower <see cref="ConfigurationSource" />.
+    ///     Removes the annotation if <see langword="null" /> value is specified.
+    /// </summary>
+    /// <param name="name">The name of the annotation to be set.</param>
+    /// <param name="value">The value to be stored in the annotation. <see langword="null" /> to remove the annotations.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     An <see cref="IConventionForeignKeyBuilder" /> to continue configuration if the annotation was set or removed,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    new IConventionForeignKeyBuilder? HasNonNullAnnotation(
+        string name,
+        object? value,
+        bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Removes the annotation with the given name from this object.
+    /// </summary>
+    /// <param name="name">The name of the annotation to remove.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     An <see cref="IConventionForeignKeyBuilder" /> to continue configuration if the annotation was set, <see langword="null" /> otherwise.
+    /// </returns>
+    new IConventionForeignKeyBuilder? HasNoAnnotation(string name, bool fromDataAnnotation = false);
+
+    /// <summary>
     ///     Configures which entity types participate in this relationship.
     ///     By calling this method the principal and dependent types can be switched or the relationship could
     ///     be moved to a base type of one of the participating entity types.
@@ -326,6 +365,30 @@ public interface IConventionForeignKeyBuilder : IConventionAnnotatableBuilder
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns><see langword="true" /> if the relationship requiredness can be configured.</returns>
     bool CanSetIsRequired(bool? required, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Configures whether the relationship is constrained (backed by a guarantee that a matching principal
+    ///     key exists for every set foreign key value).
+    /// </summary>
+    /// <param name="constrained">
+    ///     A value indicating whether the relationship is constrained. <see langword="null" /> to reset to default.
+    /// </param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The same builder instance if the constrainedness was configured, <see langword="null" /> otherwise.
+    /// </returns>
+    IConventionForeignKeyBuilder? IsConstrained(bool? constrained, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Returns a value indicating whether the relationship constrainedness can be configured
+    ///     from the current configuration source.
+    /// </summary>
+    /// <param name="constrained">
+    ///     A value indicating whether the relationship is constrained. <see langword="null" /> to reset to default.
+    /// </param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns><see langword="true" /> if the relationship constrainedness can be configured.</returns>
+    bool CanSetIsConstrained(bool? constrained, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Configures whether the dependent end is required (i.e. whether the principal to dependent navigation can

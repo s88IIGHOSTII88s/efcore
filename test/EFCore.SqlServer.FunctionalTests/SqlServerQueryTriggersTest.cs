@@ -1,21 +1,16 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore;
 
-public class SqlServerQueryTriggersTest : IClassFixture<SqlServerQueryTriggersTest.SqlServerTriggersFixture>
+public class SqlServerQueryTriggersTest(SqlServerQueryTriggersTest.SqlServerTriggersFixture fixture)
+    : IClassFixture<SqlServerQueryTriggersTest.SqlServerTriggersFixture>
 {
-    public SqlServerQueryTriggersTest(SqlServerTriggersFixture fixture)
-    {
-        Fixture = fixture;
-    }
+    private SqlServerTriggersFixture Fixture { get; } = fixture;
 
-    private SqlServerTriggersFixture Fixture { get; }
-
-    [ConditionalFact]
+    [Fact]
     public void Triggers_with_subqueries_run_on_insert_update_and_delete()
     {
         using var context = CreateContext();
@@ -36,7 +31,7 @@ public class SqlServerQueryTriggersTest : IClassFixture<SqlServerQueryTriggersTe
         Assert.Empty(context.Products);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Triggers_with_subqueries_work_with_batch_operations()
     {
         using var context = CreateContext();
@@ -81,47 +76,43 @@ public class SqlServerQueryTriggersTest : IClassFixture<SqlServerQueryTriggersTe
     protected QueryTriggersContext CreateContext()
         => (QueryTriggersContext)Fixture.CreateContext();
 
-    protected class QueryTriggersContext : PoolableDbContext
+    protected class QueryTriggersContext(DbContextOptions options) : PoolableDbContext(options)
     {
-        public QueryTriggersContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public virtual DbSet<Product> Products { get; set; }
+        public virtual DbSet<Product> Products { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<Product>(
-                eb =>
-                {
-                    eb.Property(e => e.StoreUpdated)
-                        .HasDefaultValue(0)
-                        .ValueGeneratedOnAddOrUpdate();
-                    eb.ToTable("UpdatedProducts", tb => tb.HasTrigger("TRG_InsertUpdateProduct"));
-                });
+            => modelBuilder.Entity<Product>(eb =>
+            {
+                eb.Property(e => e.StoreUpdated)
+                    .HasDefaultValue(0)
+                    .ValueGeneratedOnAddOrUpdate();
+                eb.ToTable("UpdatedProducts", tb => tb.HasTrigger("TRG_InsertUpdateProduct"));
+            });
     }
 
     protected class Product
     {
         public virtual int Id { get; set; }
-        public virtual byte[] Version { get; set; }
-        public virtual string Name { get; set; }
+        public virtual byte[]? Version { get; set; }
+        public virtual string? Name { get; set; }
         public virtual int StoreUpdated { get; set; }
     }
 
     public class SqlServerTriggersFixture : SharedStoreFixtureBase<DbContext>
     {
-        protected override string StoreName { get; } = "SqlServerQueryTriggers";
+        protected override string StoreName
+            => "SqlServerQueryTriggers";
+
         protected override Type ContextType { get; } = typeof(QueryTriggersContext);
 
         protected override ITestStoreFactory TestStoreFactory
             => SqlServerTestStoreFactory.Instance;
 
-        protected override void Seed(DbContext context)
+        protected override async Task SeedAsync(DbContext context)
         {
-            context.Database.EnsureCreatedResiliently();
+            await context.Database.EnsureCreatedResilientlyAsync();
 
-            context.Database.ExecuteSqlRaw(
+            await context.Database.ExecuteSqlRawAsync(
                 @"
 CREATE TRIGGER TRG_InsertUpdateProduct
 ON UpdatedProducts

@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
@@ -15,645 +15,826 @@ public class FromSqlQueryCosmosTest : QueryTestBase<NorthwindQueryCosmosFixture<
         : base(fixture)
     {
         ClearLog();
-        //Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
+        Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
 
     protected NorthwindContext CreateContext()
         => Fixture.CreateContext();
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public async Task FromSqlRaw_queryable_simple(bool async)
-    {
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-            context.Set<Customer>(),
-            @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""ContactName""] LIKE '%z%'");
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public Task FromSqlRaw_queryable_simple(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(
+                    """SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["ContactName"] LIKE '%z%'""");
 
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
 
-        Assert.Equal(14, actual.Length);
-        Assert.Equal(14, context.ChangeTracker.Entries().Count());
+                Assert.Equal(14, actual.Length);
+                Assert.Equal(14, context.ChangeTracker.Entries().Count());
 
-        AssertSql(
-            @"SELECT c
+                AssertSql(
+                    """
+SELECT VALUE s
 FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""ContactName""] LIKE '%z%'
-) c");
-    }
+    SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["ContactName"] LIKE '%z%'
+) s
+""");
+            });
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public async Task FromSqlRaw_queryable_incorrect_discriminator_throws(bool async)
+    [Fact]
+    public async Task FromSqlRaw_queryable_incorrect_discriminator_throws()
     {
         using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-            context.Set<Customer>(),
-            @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Order""");
+        var query = context.Set<Order>().FromSqlRaw(
+            """
+SELECT * FROM root c WHERE c["$type"] = "OrderDetail"
+""");
 
-        var exception = async
-            ? await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync())
-            : Assert.Throws<InvalidOperationException>(() => query.ToArray());
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync());
 
         Assert.Equal(
-            CoreStrings.UnableToDiscriminate(context.Model.FindEntityType(typeof(Customer))!.DisplayName(), "Order"),
+            CoreStrings.UnableToDiscriminate(context.Model.FindEntityType(typeof(Order))!.DisplayName(), "OrderDetail"),
             exception.Message);
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public async Task FromSqlRaw_queryable_simple_columns_out_of_order(bool async)
-    {
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-            context.Set<Customer>(),
-            @"SELECT c[""id""], c[""Discriminator""], c[""Region""], c[""PostalCode""], c[""Phone""], c[""Fax""], c[""CustomerID""], c[""Country""], c[""ContactTitle""], c[""ContactName""], c[""CompanyName""], c[""City""], c[""Address""] FROM root c WHERE c[""Discriminator""] = ""Customer""");
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public Task FromSqlRaw_queryable_simple_columns_out_of_order(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(
+                    """
+SELECT c["id"], c["$type"], c["Region"], c["PostalCode"], c["Phone"], c["Fax"], c["Country"], c["ContactTitle"], c["ContactName"], c["CompanyName"], c["City"], c["Address"] FROM root c WHERE c["$type"] = "Customer"
+""");
 
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
 
-        Assert.Equal(91, actual.Length);
-        Assert.Equal(91, context.ChangeTracker.Entries().Count());
+                Assert.Equal(91, actual.Length);
+                Assert.Equal(91, context.ChangeTracker.Entries().Count());
 
-        AssertSql(
-            @"SELECT c
+                AssertSql(
+                    """
+SELECT VALUE s
 FROM (
-    SELECT c[""id""], c[""Discriminator""], c[""Region""], c[""PostalCode""], c[""Phone""], c[""Fax""], c[""CustomerID""], c[""Country""], c[""ContactTitle""], c[""ContactName""], c[""CompanyName""], c[""City""], c[""Address""] FROM root c WHERE c[""Discriminator""] = ""Customer""
-) c");
-    }
+    SELECT c["id"], c["$type"], c["Region"], c["PostalCode"], c["Phone"], c["Fax"], c["Country"], c["ContactTitle"], c["ContactName"], c["CompanyName"], c["City"], c["Address"] FROM root c WHERE c["$type"] = "Customer"
+) s
+""");
+            });
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public async Task FromSqlRaw_queryable_simple_columns_out_of_order_and_extra_columns(bool async)
-    {
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-            context.Set<Customer>(),
-            @"SELECT c[""id""], c[""Discriminator""], c[""Region""], c[""PostalCode""], c[""PostalCode""] AS Foo, c[""Phone""], c[""Fax""], c[""CustomerID""], c[""Country""], c[""ContactTitle""], c[""ContactName""], c[""CompanyName""], c[""City""], c[""Address""] FROM root c WHERE c[""Discriminator""] = ""Customer""");
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public Task FromSqlRaw_queryable_simple_columns_out_of_order_and_extra_columns(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(
+                    """
+SELECT c["id"], c["$type"], c["Region"], c["PostalCode"], c["PostalCode"] AS Foo, c["Phone"], c["Fax"], c["Country"], c["ContactTitle"], c["ContactName"], c["CompanyName"], c["City"], c["Address"] FROM root c WHERE c["$type"] = "Customer"
+""");
 
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
 
-        Assert.Equal(91, actual.Length);
-        Assert.Equal(91, context.ChangeTracker.Entries().Count());
+                Assert.Equal(91, actual.Length);
+                Assert.Equal(91, context.ChangeTracker.Entries().Count());
 
-        AssertSql(
-            @"SELECT c
+                AssertSql(
+                    """
+SELECT VALUE s
 FROM (
-    SELECT c[""id""], c[""Discriminator""], c[""Region""], c[""PostalCode""], c[""PostalCode""] AS Foo, c[""Phone""], c[""Fax""], c[""CustomerID""], c[""Country""], c[""ContactTitle""], c[""ContactName""], c[""CompanyName""], c[""City""], c[""Address""] FROM root c WHERE c[""Discriminator""] = ""Customer""
-) c");
-    }
+    SELECT c["id"], c["$type"], c["Region"], c["PostalCode"], c["PostalCode"] AS Foo, c["Phone"], c["Fax"], c["Country"], c["ContactTitle"], c["ContactName"], c["CompanyName"], c["City"], c["Address"] FROM root c WHERE c["$type"] = "Customer"
+) s
+""");
+            });
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public async Task FromSqlRaw_queryable_composed(bool async)
-    {
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-            context.Set<Customer>(),
-            @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer""").Where(c => c.ContactName.Contains("z"));
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public Task FromSqlRaw_queryable_composed(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(
+                        """
+                    SELECT * FROM root c WHERE c["$type"] = "Customer"
+                    """)
+                    .Where(c => c.ContactName!.Contains("z"));
 
-        var sql = query.ToQueryString();
+                var sql = query.ToQueryString();
 
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
 
-        Assert.Equal(14, actual.Length);
-        Assert.Equal(14, context.ChangeTracker.Entries().Count());
+                Assert.Equal(14, actual.Length);
+                Assert.Equal(14, context.ChangeTracker.Entries().Count());
 
-        AssertSql(
-            @"SELECT c
+                AssertSql(
+                    """
+SELECT VALUE s
 FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer""
-) c
-WHERE CONTAINS(c[""ContactName""], ""z"")");
-    }
+    SELECT * FROM root c WHERE c["$type"] = "Customer"
+) s
+WHERE CONTAINS(s["ContactName"], "z")
+""");
+            });
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task FromSqlRaw_queryable_composed_after_removing_whitespaces(bool async)
-    {
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-                context.Set<Customer>(),
-                _eol + "    " + _eol + _eol + _eol + "SELECT" + _eol + @"* FROM root c WHERE c[""Discriminator""] = ""Customer""")
-            .Where(c => c.ContactName.Contains("z"));
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSqlRaw_queryable_composed_after_removing_whitespaces(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(
+                        _eol + "    " + _eol + _eol + _eol + "SELECT" + _eol + @"* FROM root c WHERE c[""$type""] = ""Customer""")
+                    .Where(c => c.ContactName!.Contains("z"));
 
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
 
-        Assert.Equal(14, actual.Length);
+                Assert.Equal(14, actual.Length);
 
-        AssertSql(
-            @"SELECT c
+                AssertSql(
+                    """
+SELECT VALUE s
 FROM (
 
-        "
-            + @"
+
+"""
+                    + "        "
+                    + """
+
 
 
     SELECT
-    * FROM root c WHERE c[""Discriminator""] = ""Customer""
-) c
-WHERE CONTAINS(c[""ContactName""], ""z"")");
-    }
+    * FROM root c WHERE c["$type"] = "Customer"
+) s
+WHERE CONTAINS(s["ContactName"], "z")
+""");
+            });
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public async Task FromSqlRaw_queryable_composed_compiled(bool async)
-    {
-        if (async)
-        {
-            var query = EF.CompileAsyncQuery(
-                (NorthwindContext context) => CosmosQueryableExtensions.FromSqlRaw(
-                        context.Set<Customer>(),
-                        @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer""")
-                    .Where(c => c.ContactName.Contains("z")));
-
-            using (var context = CreateContext())
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public Task FromSqlRaw_queryable_composed_compiled(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
             {
-                var actual = await query(context).ToListAsync();
+                if (a)
+                {
+                    var query = EF.CompileAsyncQuery((NorthwindContext context) => context.Set<Customer>()
+                        .FromSqlRaw(
+                            """
+SELECT * FROM root c WHERE c["$type"] = "Customer"
+""")
+                        .Where(c => c.ContactName!.Contains("z")));
 
-                Assert.Equal(14, actual.Count);
-            }
-        }
-        else
-        {
-            var query = EF.CompileQuery(
-                (NorthwindContext context) => CosmosQueryableExtensions.FromSqlRaw(
-                        context.Set<Customer>(),
-                        @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer""")
-                    .Where(c => c.ContactName.Contains("z")));
+                    using (var context = CreateContext())
+                    {
+                        var actual = await query(context).ToListAsync();
 
-            using (var context = CreateContext())
-            {
-                var actual = query(context).ToArray();
+                        Assert.Equal(14, actual.Count);
+                    }
+                }
+                else
+                {
+                    var query = EF.CompileQuery((NorthwindContext context) => context.Set<Customer>()
+                        .FromSqlRaw("""SELECT * FROM root c WHERE c["$type"] = "Customer" """)
+                        .Where(c => c.ContactName!.Contains("z")));
 
-                Assert.Equal(14, actual.Length);
-            }
-        }
+                    using (var context = CreateContext())
+                    {
+                        var actual = query(context).ToArray();
 
-        AssertSql(
-            @"SELECT c
+                        Assert.Equal(14, actual.Length);
+                    }
+                }
+
+                AssertSql(
+                    """
+SELECT VALUE s
 FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer""
-) c
-WHERE CONTAINS(c[""ContactName""], ""z"")");
-    }
+    SELECT * FROM root c WHERE c["$type"] = "Customer"
+) s
+WHERE CONTAINS(s["ContactName"], "z")
+""");
+            });
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task FromSqlRaw_queryable_composed_compiled_with_parameter(bool async)
-    {
-        if (async)
-        {
-            var query = EF.CompileAsyncQuery(
-                (NorthwindContext context) => CosmosQueryableExtensions.FromSqlRaw(
-                        context.Set<Customer>(),
-                        @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""CustomerID""] = {0}", "CONSH")
-                    .Where(c => c.ContactName.Contains("z")));
-
-            using (var context = CreateContext())
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSqlRaw_queryable_composed_compiled_with_parameter(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
             {
-                var actual = await query(context).ToListAsync();
+                if (a)
+                {
+                    var query = EF.CompileAsyncQuery((NorthwindContext context) => context.Set<Customer>().FromSqlRaw(
+                            """SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["id"] = {0}""", "CONSH")
+                        .Where(c => c.ContactName!.Contains("z")));
+
+                    using (var context = CreateContext())
+                    {
+                        var actual = await query(context).ToListAsync();
+
+                        Assert.Single(actual);
+                    }
+                }
+                else
+                {
+                    var query = EF.CompileQuery((NorthwindContext context) => context.Set<Customer>().FromSqlRaw(
+                            """SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["id"] = {0}""", "CONSH")
+                        .Where(c => c.ContactName!.Contains("z")));
+
+                    using (var context = CreateContext())
+                    {
+                        var actual = query(context).ToArray();
+
+                        Assert.Single(actual);
+                    }
+                }
+
+                AssertSql(
+                    """
+SELECT VALUE s
+FROM (
+    SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["id"] = "CONSH"
+) s
+WHERE CONTAINS(s["ContactName"], "z")
+""");
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSqlRaw_queryable_multiple_line_query(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(
+                    """
+SELECT *
+FROM root c
+WHERE c["$type"] = "Customer" AND c["City"] = 'London'
+""");
+
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
+
+                Assert.Equal(6, actual.Length);
+                Assert.True(actual.All(c => c.City == "London"));
+
+                AssertSql(
+                    """
+SELECT VALUE s
+FROM (
+    SELECT *
+    FROM root c
+    WHERE c["$type"] = "Customer" AND c["City"] = 'London'
+) s
+""");
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSqlRaw_queryable_composed_multiple_line_query(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(
+                        """
+SELECT *
+FROM root c
+WHERE c["$type"] = "Customer"
+""")
+                    .Where(c => c.City == "London");
+
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
+
+                Assert.Equal(6, actual.Length);
+                Assert.True(actual.All(c => c.City == "London"));
+
+                AssertSql(
+                    """
+SELECT VALUE s
+FROM (
+    SELECT *
+    FROM root c
+    WHERE c["$type"] = "Customer"
+) s
+WHERE (s["City"] = "London")
+""");
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public Task FromSqlRaw_queryable_with_parameters(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                var city = "London";
+                var contactTitle = "Sales Representative";
+
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(
+                    """SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["City"] = {0} AND c["ContactTitle"] = {1}""",
+                    city,
+                    contactTitle);
+
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
+
+                Assert.Equal(3, actual.Length);
+                Assert.True(actual.All(c => c.City == "London"));
+                Assert.True(actual.All(c => c.ContactTitle == "Sales Representative"));
+
+                AssertSql(
+                    """
+@p='London'
+@p0='Sales Representative'
+
+SELECT VALUE s
+FROM (
+    SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["City"] = @p AND c["ContactTitle"] = @p0
+) s
+""");
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public Task FromSqlRaw_queryable_with_parameters_inline(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(
+                    """SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["City"] = {0} AND c["ContactTitle"] = {1}""",
+                    "London",
+                    "Sales Representative");
+
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
+
+                Assert.Equal(3, actual.Length);
+                Assert.True(actual.All(c => c.City == "London"));
+                Assert.True(actual.All(c => c.ContactTitle == "Sales Representative"));
+
+                AssertSql(
+                    """
+@p='London'
+@p0='Sales Representative'
+
+SELECT VALUE s
+FROM (
+    SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["City"] = @p AND c["ContactTitle"] = @p0
+) s
+""");
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public Task FromSqlRaw_queryable_with_null_parameter(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                uint? reportsTo = null;
+
+                using var context = CreateContext();
+                var query = context.Set<Employee>().FromSqlRaw(
+                    """SELECT * FROM root c WHERE c["$type"] = "Employee" AND c["ReportsTo"] = {0} OR (IS_NULL(c["ReportsTo"]) AND IS_NULL({0}))""",
+                    reportsTo);
+
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
 
                 Assert.Single(actual);
-            }
-        }
-        else
-        {
-            var query = EF.CompileQuery(
-                (NorthwindContext context) => CosmosQueryableExtensions.FromSqlRaw(
-                        context.Set<Customer>(),
-                        @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""CustomerID""] = {0}", "CONSH")
-                    .Where(c => c.ContactName.Contains("z")));
 
-            using (var context = CreateContext())
+                AssertSql(
+                    """
+@p=null
+
+SELECT VALUE s
+FROM (
+    SELECT * FROM root c WHERE c["$type"] = "Employee" AND c["ReportsTo"] = @p OR (IS_NULL(c["ReportsTo"]) AND IS_NULL(@p))
+) s
+""");
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public Task FromSqlRaw_queryable_with_parameters_and_closure(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
             {
-                var actual = query(context).ToArray();
+                var city = "London";
+                var contactTitle = "Sales Representative";
+
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(
+                        """SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["City"] = {0}""", city)
+                    .Where(c => c.ContactTitle == contactTitle);
+                var queryString = query.ToQueryString();
+
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
+
+                Assert.Equal(3, actual.Length);
+                Assert.True(actual.All(c => c.City == "London"));
+                Assert.True(actual.All(c => c.ContactTitle == "Sales Representative"));
+
+                AssertSql(
+                    """
+@p='London'
+@contactTitle='Sales Representative'
+
+SELECT VALUE s
+FROM (
+    SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["City"] = @p
+) s
+WHERE (s["ContactTitle"] = @contactTitle)
+""");
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSqlRaw_queryable_simple_cache_key_includes_query_string(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var query = context.Set<Customer>()
+                    .FromSqlRaw("""SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["City"] = 'London'""");
+
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
+
+                Assert.Equal(6, actual.Length);
+                Assert.True(actual.All(c => c.City == "London"));
+
+                query = context.Set<Customer>()
+                    .FromSqlRaw("""SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["City"] = 'Seattle'""");
+
+                actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
 
                 Assert.Single(actual);
-            }
-        }
+                Assert.True(actual.All(c => c.City == "Seattle"));
 
-        AssertSql(
-            @"SELECT c
+                AssertSql(
+                    """
+SELECT VALUE s
 FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""CustomerID""] = ""CONSH""
-) c
-WHERE CONTAINS(c[""ContactName""], ""z"")");
-    }
+    SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["City"] = 'London'
+) s
+""",
+                    //
+                    """
+SELECT VALUE s
+FROM (
+    SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["City"] = 'Seattle'
+) s
+""");
+            });
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task FromSqlRaw_queryable_multiple_line_query(bool async)
-    {
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-            context.Set<Customer>(),
-            @"SELECT *
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSqlRaw_queryable_with_parameters_cache_key_includes_parameters(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                var city = "London";
+                var contactTitle = "Sales Representative";
+                var sql =
+                    """SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["City"] = {0} AND c["ContactTitle"] = {1}""";
+
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(sql, city, contactTitle);
+
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
+
+                Assert.Equal(3, actual.Length);
+                Assert.True(actual.All(c => c.City == "London"));
+                Assert.True(actual.All(c => c.ContactTitle == "Sales Representative"));
+
+                city = "Madrid";
+                contactTitle = "Accounting Manager";
+
+                query = context.Set<Customer>().FromSqlRaw(sql, city, contactTitle);
+
+                actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
+
+                Assert.Equal(2, actual.Length);
+                Assert.True(actual.All(c => c.City == "Madrid"));
+                Assert.True(actual.All(c => c.ContactTitle == "Accounting Manager"));
+
+                AssertSql(
+                    """
+@p='London'
+@p0='Sales Representative'
+
+SELECT VALUE s
+FROM (
+    SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["City"] = @p AND c["ContactTitle"] = @p0
+) s
+""",
+                    //
+                    """
+@p='Madrid'
+@p0='Accounting Manager'
+
+SELECT VALUE s
+FROM (
+    SELECT * FROM root c WHERE c["$type"] = "Customer" AND c["City"] = @p AND c["ContactTitle"] = @p0
+) s
+""");
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSqlRaw_queryable_simple_as_no_tracking_not_composed(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(
+                        """
+SELECT * FROM root c WHERE c["$type"] = "Customer"
+""")
+                    .AsNoTracking();
+
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
+
+                Assert.Equal(91, actual.Length);
+                Assert.Empty(context.ChangeTracker.Entries());
+
+                AssertSql(
+                    """
+SELECT VALUE s
+FROM (
+    SELECT * FROM root c WHERE c["$type"] = "Customer"
+) s
+""");
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSqlRaw_queryable_simple_projection_composed(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var query = context.Set<Product>().FromSqlRaw(
+                        """
+SELECT *
 FROM root c
-WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = 'London'");
+WHERE c["$type"] = "Product" AND NOT c["Discontinued"] AND ((c["UnitsInStock"] - c["UnitPrice"]) < c["SupplierID"])
+""")
+                    .Select(p => p.ProductName);
 
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
 
-        Assert.Equal(6, actual.Length);
-        Assert.True(actual.All(c => c.City == "London"));
+                Assert.Equal(37, actual.Length);
 
-        AssertSql(
-            @"SELECT c
+                AssertSql(
+                    """
+SELECT VALUE s["ProductName"]
 FROM (
     SELECT *
     FROM root c
-    WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = 'London'
-) c");
+    WHERE c["$type"] = "Product" AND NOT c["Discontinued"] AND ((c["UnitsInStock"] - c["UnitPrice"]) < c["SupplierID"])
+) s
+""");
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSqlRaw_composed_with_nullable_predicate(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(
+                        """
+SELECT * FROM root c WHERE c["$type"] = "Customer"
+""")
+                    .Where(c => c.ContactName == c.CompanyName);
+
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
+
+                Assert.Empty(actual);
+
+                AssertSql(
+                    """
+SELECT VALUE s
+FROM (
+    SELECT * FROM root c WHERE c["$type"] = "Customer"
+) s
+WHERE (s["ContactName"] = s["CompanyName"])
+""");
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSqlRaw_does_not_parameterize_interpolated_string(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var propertyName = "OrderID";
+                var max = 10250;
+                var query = context.Orders.FromSqlRaw(
+                    $$"""SELECT * FROM root c WHERE c["$type"] = "Order" AND c["{{propertyName}}"] < {0}""", max);
+
+                var actual = a
+                    ? await query.ToListAsync()
+                    : query.ToList();
+
+                Assert.Equal(2, actual.Count);
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSqlRaw_queryable_simple_projection_not_composed(bool async)
+    {
+        // https://github.com/Azure/azure-cosmos-db-emulator-docker/issues/335
+        CosmosTestEnvironment.SkipOnLinuxEmulator();
+
+        return Fixture.NoSyncTest(
+            async, async a =>
+            {
+                using var context = CreateContext();
+                var query = context.Set<Customer>().FromSqlRaw(
+                        """
+SELECT * FROM root c WHERE c["$type"] = "Customer"
+""")
+                    .Select(c => new { c.CustomerID, c.City })
+                    .AsNoTracking();
+
+                var actual = a
+                    ? await query.ToArrayAsync()
+                    : query.ToArray();
+
+                Assert.Equal(91, actual.Length);
+                Assert.Empty(context.ChangeTracker.Entries());
+
+                AssertSql(
+                    """
+SELECT VALUE
+{
+    "CustomerID" : s["id"],
+    "City" : s["City"]
+}
+FROM (
+    SELECT * FROM root c WHERE c["$type"] = "Customer"
+) s
+""");
+            });
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task FromSqlRaw_queryable_composed_multiple_line_query(bool async)
+    [Fact]
+    public async Task FromSqlRaw_queryable_simple_with_missing_discriminator_throws()
     {
         using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-                context.Set<Customer>(),
-                @"SELECT *
-FROM root c
-WHERE c[""Discriminator""] = ""Customer""")
-            .Where(c => c.City == "London");
+        var query = context.Set<Order>()
+            .FromSqlRaw("""SELECT c.OrderID FROM root c""");
 
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync());
 
-        Assert.Equal(6, actual.Length);
-        Assert.True(actual.All(c => c.City == "London"));
-
-        AssertSql(
-            @"SELECT c
-FROM (
-    SELECT *
-    FROM root c
-    WHERE c[""Discriminator""] = ""Customer""
-) c
-WHERE (c[""City""] = ""London"")");
+        Assert.Equal(
+            CoreStrings.UnableToDiscriminate(context.Model.FindEntityType(typeof(Order))!.DisplayName(), null),
+            exception.Message);
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public async Task FromSqlRaw_queryable_with_parameters(bool async)
-    {
-        var city = "London";
-        var contactTitle = "Sales Representative";
-
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-            context.Set<Customer>(),
-            @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = {0} AND c[""ContactTitle""] = {1}", city,
-            contactTitle);
-
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
-
-        Assert.Equal(3, actual.Length);
-        Assert.True(actual.All(c => c.City == "London"));
-        Assert.True(actual.All(c => c.ContactTitle == "Sales Representative"));
-
-        AssertSql(
-            @"@p0='London'
-@p1='Sales Representative'
-
-SELECT c
-FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = @p0 AND c[""ContactTitle""] = @p1
-) c");
-    }
-
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public async Task FromSqlRaw_queryable_with_parameters_inline(bool async)
+    [Fact]
+    public async Task FromSqlRaw_queryable_simple_with_missing_key_throws()
     {
         using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-            context.Set<Customer>(),
-            @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = {0} AND c[""ContactTitle""] = {1}",
-            "London",
-            "Sales Representative");
+        var query = context.Set<Order>()
+            .FromSqlRaw("""SELECT "Order" AS "$type" FROM root c""");
 
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
-
-        Assert.Equal(3, actual.Length);
-        Assert.True(actual.All(c => c.City == "London"));
-        Assert.True(actual.All(c => c.ContactTitle == "Sales Representative"));
-
-        AssertSql(
-            @"@p0='London'
-@p1='Sales Representative'
-
-SELECT c
-FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = @p0 AND c[""ContactTitle""] = @p1
-) c");
-    }
-
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public async Task FromSqlRaw_queryable_with_null_parameter(bool async)
-    {
-        uint? reportsTo = null;
-
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-            context.Set<Employee>(),
-            @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Employee"" AND c[""ReportsTo""] = {0} OR (IS_NULL(c[""ReportsTo""]) AND IS_NULL({0}))",
-            reportsTo);
-
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
-
-        Assert.Single(actual);
-
-        AssertSql(
-            @"@p0=null
-
-SELECT c
-FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Employee"" AND c[""ReportsTo""] = @p0 OR (IS_NULL(c[""ReportsTo""]) AND IS_NULL(@p0))
-) c");
-    }
-
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public async Task FromSqlRaw_queryable_with_parameters_and_closure(bool async)
-    {
-        var city = "London";
-        var contactTitle = "Sales Representative";
-
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-                context.Set<Customer>(),
-                @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = {0}", city)
-            .Where(c => c.ContactTitle == contactTitle);
-        var queryString = query.ToQueryString();
-
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
-
-        Assert.Equal(3, actual.Length);
-        Assert.True(actual.All(c => c.City == "London"));
-        Assert.True(actual.All(c => c.ContactTitle == "Sales Representative"));
-
-        AssertSql(
-            @"@p0='London'
-@__contactTitle_1='Sales Representative'
-
-SELECT c
-FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = @p0
-) c
-WHERE (c[""ContactTitle""] = @__contactTitle_1)");
-    }
-
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task FromSqlRaw_queryable_simple_cache_key_includes_query_string(bool async)
-    {
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-            context.Set<Customer>(),
-            @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = 'London'");
-
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
-
-        Assert.Equal(6, actual.Length);
-        Assert.True(actual.All(c => c.City == "London"));
-
-        query = CosmosQueryableExtensions.FromSqlRaw(
-            context.Set<Customer>(),
-            @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = 'Seattle'");
-
-        actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
-
-        Assert.Single(actual);
-        Assert.True(actual.All(c => c.City == "Seattle"));
-
-        AssertSql(
-            @"SELECT c
-FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = 'London'
-) c",
-            //
-            @"SELECT c
-FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = 'Seattle'
-) c");
-    }
-
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task FromSqlRaw_queryable_with_parameters_cache_key_includes_parameters(bool async)
-    {
-        var city = "London";
-        var contactTitle = "Sales Representative";
-        var sql = @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = {0} AND c[""ContactTitle""] = {1}";
-
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(context.Set<Customer>(), sql, city, contactTitle);
-
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
-
-        Assert.Equal(3, actual.Length);
-        Assert.True(actual.All(c => c.City == "London"));
-        Assert.True(actual.All(c => c.ContactTitle == "Sales Representative"));
-
-        city = "Madrid";
-        contactTitle = "Accounting Manager";
-
-        query = CosmosQueryableExtensions.FromSqlRaw(context.Set<Customer>(), sql, city, contactTitle);
-
-        actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
-
-        Assert.Equal(2, actual.Length);
-        Assert.True(actual.All(c => c.City == "Madrid"));
-        Assert.True(actual.All(c => c.ContactTitle == "Accounting Manager"));
-
-        AssertSql(
-            @"@p0='London'
-@p1='Sales Representative'
-
-SELECT c
-FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = @p0 AND c[""ContactTitle""] = @p1
-) c",
-            //
-            @"@p0='Madrid'
-@p1='Accounting Manager'
-
-SELECT c
-FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer"" AND c[""City""] = @p0 AND c[""ContactTitle""] = @p1
-) c");
-    }
-
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task FromSqlRaw_queryable_simple_as_no_tracking_not_composed(bool async)
-    {
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-                context.Set<Customer>(),
-                @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer""")
-            .AsNoTracking();
-
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
-
-        Assert.Equal(91, actual.Length);
-        Assert.Empty(context.ChangeTracker.Entries());
-
-        AssertSql(
-            @"SELECT c
-FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer""
-) c");
-    }
-
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task FromSqlRaw_queryable_simple_projection_composed(bool async)
-    {
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-                context.Set<Product>(),
-                @"SELECT *
-FROM root c
-WHERE c[""Discriminator""] = ""Product"" AND NOT c[""Discontinued""] AND ((c[""UnitsInStock""] + c[""UnitsOnOrder""]) < c[""ReorderLevel""])")
-            .Select(p => p.ProductName);
-
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
-
-        Assert.Equal(2, actual.Length);
-
-        AssertSql(
-            @"SELECT c[""ProductName""]
-FROM (
-    SELECT *
-    FROM root c
-    WHERE c[""Discriminator""] = ""Product"" AND NOT c[""Discontinued""] AND ((c[""UnitsInStock""] + c[""UnitsOnOrder""]) < c[""ReorderLevel""])
-) c");
-    }
-
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task FromSqlRaw_composed_with_nullable_predicate(bool async)
-    {
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-                context.Set<Customer>(),
-                @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer""")
-            .Where(c => c.ContactName == c.CompanyName);
-
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
-
-        Assert.Empty(actual);
-
-        AssertSql(
-            @"SELECT c
-FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer""
-) c
-WHERE (c[""ContactName""] = c[""CompanyName""])");
-    }
-
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task FromSqlRaw_does_not_parameterize_interpolated_string(bool async)
-    {
-        using var context = CreateContext();
-        var propertyName = "OrderID";
-        var max = 10250;
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-            context.Orders,
-            $@"SELECT * FROM root c WHERE c[""Discriminator""] = ""Order"" AND c[""{propertyName}""] < {{0}}", max);
-
-        var actual = async
-            ? await query.ToListAsync()
-            : query.ToList();
-
-        Assert.Equal(2, actual.Count);
-    }
-
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task FromSqlRaw_queryable_simple_projection_not_composed(bool async)
-    {
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions.FromSqlRaw(
-                context.Set<Customer>(),
-                @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer""")
-            .Select(
-                c => new { c.CustomerID, c.City })
-            .AsNoTracking();
-
-        var actual = async
-            ? await query.ToArrayAsync()
-            : query.ToArray();
-
-        Assert.Equal(91, actual.Length);
-        Assert.Empty(context.ChangeTracker.Entries());
-
-        AssertSql(
-            @"SELECT c[""CustomerID""], c[""City""]
-FROM (
-    SELECT * FROM root c WHERE c[""Discriminator""] = ""Customer""
-) c");
-    }
-
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public async Task FromSqlRaw_queryable_simple_with_missing_key_and_non_tracking_throws(bool async)
-    {
-        using var context = CreateContext();
-        var query = CosmosQueryableExtensions
-            .FromSqlRaw(
-                context.Set<Customer>(),
-                @"SELECT * FROM root c WHERE c[""Discriminator""] = ""Category""")
-            .AsNoTracking();
-        var exception = async
-            ? await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync())
-            : Assert.Throws<InvalidOperationException>(() => query.ToArray());
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync());
 
         Assert.Equal(
             CoreStrings.InvalidKeyValue(
-                context.Model.FindEntityType(typeof(Customer))!.DisplayName(),
-                "CustomerID"),
+                context.Model.FindEntityType(typeof(Order))!.DisplayName(),
+                "OrderID"),
             exception.Message);
     }
+
+    [Fact]
+    public async Task FromSqlRaw_queryable_simple_with_missing_key_and_non_tracking_throws()
+    {
+        using var context = CreateContext();
+        var query = context.Set<Order>()
+            .FromSqlRaw("""SELECT "Order" AS "$type" FROM root c""")
+            .AsNoTracking();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync());
+
+        Assert.Equal(
+            CoreStrings.InvalidKeyValue(
+                context.Model.FindEntityType(typeof(Order))!.DisplayName(),
+                "OrderID"),
+            exception.Message);
+    }
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSql_queryable_with_parameters_interpolated(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                var city = "London";
+                var contactTitle = "Sales Representative";
+
+                await AssertQuery(
+                    a,
+                    ss => ((DbSet<Customer>)ss.Set<Customer>()).FromSql(
+                        $"""SELECT * FROM root c WHERE c["City"] = {city} AND c["ContactTitle"] = {contactTitle}"""),
+                    ss => ss.Set<Customer>().Where(x => x.City == city && x.ContactTitle == contactTitle));
+
+                AssertSql(
+                    """
+@p='London'
+@p0='Sales Representative'
+
+SELECT VALUE s
+FROM (
+    SELECT * FROM root c WHERE c["City"] = @p AND c["ContactTitle"] = @p0
+) s
+""");
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSql_queryable_with_parameters_inline_interpolated(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await AssertQuery(
+                    a,
+                    ss => ((DbSet<Customer>)ss.Set<Customer>()).FromSql(
+                        $"""SELECT * FROM root c WHERE c["City"] = {"London"} AND c["ContactTitle"] = {"Sales Representative"}"""),
+                    ss => ss.Set<Customer>().Where(x => x.City == "London" && x.ContactTitle == "Sales Representative"));
+
+                AssertSql(
+                    """
+@p='London'
+@p0='Sales Representative'
+
+SELECT VALUE s
+FROM (
+    SELECT * FROM root c WHERE c["City"] = @p AND c["ContactTitle"] = @p0
+) s
+""");
+            });
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task Both_FromSql_and_regular_parameters(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                var city = "London";
+                var country = "UK";
+
+                await AssertQuery(
+                    a,
+                    ss => ((DbSet<Customer>)ss.Set<Customer>())
+                        .FromSql($"""SELECT * FROM root c WHERE c["City"] = {city} AND c["Country"] = {country}""")
+                        .OrderBy(c => c.CustomerID)
+                        .Skip(1) // Non-lambda parameter, so becomes a SqlParameter
+                        .Take(5),
+                    ss => ss.Set<Customer>()
+                        .Where(x => x.City == city)
+                        .OrderBy(c => c.CustomerID)
+                        .Skip(1)
+                        .Take(5));
+
+                AssertSql(
+                    """
+@p='London'
+@p0='UK'
+@p1='1'
+@p2='5'
+
+SELECT VALUE s
+FROM (
+    SELECT * FROM root c WHERE c["City"] = @p AND c["Country"] = @p0
+) s
+ORDER BY s["id"]
+OFFSET @p1 LIMIT @p2
+""");
+            });
 
     private void AssertSql(params string[] expected)
         => Fixture.TestSqlLoggerFactory.AssertBaseline(expected);

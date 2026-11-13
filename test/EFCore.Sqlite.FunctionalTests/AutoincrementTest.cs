@@ -1,21 +1,15 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore;
 
-public class AutoincrementTest : IClassFixture<AutoincrementTest.AutoincrementFixture>
+public class AutoincrementTest(AutoincrementTest.AutoincrementFixture fixture) : IClassFixture<AutoincrementTest.AutoincrementFixture>
 {
-    public AutoincrementTest(AutoincrementFixture fixture)
-    {
-        Fixture = fixture;
-    }
+    protected AutoincrementFixture Fixture { get; } = fixture;
 
-    protected AutoincrementFixture Fixture { get; }
-
-    [ConditionalFact]
+    [Fact]
     public void Autoincrement_prevents_reusing_rowid()
     {
         using var context = CreateContext();
@@ -42,7 +36,8 @@ public class AutoincrementTest : IClassFixture<AutoincrementTest.AutoincrementFi
 
     public class AutoincrementFixture : SharedStoreFixtureBase<DbContext>
     {
-        protected override string StoreName { get; } = "AutoincrementTest";
+        protected override string StoreName
+            => "AutoincrementTest";
 
         protected override ITestStoreFactory TestStoreFactory
             => SqliteTestStoreFactory.Instance;
@@ -51,19 +46,14 @@ public class AutoincrementTest : IClassFixture<AutoincrementTest.AutoincrementFi
             => typeof(BatContext);
     }
 
-    protected class BatContext : PoolableDbContext
+    protected class BatContext(DbContextOptions options) : PoolableDbContext(options)
     {
-        public BatContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public DbSet<PersonA> People { get; set; }
+        public DbSet<PersonA> People { get; set; } = null!;
     }
 
     protected class PersonA
     {
         public int Id { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 }

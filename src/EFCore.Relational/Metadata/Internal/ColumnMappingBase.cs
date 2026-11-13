@@ -11,10 +11,10 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
-public class ColumnMappingBase : Annotatable, IColumnMappingBase
+public class ColumnMappingBase : Annotatable, IColumnMappingBase, IComparable<ColumnMappingBase>
 {
     private RelationalTypeMapping? _typeMapping;
-    
+
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
     ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
@@ -38,9 +38,9 @@ public class ColumnMappingBase : Annotatable, IColumnMappingBase
     public virtual IColumnBase Column { get; }
 
     /// <inheritdoc />
-    public virtual RelationalTypeMapping TypeMapping =>
-        NonCapturingLazyInitializer.EnsureInitialized(
-                ref _typeMapping, this, static mapping => mapping.GetTypeMapping());
+    public virtual RelationalTypeMapping TypeMapping
+        => NonCapturingLazyInitializer.EnsureInitialized(
+            ref _typeMapping, this, static mapping => mapping.GetTypeMapping());
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -73,5 +73,57 @@ public class ColumnMappingBase : Annotatable, IColumnMappingBase
     {
         [DebuggerStepThrough]
         get => TableMapping;
+    }
+
+    /// <inheritdoc />
+    public virtual int CompareTo(IColumnMappingBase? other)
+    {
+        if (ReferenceEquals(this, other))
+        {
+            return 0;
+        }
+
+        if (other is null)
+        {
+            return 1;
+        }
+
+        var result = other.Property.IsPrimaryKey().CompareTo(Property.IsPrimaryKey());
+        if (result != 0)
+        {
+            return result;
+        }
+
+        result = TableMapping.CompareTo(other.TableMapping);
+        if (result != 0)
+        {
+            return result;
+        }
+
+        result = StringComparer.Ordinal.Compare(Property.Name, other.Property.Name);
+        return result != 0 ? result : StringComparer.Ordinal.Compare(Column.Name, other.Column.Name);
+    }
+
+    /// <inheritdoc />
+    public virtual int CompareTo(ColumnMappingBase? other)
+        => CompareTo((IColumnMappingBase?)other);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj)
+        => ReferenceEquals(this, obj)
+            || (obj is IColumnMappingBase other
+                && Property == other.Property
+                && Column == other.Column
+                && TableMapping.Equals(other.TableMapping));
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hashCode = new HashCode();
+        hashCode.Add(Property);
+        hashCode.Add(Column);
+        hashCode.Add(TableMapping);
+
+        return hashCode.ToHashCode();
     }
 }

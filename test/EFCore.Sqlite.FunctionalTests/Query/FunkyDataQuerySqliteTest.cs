@@ -5,19 +5,62 @@ namespace Microsoft.EntityFrameworkCore.Query;
 
 public class FunkyDataQuerySqliteTest : FunkyDataQueryTestBase<FunkyDataQuerySqliteTest.FunkyDataQuerySqliteFixture>
 {
-    public FunkyDataQuerySqliteTest(FunkyDataQuerySqliteFixture fixture)
+    public FunkyDataQuerySqliteTest(FunkyDataQuerySqliteFixture fixture, ITestOutputHelper testOutputHelper)
         : base(fixture)
     {
+        Fixture.TestSqlLoggerFactory.Clear();
+        Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
 
-    protected virtual bool CanExecuteQueryString
-        => false;
+    public override async Task String_Contains_and_StartsWith_with_same_parameter(bool async)
+    {
+        await base.String_Contains_and_StartsWith_with_same_parameter(async);
 
-    protected override QueryAsserter CreateQueryAsserter(FunkyDataQuerySqliteFixture fixture)
-        => new RelationalQueryAsserter(
-            fixture, RewriteExpectedQueryExpression, RewriteServerQueryExpression, canExecuteQueryString: CanExecuteQueryString);
+        AssertSql(
+            """
+@s='B' (Size = 1)
+@s_startswith='B%' (Size = 2)
 
-    public class FunkyDataQuerySqliteFixture : FunkyDataQueryFixtureBase
+SELECT "f"."Id", "f"."FirstName", "f"."LastName", "f"."NullableBool"
+FROM "FunkyCustomers" AS "f"
+WHERE instr("f"."FirstName", @s) > 0 OR "f"."LastName" LIKE @s_startswith ESCAPE '\'
+""");
+    }
+
+    public override async Task String_starts_with_ends_with_contains_on_argument_with_escape_char_parameter(bool async)
+    {
+        await base.String_starts_with_ends_with_contains_on_argument_with_escape_char_parameter(async);
+
+        AssertSql(
+            """
+@prm_startswith='\\%' (Size = 3)
+
+SELECT "f"."FirstName"
+FROM "FunkyCustomers" AS "f"
+WHERE '\' || COALESCE("f"."FirstName", '') LIKE @prm_startswith ESCAPE '\'
+""",
+            //
+            """
+@prm_endswith='%\\' (Size = 3)
+
+SELECT "f"."FirstName"
+FROM "FunkyCustomers" AS "f"
+WHERE COALESCE("f"."FirstName", '') || '\' LIKE @prm_endswith ESCAPE '\'
+""",
+            //
+            """
+@prm='\' (DbType = String)
+
+SELECT "f"."FirstName"
+FROM "FunkyCustomers" AS "f"
+WHERE instr(COALESCE("f"."FirstName", '') || '\', @prm) > 0
+""");
+    }
+
+    private void AssertSql(params string[] expected)
+        => Fixture.TestSqlLoggerFactory.AssertBaseline(expected);
+
+    public class FunkyDataQuerySqliteFixture : FunkyDataQueryFixtureBase, ITestSqlLoggerFactory
     {
         public TestSqlLoggerFactory TestSqlLoggerFactory
             => (TestSqlLoggerFactory)ListLoggerFactory;

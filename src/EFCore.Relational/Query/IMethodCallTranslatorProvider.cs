@@ -6,12 +6,14 @@ using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 namespace Microsoft.EntityFrameworkCore.Query;
 
 /// <summary>
-///     Provides translations for LINQ <see cref="MethodCallExpression" /> expressions.
+///     Provides translations for LINQ <see cref="MethodCallExpression" /> expressions which represents scalar methods.
 /// </summary>
 /// <remarks>
-///     The service lifetime is <see cref="ServiceLifetime.Singleton" />. This means a single instance
-///     is used by many <see cref="DbContext" /> instances. The implementation must be thread-safe.
-///     This service cannot depend on services registered as <see cref="ServiceLifetime.Scoped" />.
+///     The service lifetime is <see cref="ServiceLifetime.Scoped" /> and multiple registrations
+///     are allowed. This means that each <see cref="DbContext" /> instance will use its own
+///     set of instances of this service.
+///     The implementations may depend on other services registered with any lifetime.
+///     The implementations do not need to be thread-safe.
 /// </remarks>
 public interface IMethodCallTranslatorProvider
 {

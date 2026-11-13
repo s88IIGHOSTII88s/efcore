@@ -21,9 +21,7 @@ public abstract class LanguageBasedSelector<T>
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     protected LanguageBasedSelector(IEnumerable<T> services)
-    {
-        Services = services;
-    }
+        => Services = services;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -62,11 +60,8 @@ public abstract class LanguageBasedSelector<T>
         }
 
         var matches = services.Where(s => string.Equals(s.Language, language, StringComparison.OrdinalIgnoreCase)).ToList();
-        if (matches.Count == 0)
-        {
-            throw new OperationException(DesignStrings.NoLanguageService(language, typeof(T).ShortDisplayName()));
-        }
-
-        return matches.Last();
+        return matches.Count == 0
+            ? throw new OperationException(DesignStrings.NoLanguageService(language, typeof(T).ShortDisplayName()))
+            : matches.Last();
     }
 }

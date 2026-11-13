@@ -28,16 +28,15 @@ public class SpatialQuerySqlServerFixture : SpatialQueryRelationalFixture
         base.OnModelCreating(modelBuilder, context);
 
         modelBuilder.HasDbFunction(
-            typeof(GeoExtensions).GetMethod(nameof(GeoExtensions.Distance)),
-            b => b.HasTranslation(
-                e => new SqlFunctionExpression(
-                    instance: e[0],
-                    "STDistance",
-                    arguments: e.Skip(1),
-                    nullable: true,
-                    instancePropagatesNullability: true,
-                    argumentsPropagateNullability: e.Skip(1).Select(a => true),
-                    typeof(double),
-                    null)));
+            typeof(GeoExtensions).GetMethod(nameof(GeoExtensions.Distance))!,
+            b => b.HasTranslation(e => new SqlFunctionExpression(
+                instance: e[0],
+                "STDistance",
+                arguments: e.Skip(1),
+                nullable: true,
+                instancePropagatesNullability: true,
+                argumentsPropagateNullability: e.Skip(1).Select(a => true),
+                typeof(double),
+                null)));
     }
 }

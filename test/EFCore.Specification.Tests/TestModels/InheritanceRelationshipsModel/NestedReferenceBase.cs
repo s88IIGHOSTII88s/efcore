@@ -7,11 +7,11 @@ public class NestedReferenceBase
 {
     public int Id { get; set; }
 
-    public string Name { get; set; }
+    public string? Name { get; set; }
 
     public int? ParentReferenceId { get; set; }
-    public BaseReferenceOnBase ParentReference { get; set; }
+    public BaseReferenceOnBase? ParentReference { get; set; }
 
     public int? ParentCollectionId { get; set; }
-    public BaseCollectionOnBase ParentCollection { get; set; }
+    public BaseCollectionOnBase? ParentCollection { get; set; }
 }

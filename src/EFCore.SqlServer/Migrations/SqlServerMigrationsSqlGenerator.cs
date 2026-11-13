@@ -4,7 +4,6 @@
 using System.Collections;
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore.SqlServer.Internal;
 using Microsoft.EntityFrameworkCore.SqlServer.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.SqlServer.Update.Internal;
@@ -24,26 +23,27 @@ namespace Microsoft.EntityFrameworkCore.Migrations;
 ///     </para>
 ///     <para>
 ///         See <see href="https://aka.ms/efcore-docs-migrations">Database migrations</see>, and
-///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
 ///         for more information and examples.
 ///     </para>
 /// </remarks>
 public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
 {
     private IReadOnlyList<MigrationOperation> _operations = null!;
-    private int _variableCounter;
+    private int _variableCounter = -1;
+
+    private readonly ICommandBatchPreparer _commandBatchPreparer;
 
     /// <summary>
     ///     Creates a new <see cref="SqlServerMigrationsSqlGenerator" /> instance.
     /// </summary>
     /// <param name="dependencies">Parameter object containing dependencies for this service.</param>
-    /// <param name="migrationsAnnotations">Provider-specific Migrations annotations to use.</param>
+    /// <param name="commandBatchPreparer">The command batch preparer.</param>
     public SqlServerMigrationsSqlGenerator(
         MigrationsSqlGeneratorDependencies dependencies,
-        IRelationalAnnotationProvider migrationsAnnotations)
+        ICommandBatchPreparer commandBatchPreparer)
         : base(dependencies)
-    {
-    }
+        => _commandBatchPreparer = commandBatchPreparer;
 
     /// <summary>
     ///     Generates commands from a list of operations.
@@ -294,14 +294,22 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
 
         var narrowed = false;
         var oldColumnSupported = IsOldColumnSupported(model);
-        if (oldColumnSupported)
+        string? oldType = null;
+
+        // SQL Server can't ALTER COLUMN on a computed column when the expression is unchanged; see #33425.
+        var computedColumnIsNoOp = operation.ComputedColumnSql != null
+            && operation.OldColumn.ComputedColumnSql != null
+            && operation.ComputedColumnSql == operation.OldColumn.ComputedColumnSql
+            && operation.IsStored == operation.OldColumn.IsStored;
+
+        if (oldColumnSupported && !computedColumnIsNoOp)
         {
             if (IsIdentity(operation) != IsIdentity(operation.OldColumn))
             {
                 throw new InvalidOperationException(SqlServerStrings.AlterIdentityColumn);
             }
 
-            var oldType = operation.OldColumn.ColumnType
+            oldType = operation.OldColumn.ColumnType
                 ?? GetColumnType(
                     operation.Schema,
                     operation.Table,
@@ -310,14 +318,17 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
                     model);
             narrowed = columnType != oldType
                 || operation.Collation != operation.OldColumn.Collation
-                || !operation.IsNullable && operation.OldColumn.IsNullable;
+                || operation is { IsNullable: false, OldColumn.IsNullable: true };
         }
 
-        if (narrowed)
-        {
-            indexesToRebuild = GetIndexesToRebuild(column, operation).ToList();
-            DropIndexes(indexesToRebuild, builder);
-        }
+        var hasIndexFilterReference = column?.Table.Indexes
+            .Any(index => index.Filter?.Contains(Dependencies.SqlGenerationHelper.DelimitIdentifier(column.Name)) == true)
+            == true;
+        var sparseChanged = ((bool?)operation[SqlServerAnnotationNames.Sparse] ?? false)
+            != ((bool?)operation.OldColumn[SqlServerAnnotationNames.Sparse] ?? false);
+
+        var newAnnotations = operation.GetAnnotations().Where(a => a.Name != SqlServerAnnotationNames.Identity);
+        var oldAnnotations = operation.OldColumn.GetAnnotations().Where(a => a.Name != SqlServerAnnotationNames.Identity);
 
         var alterStatementNeeded = narrowed
             || !oldColumnSupported
@@ -331,7 +342,40 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             || operation.IsRowVersion != operation.OldColumn.IsRowVersion
             || operation.IsNullable != operation.OldColumn.IsNullable
             || operation.Collation != operation.OldColumn.Collation
-            || HasDifferences(operation.GetAnnotations(), operation.OldColumn.GetAnnotations());
+            || HasDifferences(newAnnotations, oldAnnotations);
+
+        if (computedColumnIsNoOp)
+        {
+            alterStatementNeeded = false;
+        }
+
+        var rebuildIndexes = narrowed || sparseChanged || (hasIndexFilterReference && alterStatementNeeded);
+        if (rebuildIndexes)
+        {
+            indexesToRebuild = GetIndexesToRebuild(column, operation).ToList();
+            DropIndexes(indexesToRebuild, builder);
+        }
+
+        // Handle change of identity seed value
+        if (IsIdentity(operation) && oldColumnSupported)
+        {
+            Check.DebugAssert(IsIdentity(operation.OldColumn), "Unsupported column change to identity");
+
+            var oldSeed = 1L;
+            if (TryParseIdentitySeedIncrement(operation, out var newSeed, out _)
+                && (operation.OldColumn[SqlServerAnnotationNames.Identity] is null
+                    || TryParseIdentitySeedIncrement(operation.OldColumn, out oldSeed, out _))
+                && newSeed != oldSeed)
+            {
+                var stringTypeMapping = Dependencies.TypeMappingSource.GetMapping(typeof(string));
+                var table = stringTypeMapping.GenerateSqlLiteral(
+                    Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema));
+
+                builder
+                    .Append($"DBCC CHECKIDENT({table}, RESEED, {newSeed.ToString(CultureInfo.InvariantCulture)})")
+                    .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+            }
+        }
 
         var (oldDefaultValue, oldDefaultValueSql) = (operation.OldColumn.DefaultValue, operation.OldColumn.DefaultValueSql);
 
@@ -339,59 +383,83 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             || !Equals(operation.DefaultValue, oldDefaultValue)
             || operation.DefaultValueSql != oldDefaultValueSql)
         {
-            DropDefaultConstraint(operation.Schema, operation.Table, operation.Name, builder);
+            var oldDefaultConstraintName = operation.OldColumn[RelationalAnnotationNames.DefaultConstraintName] as string;
+
+            DropDefaultConstraint(operation.Schema, operation.Table, operation.Name, oldDefaultConstraintName, builder);
             (oldDefaultValue, oldDefaultValueSql) = (null, null);
         }
 
-        if (alterStatementNeeded)
+        // The column is being made non-nullable. Generate an update statement before doing that, to convert any existing null values to
+        // the default value (otherwise SQL Server fails).
+        if (operation is { IsNullable: false, OldColumn.IsNullable: true }
+            && (operation.DefaultValueSql is not null || operation.DefaultValue is not null))
         {
-            builder
-                .Append("ALTER TABLE ")
-                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
-                .Append(" ALTER COLUMN ");
-
-            // NB: ComputedColumnSql, IsStored, DefaultValue, DefaultValueSql, Comment, ValueGenerationStrategy, and Identity are
-            //     handled elsewhere. Don't copy them here.
-            var definitionOperation = new AlterColumnOperation
+            string defaultValueSql;
+            if (operation.DefaultValueSql is not null)
             {
-                Schema = operation.Schema,
-                Table = operation.Table,
-                Name = operation.Name,
-                ClrType = operation.ClrType,
-                ColumnType = operation.ColumnType,
-                IsUnicode = operation.IsUnicode,
-                IsFixedLength = operation.IsFixedLength,
-                MaxLength = operation.MaxLength,
-                Precision = operation.Precision,
-                Scale = operation.Scale,
-                IsRowVersion = operation.IsRowVersion,
-                IsNullable = operation.IsNullable,
-                Collation = operation.Collation,
-                OldColumn = operation.OldColumn
-            };
-            definitionOperation.AddAnnotations(
-                operation.GetAnnotations().Where(
-                    a => a.Name != SqlServerAnnotationNames.ValueGenerationStrategy
-                        && a.Name != SqlServerAnnotationNames.Identity));
+                defaultValueSql = operation.DefaultValueSql;
+            }
+            else
+            {
+                Check.DebugAssert(operation.DefaultValue is not null);
 
-            ColumnDefinition(
-                operation.Schema,
-                operation.Table,
-                operation.Name,
-                definitionOperation,
-                model,
-                builder);
+                var typeMapping = Dependencies.TypeMappingSource.FindMapping(operation.DefaultValue.GetType(), columnType)
+                    ?? Dependencies.TypeMappingSource.GetMappingForValue(operation.DefaultValue);
+
+                defaultValueSql = typeMapping.GenerateSqlLiteral(operation.DefaultValue);
+            }
+
+            var updateBuilder = new StringBuilder()
+                .Append("UPDATE ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+                .Append(" SET ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+                .Append(" = ")
+                .Append(defaultValueSql)
+                .Append(" WHERE ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+                .Append(" IS NULL");
+
+            if (Options.HasFlag(MigrationsSqlGenerationOptions.Idempotent))
+            {
+                builder
+                    .Append("EXEC(N'")
+                    .Append(updateBuilder.ToString().TrimEnd('\n', '\r', ';').Replace("'", "''"))
+                    .Append("')");
+            }
+            else
+            {
+                builder.Append(updateBuilder.ToString());
+            }
 
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
         }
 
+        if (alterStatementNeeded)
+        {
+            // SQL Server can't ALTER COLUMN from json to a non JSON type; use rename-add-copy-drop instead. See #38364.
+            if ((oldType ?? operation.OldColumn.ColumnType)
+                ?.Equals("json", StringComparison.OrdinalIgnoreCase)
+                == true
+                && !columnType.Equals("json", StringComparison.OrdinalIgnoreCase))
+            {
+                AlterColumnFromJson(operation, columnType, model, builder);
+            }
+            else
+            {
+                AppendAlterColumnDefinition(operation, operation.IsNullable, model, builder);
+            }
+        }
+
         if (!Equals(operation.DefaultValue, oldDefaultValue) || operation.DefaultValueSql != oldDefaultValueSql)
         {
+            var defaultConstraintName = operation[RelationalAnnotationNames.DefaultConstraintName] as string;
+
             builder
                 .Append("ALTER TABLE ")
                 .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
                 .Append(" ADD");
-            DefaultValue(operation.DefaultValue, operation.DefaultValueSql, operation.ColumnType, builder);
+            DefaultValue(operation.DefaultValue, operation.DefaultValueSql, operation.ColumnType, defaultConstraintName, builder);
             builder
                 .Append(" FOR ")
                 .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
@@ -421,12 +489,140 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             }
         }
 
-        if (narrowed)
+        if (rebuildIndexes)
         {
             CreateIndexes(indexesToRebuild!, builder);
         }
 
         builder.EndCommand(suppressTransaction: IsMemoryOptimized(operation, model, operation.Schema, operation.Table));
+    }
+
+    private void AlterColumnFromJson(
+        AlterColumnOperation operation,
+        string columnType,
+        IModel? model,
+        MigrationCommandListBuilder builder)
+    {
+        var tempColumnName = "ef_temp_" + operation.Name;
+
+        Rename(
+            Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema)
+            + "."
+            + Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name),
+            tempColumnName,
+            "COLUMN",
+            builder);
+
+        builder
+            .Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(" ADD ");
+
+        var addColumnOperation = new AddColumnOperation
+        {
+            Schema = operation.Schema,
+            Table = operation.Table,
+            Name = operation.Name,
+            ClrType = operation.ClrType,
+            ColumnType = operation.ColumnType,
+            IsUnicode = operation.IsUnicode,
+            IsFixedLength = operation.IsFixedLength,
+            MaxLength = operation.MaxLength,
+            Precision = operation.Precision,
+            Scale = operation.Scale,
+            IsRowVersion = operation.IsRowVersion,
+            IsNullable = true,
+            Collation = operation.Collation,
+            Comment = operation.Comment
+        };
+        addColumnOperation.AddAnnotations(
+            operation.GetAnnotations().Where(a => a.Name != SqlServerAnnotationNames.Identity));
+
+        ColumnDefinition(
+            operation.Schema,
+            operation.Table,
+            operation.Name,
+            addColumnOperation,
+            model,
+            builder);
+
+        builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+        var updateSql = new StringBuilder()
+            .Append("UPDATE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(" SET ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+            .Append(" = CONVERT(")
+            .Append(columnType)
+            .Append(", ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(tempColumnName))
+            .Append(")")
+            .ToString();
+
+        builder
+            .Append("EXEC(N'")
+            .Append(updateSql.Replace("'", "''"))
+            .Append("')");
+
+        builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+        builder
+            .Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(" DROP COLUMN ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(tempColumnName))
+            .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+        if (!operation.IsNullable)
+        {
+            AppendAlterColumnDefinition(operation, false, model, builder);
+        }
+    }
+
+    private void AppendAlterColumnDefinition(
+        AlterColumnOperation operation,
+        bool isNullable,
+        IModel? model,
+        MigrationCommandListBuilder builder)
+    {
+        builder
+            .Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(" ALTER COLUMN ");
+
+        // NB: ComputedColumnSql, IsStored, DefaultValue, DefaultValueSql, Comment, ValueGenerationStrategy, and Identity are
+        //     handled elsewhere. Don't copy them here.
+        var definitionOperation = new AlterColumnOperation
+        {
+            Schema = operation.Schema,
+            Table = operation.Table,
+            Name = operation.Name,
+            ClrType = operation.ClrType,
+            ColumnType = operation.ColumnType,
+            IsUnicode = operation.IsUnicode,
+            IsFixedLength = operation.IsFixedLength,
+            MaxLength = operation.MaxLength,
+            Precision = operation.Precision,
+            Scale = operation.Scale,
+            IsRowVersion = operation.IsRowVersion,
+            IsNullable = isNullable,
+            Collation = operation.Collation,
+            OldColumn = operation.OldColumn
+        };
+        definitionOperation.AddAnnotations(
+            operation.GetAnnotations().Where(a => a.Name is not SqlServerAnnotationNames.ValueGenerationStrategy
+                and not SqlServerAnnotationNames.Identity));
+
+        ColumnDefinition(
+            operation.Schema,
+            operation.Table,
+            operation.Name,
+            definitionOperation,
+            model,
+            builder);
+
+        builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
     }
 
     /// <summary>
@@ -472,6 +668,7 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             Rename(
                 Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema),
                 operation.NewName,
+                "OBJECT",
                 builder);
 
             name = operation.NewName;
@@ -502,8 +699,16 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
         builder
             .Append("ALTER SEQUENCE ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema))
-            .Append(" RESTART WITH ")
-            .Append(IntegerConstant(operation.StartValue))
+            .Append(" RESTART");
+
+        if (operation.StartValue.HasValue)
+        {
+            builder
+                .Append(" WITH ")
+                .Append(IntegerConstant(operation.StartValue.Value));
+        }
+
+        builder
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
 
         EndStatement(builder);
@@ -534,7 +739,7 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
 
         var tableCreationOptions = new List<string>();
 
-        if (operation[SqlServerAnnotationNames.IsTemporal] as bool? == true)
+        if ((operation[SqlServerAnnotationNames.IsTemporal] as bool?) == true)
         {
             var historyTableSchema = operation[SqlServerAnnotationNames.TemporalHistoryTableSchema] as string
                 ?? model?.GetDefaultSchema();
@@ -563,6 +768,8 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
 
             subBuilder.Append(")");
 
+            var historyTableName = operation[SqlServerAnnotationNames.TemporalHistoryTableName] as string;
+            string historyTable;
             if (needsExec)
             {
                 subBuilder
@@ -570,18 +777,14 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
 
                 var execBody = subBuilder.GetCommandList().Single().CommandText.Replace("'", "''");
 
+                var schemaVariable = Uniquify("@historyTableSchema");
                 builder
-                    .AppendLine("DECLARE @historyTableSchema sysname = SCHEMA_NAME()")
+                    .AppendLine($"DECLARE {schemaVariable} nvarchar(max) = QUOTENAME(SCHEMA_NAME())")
                     .Append("EXEC(N'")
                     .Append(execBody);
-            }
 
-            var historyTableName = operation[SqlServerAnnotationNames.TemporalHistoryTableName] as string;
-            string historyTable;
-            if (needsExec)
-            {
                 historyTable = Dependencies.SqlGenerationHelper.DelimitIdentifier(historyTableName!);
-                tableCreationOptions.Add($"SYSTEM_VERSIONING = ON (HISTORY_TABLE = [' + @historyTableSchema + N'].{historyTable})");
+                tableCreationOptions.Add($"SYSTEM_VERSIONING = ON (HISTORY_TABLE = ' + {schemaVariable} + N'.{historyTable})");
             }
             else
             {
@@ -697,6 +900,7 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             Rename(
                 Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema),
                 operation.NewName,
+                "OBJECT",
                 builder);
 
             name = operation.NewName;
@@ -734,18 +938,6 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator)
                 .EndCommand(suppressTransaction: IsMemoryOptimized(operation, model, operation.Schema, operation.Name));
         }
-
-        if (operation[SqlServerAnnotationNames.IsTemporal] as bool? == true)
-        {
-            var schema = operation.Schema ?? model?[RelationalAnnotationNames.DefaultSchema] as string;
-            var historyTableSchema = operation[SqlServerAnnotationNames.TemporalHistoryTableSchema] as string ?? schema;
-            if (operation[SqlServerAnnotationNames.TemporalHistoryTableName] is string historyTableName)
-            {
-                var dropHistoryTableOperation = new DropTableOperation { Name = historyTableName, Schema = historyTableSchema };
-
-                Generate(dropHistoryTableOperation, model, builder, terminate);
-            }
-        }
     }
 
     /// <summary>
@@ -762,6 +954,28 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
         MigrationCommandListBuilder builder,
         bool terminate = true)
     {
+        if (operation[SqlServerAnnotationNames.FullTextIndex] is string keyIndex)
+        {
+            GenerateFullTextIndex(keyIndex);
+            return;
+        }
+
+        if (operation[SqlServerAnnotationNames.VectorIndexMetric] is string)
+        {
+            GenerateVectorIndex();
+            return;
+        }
+
+        var jsonIndex = operation[RelationalAnnotationNames.JsonIndex] as RelationalJsonIndex
+            ?? model?.GetRelationalModel()
+                .FindTable(operation.Table, operation.Schema)?
+                .Indexes.FirstOrDefault(i => i.Name == operation.Name)?[RelationalAnnotationNames.JsonIndex] as RelationalJsonIndex;
+        if (jsonIndex is not null)
+        {
+            GenerateJsonIndex(jsonIndex);
+            return;
+        }
+
         var table = model?.GetRelationalModel().FindTable(operation.Table, operation.Schema);
         var hasNullableColumns = operation.Columns.Any(c => table?.FindColumn(c)?.IsNullable != false);
 
@@ -817,6 +1031,122 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             builder
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator)
                 .EndCommand(suppressTransaction: memoryOptimized);
+        }
+
+        void GenerateFullTextIndex(string keyIndex)
+        {
+            builder.Append("CREATE FULLTEXT INDEX ON ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+                .Append("(");
+
+            var languages = (Dictionary<string, string>?)operation.FindAnnotation(SqlServerAnnotationNames.FullTextLanguages)?.Value;
+
+            for (var i = 0; i < operation.Columns.Length; i++)
+            {
+                if (i > 0)
+                {
+                    builder.Append(", ");
+                }
+
+                builder.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Columns[i]));
+
+                if (languages is not null && languages.TryGetValue(operation.Columns[i], out var language))
+                {
+                    builder.Append(" LANGUAGE ").Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(language));
+                }
+            }
+
+            builder.Append(") KEY INDEX ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(keyIndex));
+
+            if (operation[SqlServerAnnotationNames.FullTextCatalog] is string catalog)
+            {
+                builder.Append(" ON ").Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(catalog));
+            }
+
+            if (operation[SqlServerAnnotationNames.FullTextChangeTracking] is FullTextChangeTracking changeTracking)
+            {
+                builder.Append(" WITH CHANGE_TRACKING = ");
+                builder.Append(
+                    changeTracking switch
+                    {
+                        FullTextChangeTracking.Auto => "AUTO",
+                        FullTextChangeTracking.Manual => "MANUAL",
+                        FullTextChangeTracking.Off => "OFF",
+                        FullTextChangeTracking.OffNoPopulation => "OFF, NO POPULATION",
+
+                        _ => throw new UnreachableException(),
+                    });
+            }
+
+            if (terminate)
+            {
+                builder
+                    .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator)
+                    .EndCommand(suppressTransaction: true);
+            }
+        }
+
+        void GenerateVectorIndex()
+        {
+            builder.Append("CREATE VECTOR INDEX ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+                .Append(" ON ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+                .Append("(");
+            GenerateIndexColumnList(operation, model, builder);
+            builder.Append(")");
+
+            IndexOptions(operation, model, builder);
+
+            if (terminate)
+            {
+                builder
+                    .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator)
+                    .EndCommand(suppressTransaction: true);
+            }
+        }
+
+        void GenerateJsonIndex(RelationalJsonIndex jsonIndex)
+        {
+            var jsonColumn = jsonIndex.Elements[0].ContainingColumn.Name;
+            builder.Append("CREATE JSON INDEX ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+                .Append(" ON ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+                .Append("(")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(jsonColumn))
+                .Append(") FOR (");
+
+            var stringTypeMapping = Dependencies.TypeMappingSource.GetMapping(typeof(string));
+            for (var i = 0; i < jsonIndex.Elements.Count; i++)
+            {
+                if (i > 0)
+                {
+                    builder.Append(", ");
+                }
+
+                var element = jsonIndex.Elements[i];
+                // Add a trailing wildcard for the leaf JSON array
+                var segments = element is IRelationalJsonArray
+                    ? [.. element.Path, StructuredJsonPathSegment.Array]
+                    : element.Path;
+                builder.Append(
+                    stringTypeMapping.GenerateSqlLiteral(
+                        new StructuredJsonPath(segments, jsonIndex.CollectionIndices?[i])
+                            .ToString(wildcardForNullIndex: '*')));
+            }
+
+            builder.Append(")");
+
+            IndexOptions(operation, model, builder);
+
+            if (terminate)
+            {
+                builder
+                    .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator)
+                    .EndCommand(suppressTransaction: true);
+            }
         }
     }
 
@@ -1047,10 +1377,11 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
     {
         if (operation[SqlServerAnnotationNames.EditionOptions] is string editionOptions)
         {
+            var dbVariable = Uniquify("@db_name");
             builder
                 .AppendLine("BEGIN")
-                .AppendLine("DECLARE @db_name nvarchar(max) = DB_NAME();")
-                .AppendLine("EXEC(N'ALTER DATABASE [' + @db_name + '] MODIFY ( ")
+                .AppendLine($"DECLARE {dbVariable} nvarchar(max) = QUOTENAME(DB_NAME());")
+                .AppendLine($"EXEC(N'ALTER DATABASE ' + {dbVariable} + ' MODIFY ( ")
                 .Append(editionOptions.Replace("'", "''"))
                 .AppendLine(" );');")
                 .AppendLine("END")
@@ -1059,22 +1390,26 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
 
         if (operation.Collation != operation.OldDatabase.Collation)
         {
+            var dbVariable = Uniquify("@db_name");
             builder
                 .AppendLine("BEGIN")
-                .AppendLine("DECLARE @db_name nvarchar(max) = DB_NAME();");
+                .AppendLine($"DECLARE {dbVariable} nvarchar(max) = QUOTENAME(DB_NAME());");
 
+            var collation = operation.Collation;
             if (operation.Collation == null)
             {
-                builder.AppendLine("DECLARE @defaultCollation nvarchar(max) = CAST(SERVERPROPERTY('Collation') AS nvarchar(max));");
+                var collationVariable = Uniquify("@defaultCollation");
+                builder.AppendLine($"DECLARE {collationVariable} nvarchar(max) = CAST(SERVERPROPERTY('Collation') AS nvarchar(max));");
+                collation = "' + " + collationVariable + " + N'";
             }
 
             builder
-                .Append("EXEC(N'ALTER DATABASE [' + @db_name + '] COLLATE ")
-                .Append(operation.Collation ?? "' + @defaultCollation + N'")
-                .AppendLine(";');")
+                .AppendLine($"EXEC(N'ALTER DATABASE ' + {dbVariable} + ' COLLATE {collation};');")
                 .AppendLine("END")
                 .AppendLine();
         }
+
+        GenerateFullTextCatalogStatements(operation, builder);
 
         if (!IsMemoryOptimized(operation))
         {
@@ -1098,10 +1433,11 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
 
             using (builder.Indent())
             {
+                var dbVariable = Uniquify("@db_name");
                 builder
                     .AppendLine("BEGIN")
                     .AppendLine("ALTER DATABASE CURRENT SET AUTO_CLOSE OFF;")
-                    .AppendLine("DECLARE @db_name nvarchar(max) = DB_NAME();")
+                    .AppendLine($"DECLARE {dbVariable} nvarchar(max) = DB_NAME();")
                     .AppendLine("DECLARE @fg_name nvarchar(max);")
                     .AppendLine("SELECT TOP(1) @fg_name = [name] FROM [sys].[filegroups] WHERE [type] = N'FX';")
                     .AppendLine()
@@ -1111,20 +1447,21 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
                 {
                     builder
                         .AppendLine("BEGIN")
-                        .AppendLine("SET @fg_name = @db_name + N'_MODFG';")
-                        .AppendLine("EXEC(N'ALTER DATABASE CURRENT ADD FILEGROUP [' + @fg_name + '] CONTAINS MEMORY_OPTIMIZED_DATA;');")
+                        .AppendLine($"SET @fg_name = QUOTENAME({dbVariable} + N'_MODFG');")
+                        .AppendLine("EXEC(N'ALTER DATABASE CURRENT ADD FILEGROUP ' + @fg_name + ' CONTAINS MEMORY_OPTIMIZED_DATA;');")
                         .AppendLine("END");
                 }
 
+                var pathVariable = Uniquify("@path");
                 builder
                     .AppendLine()
-                    .AppendLine("DECLARE @path nvarchar(max);")
-                    .Append("SELECT TOP(1) @path = [physical_name] FROM [sys].[database_files] ")
+                    .AppendLine($"DECLARE {pathVariable} nvarchar(max);")
+                    .Append($"SELECT TOP(1) {pathVariable} = [physical_name] FROM [sys].[database_files] ")
                     .AppendLine("WHERE charindex('\\', [physical_name]) > 0 ORDER BY [file_id];")
-                    .AppendLine("IF (@path IS NULL)")
-                    .IncrementIndent().AppendLine("SET @path = '\\' + @db_name;").DecrementIndent()
+                    .AppendLine($"IF ({pathVariable} IS NULL)")
+                    .IncrementIndent().AppendLine($"SET {pathVariable} = '\\' + {dbVariable};").DecrementIndent()
                     .AppendLine()
-                    .AppendLine("DECLARE @filename nvarchar(max) = right(@path, charindex('\\', reverse(@path)) - 1);")
+                    .AppendLine($"DECLARE @filename nvarchar(max) = right({pathVariable}, charindex('\\', reverse({pathVariable})) - 1);")
                     .AppendLine(
                         "SET @filename = REPLACE(left(@filename, len(@filename) - charindex('.', reverse(@filename))), '''', '''''') + N'_MOD';")
                     .AppendLine(
@@ -1137,7 +1474,7 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
                     builder
                         .AppendLine("ALTER DATABASE CURRENT")
                         .AppendLine("ADD FILE (NAME=''' + @filename + ''', filename=''' + @new_path + ''')")
-                        .AppendLine("TO FILEGROUP [' + @fg_name + '];')");
+                        .AppendLine("TO FILEGROUP ' + @fg_name + ';')");
                 }
 
                 builder.AppendLine("END");
@@ -1157,6 +1494,79 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
         }
 
         builder.EndCommand(suppressTransaction: true);
+    }
+
+    private void GenerateFullTextCatalogStatements(
+        AlterDatabaseOperation operation,
+        MigrationCommandListBuilder builder)
+    {
+        var oldCatalogs = SqlServerFullTextCatalog.GetFullTextCatalogs(operation.OldDatabase).ToDictionary(c => c.Name, c => c);
+        var newCatalogs = SqlServerFullTextCatalog.GetFullTextCatalogs(operation).ToDictionary(c => c.Name, c => c);
+
+        // Drop removed catalogs
+        foreach (var (name, _) in oldCatalogs)
+        {
+            if (!newCatalogs.ContainsKey(name))
+            {
+                builder
+                    .Append("DROP FULLTEXT CATALOG ")
+                    .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(name))
+                    .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator)
+                    .AppendLine();
+            }
+        }
+
+        // Create added catalogs
+        foreach (var (name, catalog) in newCatalogs)
+        {
+            if (!oldCatalogs.ContainsKey(name))
+            {
+                builder.Append("CREATE FULLTEXT CATALOG ")
+                    .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(name));
+
+                if (!catalog.IsAccentSensitive)
+                {
+                    builder.Append(" WITH ACCENT_SENSITIVITY = OFF");
+                }
+
+                if (catalog.IsDefault)
+                {
+                    builder.Append(" AS DEFAULT");
+                }
+
+                builder
+                    .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator)
+                    .AppendLine();
+            }
+        }
+
+        // Alter changed catalogs
+        foreach (var (name, catalog) in newCatalogs)
+        {
+            if (oldCatalogs.TryGetValue(name, out var oldProps))
+            {
+                if (oldProps.IsAccentSensitive != catalog.IsAccentSensitive)
+                {
+                    builder
+                        .Append("ALTER FULLTEXT CATALOG ")
+                        .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(name))
+                        .Append(" REBUILD WITH ACCENT_SENSITIVITY = ")
+                        .Append(catalog.IsAccentSensitive ? "ON" : "OFF")
+                        .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator)
+                        .AppendLine();
+                }
+
+                if (!oldProps.IsDefault && catalog.IsDefault)
+                {
+                    builder
+                        .Append("ALTER FULLTEXT CATALOG ")
+                        .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(name))
+                        .Append(" AS DEFAULT")
+                        .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator)
+                        .AppendLine();
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -1239,6 +1649,22 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             throw new InvalidOperationException(SqlServerStrings.IndexTableRequired);
         }
 
+        if (operation[SqlServerAnnotationNames.FullTextIndex] is string)
+        {
+            builder
+                .Append("DROP FULLTEXT INDEX ON ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table!, operation.Schema));
+
+            if (terminate)
+            {
+                builder
+                    .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator)
+                    .EndCommand(suppressTransaction: true);
+            }
+
+            return;
+        }
+
         var memoryOptimized = IsMemoryOptimized(operation, model, operation.Schema, operation.Table);
         if (memoryOptimized)
         {
@@ -1279,7 +1705,9 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
         MigrationCommandListBuilder builder,
         bool terminate = true)
     {
-        DropDefaultConstraint(operation.Schema, operation.Table, operation.Name, builder);
+        var defaultConstraintName = operation[RelationalAnnotationNames.DefaultConstraintName] as string;
+
+        DropDefaultConstraint(operation.Schema, operation.Table, operation.Name, defaultConstraintName, builder);
         base.Generate(operation, model, builder, terminate: false);
 
         if (terminate)
@@ -1287,31 +1715,6 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             builder
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator)
                 .EndCommand(suppressTransaction: IsMemoryOptimized(operation, model, operation.Schema, operation.Table));
-        }
-
-        if (operation[SqlServerAnnotationNames.IsTemporal] as bool? == true)
-        {
-            var historyTableName = operation[SqlServerAnnotationNames.TemporalHistoryTableName] as string;
-            var historyTableSchema = operation[SqlServerAnnotationNames.TemporalHistoryTableSchema] as string
-                ?? operation.Schema ?? model?.GetDefaultSchema();
-            var periodStartColumnName = operation[SqlServerAnnotationNames.TemporalPeriodStartColumnName] as string;
-            var periodEndColumnName = operation[SqlServerAnnotationNames.TemporalPeriodEndColumnName] as string;
-
-            // when dropping column, we only need to drop the column from history table as well if that column is not part of the period
-            // for columns that are part of the period - if we are removing them from the temporal table, it means
-            // that we are converting back to a regular table, and the history table will be removed anyway
-            // so we don't need to keep it in sync
-            if (operation.Name != periodStartColumnName
-                && operation.Name != periodEndColumnName)
-            {
-                Generate(
-                    new DropColumnOperation
-                    {
-                        Name = operation.Name,
-                        Table = historyTableName!,
-                        Schema = historyTableSchema
-                    }, model, builder, terminate);
-            }
         }
     }
 
@@ -1337,6 +1740,15 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
         builder.EndCommand();
     }
 
+    private enum ParsingState
+    {
+        Normal,
+        InBlockComment,
+        InSquareBrackets,
+        InDoubleQuotes,
+        InQuotes
+    }
+
     /// <summary>
     ///     Builds commands for the given <see cref="SqlOperation" /> by making calls on the given
     ///     <see cref="MigrationCommandListBuilder" />, and then terminates the final command.
@@ -1346,47 +1758,98 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
     /// <param name="builder">The command builder to use to build the commands.</param>
     protected override void Generate(SqlOperation operation, IModel? model, MigrationCommandListBuilder builder)
     {
-        var batches = Regex.Split(
-            Regex.Replace(
-                operation.Sql,
-                @"\\\r?\n",
-                string.Empty,
-                default,
-                TimeSpan.FromMilliseconds(1000.0)),
-            @"^\s*(GO[ \t]+[0-9]+|GO)(?:\s+|$)",
-            RegexOptions.IgnoreCase | RegexOptions.Multiline,
-            TimeSpan.FromMilliseconds(1000.0));
-        for (var i = 0; i < batches.Length; i++)
+        if (Options.HasFlag(MigrationsSqlGenerationOptions.Script))
         {
-            if (batches[i].StartsWith("GO", StringComparison.OrdinalIgnoreCase)
-                || string.IsNullOrWhiteSpace(batches[i]))
+            builder.Append(operation.Sql);
+            if (!operation.Sql.EndsWith('\n'))
             {
-                continue;
+                builder.AppendLine();
             }
 
-            var count = 1;
-            if (i != batches.Length - 1
-                && batches[i + 1].StartsWith("GO", StringComparison.OrdinalIgnoreCase))
+            EndStatement(builder, operation.SuppressTransaction);
+            return;
+        }
+
+        var preBatched = operation.Sql
+            .Replace("\\\n", "")
+            .Replace("\\\r\n", "")
+            .Split(["\r\n", "\n"], StringSplitOptions.None);
+
+        var state = ParsingState.Normal;
+        var batchBuilder = new StringBuilder();
+        foreach (var line in preBatched)
+        {
+            var trimmed = line.TrimStart();
+
+            if (state == ParsingState.Normal
+                && trimmed.StartsWith("GO", StringComparison.OrdinalIgnoreCase)
+                && (trimmed.Length == 2
+                    || char.IsWhiteSpace(trimmed[2])))
             {
-                var match = Regex.Match(
-                    batches[i + 1], "([0-9]+)",
-                    default,
-                    TimeSpan.FromMilliseconds(1000.0));
-                if (match.Success)
+                var batch = batchBuilder.ToString();
+                batchBuilder.Clear();
+
+                var count = trimmed.Length >= 4
+                    && int.TryParse(trimmed.AsSpan(3), out var specifiedCount)
+                        ? specifiedCount
+                        : 1;
+
+                for (var j = 0; j < count; j++)
                 {
-                    count = int.Parse(match.Value);
+                    AppendBatch(batch);
                 }
             }
-
-            for (var j = 0; j < count; j++)
+            else
             {
-                builder.Append(batches[i]);
-
-                if (i == batches.Length - 1)
+                for (var i = 0; i < trimmed.Length; i++)
                 {
-                    builder.AppendLine();
+                    var c = trimmed[i];
+                    var next = i + 1 < trimmed.Length ? trimmed[i + 1] : '\0';
+
+                    if (state == ParsingState.Normal && c == '-' && next == '-')
+                    {
+                        goto LineEnd;
+                    }
+
+                    state = state switch
+                    {
+                        ParsingState.Normal when c == '\'' => ParsingState.InQuotes,
+                        ParsingState.Normal when c == '[' => ParsingState.InSquareBrackets,
+                        ParsingState.Normal when c == '"' => ParsingState.InDoubleQuotes,
+                        ParsingState.Normal when c == '/' && next == '*' => ConsumeAndReturn(ref i, ParsingState.InBlockComment),
+
+                        ParsingState.InQuotes when c == '\'' => ParsingState.Normal,
+
+                        ParsingState.InSquareBrackets when c == ']' && next == ']' => ConsumeAndReturn(
+                            ref i, ParsingState.InSquareBrackets),
+                        ParsingState.InSquareBrackets when c == ']' => ParsingState.Normal,
+
+                        ParsingState.InDoubleQuotes when c == '"' => ParsingState.Normal,
+
+                        ParsingState.InBlockComment when c == '*' && next == '/' => ConsumeAndReturn(ref i, ParsingState.Normal),
+
+                        _ => state
+                    };
                 }
 
+                LineEnd:
+                batchBuilder.AppendLine(line);
+            }
+        }
+
+        AppendBatch(batchBuilder.ToString());
+
+        ParsingState ConsumeAndReturn(ref int index, ParsingState newState)
+        {
+            index++;
+            return newState;
+        }
+
+        void AppendBatch(string batch)
+        {
+            if (!string.IsNullOrWhiteSpace(batch))
+            {
+                builder.Append(batch);
                 EndStatement(builder, operation.SuppressTransaction);
             }
         }
@@ -1409,10 +1872,14 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
         GenerateIdentityInsert(builder, operation, on: true, model);
 
         var sqlBuilder = new StringBuilder();
-        ((ISqlServerUpdateSqlGenerator)Dependencies.UpdateSqlGenerator).AppendBulkInsertOperation(
-            sqlBuilder,
-            GenerateModificationCommands(operation, model).ToList(),
-            0);
+
+        var modificationCommands = GenerateModificationCommands(operation, model).ToList();
+        var updateSqlGenerator = (ISqlServerUpdateSqlGenerator)Dependencies.UpdateSqlGenerator;
+
+        foreach (var batch in _commandBatchPreparer.CreateCommandBatches(modificationCommands, moreCommandSets: true))
+        {
+            updateSqlGenerator.AppendBulkInsertOperation(sqlBuilder, batch.ModificationCommands, commandPosition: 0);
+        }
 
         if (Options.HasFlag(MigrationsSqlGenerationOptions.Idempotent))
         {
@@ -1468,19 +1935,38 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
         => GenerateExecWhenIdempotent(builder, b => base.Generate(operation, model, b));
 
     /// <summary>
-    ///     Generates a SQL fragment configuring a sequence with the given options.
+    ///     Generates a SQL fragment for the named default constraint of a column.
     /// </summary>
-    /// <param name="schema">The schema that contains the sequence, or <see langword="null" /> to use the default schema.</param>
-    /// <param name="name">The sequence name.</param>
-    /// <param name="operation">The sequence options.</param>
-    /// <param name="model">The target model which may be <see langword="null" /> if the operations exist without a model.</param>
+    /// <param name="defaultValue">The default value for the column.</param>
+    /// <param name="defaultValueSql">The SQL expression to use for the column's default constraint.</param>
+    /// <param name="columnType">Store/database type of the column.</param>
     /// <param name="builder">The command builder to use to add the SQL fragment.</param>
+    /// <param name="constraintName">The constraint name to use to add the SQL fragment.</param>
+    protected virtual void DefaultValue(
+        object? defaultValue,
+        string? defaultValueSql,
+        string? columnType,
+        string? constraintName,
+        MigrationCommandListBuilder builder)
+    {
+        if (constraintName != null && (defaultValue != null || defaultValueSql != null))
+        {
+            builder
+                .Append(" CONSTRAINT ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(constraintName));
+        }
+
+        base.DefaultValue(defaultValue, defaultValueSql, columnType, builder);
+    }
+
+    /// <inheritdoc />
     protected override void SequenceOptions(
         string? schema,
         string name,
         SequenceOperation operation,
         IModel? model,
-        MigrationCommandListBuilder builder)
+        MigrationCommandListBuilder builder,
+        bool forAlter)
     {
         builder
             .Append(" INCREMENT BY ")
@@ -1492,7 +1978,7 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
                 .Append(" MINVALUE ")
                 .Append(IntegerConstant(operation.MinValue.Value));
         }
-        else
+        else if (forAlter)
         {
             builder.Append(" NO MINVALUE");
         }
@@ -1503,7 +1989,7 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
                 .Append(" MAXVALUE ")
                 .Append(IntegerConstant(operation.MaxValue.Value));
         }
-        else
+        else if (forAlter)
         {
             builder.Append(" NO MAXVALUE");
         }
@@ -1535,7 +2021,7 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             return;
         }
 
-        var columnType = operation.ColumnType ?? GetColumnType(schema, table, name, operation, model)!;
+        var columnType = operation.ColumnType ?? GetColumnType(schema, table, name, operation, model);
         builder
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(name))
             .Append(" ")
@@ -1543,6 +2029,18 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
 
         if (operation.Collation != null)
         {
+            // SQL Server collation docs: https://learn.microsoft.com/sql/relational-databases/collations/collation-and-unicode-support
+
+            // The default behavior in MigrationsSqlGenerator is to quote collation names, but SQL Server does not support that.
+            // Instead, make sure the collation name only contains a restricted set of characters.
+            foreach (var c in operation.Collation)
+            {
+                if (!char.IsLetterOrDigit(c) && c != '_')
+                {
+                    throw new InvalidOperationException(SqlServerStrings.InvalidCollationName(operation.Collation));
+                }
+            }
+
             builder
                 .Append(" COLLATE ")
                 .Append(operation.Collation);
@@ -1553,29 +2051,37 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             builder.Append(" SPARSE");
         }
 
-        var periodStartColumnName = operation[SqlServerAnnotationNames.TemporalPeriodStartColumnName] as string;
-        var periodEndColumnName = operation[SqlServerAnnotationNames.TemporalPeriodEndColumnName] as string;
+        var isPeriodStartColumn = (operation[SqlServerAnnotationNames.TemporalIsPeriodStartColumn] as bool?) == true;
+        var isPeriodEndColumn = (operation[SqlServerAnnotationNames.TemporalIsPeriodEndColumn] as bool?) == true;
 
-        if (name == periodStartColumnName
-            || name == periodEndColumnName)
+        if (isPeriodStartColumn || isPeriodEndColumn)
         {
             builder.Append(" GENERATED ALWAYS AS ROW ");
-            builder.Append(name == periodStartColumnName ? "START" : "END");
-            builder.Append(" HIDDEN");
+            builder.Append(isPeriodStartColumn ? "START" : "END");
+
+            // Defaults to true to preserve backward compatibility - the period columns have always been hidden.
+            // Set to false via TemporalPeriodPropertyBuilder.IsHidden(false).
+            var hidden = operation[SqlServerAnnotationNames.IsHidden] as bool? ?? true;
+            if (hidden)
+            {
+                builder.Append(" HIDDEN");
+            }
         }
 
         builder.Append(operation.IsNullable ? " NULL" : " NOT NULL");
+
+        var defaultConstraintName = operation[RelationalAnnotationNames.DefaultConstraintName] as string;
 
         if (!string.Equals(columnType, "rowversion", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(columnType, "timestamp", StringComparison.OrdinalIgnoreCase))
         {
             // rowversion/timestamp columns cannot have default values, but also don't need them when adding a new column.
-            DefaultValue(operation.DefaultValue, operation.DefaultValueSql, columnType, builder);
+            DefaultValue(operation.DefaultValue, operation.DefaultValueSql, columnType, defaultConstraintName, builder);
         }
 
         var identity = operation[SqlServerAnnotationNames.Identity] as string;
         if (identity != null
-            || operation[SqlServerAnnotationNames.ValueGenerationStrategy] as SqlServerValueGenerationStrategy?
+            || (operation[SqlServerAnnotationNames.ValueGenerationStrategy] as SqlServerValueGenerationStrategy?)
             == SqlServerValueGenerationStrategy.IdentityColumn)
         {
             builder.Append(" IDENTITY");
@@ -1614,16 +2120,16 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append(" AS ")
             .Append(operation.ComputedColumnSql!);
 
-        if (operation.IsStored == true)
-        {
-            builder.Append(" PERSISTED");
-        }
-
         if (operation.Collation != null)
         {
             builder
                 .Append(" COLLATE ")
                 .Append(operation.Collation);
+        }
+
+        if (operation.IsStored == true)
+        {
+            builder.Append(" PERSISTED");
         }
     }
 
@@ -1652,26 +2158,28 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
         string? type,
         MigrationCommandListBuilder builder)
     {
-        var stringTypeMapping = Dependencies.TypeMappingSource.GetMapping(typeof(string));
+        // Types come from https://learn.microsoft.com/sql/relational-databases/system-stored-procedures/sp-rename-transact-sql
+        var typeMappingSource = Dependencies.TypeMappingSource;
+        var nameTypeMapping = typeMappingSource.FindMapping(typeof(string), "nvarchar(776)")!;
 
         builder
             .Append("EXEC sp_rename ")
-            .Append(stringTypeMapping.GenerateSqlLiteral(name))
+            .Append(nameTypeMapping.GenerateSqlLiteral(name))
             .Append(", ")
-            .Append(stringTypeMapping.GenerateSqlLiteral(newName));
+            .Append(nameTypeMapping.GenerateSqlLiteral(newName));
 
         if (type != null)
         {
             builder
                 .Append(", ")
-                .Append(stringTypeMapping.GenerateSqlLiteral(type));
+                .Append(typeMappingSource.FindMapping(typeof(string), "varchar(13)")!.GenerateSqlLiteral(type));
         }
 
         builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
     }
 
     /// <summary>
-    ///     Generates a transfer from one schema to another..
+    ///     Generates a transfer from one schema to another.
     /// </summary>
     /// <param name="newSchema">The schema to transfer to.</param>
     /// <param name="schema">The schema to transfer from.</param>
@@ -1687,13 +2195,14 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             var stringTypeMapping = Dependencies.TypeMappingSource.GetMapping(typeof(string));
 
+            var schemaVariable = Uniquify("@defaultSchema");
             builder
-                .AppendLine("DECLARE @defaultSchema sysname = SCHEMA_NAME();")
+                .AppendLine($"DECLARE {schemaVariable} nvarchar(max) = QUOTENAME(SCHEMA_NAME());")
                 .Append("EXEC(")
-                .Append("N'ALTER SCHEMA [' + @defaultSchema + ")
+                .Append($"N'ALTER SCHEMA ' + {schemaVariable} + ")
                 .Append(
                     stringTypeMapping.GenerateSqlLiteral(
-                        "] TRANSFER " + Dependencies.SqlGenerationHelper.DelimitIdentifier(name, schema) + ";"))
+                        " TRANSFER " + Dependencies.SqlGenerationHelper.DelimitIdentifier(name, schema) + ";"))
                 .AppendLine(");");
         }
         else
@@ -1728,7 +2237,7 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
     /// <param name="operation">The operation.</param>
     /// <param name="model">The target model which may be <see langword="null" /> if the operations exist without a model.</param>
     /// <param name="builder">The command builder to use to add the SQL fragment.</param>
-    protected override void IndexOptions(CreateIndexOperation operation, IModel? model, MigrationCommandListBuilder builder)
+    protected override void IndexOptions(MigrationOperation operation, IModel? model, MigrationCommandListBuilder builder)
     {
         if (operation[SqlServerAnnotationNames.Include] is IReadOnlyList<string> includeColumns
             && includeColumns.Count > 0)
@@ -1747,38 +2256,36 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             builder.Append(")");
         }
 
-        if (!string.IsNullOrEmpty(operation.Filter))
+        if (operation is CreateIndexOperation createIndexOperation)
         {
-            builder
-                .Append(" WHERE ")
-                .Append(operation.Filter);
-        }
-        else if (UseLegacyIndexFilters(operation, model))
-        {
-            var table = model?.GetRelationalModel().FindTable(operation.Table, operation.Schema);
-            var nullableColumns = operation.Columns
-                .Where(c => table?.FindColumn(c)?.IsNullable != false)
-                .ToList();
-
-            builder.Append(" WHERE ");
-            for (var i = 0; i < nullableColumns.Count; i++)
+            if (!string.IsNullOrEmpty(createIndexOperation.Filter))
             {
-                if (i != 0)
-                {
-                    builder.Append(" AND ");
-                }
-
                 builder
-                    .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(nullableColumns[i]))
-                    .Append(" IS NOT NULL");
+                    .Append(" WHERE ")
+                    .Append(createIndexOperation.Filter);
+            }
+            else if (UseLegacyIndexFilters(createIndexOperation, model))
+            {
+                var table = model?.GetRelationalModel().FindTable(createIndexOperation.Table, createIndexOperation.Schema);
+                var nullableColumns = createIndexOperation.Columns
+                    .Where(c => table?.FindColumn(c)?.IsNullable != false)
+                    .ToList();
+
+                builder.Append(" WHERE ");
+                for (var i = 0; i < nullableColumns.Count; i++)
+                {
+                    if (i != 0)
+                    {
+                        builder.Append(" AND ");
+                    }
+
+                    builder
+                        .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(nullableColumns[i]))
+                        .Append(" IS NOT NULL");
+                }
             }
         }
 
-        IndexWithOptions(operation, builder);
-    }
-
-    private static void IndexWithOptions(CreateIndexOperation operation, MigrationCommandListBuilder builder)
-    {
         var options = new List<string>();
 
         if (operation[SqlServerAnnotationNames.FillFactor] is int fillFactor)
@@ -1789,6 +2296,48 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
         if (operation[SqlServerAnnotationNames.CreatedOnline] is bool isOnline && isOnline)
         {
             options.Add("ONLINE = ON");
+        }
+
+        if (operation[SqlServerAnnotationNames.SortInTempDb] is bool sortInTempDb && sortInTempDb)
+        {
+            options.Add("SORT_IN_TEMPDB = ON");
+        }
+
+        if (operation[SqlServerAnnotationNames.DataCompression] is DataCompressionType dataCompressionType)
+        {
+            options.Add(
+                "DATA_COMPRESSION = "
+                + dataCompressionType switch
+                {
+                    DataCompressionType.None => "NONE",
+                    DataCompressionType.Row => "ROW",
+                    DataCompressionType.Page => "PAGE",
+
+                    _ => throw new UnreachableException(),
+                });
+        }
+
+        // When this CreateIndexOperation was rewritten from a Drop+Create pair (an index facet
+        // changed and the index needs to be recreated), emit DROP_EXISTING = ON so SQL Server
+        // atomically replaces the index without leaving the table un-indexed during the rebuild.
+        // See #35067.
+        if (operation[SqlServerAnnotationNames.UseDropExisting] is true)
+        {
+            options.Add("DROP_EXISTING = ON");
+        }
+
+        // Vector index options.
+        // Note that the metric facet is mandatory, and used to determine if the index is a vector index.
+        if (operation[SqlServerAnnotationNames.VectorIndexMetric] is string vectorMetric)
+        {
+            var stringTypeMapping = Dependencies.TypeMappingSource.GetMapping("varchar(max)");
+
+            options.Add("METRIC = " + stringTypeMapping.GenerateSqlLiteral(vectorMetric));
+
+            if (operation[SqlServerAnnotationNames.VectorIndexType] is string vectorType)
+            {
+                options.Add("TYPE = " + stringTypeMapping.GenerateSqlLiteral(vectorType));
+            }
         }
 
         if (options.Count > 0)
@@ -1823,43 +2372,55 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
     /// <param name="schema">The schema that contains the table.</param>
     /// <param name="tableName">The table that contains the column.</param>
     /// <param name="columnName">The column.</param>
+    /// <param name="defaultConstraintName">The name of the default constraint.</param>
     /// <param name="builder">The command builder to use to add the SQL fragment.</param>
     protected virtual void DropDefaultConstraint(
         string? schema,
         string tableName,
         string columnName,
+        string? defaultConstraintName,
         MigrationCommandListBuilder builder)
     {
+        if (defaultConstraintName != null)
+        {
+            builder
+                .Append("ALTER TABLE ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(tableName, schema))
+                .Append(" DROP CONSTRAINT ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(defaultConstraintName))
+                .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+            return;
+        }
+
         var stringTypeMapping = Dependencies.TypeMappingSource.GetMapping(typeof(string));
 
-        var variable = "@var" + _variableCounter++;
+        var variable = Uniquify("@var");
 
         builder
             .Append("DECLARE ")
             .Append(variable)
-            .AppendLine(" sysname;")
+            .AppendLine(" nvarchar(max);")
             .Append("SELECT ")
             .Append(variable)
-            .AppendLine(" = [d].[name]")
-            .AppendLine("FROM [sys].[default_constraints] [d]")
-            .AppendLine(
-                "INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]")
-            .Append("WHERE ([d].[parent_object_id] = OBJECT_ID(")
+            .AppendLine(" = QUOTENAME(OBJECT_NAME([c].[default_object_id]))")
+            .AppendLine("FROM [sys].[columns] [c]")
+            .Append("WHERE [c].[object_id] = OBJECT_ID(")
             .Append(
                 stringTypeMapping.GenerateSqlLiteral(
                     Dependencies.SqlGenerationHelper.DelimitIdentifier(tableName, schema)))
             .Append(") AND [c].[name] = ")
             .Append(stringTypeMapping.GenerateSqlLiteral(columnName))
-            .AppendLine(");")
+            .AppendLine(";")
             .Append("IF ")
             .Append(variable)
             .Append(" IS NOT NULL EXEC(")
             .Append(
                 stringTypeMapping.GenerateSqlLiteral(
-                    "ALTER TABLE " + Dependencies.SqlGenerationHelper.DelimitIdentifier(tableName, schema) + " DROP CONSTRAINT ["))
+                    "ALTER TABLE " + Dependencies.SqlGenerationHelper.DelimitIdentifier(tableName, schema) + " DROP CONSTRAINT "))
             .Append(" + ")
             .Append(variable)
-            .Append(" + ']")
+            .Append(" + '")
             .Append(Dependencies.SqlGenerationHelper.StatementTerminator)
             .Append("')")
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
@@ -1897,6 +2458,10 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             }
             else if (index[SqlServerAnnotationNames.Include] is IReadOnlyList<string> includeColumns
                      && includeColumns.Contains(column.Name))
+            {
+                yield return index;
+            }
+            else if (index.Filter?.Contains(Dependencies.SqlGenerationHelper.DelimitIdentifier(column.Name)) == true)
             {
                 yield return index;
             }
@@ -1963,18 +2528,18 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
         string? column = null,
         bool omitVariableDeclarations = false)
     {
-        string schemaLiteral;
+        var schemaLiteral = Uniquify("@defaultSchema", increase: !omitVariableDeclarations);
+        var descriptionVariable = Uniquify("@description", increase: false);
+
         if (schema == null)
         {
             if (!omitVariableDeclarations)
             {
-                builder.Append("DECLARE @defaultSchema AS sysname")
+                builder.Append($"DECLARE {schemaLiteral} AS sysname")
                     .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-                builder.Append("SET @defaultSchema = SCHEMA_NAME()")
+                builder.Append($"SET {schemaLiteral} = SCHEMA_NAME()")
                     .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
             }
-
-            schemaLiteral = "@defaultSchema";
         }
         else
         {
@@ -1983,16 +2548,15 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
 
         if (!omitVariableDeclarations)
         {
-            builder.Append("DECLARE @description AS sql_variant")
+            builder.Append($"DECLARE {descriptionVariable} AS sql_variant")
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
         }
 
-        builder.Append("SET @description = ")
-            .Append(Literal(description))
+        builder.Append($"SET {descriptionVariable} = {Literal(description)}")
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
         builder
             .Append("EXEC sp_addextendedproperty 'MS_Description', ")
-            .Append("@description")
+            .Append(descriptionVariable)
             .Append(", 'SCHEMA', ")
             .Append(schemaLiteral)
             .Append(", 'TABLE', ")
@@ -2145,18 +2709,17 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
     {
         var stringTypeMapping = Dependencies.TypeMappingSource.GetMapping(typeof(string));
 
-        string schemaLiteral;
+        var schemaLiteral = Uniquify("@defaultSchema", increase: !omitVariableDeclarations);
+        var descriptionVariable = Uniquify("@description", increase: false);
         if (schema == null)
         {
             if (!omitVariableDeclarations)
             {
-                builder.Append("DECLARE @defaultSchema AS sysname")
+                builder.Append($"DECLARE {schemaLiteral} AS sysname")
                     .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-                builder.Append("SET @defaultSchema = SCHEMA_NAME()")
+                builder.Append($"SET {schemaLiteral} = SCHEMA_NAME()")
                     .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
             }
-
-            schemaLiteral = "@defaultSchema";
         }
         else
         {
@@ -2165,7 +2728,7 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
 
         if (!omitVariableDeclarations)
         {
-            builder.Append("DECLARE @description AS sql_variant")
+            builder.Append($"DECLARE {descriptionVariable} AS sql_variant")
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
         }
 
@@ -2208,15 +2771,47 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
 
     private static bool IsMemoryOptimized(Annotatable annotatable, IModel? model, string? schema, string tableName)
         => annotatable[SqlServerAnnotationNames.MemoryOptimized] as bool?
-            ?? model?.GetRelationalModel().FindTable(tableName, schema)?[SqlServerAnnotationNames.MemoryOptimized] as bool? == true;
+            ?? ((model?.GetRelationalModel().FindTable(tableName, schema)?[SqlServerAnnotationNames.MemoryOptimized] as bool?) == true);
 
     private static bool IsMemoryOptimized(Annotatable annotatable)
-        => annotatable[SqlServerAnnotationNames.MemoryOptimized] as bool? == true;
+        => (annotatable[SqlServerAnnotationNames.MemoryOptimized] as bool?) == true;
 
     private static bool IsIdentity(ColumnOperation operation)
         => operation[SqlServerAnnotationNames.Identity] != null
-            || operation[SqlServerAnnotationNames.ValueGenerationStrategy] as SqlServerValueGenerationStrategy?
+            || (operation[SqlServerAnnotationNames.ValueGenerationStrategy] as SqlServerValueGenerationStrategy?)
             == SqlServerValueGenerationStrategy.IdentityColumn;
+
+    // Named default constraints belong to the current table, so copied history-table operations
+    // must create or look up their own constraints rather than reuse the current table's name.
+    private static void RemoveDefaultConstraintNameAnnotation(ColumnOperation operation)
+        => operation.RemoveAnnotation(RelationalAnnotationNames.DefaultConstraintName);
+
+    private static void RemoveIdentityAnnotations(ColumnOperation operation)
+    {
+        operation.RemoveAnnotation(SqlServerAnnotationNames.Identity);
+
+        if ((operation[SqlServerAnnotationNames.ValueGenerationStrategy] as SqlServerValueGenerationStrategy?)
+            == SqlServerValueGenerationStrategy.IdentityColumn)
+        {
+            operation.RemoveAnnotation(SqlServerAnnotationNames.ValueGenerationStrategy);
+        }
+    }
+
+    private static bool TryParseIdentitySeedIncrement(ColumnOperation operation, out long seed, out long increment)
+    {
+        // The seed is a long (see UseIdentityColumn), so a bigint identity column can have a seed above the int range
+        if (operation[SqlServerAnnotationNames.Identity] is string seedIncrement
+            && seedIncrement.Split(",") is [var seedString, var incrementString]
+            && long.TryParse(seedString, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seedParsed)
+            && long.TryParse(incrementString, NumberStyles.Integer, CultureInfo.InvariantCulture, out var incrementParsed))
+        {
+            (seed, increment) = (seedParsed, incrementParsed);
+            return true;
+        }
+
+        (seed, increment) = (0, 0);
+        return false;
+    }
 
     private void GenerateExecWhenIdempotent(
         MigrationCommandListBuilder builder,
@@ -2260,17 +2855,392 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
         return count != targetAnnotations.Count;
     }
 
+    private string Uniquify(string variableName, bool increase = true)
+    {
+        if (increase)
+        {
+            _variableCounter++;
+        }
+
+        return _variableCounter == 0 ? variableName : variableName + _variableCounter;
+    }
+
+    private IReadOnlyList<MigrationOperation> RewriteDropAndCreateIndexAsDropExisting(
+        IReadOnlyList<MigrationOperation> migrationOperations,
+        IModel? model)
+    {
+        // The differ produces a DropIndexOperation + CreateIndexOperation pair when an index facet
+        // changes (e.g. fill factor, sort order, uniqueness, filter, columns). On SQL Server the
+        // pair can be collapsed into a single `CREATE INDEX ... WITH (DROP_EXISTING = ON)` which
+        // is more efficient: queries can continue using the old index while the new one is being
+        // built, instead of going un-indexed during the drop. See #35067.
+        //
+        // The collapse is only safe when the drop is IMMEDIATELY followed by the matching create.
+        // If anything sits between them (e.g. an AlterColumnOperation on the indexed column, which
+        // SQL Server only allows once the index is gone), removing the drop would re-introduce the
+        // old index before the intermediate operation runs and break the migration. The rewrite is
+        // also limited to non-special indexes (no memory-optimized, full-text or vector index,
+        // since those use different syntax/restrictions).
+
+        // Scan for adjacent (DropIndex, CreateIndex) pairs with matching identity.
+        var dropsToRemove = new HashSet<DropIndexOperation>();
+        for (var i = 0; i < migrationOperations.Count - 1; i++)
+        {
+            if (migrationOperations[i] is not DropIndexOperation dropOperation
+                || dropOperation.Table is null
+                || migrationOperations[i + 1] is not CreateIndexOperation createOperation
+                || createOperation.Table is null
+                || dropOperation.Name != createOperation.Name
+                || dropOperation.Table != createOperation.Table
+                || dropOperation.Schema != createOperation.Schema)
+            {
+                continue;
+            }
+
+            // operations[i + 1] is the matching create, so the next operation cannot be a
+            // DropIndexOperation and can't start another pair; advance past it.
+            i++;
+
+            // Skip special index types that don't support DROP_EXISTING.
+            if (createOperation[SqlServerAnnotationNames.FullTextIndex] is not null
+                || createOperation[SqlServerAnnotationNames.VectorIndexMetric] is not null
+                || IsMemoryOptimized(createOperation, model, createOperation.Schema, createOperation.Table))
+            {
+                continue;
+            }
+
+            createOperation.AddAnnotation(SqlServerAnnotationNames.UseDropExisting, true);
+            dropsToRemove.Add(dropOperation);
+        }
+
+        if (dropsToRemove.Count == 0)
+        {
+            return migrationOperations;
+        }
+
+        var resultOperations = new List<MigrationOperation>(migrationOperations.Count - dropsToRemove.Count);
+        foreach (var migrationOperation in migrationOperations)
+        {
+            if (migrationOperation is DropIndexOperation dropOperation && dropsToRemove.Contains(dropOperation))
+            {
+                continue;
+            }
+
+            resultOperations.Add(migrationOperation);
+        }
+
+        return resultOperations;
+    }
+
+    private IReadOnlyList<MigrationOperation> FixLegacyTemporalAnnotations(IReadOnlyList<MigrationOperation> migrationOperations)
+    {
+        // short-circuit for non-temporal migrations (which is the majority)
+        if (migrationOperations.All(o => (o[SqlServerAnnotationNames.IsTemporal] as bool?) != true))
+        {
+            return migrationOperations;
+        }
+
+        var resultOperations = new List<MigrationOperation>(migrationOperations.Count);
+        foreach (var migrationOperation in migrationOperations)
+        {
+            var isTemporal = (migrationOperation[SqlServerAnnotationNames.IsTemporal] as bool?) == true;
+            if (!isTemporal)
+            {
+                resultOperations.Add(migrationOperation);
+                continue;
+            }
+
+            switch (migrationOperation)
+            {
+                case CreateTableOperation createTableOperation:
+
+                    foreach (var column in createTableOperation.Columns)
+                    {
+                        NormalizeTemporalAnnotationsForAddColumnOperation(column);
+                    }
+
+                    resultOperations.Add(migrationOperation);
+                    break;
+
+                case AddColumnOperation addColumnOperation:
+                    NormalizeTemporalAnnotationsForAddColumnOperation(addColumnOperation);
+                    resultOperations.Add(addColumnOperation);
+                    break;
+
+                case AlterColumnOperation alterColumnOperation:
+                    RemoveLegacyTemporalColumnAnnotations(alterColumnOperation);
+                    RemoveLegacyTemporalColumnAnnotations(alterColumnOperation.OldColumn);
+                    if (!CanSkipAlterColumnOperation(alterColumnOperation, alterColumnOperation.OldColumn))
+                    {
+                        resultOperations.Add(alterColumnOperation);
+                    }
+
+                    break;
+
+                case DropColumnOperation dropColumnOperation:
+                    RemoveLegacyTemporalColumnAnnotations(dropColumnOperation);
+                    resultOperations.Add(dropColumnOperation);
+                    break;
+
+                case RenameColumnOperation renameColumnOperation:
+                    RemoveLegacyTemporalColumnAnnotations(renameColumnOperation);
+                    resultOperations.Add(renameColumnOperation);
+                    break;
+
+                default:
+                    resultOperations.Add(migrationOperation);
+                    break;
+            }
+        }
+
+        return resultOperations;
+
+        static void NormalizeTemporalAnnotationsForAddColumnOperation(AddColumnOperation addColumnOperation)
+        {
+            var periodStartColumnName = addColumnOperation[SqlServerAnnotationNames.TemporalPeriodStartColumnName] as string;
+            var periodEndColumnName = addColumnOperation[SqlServerAnnotationNames.TemporalPeriodEndColumnName] as string;
+            if (periodStartColumnName == addColumnOperation.Name)
+            {
+                addColumnOperation.AddAnnotation(SqlServerAnnotationNames.TemporalIsPeriodStartColumn, true);
+            }
+            else if (periodEndColumnName == addColumnOperation.Name)
+            {
+                addColumnOperation.AddAnnotation(SqlServerAnnotationNames.TemporalIsPeriodEndColumn, true);
+            }
+
+            RemoveLegacyTemporalColumnAnnotations(addColumnOperation);
+        }
+
+        static void RemoveLegacyTemporalColumnAnnotations(MigrationOperation operation)
+        {
+            operation.RemoveAnnotation(SqlServerAnnotationNames.IsTemporal);
+            operation.RemoveAnnotation(SqlServerAnnotationNames.TemporalHistoryTableName);
+            operation.RemoveAnnotation(SqlServerAnnotationNames.TemporalHistoryTableSchema);
+            operation.RemoveAnnotation(SqlServerAnnotationNames.TemporalPeriodStartColumnName);
+            operation.RemoveAnnotation(SqlServerAnnotationNames.TemporalPeriodEndColumnName);
+        }
+
+        static bool CanSkipAlterColumnOperation(ColumnOperation column, ColumnOperation oldColumn)
+            => ColumnPropertiesAreTheSame(column, oldColumn) && AnnotationsAreTheSame(column, oldColumn);
+
+        // don't compare name, table or schema - they are not being set in the model differ (since they should always be the same)
+        static bool ColumnPropertiesAreTheSame(ColumnOperation column, ColumnOperation oldColumn)
+            => column.ClrType == oldColumn.ClrType
+                && column.Collation == oldColumn.Collation
+                && column.ColumnType == oldColumn.ColumnType
+                && column.Comment == oldColumn.Comment
+                && column.ComputedColumnSql == oldColumn.ComputedColumnSql
+                && Equals(column.DefaultValue, oldColumn.DefaultValue)
+                && column.DefaultValueSql == oldColumn.DefaultValueSql
+                && column.IsDestructiveChange == oldColumn.IsDestructiveChange
+                && column.IsFixedLength == oldColumn.IsFixedLength
+                && column.IsNullable == oldColumn.IsNullable
+                && column.IsReadOnly == oldColumn.IsReadOnly
+                && column.IsRowVersion == oldColumn.IsRowVersion
+                && column.IsStored == oldColumn.IsStored
+                && column.IsUnicode == oldColumn.IsUnicode
+                && column.MaxLength == oldColumn.MaxLength
+                && column.Precision == oldColumn.Precision
+                && column.Scale == oldColumn.Scale;
+
+        static bool AnnotationsAreTheSame(ColumnOperation column, ColumnOperation oldColumn)
+        {
+            var columnAnnotations = column.GetAnnotations().ToList();
+            var oldColumnAnnotations = oldColumn.GetAnnotations().ToList();
+
+            return columnAnnotations.Count == oldColumnAnnotations.Count
+                && columnAnnotations.Zip(oldColumnAnnotations)
+                    .All(x => x.First.Name == x.Second.Name
+                        && StructuralComparisons.StructuralEqualityComparer.Equals(x.First.Value, x.Second.Value));
+        }
+    }
+
     private IReadOnlyList<MigrationOperation> RewriteOperations(
         IReadOnlyList<MigrationOperation> migrationOperations,
         IModel? model,
         MigrationsSqlGenerationOptions options)
     {
-        var operations = new List<MigrationOperation>();
+        migrationOperations = FixLegacyTemporalAnnotations(migrationOperations);
+        migrationOperations = RewriteDropAndCreateIndexAsDropExisting(migrationOperations, model);
 
-        var versioningMap = new Dictionary<(string?, string?), (string, string?, bool)>();
-        var periodMap = new Dictionary<(string?, string?), (string, string, bool)>();
+        var operations = new List<MigrationOperation>();
         var availableSchemas = new List<string>();
 
+        // we need to know temporal information for all the tables involved in the migration
+        // problem is, the temporal information is stored only on table operations and not column operations
+        // if migration operation doesn't contain the table operation, or the table operation comes later
+        // we don't know what we should do
+        // to fix that, we loop through all the operations and extract initial temporal state for relevant tables
+        // if we don't encounter any table operations, then we can take information from the model
+        // since migration hasn't changed it at all - be we can only know that after looping though all ops
+        // once we have the initial state of the table, we can update it each time we encounter a table operation
+        // and we can use what we stored when dealing with all other operations (that don't contain temporal annotations themselves)
+        var temporalTableInformationMap = new Dictionary<(string TableName, string? Schema), TemporalOperationInformation>();
+        var missingTemporalTableInformation = new List<(string TableName, string? Schema)>();
+
+        foreach (var operation in migrationOperations)
+        {
+            switch (operation)
+            {
+                case CreateTableOperation createTableOperation:
+                {
+                    var tableName = createTableOperation.Name;
+                    var rawSchema = createTableOperation.Schema;
+                    var schema = rawSchema ?? model?.GetDefaultSchema();
+                    if (!temporalTableInformationMap.ContainsKey((tableName, rawSchema)))
+                    {
+                        var temporalTableInformation = BuildTemporalInformationFromMigrationOperation(schema, createTableOperation);
+                        temporalTableInformationMap[(tableName, rawSchema)] = temporalTableInformation;
+                    }
+
+                    // no need to remove from missingTemporalTableInformation - CreateTable should be first operation for this table
+                    // so there can't be entry for it in missingTemporalTableInformation (they are added by other/earlier operations on that table)
+                    // the only possibility is that we had a table before, dropped it and now creating a new table with the same name
+                    // but in this case we would have generated the necessary information from the DropTableOperation
+                    // and also removed the missingTemporalTableInformation entry if there was one before
+                    break;
+                }
+
+                case DropTableOperation dropTableOperation:
+                {
+                    var tableName = dropTableOperation.Name;
+                    var rawSchema = dropTableOperation.Schema;
+                    var schema = rawSchema ?? model?.GetDefaultSchema();
+                    if (!temporalTableInformationMap.ContainsKey((tableName, rawSchema)))
+                    {
+                        var temporalTableInformation = BuildTemporalInformationFromMigrationOperation(schema, dropTableOperation);
+                        temporalTableInformationMap[(tableName, rawSchema)] = temporalTableInformation;
+                    }
+
+                    missingTemporalTableInformation.Remove((tableName, rawSchema));
+                    break;
+                }
+
+                case RenameTableOperation renameTableOperation:
+                {
+                    var tableName = renameTableOperation.Name;
+                    var rawSchema = renameTableOperation.Schema;
+                    var schema = rawSchema ?? model?.GetDefaultSchema();
+                    var newTableName = renameTableOperation.NewName!;
+                    var newRawSchema = renameTableOperation.NewSchema;
+                    var newSchema = newRawSchema ?? model?.GetDefaultSchema();
+
+                    var temporalTableInformation = BuildTemporalInformationFromMigrationOperation(schema, renameTableOperation);
+                    if (!temporalTableInformationMap.ContainsKey((tableName, rawSchema)))
+                    {
+                        temporalTableInformationMap[(tableName, rawSchema)] = temporalTableInformation;
+                    }
+
+                    // we still need to check here - table with the new name could have existed before and have been deleted
+                    // we want to preserve the original temporal info of that deleted table
+                    if (!temporalTableInformationMap.ContainsKey((newTableName, newRawSchema)))
+                    {
+                        temporalTableInformationMap[(newTableName, newRawSchema)] = temporalTableInformation;
+                    }
+
+                    missingTemporalTableInformation.Remove((tableName, rawSchema));
+                    missingTemporalTableInformation.Remove((newTableName, newRawSchema));
+
+                    break;
+                }
+
+                case AlterTableOperation alterTableOperation:
+                {
+                    var tableName = alterTableOperation.Name;
+                    var rawSchema = alterTableOperation.Schema;
+                    var schema = rawSchema ?? model?.GetDefaultSchema();
+                    if (!temporalTableInformationMap.ContainsKey((tableName, rawSchema)))
+                    {
+                        // we create the temporal info based on the OLD table here - we want the initial state
+                        var temporalTableInformation = BuildTemporalInformationFromMigrationOperation(schema, alterTableOperation.OldTable);
+
+                        // The period-column hidden flags reflect the user's intent for the NEW state of the table,
+                        // not the old state, so override them from the AlterTable operation itself when present.
+                        if (alterTableOperation[SqlServerAnnotationNames.TemporalPeriodStartHidden] is bool startHidden)
+                        {
+                            temporalTableInformation.PeriodStartHidden = startHidden;
+                        }
+
+                        if (alterTableOperation[SqlServerAnnotationNames.TemporalPeriodEndHidden] is bool endHidden)
+                        {
+                            temporalTableInformation.PeriodEndHidden = endHidden;
+                        }
+
+                        temporalTableInformationMap[(tableName, rawSchema)] = temporalTableInformation;
+                    }
+
+                    missingTemporalTableInformation.Remove((tableName, schema));
+                    break;
+                }
+
+                default:
+                {
+                    if (operation is ITableMigrationOperation tableMigrationOperation)
+                    {
+                        var tableName = tableMigrationOperation.Table;
+                        var rawSchema = tableMigrationOperation.Schema;
+                        if (!temporalTableInformationMap.ContainsKey((tableName, rawSchema))
+                            && !missingTemporalTableInformation.Contains((tableName, rawSchema)))
+                        {
+                            missingTemporalTableInformation.Add((tableName, rawSchema));
+                        }
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        // fill the missing temporal information from Relational Model - it's the second best source we have
+        // if we can't figure out proper temporal info from table annotations,
+        // and we don't have it in relational model (for whatever reason) we assume table is not temporal
+        // this last step is purely defensive and shouldn't happen in real situations
+        foreach (var (TableName, Schema) in missingTemporalTableInformation)
+        {
+            var table = model?.GetRelationalModel().FindTable(TableName, Schema)!;
+            if (table != null)
+            {
+                var schema = Schema ?? model?.GetDefaultSchema();
+
+                var temporalTableInformation = BuildTemporalInformationFromMigrationOperation(schema, table);
+                temporalTableInformationMap[(TableName, Schema)] = temporalTableInformation;
+            }
+            else
+            {
+                temporalTableInformationMap[(TableName, Schema)] = new TemporalOperationInformation
+                {
+                    IsTemporalTable = false,
+                    HistoryTableName = null,
+                    HistoryTableSchema = null,
+                    PeriodStartColumnName = null,
+                    PeriodEndColumnName = null
+                };
+            }
+        }
+
+        var historyTables = new HashSet<(string Name, string? Schema)>(
+            temporalTableInformationMap.Values
+                .Where(t => t.IsTemporalTable && t.HistoryTableName != null)
+                .Select(t => (t.HistoryTableName!, t.HistoryTableSchema)));
+
+        if (model != null)
+        {
+            foreach (var table in model.GetRelationalModel().Tables)
+            {
+                if ((table[SqlServerAnnotationNames.IsTemporal] as bool?) == true
+                    && table[SqlServerAnnotationNames.TemporalHistoryTableName] is string modelHistoryTableName)
+                {
+                    var modelHistoryTableSchema =
+                        table[SqlServerAnnotationNames.TemporalHistoryTableSchema] as string;
+                    historyTables.Add((modelHistoryTableName, modelHistoryTableSchema));
+                }
+            }
+        }
+
+        // now we do proper processing - for table operations we look at the annotations on them
+        // and continuously update the stored temporal info as the table is being modified
+        // for column (and other) operations we don't have annotations on them, so we look into the
+        // information we stored in the initial pass and updated in when processing table ops that happened earlier
         foreach (var operation in migrationOperations)
         {
             if (operation is EnsureSchemaOperation ensureSchemaOperation)
@@ -2278,86 +3248,149 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
                 availableSchemas.Add(ensureSchemaOperation.Name);
             }
 
-            var isTemporal = operation[SqlServerAnnotationNames.IsTemporal] as bool? == true;
-            if (isTemporal)
+            if (operation is not ITableMigrationOperation tableMigrationOperation)
             {
-                string? table = null;
-                string? schema = null;
+                operations.Add(operation);
+                continue;
+            }
 
-                if (operation is ITableMigrationOperation tableMigrationOperation)
+            var tableName = tableMigrationOperation.Table;
+            var rawSchema = tableMigrationOperation.Schema;
+
+            var suppressTransaction = IsMemoryOptimized(operation, model, rawSchema, tableName);
+
+            var schema = rawSchema ?? model?.GetDefaultSchema();
+
+            TemporalOperationInformation temporalInformation;
+            if (operation is CreateTableOperation)
+            {
+                // for create table we always generate new temporal information from the operation itself
+                // just in case there was a table with that name before that got deleted/renamed
+                // also, temporal state (disabled versioning etc.) should always reset when creating a table
+                temporalInformation = BuildTemporalInformationFromMigrationOperation(schema, operation);
+                temporalTableInformationMap[(tableName, rawSchema)] = temporalInformation;
+            }
+            else
+            {
+                temporalInformation = temporalTableInformationMap[(tableName, rawSchema)];
+            }
+
+            switch (operation)
+            {
+                case CreateTableOperation createTableOperation:
                 {
-                    table = tableMigrationOperation.Table;
-                    schema = tableMigrationOperation.Schema;
+                    // for create table we always generate new temporal information from the operation itself
+                    // just in case there was a table with that name before that got deleted/renamed
+                    // this shouldn't happen as we re-use existing tables rather than drop/recreate
+                    // but we are being extra defensive here
+                    // and also, temporal state (disabled versioning etc.) should always reset when creating a table
+                    temporalInformation = BuildTemporalInformationFromMigrationOperation(schema, createTableOperation);
+
+                    if (temporalInformation.IsTemporalTable
+                        && temporalInformation.HistoryTableSchema != schema
+                        && temporalInformation.HistoryTableSchema != null
+                        && !availableSchemas.Contains(temporalInformation.HistoryTableSchema))
+                    {
+                        operations.Add(new EnsureSchemaOperation { Name = temporalInformation.HistoryTableSchema });
+                        availableSchemas.Add(temporalInformation.HistoryTableSchema);
+                    }
+
+                    operations.Add(operation);
+
+                    break;
                 }
 
-                var suppressTransaction = table is not null && IsMemoryOptimized(operation, model, schema, table);
-
-                schema ??= model?.GetDefaultSchema();
-                var historyTableName = operation[SqlServerAnnotationNames.TemporalHistoryTableName] as string;
-                var historyTableSchema = operation[SqlServerAnnotationNames.TemporalHistoryTableSchema] as string
-                    ?? schema;
-                var periodStartColumnName = operation[SqlServerAnnotationNames.TemporalPeriodStartColumnName] as string;
-                var periodEndColumnName = operation[SqlServerAnnotationNames.TemporalPeriodEndColumnName] as string;
-
-                switch (operation)
+                case DropTableOperation dropTableOperation:
                 {
-                    case CreateTableOperation createTableOperation:
-                        if (historyTableSchema != createTableOperation.Schema
-                            && historyTableSchema != null
-                            && !availableSchemas.Contains(historyTableSchema))
+                    var isTemporalTable = (dropTableOperation[SqlServerAnnotationNames.IsTemporal] as bool?) == true;
+                    if (isTemporalTable)
+                    {
+                        // if we don't have temporal information, but we know table is temporal
+                        // (based on the annotation found on the operation itself)
+                        // we assume that versioning must be disabled, if we have temporal info we can check properly
+                        if (temporalInformation is null || !temporalInformation.DisabledVersioning)
                         {
-                            operations.Add(new EnsureSchemaOperation { Name = historyTableSchema });
-                            availableSchemas.Add(historyTableSchema);
+                            AddDisableVersioningOperation(tableName, schema, suppressTransaction);
+                        }
+
+                        if (temporalInformation is not null)
+                        {
+                            temporalInformation.ShouldEnableVersioning = false;
+                            temporalInformation.ShouldEnablePeriod = false;
                         }
 
                         operations.Add(operation);
-                        break;
 
-                    case DropTableOperation:
-                        DisableVersioning(table!, schema, historyTableName!, historyTableSchema, suppressTransaction);
+                        var historyTableName = dropTableOperation[SqlServerAnnotationNames.TemporalHistoryTableName] as string;
+                        var historyTableSchema =
+                            dropTableOperation[SqlServerAnnotationNames.TemporalHistoryTableSchema] as string ?? schema;
+                        var dropHistoryTableOperation = new DropTableOperation { Name = historyTableName!, Schema = historyTableSchema };
+                        operations.Add(dropHistoryTableOperation);
+                    }
+                    else
+                    {
                         operations.Add(operation);
+                    }
 
-                        versioningMap.Remove((table, schema));
-                        periodMap.Remove((table, schema));
-                        break;
+                    // we removed the table, so we no longer need it's temporal information
+                    // there will be no more operations involving this table
+                    temporalTableInformationMap.Remove((tableName, rawSchema));
 
-                    case RenameTableOperation renameTableOperation:
-                        DisableVersioning(table!, schema, historyTableName!, historyTableSchema, suppressTransaction);
-                        operations.Add(operation);
+                    break;
+                }
 
-                        // since table was renamed, remove old entry and add new entry
-                        // marked as versioning disabled, so we enable it in the end for the new table
-                        versioningMap.Remove((table, schema));
-                        versioningMap[(renameTableOperation.NewName, renameTableOperation.NewSchema)] =
-                            (historyTableName!, historyTableSchema, suppressTransaction);
+                case RenameTableOperation renameTableOperation:
+                {
+                    temporalInformation ??= BuildTemporalInformationFromMigrationOperation(schema, renameTableOperation);
 
-                        // same thing for disabled system period - remove one associated with old table and add one for the new table
-                        if (periodMap.TryGetValue((table, schema), out var result))
+                    var isTemporalTable = (renameTableOperation[SqlServerAnnotationNames.IsTemporal] as bool?) == true;
+                    if (isTemporalTable)
+                    {
+                        DisableVersioning(
+                            tableName,
+                            schema,
+                            temporalInformation,
+                            suppressTransaction,
+                            shouldEnableVersioning: true);
+                    }
+
+                    operations.Add(operation);
+
+                    // since table was renamed, update entry in the temporal info map
+                    temporalTableInformationMap[(renameTableOperation.NewName!, renameTableOperation.NewSchema)] = temporalInformation;
+                    temporalTableInformationMap.Remove((tableName, rawSchema));
+
+                    break;
+                }
+
+                case AlterTableOperation alterTableOperation:
+                {
+                    var isTemporalTable = (alterTableOperation[SqlServerAnnotationNames.IsTemporal] as bool?) == true;
+                    var historyTableName = alterTableOperation[SqlServerAnnotationNames.TemporalHistoryTableName] as string;
+                    var historyTableSchema = alterTableOperation[SqlServerAnnotationNames.TemporalHistoryTableSchema] as string ?? schema;
+                    var periodStartColumnName = alterTableOperation[SqlServerAnnotationNames.TemporalPeriodStartColumnName] as string;
+                    var periodEndColumnName = alterTableOperation[SqlServerAnnotationNames.TemporalPeriodEndColumnName] as string;
+
+                    var oldIsTemporalTable = (alterTableOperation.OldTable[SqlServerAnnotationNames.IsTemporal] as bool?) == true;
+                    var oldHistoryTableName =
+                        alterTableOperation.OldTable[SqlServerAnnotationNames.TemporalHistoryTableName] as string;
+                    var oldHistoryTableSchema =
+                        alterTableOperation.OldTable[SqlServerAnnotationNames.TemporalHistoryTableSchema] as string
+                        ?? alterTableOperation.OldTable.Schema
+                        ?? model?[RelationalAnnotationNames.DefaultSchema] as string;
+
+                    if (isTemporalTable)
+                    {
+                        if (!oldIsTemporalTable)
                         {
-                            periodMap.Remove((table, schema));
-                            periodMap[(renameTableOperation.NewName, renameTableOperation.NewSchema)] = result;
-                        }
-
-                        break;
-
-                    case AlterTableOperation alterTableOperation:
-                        var oldIsTemporal = alterTableOperation.OldTable[SqlServerAnnotationNames.IsTemporal] as bool? == true;
-                        if (!oldIsTemporal)
-                        {
-                            periodMap[(alterTableOperation.Name, alterTableOperation.Schema)] =
-                                (periodStartColumnName!, periodEndColumnName!, suppressTransaction);
-                            versioningMap[(alterTableOperation.Name, alterTableOperation.Schema)] =
-                                (historyTableName!, historyTableSchema, suppressTransaction);
+                            // converting from regular table to temporal table - enable period and versioning at the end
+                            // other temporal information (history table, period columns etc) is added below
+                            temporalInformation.ShouldEnablePeriod = true;
+                            temporalInformation.ShouldEnableVersioning = true;
                         }
                         else
                         {
-                            var oldHistoryTableName =
-                                alterTableOperation.OldTable[SqlServerAnnotationNames.TemporalHistoryTableName] as string;
-                            var oldHistoryTableSchema =
-                                alterTableOperation.OldTable[SqlServerAnnotationNames.TemporalHistoryTableSchema] as string
-                                ?? alterTableOperation.OldTable.Schema
-                                ?? model?[RelationalAnnotationNames.DefaultSchema] as string;
-
+                            // changing something within temporal table
                             if (oldHistoryTableName != historyTableName
                                 || oldHistoryTableSchema != historyTableSchema)
                             {
@@ -2377,244 +3410,444 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
                                         NewSchema = historyTableSchema
                                     });
 
-                                if (versioningMap.ContainsKey((alterTableOperation.Name, alterTableOperation.Schema)))
-                                {
-                                    versioningMap[(alterTableOperation.Name, alterTableOperation.Schema)] =
-                                        (historyTableName!, historyTableSchema, suppressTransaction);
-                                }
+                                temporalInformation.HistoryTableName = historyTableName;
+                                temporalInformation.HistoryTableSchema = historyTableSchema;
                             }
                         }
-
-                        operations.Add(operation);
-                        break;
-
-                    case AlterColumnOperation alterColumnOperation:
-                        // if only difference is in temporal annotations being removed or history table changed etc - we can ignore this operation
-                        if (!CanSkipAlterColumnOperation(alterColumnOperation.OldColumn, alterColumnOperation))
+                    }
+                    else
+                    {
+                        if (oldIsTemporalTable)
                         {
-                            operations.Add(operation);
+                            // converting from temporal table to regular table
+                            var oldPeriodStartColumnName =
+                                alterTableOperation.OldTable[SqlServerAnnotationNames.TemporalPeriodStartColumnName] as string;
+                            var oldPeriodEndColumnName =
+                                alterTableOperation.OldTable[SqlServerAnnotationNames.TemporalPeriodEndColumnName] as string;
 
-                            // when modifying a period column, we need to perform the operations as a normal column first, and only later enable period
-                            // removing the period information now, so that when we generate SQL that modifies the column we won't be making them auto generated as period
-                            // (making column auto generated is not allowed in ALTER COLUMN statement)
-                            // in later operation we enable the period and the period columns get set to auto generated automatically
-                            //
-                            // if the column is not period we just remove temporal information - it's no longer needed and could affect the generated sql
-                            // we will generate all the necessary operations involved with temporal tables here
-                            alterColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.IsTemporal);
-                            alterColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.TemporalPeriodStartColumnName);
-                            alterColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.TemporalPeriodEndColumnName);
-                            alterColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.TemporalHistoryTableName);
-                            alterColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.TemporalHistoryTableSchema);
+                            DisableVersioning(
+                                tableName,
+                                schema,
+                                temporalInformation,
+                                suppressTransaction,
+                                shouldEnableVersioning: null);
 
-                            // this is the case where we are not converting from normal table to temporal
-                            // just a normal modification to a column on a temporal table
-                            // in that case we need to double check if we need have disabled versioning earlier in this migration
-                            // if so, we need to mirror the operation to the history table
-                            if (alterColumnOperation.OldColumn[SqlServerAnnotationNames.IsTemporal] as bool? == true)
+                            if (!temporalInformation.DisabledPeriod)
                             {
-                                alterColumnOperation.OldColumn.RemoveAnnotation(SqlServerAnnotationNames.IsTemporal);
-                                alterColumnOperation.OldColumn.RemoveAnnotation(SqlServerAnnotationNames.TemporalPeriodStartColumnName);
-                                alterColumnOperation.OldColumn.RemoveAnnotation(SqlServerAnnotationNames.TemporalPeriodEndColumnName);
-                                alterColumnOperation.OldColumn.RemoveAnnotation(SqlServerAnnotationNames.TemporalHistoryTableName);
-                                alterColumnOperation.OldColumn.RemoveAnnotation(SqlServerAnnotationNames.TemporalHistoryTableSchema);
-
-                                if (versioningMap.ContainsKey((table, schema)))
-                                {
-                                    var alterHistoryTableColumn = CopyColumnOperation<AlterColumnOperation>(alterColumnOperation);
-                                    alterHistoryTableColumn.Table = historyTableName!;
-                                    alterHistoryTableColumn.Schema = historyTableSchema;
-                                    alterHistoryTableColumn.OldColumn = CopyColumnOperation<AddColumnOperation>(alterColumnOperation.OldColumn);
-                                    alterHistoryTableColumn.OldColumn.Table = historyTableName!;
-                                    alterHistoryTableColumn.OldColumn.Schema = historyTableSchema;
-
-                                    operations.Add(alterHistoryTableColumn);
-                                }
-
-                                // TODO: test what happens if default value just changes (from temporal to temporal)
+                                DisablePeriod(tableName, schema, temporalInformation, suppressTransaction);
                             }
+
+                            if (oldHistoryTableName != null)
+                            {
+                                operations.Add(new DropTableOperation { Name = oldHistoryTableName, Schema = oldHistoryTableSchema });
+                            }
+
+                            // also clear any pending versioning/period, that would be switched on at the end
+                            // we don't need it now that the table is no longer temporal
+                            temporalInformation.ShouldEnableVersioning = false;
+                            temporalInformation.ShouldEnablePeriod = false;
                         }
+                    }
 
-                        break;
+                    temporalInformation.IsTemporalTable = isTemporalTable;
+                    temporalInformation.HistoryTableName = historyTableName;
+                    temporalInformation.HistoryTableSchema = historyTableSchema;
+                    temporalInformation.PeriodStartColumnName = periodStartColumnName;
+                    temporalInformation.PeriodEndColumnName = periodEndColumnName;
 
-                    case DropPrimaryKeyOperation:
-                    case AddPrimaryKeyOperation:
-                        DisableVersioning(table!, schema, historyTableName!, historyTableSchema, suppressTransaction);
-                        operations.Add(operation);
-                        break;
+                    if (isTemporalTable && historyTableName != null)
+                    {
+                        historyTables.Add((historyTableName, historyTableSchema));
+                    }
 
-                    case DropColumnOperation dropColumnOperation:
-                        DisableVersioning(table!, schema, historyTableName!, historyTableSchema, suppressTransaction);
-                        if (dropColumnOperation.Name == periodStartColumnName
-                            || dropColumnOperation.Name == periodEndColumnName)
+                    operations.Add(operation);
+                    break;
+                }
+
+                case AddColumnOperation addColumnOperation:
+                {
+                    // when adding a period column, we need to add it as a normal column first, and only later enable period
+                    // removing the period information now, so that when we generate SQL that adds the column we won't be making them
+                    // auto generated as period it won't work, unless period is enabled but we can't enable period without adding the
+                    // columns first - chicken and egg
+                    if (temporalInformation.IsTemporalTable)
+                    {
+                        addColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.TemporalIsPeriodStartColumn);
+                        addColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.TemporalIsPeriodEndColumn);
+                        addColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.IsHidden);
+
+                        // model differ adds default value, but for period end we need to replace it with the correct one -
+                        // DateTime.MaxValue
+                        if (addColumnOperation.Name == temporalInformation.PeriodEndColumnName)
                         {
-                            // period columns can be null here - it doesn't really matter since we are never enabling the period back
-                            // if we remove the period columns, it means we will be dropping the table also or at least convert it back to
-                            // regular which will clear the entry in the periodMap for this table
-                            DisablePeriod(table!, schema, periodStartColumnName!, periodEndColumnName!, suppressTransaction);
+                            addColumnOperation.DefaultValue = DateTime.MaxValue;
                         }
 
-                        operations.Add(operation);
+                        var isSparse = (addColumnOperation[SqlServerAnnotationNames.Sparse] as bool?) == true;
+                        var isComputed = addColumnOperation.ComputedColumnSql != null;
 
-                        break;
+                        if (isSparse || isComputed)
+                        {
+                            DisableVersioning(
+                                tableName,
+                                schema,
+                                temporalInformation,
+                                suppressTransaction,
+                                shouldEnableVersioning: true);
+                        }
 
-                    case AddColumnOperation addColumnOperation:
+                        // when adding sparse column to temporal table, we need to disable versioning.
+                        // This is because it may be the case that HistoryTable is using compression (by default)
+                        // and the add column operation fails in that situation
+                        // in order to make it work we need to disable versioning (if we haven't done it already)
+                        // and de-compress the HistoryTable
+                        if (isSparse)
+                        {
+                            DecompressTable(
+                                temporalInformation.HistoryTableName!, temporalInformation.HistoryTableSchema, suppressTransaction);
+                        }
+
+                        if (addColumnOperation.ComputedColumnSql != null)
+                        {
+                            DisableVersioning(
+                                tableName,
+                                schema,
+                                temporalInformation,
+                                suppressTransaction,
+                                shouldEnableVersioning: true);
+                        }
+
                         operations.Add(addColumnOperation);
 
-                        // when adding a period column, we need to add it as a normal column first, and only later enable period
-                        // removing the period information now, so that when we generate SQL that adds the column we won't be making them
-                        // auto generated as period it won't work, unless period is enabled but we can't enable period without adding the
-                        // columns first - chicken and egg
-                        if (addColumnOperation[SqlServerAnnotationNames.IsTemporal] as bool? == true)
+                        // when adding (non-period) column to an existing temporal table we need to check if we have disabled versioning
+                        // due to some other operations in the same migration (e.g. delete column)
+                        // if so, we need to also add the same column to history table
+                        if (addColumnOperation.Name != temporalInformation.PeriodStartColumnName
+                            && addColumnOperation.Name != temporalInformation.PeriodEndColumnName
+                            && temporalInformation.DisabledVersioning)
                         {
-                            addColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.IsTemporal);
-                            addColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.TemporalHistoryTableName);
-                            addColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.TemporalHistoryTableSchema);
-                            addColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.TemporalPeriodStartColumnName);
-                            addColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.TemporalPeriodEndColumnName);
+                            var addHistoryTableColumnOperation = CopyColumnOperation<AddColumnOperation>(addColumnOperation);
+                            addHistoryTableColumnOperation.Table = temporalInformation.HistoryTableName!;
+                            addHistoryTableColumnOperation.Schema = temporalInformation.HistoryTableSchema;
 
-                            // model differ adds default value, but for period end we need to replace it with the correct one -
-                            // DateTime.MaxValue
-                            if (addColumnOperation.Name == periodEndColumnName)
+                            if (addHistoryTableColumnOperation.ComputedColumnSql != null)
                             {
-                                addColumnOperation.DefaultValue = DateTime.MaxValue;
+                                // computed columns are not allowed inside HistoryTables
+                                // but the historical computed value will be copied over to the non-computed counterpart,
+                                // as long as their names and types (including nullability) match
+                                // so we remove ComputedColumnSql info, so that the column in history table "appears normal"
+                                addHistoryTableColumnOperation.ComputedColumnSql = null;
                             }
 
-                            // when adding (non-period) column to an exisiting temporal table we need to check if we have disabled the period
-                            // due to some other operations in the same migration (e.g. delete column)
-                            // if so, we need to also add the same column to history table
-                            if (addColumnOperation.Name != periodStartColumnName
-                                && addColumnOperation.Name != periodEndColumnName)
-                            {
-                                if (versioningMap.ContainsKey((table, schema)))
+                            // identity columns are not allowed inside HistoryTables
+                            RemoveIdentityAnnotations(addHistoryTableColumnOperation);
+
+                            RemoveDefaultConstraintNameAnnotation(addHistoryTableColumnOperation);
+
+                            operations.Add(addHistoryTableColumnOperation);
+                        }
+                    }
+                    else
+                    {
+                        // identity columns are not allowed inside HistoryTables
+                        if (historyTables.Contains((tableName, schema)))
+                        {
+                            RemoveIdentityAnnotations(addColumnOperation);
+                        }
+
+                        operations.Add(addColumnOperation);
+                    }
+
+                    break;
+                }
+
+                case DropColumnOperation dropColumnOperation:
+                {
+                    if (temporalInformation.IsTemporalTable)
+                    {
+                        var droppingPeriodColumn = dropColumnOperation.Name == temporalInformation.PeriodStartColumnName
+                            || dropColumnOperation.Name == temporalInformation.PeriodEndColumnName;
+
+                        // if we are dropping non-period column, we should enable versioning at the end.
+                        // When dropping period column there is no need - we are removing the versioning for this table altogether
+                        DisableVersioning(
+                            tableName,
+                            schema,
+                            temporalInformation,
+                            suppressTransaction,
+                            shouldEnableVersioning: droppingPeriodColumn ? null : true);
+
+                        if (droppingPeriodColumn && !temporalInformation.DisabledPeriod)
+                        {
+                            DisablePeriod(tableName, schema, temporalInformation, suppressTransaction);
+
+                            // if we remove the period columns, it means we will be dropping the table
+                            // also or at least convert it back to regular - no need to enable period later
+                            temporalInformation.ShouldEnablePeriod = false;
+                        }
+
+                        operations.Add(operation);
+
+                        if (!droppingPeriodColumn)
+                        {
+                            operations.Add(
+                                new DropColumnOperation
                                 {
-                                    var addHistoryTableColumnOperation = CopyColumnOperation<AddColumnOperation>(addColumnOperation);
-                                    addHistoryTableColumnOperation.Table = historyTableName!;
-                                    addHistoryTableColumnOperation.Schema = historyTableSchema;
-
-                                    operations.Add(addHistoryTableColumnOperation);
-                                }
-                            }
+                                    Name = dropColumnOperation.Name,
+                                    Table = temporalInformation.HistoryTableName!,
+                                    Schema = temporalInformation.HistoryTableSchema
+                                });
                         }
+                    }
+                    else
+                    {
+                        operations.Add(operation);
+                    }
 
-                        break;
+                    break;
+                }
 
-                    case RenameColumnOperation renameColumnOperation:
-                        operations.Add(renameColumnOperation);
+                case RenameColumnOperation renameColumnOperation:
+                {
+                    operations.Add(renameColumnOperation);
 
-                        // if we disabled period for the temporal table and now we are renaming the column,
-                        // we need to also rename this same column in history table
-                        if (versioningMap.ContainsKey((table, schema)))
+                    // if we disabled period for the temporal table and now we are renaming the column,
+                    // we need to also rename this same column in history table
+                    if (temporalInformation.IsTemporalTable
+                        && temporalInformation.DisabledVersioning
+                        && temporalInformation.ShouldEnableVersioning)
+                    {
+                        var renameHistoryTableColumnOperation = new RenameColumnOperation
                         {
-                            var renameHistoryTableColumnOperation = new RenameColumnOperation
-                            {
-                                IsDestructiveChange = renameColumnOperation.IsDestructiveChange,
-                                Name = renameColumnOperation.Name,
-                                NewName = renameColumnOperation.NewName,
-                                Table = historyTableName!,
-                                Schema = historyTableSchema
-                            };
+                            IsDestructiveChange = renameColumnOperation.IsDestructiveChange,
+                            Name = renameColumnOperation.Name,
+                            NewName = renameColumnOperation.NewName,
+                            Table = temporalInformation.HistoryTableName!,
+                            Schema = temporalInformation.HistoryTableSchema
+                        };
 
-                            operations.Add(renameHistoryTableColumnOperation);
+                        operations.Add(renameHistoryTableColumnOperation);
+                    }
+
+                    break;
+                }
+
+                case AlterColumnOperation alterColumnOperation:
+                {
+                    // we can remove temporal annotations, they don't make a difference when it comes to
+                    // generating ALTER COLUMN operations and could just muddy the waters
+                    alterColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.TemporalIsPeriodStartColumn);
+                    alterColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.TemporalIsPeriodEndColumn);
+                    alterColumnOperation.RemoveAnnotation(SqlServerAnnotationNames.IsHidden);
+                    alterColumnOperation.OldColumn.RemoveAnnotation(SqlServerAnnotationNames.TemporalIsPeriodStartColumn);
+                    alterColumnOperation.OldColumn.RemoveAnnotation(SqlServerAnnotationNames.TemporalIsPeriodEndColumn);
+                    alterColumnOperation.OldColumn.RemoveAnnotation(SqlServerAnnotationNames.IsHidden);
+
+                    if (temporalInformation.IsTemporalTable)
+                    {
+                        if (alterColumnOperation.OldColumn.ComputedColumnSql != alterColumnOperation.ComputedColumnSql)
+                        {
+                            throw new NotSupportedException(
+                                SqlServerStrings.TemporalMigrationModifyingComputedColumnNotSupported(
+                                    alterColumnOperation.Name,
+                                    alterColumnOperation.Table));
                         }
 
-                        break;
+                        // for alter column operation converting column from nullable to non-nullable in the temporal table
+                        // we must disable versioning in order to properly handle it
+                        // specifically, switching values in history table from null to the default value
+                        var changeToNonNullable = alterColumnOperation.OldColumn.IsNullable
+                            && !alterColumnOperation.IsNullable;
 
-                    default:
-                        operations.Add(operation);
-                        break;
-                }
-            }
-            else
-            {
-                if (operation is AlterTableOperation alterTableOperation
-                    && alterTableOperation.OldTable[SqlServerAnnotationNames.IsTemporal] as bool? == true)
-                {
-                    var historyTableName = alterTableOperation.OldTable[SqlServerAnnotationNames.TemporalHistoryTableName] as string;
-                    var historyTableSchema = alterTableOperation.OldTable[SqlServerAnnotationNames.TemporalHistoryTableSchema] as string
-                        ?? alterTableOperation.OldTable.Schema
-                        ?? model?[RelationalAnnotationNames.DefaultSchema] as string;
+                        // for alter column converting to sparse we also need to disable versioning
+                        // in case HistoryTable is compressed (so that we can de-compress it)
+                        var changeToSparse = (alterColumnOperation.OldColumn[SqlServerAnnotationNames.Sparse] as bool?) != true
+                            && (alterColumnOperation[SqlServerAnnotationNames.Sparse] as bool?) == true;
 
-                    var periodStartColumnName =
-                        alterTableOperation.OldTable[SqlServerAnnotationNames.TemporalPeriodStartColumnName] as string;
-                    var periodEndColumnName =
-                        alterTableOperation.OldTable[SqlServerAnnotationNames.TemporalPeriodEndColumnName] as string;
-                    var suppressTransaction = IsMemoryOptimized(operation, model, alterTableOperation.Schema, alterTableOperation.Name);
+                        // for alter column removing default value we also need to disable versioning
+                        // because the default constraint needs to be removed from both main and history tables
+                        var removingDefaultValue = (alterColumnOperation.OldColumn.DefaultValue is not null
+                                || alterColumnOperation.OldColumn.DefaultValueSql is not null)
+                            && alterColumnOperation.DefaultValue is null
+                            && alterColumnOperation.DefaultValueSql is null;
 
-                    DisableVersioning(
-                        alterTableOperation.Name, alterTableOperation.Schema, historyTableName!, historyTableSchema, suppressTransaction);
-                    DisablePeriod(
-                        alterTableOperation.Name, alterTableOperation.Schema, periodStartColumnName!, periodEndColumnName!,
-                        suppressTransaction);
+                        if (changeToNonNullable || changeToSparse || removingDefaultValue)
+                        {
+                            DisableVersioning(
+                                tableName!,
+                                schema,
+                                temporalInformation,
+                                suppressTransaction,
+                                shouldEnableVersioning: true);
+                        }
 
-                    if (historyTableName != null)
+                        if (changeToSparse)
+                        {
+                            DecompressTable(
+                                temporalInformation.HistoryTableName!, temporalInformation.HistoryTableSchema, suppressTransaction);
+                        }
+
+                        operations.Add(alterColumnOperation);
+
+                        // when modifying a period column, we need to perform the operations as a normal column first, and only later enable period
+                        // removing the period information now, so that when we generate SQL that modifies the column we won't be making them auto generated as period
+                        // (making column auto generated is not allowed in ALTER COLUMN statement)
+                        // in later operation we enable the period and the period columns get set to auto generated automatically
+                        //
+                        // if the column is not period we just remove temporal information - it's no longer needed and could affect the generated sql
+                        // we will generate all the necessary operations involved with temporal tables here
+                        if (temporalInformation.DisabledVersioning && temporalInformation.ShouldEnableVersioning)
+                        {
+                            var alterHistoryTableColumn = CopyColumnOperation<AlterColumnOperation>(alterColumnOperation);
+                            alterHistoryTableColumn.Table = temporalInformation.HistoryTableName!;
+                            alterHistoryTableColumn.Schema = temporalInformation.HistoryTableSchema;
+                            alterHistoryTableColumn.OldColumn = CopyColumnOperation<AddColumnOperation>(alterColumnOperation.OldColumn);
+                            alterHistoryTableColumn.OldColumn.Table = temporalInformation.HistoryTableName!;
+                            alterHistoryTableColumn.OldColumn.Schema = temporalInformation.HistoryTableSchema;
+
+                            // identity columns are not allowed inside HistoryTables
+                            RemoveIdentityAnnotations(alterHistoryTableColumn);
+                            RemoveIdentityAnnotations(alterHistoryTableColumn.OldColumn);
+
+                            RemoveDefaultConstraintNameAnnotation(alterHistoryTableColumn);
+                            RemoveDefaultConstraintNameAnnotation(alterHistoryTableColumn.OldColumn);
+
+                            operations.Add(alterHistoryTableColumn);
+                        }
+                    }
+                    else
                     {
-                        operations.Add(
-                            new DropTableOperation { Name = historyTableName, Schema = historyTableSchema });
+                        // identity columns are not allowed inside HistoryTables
+                        if (historyTables.Contains((tableName, schema)))
+                        {
+                            RemoveIdentityAnnotations(alterColumnOperation);
+                            RemoveIdentityAnnotations(alterColumnOperation.OldColumn);
+                        }
+
+                        operations.Add(alterColumnOperation);
+                    }
+
+                    break;
+                }
+
+                case DropPrimaryKeyOperation:
+                case AddPrimaryKeyOperation:
+                    if (temporalInformation.IsTemporalTable)
+                    {
+                        DisableVersioning(
+                            tableName!,
+                            schema,
+                            temporalInformation,
+                            suppressTransaction,
+                            shouldEnableVersioning: true);
                     }
 
                     operations.Add(operation);
+                    break;
 
-                    // when we disable versioning and period earlier, we marked it to be re-enabled
-                    // since table is no longer temporal we don't need to do that anymore
-                    versioningMap.Remove((alterTableOperation.Name, alterTableOperation.Schema));
-                    periodMap.Remove((alterTableOperation.Name, alterTableOperation.Schema));
-                }
-                else if (operation is AlterColumnOperation alterColumnOperation)
-                {
-                    // if only difference is in temporal annotations being removed or history table changed etc - we can ignore this operation
-                    if (alterColumnOperation.OldColumn?[SqlServerAnnotationNames.IsTemporal] as bool? != true
-                        || !CanSkipAlterColumnOperation(alterColumnOperation.OldColumn, alterColumnOperation))
-                    {
-                        operations.Add(operation);
-                    }
-                }
-                else
-                {
+                default:
                     operations.Add(operation);
-                }
+                    break;
             }
         }
 
-        foreach (var ((table, schema), (periodStartColumnName, periodEndColumnName, suppressTransaction)) in periodMap)
+        foreach (var temporalInformation in temporalTableInformationMap.Where(x => x.Value.ShouldEnablePeriod))
         {
-            EnablePeriod(table!, schema, periodStartColumnName, periodEndColumnName, suppressTransaction);
+            EnablePeriod(
+                temporalInformation.Key.TableName,
+                temporalInformation.Key.Schema,
+                temporalInformation.Value.PeriodStartColumnName!,
+                temporalInformation.Value.PeriodEndColumnName!,
+                temporalInformation.Value.PeriodStartHidden,
+                temporalInformation.Value.PeriodEndHidden,
+                temporalInformation.Value.SuppressTransaction);
         }
 
-        foreach (var ((table, schema), (historyTableName, historyTableSchema, suppressTransaction)) in versioningMap)
+        foreach (var temporalInformation in temporalTableInformationMap.Where(x => x.Value.ShouldEnableVersioning))
         {
-            EnableVersioning(table!, schema, historyTableName, historyTableSchema, suppressTransaction);
+            EnableVersioning(
+                temporalInformation.Key.TableName,
+                temporalInformation.Key.Schema,
+                temporalInformation.Value.HistoryTableName!,
+                temporalInformation.Value.HistoryTableSchema,
+                temporalInformation.Value.SuppressTransaction);
         }
 
         return operations;
 
-        void DisableVersioning(string table, string? schema, string historyTableName, string? historyTableSchema, bool suppressTransaction)
+        static TemporalOperationInformation BuildTemporalInformationFromMigrationOperation(
+            string? schema,
+            IAnnotatable operation)
         {
-            if (!versioningMap.TryGetValue((table, schema), out _))
-            {
-                versioningMap[(table, schema)] = (historyTableName, historyTableSchema, suppressTransaction);
+            var isTemporalTable = (operation[SqlServerAnnotationNames.IsTemporal] as bool?) == true;
+            var historyTableName = operation[SqlServerAnnotationNames.TemporalHistoryTableName] as string;
+            var historyTableSchema = operation[SqlServerAnnotationNames.TemporalHistoryTableSchema] as string ?? schema;
+            var periodStartColumnName = operation[SqlServerAnnotationNames.TemporalPeriodStartColumnName] as string;
+            var periodEndColumnName = operation[SqlServerAnnotationNames.TemporalPeriodEndColumnName] as string;
 
-                operations.Add(
-                    new SqlOperation
+            // Period columns default to HIDDEN; the annotation is only present when explicitly configured visible.
+            var periodStartHidden = operation[SqlServerAnnotationNames.TemporalPeriodStartHidden] as bool? ?? true;
+            var periodEndHidden = operation[SqlServerAnnotationNames.TemporalPeriodEndHidden] as bool? ?? true;
+
+            return new TemporalOperationInformation
+            {
+                IsTemporalTable = isTemporalTable,
+                HistoryTableName = historyTableName,
+                HistoryTableSchema = historyTableSchema,
+                PeriodStartColumnName = periodStartColumnName,
+                PeriodEndColumnName = periodEndColumnName,
+                PeriodStartHidden = periodStartHidden,
+                PeriodEndHidden = periodEndHidden
+            };
+        }
+
+        void DisableVersioning(
+            string tableName,
+            string? schema,
+            TemporalOperationInformation temporalInformation,
+            bool suppressTransaction,
+            bool? shouldEnableVersioning)
+        {
+            if (!temporalInformation.DisabledVersioning
+                && !temporalInformation.ShouldEnableVersioning)
+            {
+                temporalInformation.DisabledVersioning = true;
+
+                AddDisableVersioningOperation(tableName, schema, suppressTransaction);
+
+                if (shouldEnableVersioning != null)
+                {
+                    temporalInformation.ShouldEnableVersioning = shouldEnableVersioning.Value;
+                    if (shouldEnableVersioning.Value)
                     {
-                        Sql = new StringBuilder()
-                            .Append("ALTER TABLE ")
-                            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(table, schema))
-                            .AppendLine(" SET (SYSTEM_VERSIONING = OFF)")
-                            .ToString(),
-                        SuppressTransaction = suppressTransaction
-                    });
+                        temporalInformation.SuppressTransaction = suppressTransaction;
+                    }
+                }
             }
         }
+
+        void AddDisableVersioningOperation(string tableName, string? schema, bool suppressTransaction)
+            => operations.Add(
+                new SqlOperation
+                {
+                    Sql = new StringBuilder()
+                        .Append("ALTER TABLE ")
+                        .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(tableName, schema))
+                        .AppendLine(" SET (SYSTEM_VERSIONING = OFF)")
+                        .ToString(),
+                    SuppressTransaction = suppressTransaction
+                });
 
         void EnableVersioning(string table, string? schema, string historyTableName, string? historyTableSchema, bool suppressTransaction)
         {
             var stringBuilder = new StringBuilder();
 
+            string? schemaVariable = null;
             if (historyTableSchema == null)
             {
+                schemaVariable = Uniquify("@historyTableSchema");
                 // need to run command using EXEC to inject default schema
-                stringBuilder.AppendLine("DECLARE @historyTableSchema sysname = SCHEMA_NAME()");
+                stringBuilder.AppendLine($"DECLARE {schemaVariable} nvarchar(max) = QUOTENAME(SCHEMA_NAME())");
                 stringBuilder.Append("EXEC(N'");
             }
 
@@ -2633,33 +3866,41 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             else
             {
                 stringBuilder.AppendLine(
-                    $" SET (SYSTEM_VERSIONING = ON (HISTORY_TABLE = [' + @historyTableSchema + '].{historyTable}))')");
+                    $" SET (SYSTEM_VERSIONING = ON (HISTORY_TABLE = ' + {schemaVariable} + '.{historyTable}))')");
             }
 
             operations.Add(
                 new SqlOperation { Sql = stringBuilder.ToString(), SuppressTransaction = suppressTransaction });
         }
 
-        void DisablePeriod(string table, string? schema, string periodStartColumnName, string periodEndColumnName, bool suppressTransaction)
+        void DisablePeriod(
+            string table,
+            string? schema,
+            TemporalOperationInformation temporalInformation,
+            bool suppressTransaction)
         {
-            if (!periodMap.TryGetValue((table, schema), out _))
-            {
-                periodMap[(table, schema)] = (periodStartColumnName, periodEndColumnName, suppressTransaction);
+            temporalInformation.DisabledPeriod = true;
 
-                operations.Add(
-                    new SqlOperation
-                    {
-                        Sql = new StringBuilder()
-                            .Append("ALTER TABLE ")
-                            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(table, schema))
-                            .AppendLine(" DROP PERIOD FOR SYSTEM_TIME")
-                            .ToString(),
-                        SuppressTransaction = suppressTransaction
-                    });
-            }
+            operations.Add(
+                new SqlOperation
+                {
+                    Sql = new StringBuilder()
+                        .Append("ALTER TABLE ")
+                        .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(table, schema))
+                        .AppendLine(" DROP PERIOD FOR SYSTEM_TIME")
+                        .ToString(),
+                    SuppressTransaction = suppressTransaction
+                });
         }
 
-        void EnablePeriod(string table, string? schema, string periodStartColumnName, string periodEndColumnName, bool suppressTransaction)
+        void EnablePeriod(
+            string table,
+            string? schema,
+            string periodStartColumnName,
+            string periodEndColumnName,
+            bool periodStartHidden,
+            bool periodEndHidden,
+            bool suppressTransaction)
         {
             var addPeriodSql = new StringBuilder()
                 .Append("ALTER TABLE ")
@@ -2683,82 +3924,69 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
             operations.Add(
                 new SqlOperation { Sql = addPeriodSql, SuppressTransaction = suppressTransaction });
 
-            operations.Add(
-                new SqlOperation
-                {
-                    Sql = new StringBuilder()
-                        .Append("ALTER TABLE ")
-                        .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(table, schema))
-                        .Append(" ALTER COLUMN ")
-                        .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(periodStartColumnName))
-                        .Append(" ADD HIDDEN")
-                        .ToString(),
-                    SuppressTransaction = suppressTransaction
-                });
-
-            operations.Add(
-                new SqlOperation
-                {
-                    Sql = new StringBuilder()
-                        .Append("ALTER TABLE ")
-                        .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(table, schema))
-                        .Append(" ALTER COLUMN ")
-                        .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(periodEndColumnName))
-                        .Append(" ADD HIDDEN")
-                        .ToString(),
-                    SuppressTransaction = suppressTransaction
-                });
-        }
-
-        static bool CanSkipAlterColumnOperation(ColumnOperation first, ColumnOperation second)
-            => ColumnPropertiesAreTheSame(first, second)
-                && ColumnOperationsOnlyDifferByTemporalTableAnnotation(first, second)
-                && ColumnOperationsOnlyDifferByTemporalTableAnnotation(second, first);
-
-        // don't compare name, table or schema - they are not being set in the model differ (since they should always be the same)
-        static bool ColumnPropertiesAreTheSame(ColumnOperation first, ColumnOperation second)
-            => first.ClrType == second.ClrType
-                && first.Collation == second.Collation
-                && first.ColumnType == second.ColumnType
-                && first.Comment == second.Comment
-                && first.ComputedColumnSql == second.ComputedColumnSql
-                && Equals(first.DefaultValue, second.DefaultValue)
-                && first.DefaultValueSql == second.DefaultValueSql
-                && first.IsDestructiveChange == second.IsDestructiveChange
-                && first.IsFixedLength == second.IsFixedLength
-                && first.IsNullable == second.IsNullable
-                && first.IsReadOnly == second.IsReadOnly
-                && first.IsRowVersion == second.IsRowVersion
-                && first.IsStored == second.IsStored
-                && first.IsUnicode == second.IsUnicode
-                && first.MaxLength == second.MaxLength
-                && first.Precision == second.Precision
-                && first.Scale == second.Scale;
-
-        static bool ColumnOperationsOnlyDifferByTemporalTableAnnotation(ColumnOperation first, ColumnOperation second)
-        {
-            var unmatched = first.GetAnnotations().ToList();
-            foreach (var annotation in second.GetAnnotations())
+            // Period columns are HIDDEN by default. Skip the `ADD HIDDEN` ALTER when the column was
+            // configured visible via TemporalPeriodPropertyBuilder.IsHidden(false).
+            if (periodStartHidden)
             {
-                var index = unmatched.FindIndex(
-                    a => a.Name == annotation.Name
-                        && StructuralComparisons.StructuralEqualityComparer.Equals(a.Value, annotation.Value));
-                if (index == -1)
-                {
-                    continue;
-                }
-
-                unmatched.RemoveAt(index);
+                operations.Add(
+                    new SqlOperation
+                    {
+                        Sql = new StringBuilder()
+                            .Append("ALTER TABLE ")
+                            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(table, schema))
+                            .Append(" ALTER COLUMN ")
+                            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(periodStartColumnName))
+                            .Append(" ADD HIDDEN")
+                            .ToString(),
+                        SuppressTransaction = suppressTransaction
+                    });
             }
 
-            return unmatched.All(
-                a => a.Name == SqlServerAnnotationNames.IsTemporal
-                    || a.Name == SqlServerAnnotationNames.TemporalHistoryTableName
-                    || a.Name == SqlServerAnnotationNames.TemporalHistoryTableSchema
-                    || a.Name == SqlServerAnnotationNames.TemporalPeriodStartPropertyName
-                    || a.Name == SqlServerAnnotationNames.TemporalPeriodEndPropertyName
-                    || a.Name == SqlServerAnnotationNames.TemporalPeriodStartColumnName
-                    || a.Name == SqlServerAnnotationNames.TemporalPeriodEndColumnName);
+            if (periodEndHidden)
+            {
+                operations.Add(
+                    new SqlOperation
+                    {
+                        Sql = new StringBuilder()
+                            .Append("ALTER TABLE ")
+                            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(table, schema))
+                            .Append(" ALTER COLUMN ")
+                            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(periodEndColumnName))
+                            .Append(" ADD HIDDEN")
+                            .ToString(),
+                        SuppressTransaction = suppressTransaction
+                    });
+            }
+        }
+
+        void DecompressTable(string tableName, string? schema, bool suppressTransaction)
+        {
+            var stringTypeMapping = Dependencies.TypeMappingSource.GetMapping(typeof(string));
+
+            var decompressTableCommand = new StringBuilder()
+                .Append("IF EXISTS (")
+                .Append("SELECT 1 FROM [sys].[tables] [t] ")
+                .Append("INNER JOIN [sys].[partitions] [p] ON [t].[object_id] = [p].[object_id] ")
+                .Append($"WHERE [t].[name] = '{tableName}' ");
+
+            if (schema != null)
+            {
+                decompressTableCommand.Append($"AND [t].[schema_id] = schema_id('{schema}') ");
+            }
+
+            decompressTableCommand.AppendLine("AND data_compression <> 0)")
+                .Append("EXEC(")
+                .Append(
+                    stringTypeMapping.GenerateSqlLiteral(
+                        "ALTER TABLE "
+                        + Dependencies.SqlGenerationHelper.DelimitIdentifier(tableName, schema)
+                        + " REBUILD PARTITION = ALL WITH (DATA_COMPRESSION = NONE)"
+                        + Dependencies.SqlGenerationHelper.StatementTerminator))
+                .Append(")")
+                .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+            operations.Add(
+                new SqlOperation { Sql = decompressTableCommand.ToString(), SuppressTransaction = suppressTransaction });
         }
 
         static TOperation CopyColumnOperation<TOperation>(ColumnOperation source)
@@ -2794,5 +4022,27 @@ public class SqlServerMigrationsSqlGenerator : MigrationsSqlGenerator
 
             return result;
         }
+    }
+
+    private sealed class TemporalOperationInformation
+    {
+        public bool IsTemporalTable { get; set; }
+        public string? HistoryTableName { get; set; }
+        public string? HistoryTableSchema { get; set; }
+        public string? PeriodStartColumnName { get; set; }
+        public string? PeriodEndColumnName { get; set; }
+
+        public bool DisabledVersioning { get; set; }
+        public bool DisabledPeriod { get; set; }
+
+        public bool ShouldEnableVersioning { get; set; }
+        public bool ShouldEnablePeriod { get; set; }
+        public bool SuppressTransaction { get; set; }
+
+        // Period columns default to HIDDEN. When converting an existing table to temporal, these flags
+        // capture the user-configured visibility from the period column annotations so EnablePeriod can
+        // conditionally emit `ALTER COLUMN ... ADD HIDDEN`.
+        public bool PeriodStartHidden { get; set; } = true;
+        public bool PeriodEndHidden { get; set; } = true;
     }
 }

@@ -31,7 +31,7 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> and
-    ///     <see href="https://aka.ms/efcore-docs-coventions">EF Core model-building conventions</see> for more information and examples.
+    ///     <see href="https://aka.ms/efcore-docs-conventions">EF Core model-building conventions</see> for more information and examples.
     /// </remarks>
     /// <param name="conventions">The conventions to be applied to the model.</param>
     public ModelBuilder(ConventionSet conventions)
@@ -45,15 +45,13 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> and
-    ///     <see href="https://aka.ms/efcore-docs-coventions">EF Core model-building conventions</see> for more information and examples.
+    ///     <see href="https://aka.ms/efcore-docs-conventions">EF Core model-building conventions</see> for more information and examples.
     /// </remarks>
     /// <param name="conventions">The conventions to be applied to the model.</param>
     /// <param name="modelDependencies">The dependencies object for the model.</param>
     public ModelBuilder(ConventionSet conventions, ModelDependencies modelDependencies)
         : this(conventions, modelDependencies, null)
-    {
-        Check.NotNull(modelDependencies, nameof(modelDependencies));
-    }
+        => Check.NotNull(modelDependencies);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -64,7 +62,7 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     [EntityFrameworkInternal]
     public ModelBuilder(ConventionSet conventions, ModelDependencies? modelDependencies, ModelConfiguration? modelConfiguration)
     {
-        Check.NotNull(conventions, nameof(conventions));
+        Check.NotNull(conventions);
 
         _builder = new Model(conventions, modelDependencies, modelConfiguration).Builder;
 
@@ -81,12 +79,20 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> and
-    ///     <see href="https://aka.ms/efcore-docs-coventions">EF Core model-building conventions</see> for more information and examples.
+    ///     <see href="https://aka.ms/efcore-docs-conventions">EF Core model-building conventions</see> for more information and examples.
     /// </remarks>
     public ModelBuilder()
-    {
-        _builder = new Model().Builder;
-    }
+        => _builder = new Model().Builder;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [EntityFrameworkInternal]
+    public ModelBuilder(IMutableModel model)
+        => _builder = ((Model)model).Builder;
 
     /// <summary>
     ///     The model being configured.
@@ -107,7 +113,7 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// <returns>The same <see cref="ModelBuilder" /> instance so that multiple configuration calls can be chained.</returns>
     public virtual ModelBuilder HasAnnotation(string annotation, object? value)
     {
-        Check.NotEmpty(annotation, nameof(annotation));
+        Check.NotEmpty(annotation);
 
         Builder.HasAnnotation(annotation, value, ConfigurationSource.Explicit);
 
@@ -133,7 +139,8 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// </remarks>
     /// <typeparam name="TEntity">The entity type to be configured.</typeparam>
     /// <returns>An object that can be used to configure the entity type.</returns>
-    public virtual EntityTypeBuilder<TEntity> Entity<TEntity>()
+    public virtual EntityTypeBuilder<TEntity> Entity<
+        [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TEntity>()
         where TEntity : class
         => new(Builder.Entity(typeof(TEntity), ConfigurationSource.Explicit, shouldBeOwned: false)!.Metadata);
 
@@ -157,10 +164,12 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// <typeparam name="TEntity">The CLR type of the entity type to be configured.</typeparam>
     /// <param name="name">The name of the entity type to be configured.</param>
     /// <returns>An object that can be used to configure the entity type.</returns>
-    public virtual EntityTypeBuilder<TEntity> SharedTypeEntity<TEntity>(string name)
+    public virtual EntityTypeBuilder<TEntity> SharedTypeEntity<
+        [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TEntity>(
+        string name)
         where TEntity : class
     {
-        Check.NotEmpty(name, nameof(name));
+        Check.NotEmpty(name);
 
         return new EntityTypeBuilder<TEntity>(Builder.SharedTypeEntity(name, typeof(TEntity), ConfigurationSource.Explicit)!.Metadata);
     }
@@ -174,9 +183,9 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// </remarks>
     /// <param name="type">The entity type to be configured.</param>
     /// <returns>An object that can be used to configure the entity type.</returns>
-    public virtual EntityTypeBuilder Entity(Type type)
+    public virtual EntityTypeBuilder Entity([DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type type)
     {
-        Check.NotNull(type, nameof(type));
+        Check.NotNull(type);
 
         return new EntityTypeBuilder(Builder.Entity(type, ConfigurationSource.Explicit, shouldBeOwned: false)!.Metadata);
     }
@@ -193,7 +202,7 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// <returns>An object that can be used to configure the entity type.</returns>
     public virtual EntityTypeBuilder Entity(string name)
     {
-        Check.NotEmpty(name, nameof(name));
+        Check.NotEmpty(name);
 
         return new EntityTypeBuilder(Builder.Entity(name, ConfigurationSource.Explicit, shouldBeOwned: false)!.Metadata);
     }
@@ -218,10 +227,12 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// <param name="name">The name of the entity type to be configured.</param>
     /// <param name="type">The CLR type of the entity type to be configured.</param>
     /// <returns>An object that can be used to configure the entity type.</returns>
-    public virtual EntityTypeBuilder SharedTypeEntity(string name, Type type)
+    public virtual EntityTypeBuilder SharedTypeEntity(
+        string name,
+        [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type type)
     {
-        Check.NotEmpty(name, nameof(name));
-        Check.NotNull(type, nameof(type));
+        Check.NotEmpty(name);
+        Check.NotNull(type);
 
         return new EntityTypeBuilder(
             Builder.SharedTypeEntity(name, type, ConfigurationSource.Explicit, shouldBeOwned: false)!.Metadata);
@@ -246,10 +257,11 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// <returns>
     ///     The same <see cref="ModelBuilder" /> instance so that additional configuration calls can be chained.
     /// </returns>
-    public virtual ModelBuilder Entity<TEntity>(Action<EntityTypeBuilder<TEntity>> buildAction)
+    public virtual ModelBuilder Entity<[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TEntity>(
+        Action<EntityTypeBuilder<TEntity>> buildAction)
         where TEntity : class
     {
-        Check.NotNull(buildAction, nameof(buildAction));
+        Check.NotNull(buildAction);
 
         buildAction(Entity<TEntity>());
 
@@ -284,12 +296,12 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// <returns>
     ///     The same <see cref="ModelBuilder" /> instance so that additional configuration calls can be chained.
     /// </returns>
-    public virtual ModelBuilder SharedTypeEntity<TEntity>(
+    public virtual ModelBuilder SharedTypeEntity<[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TEntity>(
         string name,
         Action<EntityTypeBuilder<TEntity>> buildAction)
         where TEntity : class
     {
-        Check.NotNull(buildAction, nameof(buildAction));
+        Check.NotNull(buildAction);
 
         buildAction(SharedTypeEntity<TEntity>(name));
 
@@ -315,9 +327,11 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// <returns>
     ///     The same <see cref="ModelBuilder" /> instance so that additional configuration calls can be chained.
     /// </returns>
-    public virtual ModelBuilder Entity(Type type, Action<EntityTypeBuilder> buildAction)
+    public virtual ModelBuilder Entity(
+        [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type type,
+        Action<EntityTypeBuilder> buildAction)
     {
-        Check.NotNull(buildAction, nameof(buildAction));
+        Check.NotNull(buildAction);
 
         buildAction(Entity(type));
 
@@ -346,7 +360,7 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// </returns>
     public virtual ModelBuilder Entity(string name, Action<EntityTypeBuilder> buildAction)
     {
-        Check.NotNull(buildAction, nameof(buildAction));
+        Check.NotNull(buildAction);
 
         buildAction(Entity(name));
 
@@ -383,11 +397,11 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// </returns>
     public virtual ModelBuilder SharedTypeEntity(
         string name,
-        Type type,
+        [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type type,
         Action<EntityTypeBuilder> buildAction)
     {
-        Check.NotNull(type, nameof(type));
-        Check.NotNull(buildAction, nameof(buildAction));
+        Check.NotNull(type);
+        Check.NotNull(buildAction);
 
         buildAction(SharedTypeEntity(name, type));
 
@@ -401,13 +415,13 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types</see> for more information and examples.
     /// </remarks>
-    /// <typeparam name="TEntity">The entity type to be removed from the model.</typeparam>
+    /// <typeparam name="TStructural">The entity type to be removed from the model.</typeparam>
     /// <returns>
     ///     The same <see cref="ModelBuilder" /> instance so that additional configuration calls can be chained.
     /// </returns>
-    public virtual ModelBuilder Ignore<TEntity>()
-        where TEntity : class
-        => Ignore(typeof(TEntity));
+    public virtual ModelBuilder Ignore<[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TStructural>()
+        where TStructural : notnull
+        => Ignore(typeof(TStructural));
 
     /// <summary>
     ///     Excludes an entity type with given CLR type from the model. This method is typically used to remove types from
@@ -420,9 +434,9 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// <returns>
     ///     The same <see cref="ModelBuilder" /> instance so that additional configuration calls can be chained.
     /// </returns>
-    public virtual ModelBuilder Ignore(Type type)
+    public virtual ModelBuilder Ignore([DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type type)
     {
-        Check.NotNull(type, nameof(type));
+        Check.NotNull(type);
 
         Builder.Ignore(type, ConfigurationSource.Explicit);
 
@@ -442,7 +456,7 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// </returns>
     public virtual ModelBuilder Ignore(string typeName)
     {
-        Check.NotEmpty(typeName, nameof(typeName));
+        Check.NotEmpty(typeName);
 
         Builder.Ignore(typeName, ConfigurationSource.Explicit);
 
@@ -460,10 +474,11 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// <returns>
     ///     The same <see cref="ModelBuilder" /> instance so that additional configuration calls can be chained.
     /// </returns>
-    public virtual ModelBuilder ApplyConfiguration<TEntity>(IEntityTypeConfiguration<TEntity> configuration)
+    public virtual ModelBuilder ApplyConfiguration
+        <[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TEntity>(IEntityTypeConfiguration<TEntity> configuration)
         where TEntity : class
     {
-        Check.NotNull(configuration, nameof(configuration));
+        Check.NotNull(configuration);
 
         configuration.Configure(Entity<TEntity>());
 
@@ -471,7 +486,7 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     }
 
     /// <summary>
-    ///     Applies configuration from all <see cref="IEntityTypeConfiguration{TEntity}" /> />
+    ///     Applies configuration from all <see cref="IEntityTypeConfiguration{TEntity}" />
     ///     instances that are defined in provided assembly.
     /// </summary>
     /// <remarks>
@@ -482,23 +497,26 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     /// <returns>
     ///     The same <see cref="ModelBuilder" /> instance so that additional configuration calls can be chained.
     /// </returns>
+    [RequiresUnreferencedCode("This API isn't safe for trimming, since it searches for types in an arbitrary assembly.")]
     public virtual ModelBuilder ApplyConfigurationsFromAssembly(
         Assembly assembly,
         Func<Type, bool>? predicate = null)
     {
         var applyEntityConfigurationMethod = typeof(ModelBuilder)
             .GetMethods()
-            .Single(
-                e => e.Name == nameof(ApplyConfiguration)
-                    && e.ContainsGenericParameters
-                    && e.GetParameters().SingleOrDefault()?.ParameterType.GetGenericTypeDefinition()
-                    == typeof(IEntityTypeConfiguration<>));
+            .Single(e => e is { Name: nameof(ApplyConfiguration), ContainsGenericParameters: true }
+                && e.GetParameters().SingleOrDefault()?.ParameterType.GetGenericTypeDefinition()
+                == typeof(IEntityTypeConfiguration<>));
 
-        foreach (var type in assembly.GetConstructibleTypes().OrderBy(t => t.FullName))
+        var logger = Builder.Metadata.ScopedModelDependencies?.Logger;
+        var foundOne = false;
+        foreach (var type in assembly.GetConstructibleTypes(logger).OrderBy(t => t.FullName))
         {
             // Only accept types that contain a parameterless constructor, are not abstract and satisfy a predicate if it was used.
-            if (type.GetConstructor(Type.EmptyTypes) == null
-                || (!predicate?.Invoke(type) ?? false))
+            var hasConstructor
+                = type.GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, Type.EmptyTypes) != null;
+
+            if (hasConstructor && predicate != null && !predicate(type))
             {
                 continue;
             }
@@ -512,10 +530,23 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
 
                 if (@interface.GetGenericTypeDefinition() == typeof(IEntityTypeConfiguration<>))
                 {
-                    var target = applyEntityConfigurationMethod.MakeGenericMethod(@interface.GenericTypeArguments[0]);
-                    target.Invoke(this, new[] { Activator.CreateInstance(type) });
+                    if (hasConstructor)
+                    {
+                        var target = applyEntityConfigurationMethod.MakeGenericMethod(@interface.GenericTypeArguments[0]);
+                        target.Invoke(this, [Activator.CreateInstance(type, nonPublic: true)]);
+                        foundOne = true;
+                    }
+                    else
+                    {
+                        logger?.SkippedEntityTypeConfigurationWarning(type);
+                    }
                 }
             }
+        }
+
+        if (!foundOne)
+        {
+            logger?.NoEntityTypeConfigurationsWarning(assembly);
         }
 
         return this;
@@ -529,7 +560,8 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     ///     See <see href="https://aka.ms/efcore-docs-owned">Owned types in EF Core</see> for more information and examples.
     /// </remarks>
     /// <typeparam name="T">The entity type to be configured.</typeparam>
-    public virtual OwnedEntityTypeBuilder<T> Owned<T>()
+    // TODO: Move to ModelConfigurationBuilder #6787
+    public virtual OwnedEntityTypeBuilder<T> Owned<[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] T>()
         where T : class
     {
         Builder.Owned(typeof(T), ConfigurationSource.Explicit);
@@ -545,9 +577,10 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     ///     See <see href="https://aka.ms/efcore-docs-owned">Owned types in EF Core</see> for more information and examples.
     /// </remarks>
     /// <param name="type">The entity type to be configured.</param>
-    public virtual OwnedEntityTypeBuilder Owned(Type type)
+    // TODO: Move to ModelConfigurationBuilder #6787
+    public virtual OwnedEntityTypeBuilder Owned([DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type type)
     {
-        Check.NotNull(type, nameof(type));
+        Check.NotNull(type);
 
         Builder.Owned(type, ConfigurationSource.Explicit);
 
@@ -599,8 +632,20 @@ public class ModelBuilder : IInfrastructure<IConventionModelBuilder>
     }
 
     /// <summary>
-    ///     Forces post-processing on the model such that it is ready for use by the runtime. This post
-    ///     processing happens automatically when using <see cref="DbContext.OnModelCreating" />; this method allows it to be run
+    ///     Sets the name to use for discriminator properties embedded in JSON documents. The default is "$type".
+    /// </summary>
+    /// <param name="name">The property name, or <see langword="null" /> to clear the name set.</param>
+    /// <returns>The same <see cref="ModelBuilder" /> instance so that additional configuration calls can be chained.</returns>
+    public virtual ModelBuilder HasEmbeddedDiscriminatorName(string name)
+    {
+        Builder.HasEmbeddedDiscriminatorName(name, ConfigurationSource.Explicit);
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Forces post-processing on the model such that it is ready for use by the runtime. This post-processing
+    ///     happens automatically when using <see cref="DbContext.OnModelCreating" />; this method allows it to be run
     ///     explicitly in cases where the automatic execution is not possible.
     /// </summary>
     /// <returns>The finalized model.</returns>

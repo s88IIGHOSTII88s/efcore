@@ -1,27 +1,28 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Microsoft.EntityFrameworkCore.Diagnostics.Internal;
 using Microsoft.EntityFrameworkCore.Scaffolding.Metadata;
-using Microsoft.EntityFrameworkCore.SqlServer.Diagnostics.Internal;
+using Microsoft.EntityFrameworkCore.SqlServer.Design.Internal;
 using Microsoft.EntityFrameworkCore.SqlServer.Metadata.Internal;
-using Microsoft.EntityFrameworkCore.SqlServer.Scaffolding.Internal;
 
 namespace Microsoft.EntityFrameworkCore.TestUtilities;
 
 public class SqlServerDatabaseCleaner : RelationalDatabaseCleaner
 {
     protected override IDatabaseModelFactory CreateDatabaseModelFactory(ILoggerFactory loggerFactory)
-        => new SqlServerDatabaseModelFactory(
-            new DiagnosticsLogger<DbLoggerCategory.Scaffolding>(
-                loggerFactory,
-                new LoggingOptions(),
-                new DiagnosticListener("Fake"),
-                new SqlServerLoggingDefinitions(),
-                new NullDbContextLogger()));
+    {
+        var services = new ServiceCollection();
+        services.AddEntityFrameworkSqlServer();
+
+        new SqlServerDesignTimeServices().ConfigureDesignTimeServices(services);
+
+        return services
+            .BuildServiceProvider() // No scope validation; cleaner violates scopes, but only resolve services once.
+            .GetRequiredService<IDatabaseModelFactory>();
+    }
 
     protected override bool AcceptTable(DatabaseTable table)
-        => !(table is DatabaseView);
+        => table is not DatabaseView;
 
     protected override bool AcceptIndex(DatabaseIndex index)
         => false;
@@ -57,6 +58,10 @@ END";
 GO
 
 DECLARE @SQL varchar(max) = '';
+SELECT @SQL = @SQL + 'DROP FULLTEXT CATALOG ' + QUOTENAME(name) + ';' FROM sys.fulltext_catalogs;
+EXEC (@SQL);
+
+SET @SQL ='';
 SELECT @SQL = @SQL + 'DROP FUNCTION ' + QUOTENAME(ROUTINE_SCHEMA) + '.' + QUOTENAME(ROUTINE_NAME) + ';'
   FROM [INFORMATION_SCHEMA].[ROUTINES] WHERE ROUTINE_TYPE = 'FUNCTION' AND ROUTINE_BODY = 'SQL';
 EXEC (@SQL);
@@ -85,7 +90,7 @@ EXEC (@SQL);";
         => AddSqlServerSpecificAnnotations(base.Drop(foreignKey), foreignKey.Table);
 
     protected override MigrationOperation Drop(DatabaseIndex index)
-        => AddSqlServerSpecificAnnotations(base.Drop(index), index.Table);
+        => AddSqlServerSpecificAnnotations(base.Drop(index), index.Table!);
 
     private static TOperation AddSqlServerSpecificAnnotations<TOperation>(TOperation operation, DatabaseTable table)
         where TOperation : MigrationOperation

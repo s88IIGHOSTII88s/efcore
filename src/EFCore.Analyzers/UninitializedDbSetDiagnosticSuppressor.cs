@@ -12,13 +12,12 @@ namespace Microsoft.EntityFrameworkCore;
 public sealed class UninitializedDbSetDiagnosticSuppressor : DiagnosticSuppressor
 {
     private static readonly SuppressionDescriptor SuppressUninitializedDbSetRule = new(
-        id: "SPR1001",
+        id: EFDiagnostics.SuppressUninitializedDbSetRule,
         suppressedDiagnosticId: "CS8618",
         justification: AnalyzerStrings.UninitializedDbSetWarningSuppressionJustification);
 
     /// <inheritdoc />
-    public override ImmutableArray<SuppressionDescriptor> SupportedSuppressions { get; }
-        = ImmutableArray.Create(SuppressUninitializedDbSetRule);
+    public override ImmutableArray<SuppressionDescriptor> SupportedSuppressions { get; } = [SuppressUninitializedDbSetRule];
 
     /// <inheritdoc />
     public override void ReportSuppressions(SuppressionAnalysisContext context)
@@ -28,11 +27,20 @@ public sealed class UninitializedDbSetDiagnosticSuppressor : DiagnosticSuppresso
 
         foreach (var diagnostic in context.ReportedDiagnostics)
         {
-            // We have an warning about an uninitialized non-nullable property.
-            // Get the node, and make sure it's a property who's type syntactically contains DbSet (fast check before getting the
-            // semantic model, which is heavier).
-            if (diagnostic.Location.SourceTree is not { } sourceTree
-                || sourceTree.GetRoot().FindNode(diagnostic.Location.SourceSpan) is not PropertyDeclarationSyntax propertyDeclarationSyntax
+            // We have a warning about an uninitialized non-nullable property.
+
+            // CS8618 contains the location of the uninitialized property in AdditionalLocations; note that if the class has a constructor,
+            // the diagnostic main Location points to the constructor rather than to the uninitialized property.
+            // The AdditionalLocations was added in 7.0.0-preview.3, fall back to the main location just in case and older compiler is
+            // being used (the check below for PropertyDeclarationSyntax will filter out the diagnostic if it's pointing to a constructor).
+            var location = diagnostic.AdditionalLocations.Count > 0
+                ? diagnostic.AdditionalLocations[0]
+                : diagnostic.Location;
+
+            // Get the node, and make sure it's a property whose type syntactically contains DbSet (fast check before getting the semantic
+            // model, which is heavier).
+            if (location.SourceTree is not { } sourceTree
+                || sourceTree.GetRoot().FindNode(location.SourceSpan) is not PropertyDeclarationSyntax propertyDeclarationSyntax
                 || !propertyDeclarationSyntax.Type.ToString().Contains("DbSet"))
             {
                 continue;
@@ -48,8 +56,8 @@ public sealed class UninitializedDbSetDiagnosticSuppressor : DiagnosticSuppresso
 
             if (dbSetTypeSymbol is null || dbContextTypeSymbol is null)
             {
-                dbSetTypeSymbol = context.Compilation.GetTypeByMetadataName("Microsoft.EntityFrameworkCore.DbSet`1");
-                dbContextTypeSymbol = context.Compilation.GetTypeByMetadataName("Microsoft.EntityFrameworkCore.DbContext");
+                dbSetTypeSymbol = context.Compilation.DbSetType();
+                dbContextTypeSymbol = context.Compilation.DbContextType();
 
                 if (dbSetTypeSymbol is null || dbContextTypeSymbol is null)
                 {
@@ -61,7 +69,7 @@ public sealed class UninitializedDbSetDiagnosticSuppressor : DiagnosticSuppresso
             if (propertySymbol.Type.OriginalDefinition.Equals(dbSetTypeSymbol, SymbolEqualityComparer.Default)
                 && InheritsFrom(propertySymbol.ContainingType, dbContextTypeSymbol))
             {
-                context.ReportSuppression(Suppression.Create(SupportedSuppressions[0], diagnostic));
+                context.ReportSuppression(Suppression.Create(SuppressUninitializedDbSetRule, diagnostic));
             }
 
             static bool InheritsFrom(ITypeSymbol typeSymbol, ITypeSymbol baseTypeSymbol)

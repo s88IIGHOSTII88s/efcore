@@ -1,6 +1,9 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.EntityFrameworkCore.Scaffolding;
+
 namespace Microsoft.EntityFrameworkCore.Design.Internal;
 
 /// <summary>
@@ -11,6 +14,7 @@ namespace Microsoft.EntityFrameworkCore.Design.Internal;
 /// </summary>
 public class DatabaseOperations
 {
+    private readonly IOperationReporter _reporter;
     private readonly string _projectDir;
     private readonly string? _rootNamespace;
     private readonly string? _language;
@@ -34,11 +38,12 @@ public class DatabaseOperations
         bool nullable,
         string[]? args)
     {
+        _reporter = reporter;
         _projectDir = projectDir;
         _rootNamespace = rootNamespace;
         _language = language;
         _nullable = nullable;
-        _args = args ?? Array.Empty<string>();
+        _args = args ?? [];
 
         _servicesBuilder = new DesignTimeServicesBuilder(assembly, startupAssembly, reporter, _args);
     }
@@ -73,14 +78,18 @@ public class DatabaseOperations
             ? Path.GetFullPath(Path.Combine(_projectDir, outputContextDir))
             : outputDir;
 
+        AppServiceProviderFactory.SetEnvironment(_reporter);
         var services = _servicesBuilder.Build(provider);
         using var scope = services.CreateScope();
 
-        var scaffolder = scope.ServiceProvider.GetRequiredService<IReverseEngineerScaffolder>();
+        EnsureServices(scope.ServiceProvider, provider);
 
-        var finalModelNamespace = modelNamespace ?? GetNamespaceFromOutputPath(outputDir);
+        var scaffolder = scope.ServiceProvider.GetRequiredService<IReverseEngineerScaffolder>();
+        var code = scope.ServiceProvider.GetRequiredService<ICSharpHelper>();
+
+        var finalModelNamespace = modelNamespace ?? GetNamespaceFromOutputPath(outputDir, code);
         var finalContextNamespace =
-            contextNamespace ?? modelNamespace ?? GetNamespaceFromOutputPath(outputContextDir);
+            contextNamespace ?? modelNamespace ?? GetNamespaceFromOutputPath(outputContextDir, code);
 
         var scaffoldedModel = scaffolder.ScaffoldModel(
             connectionString,
@@ -106,9 +115,9 @@ public class DatabaseOperations
             overwriteFiles);
     }
 
-    private string? GetNamespaceFromOutputPath(string directoryPath)
+    private string? GetNamespaceFromOutputPath(string directoryPath, ICSharpHelper code)
     {
-        var subNamespace = SubnamespaceFromOutputPath(_projectDir, directoryPath);
+        var subNamespace = SubnamespaceFromOutputPath(_projectDir, directoryPath, code);
         return string.IsNullOrEmpty(subNamespace)
             ? _rootNamespace
             : string.IsNullOrEmpty(_rootNamespace)
@@ -119,7 +128,7 @@ public class DatabaseOperations
     // if outputDir is a subfolder of projectDir, then use each subfolder as a sub-namespace
     // --output-dir $(projectFolder)/A/B/C
     // => "namespace $(rootnamespace).A.B.C"
-    private static string? SubnamespaceFromOutputPath(string projectDir, string outputDir)
+    private static string? SubnamespaceFromOutputPath(string projectDir, string outputDir, ICSharpHelper code)
     {
         if (!outputDir.StartsWith(projectDir, StringComparison.Ordinal))
         {
@@ -129,10 +138,9 @@ public class DatabaseOperations
         var subPath = outputDir[projectDir.Length..];
 
         return !string.IsNullOrWhiteSpace(subPath)
-            ? string.Join(
-                ".",
+            ? code.Namespace(
                 subPath.Split(
-                    new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries))
+                    [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))
             : null;
     }
 
@@ -155,5 +163,14 @@ public class DatabaseOperations
             || last == Path.AltDirectorySeparatorChar
                 ? path
                 : path + Path.DirectorySeparatorChar;
+    }
+
+    private static void EnsureServices(IServiceProvider services, string provider)
+    {
+        var databaseModelFactory = services.GetService<IDatabaseModelFactory>();
+        if (databaseModelFactory == null)
+        {
+            throw new OperationException(DesignStrings.CannotScaffoldProvider(provider));
+        }
     }
 }

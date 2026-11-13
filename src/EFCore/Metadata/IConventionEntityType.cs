@@ -26,11 +26,6 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     ConfigurationSource GetConfigurationSource();
 
     /// <summary>
-    ///     Gets the model this entity belongs to.
-    /// </summary>
-    new IConventionModel Model { get; }
-
-    /// <summary>
     ///     Gets the builder that can be used to configure this entity type.
     /// </summary>
     /// <exception cref="InvalidOperationException">If the entity type has been removed from the model.</exception>
@@ -48,19 +43,14 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     bool IsKeyless { get; }
 
     /// <summary>
-    ///     Sets the change tracking strategy to use for this entity type. This strategy indicates how the
-    ///     context detects changes to properties for an instance of the entity type.
+    ///     Sets the query filter automatically applied to queries for this entity type.
     /// </summary>
-    /// <param name="changeTrackingStrategy">The strategy to use.</param>
+    /// <param name="filterKey">The filter key.</param>
+    /// <param name="filter">The LINQ predicate expression.</param>
+    /// <returns>The configured filter.</returns>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>The configured value.</returns>
-    ChangeTrackingStrategy? SetChangeTrackingStrategy(ChangeTrackingStrategy? changeTrackingStrategy, bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns the configuration source for <see cref="IReadOnlyEntityType.GetChangeTrackingStrategy" />.
-    /// </summary>
-    /// <returns>The configuration source for <see cref="IReadOnlyEntityType.GetChangeTrackingStrategy" />.</returns>
-    ConfigurationSource? GetChangeTrackingStrategyConfigurationSource();
+    /// <returns>The configured filter.</returns>
+    IQueryFilter? SetQueryFilter(string filterKey, LambdaExpression? filter, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Sets the LINQ expression filter automatically applied to queries for this entity type.
@@ -71,31 +61,16 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     LambdaExpression? SetQueryFilter(LambdaExpression? queryFilter, bool fromDataAnnotation = false);
 
     /// <summary>
-    ///     Returns the configuration source for <see cref="IReadOnlyEntityType.GetQueryFilter" />.
+    ///     Returns the configuration source for <see cref="IReadOnlyEntityType.GetDeclaredQueryFilters" />.
     /// </summary>
-    /// <returns>The configuration source for <see cref="IReadOnlyEntityType.GetQueryFilter" />.</returns>
+    /// <returns>The configuration source for <see cref="IReadOnlyEntityType.GetDeclaredQueryFilters" />.</returns>
     ConfigurationSource? GetQueryFilterConfigurationSource();
 
     /// <summary>
-    ///     Returns the property that will be used for storing a discriminator value.
+    ///     Returns the configuration source for <see cref="IReadOnlyEntityType.GetDeclaredQueryFilters" />.
     /// </summary>
-    /// <returns>The property that will be used for storing a discriminator value.</returns>
-    new IConventionProperty? FindDiscriminatorProperty()
-        => (IConventionProperty?)((IReadOnlyEntityType)this).FindDiscriminatorProperty();
-
-    /// <summary>
-    ///     Sets the <see cref="IReadOnlyProperty" /> that will be used for storing a discriminator value.
-    /// </summary>
-    /// <param name="property">The property to set.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>The discriminator property.</returns>
-    IConventionProperty? SetDiscriminatorProperty(IReadOnlyProperty? property, bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Gets the <see cref="ConfigurationSource" /> for the discriminator property.
-    /// </summary>
-    /// <returns>The <see cref="ConfigurationSource" /> or <see langword="null" /> if no discriminator property has been set.</returns>
-    ConfigurationSource? GetDiscriminatorPropertyConfigurationSource();
+    /// <returns>The configuration source for <see cref="IReadOnlyEntityType.GetDeclaredQueryFilters" />.</returns>
+    ConfigurationSource? GetQueryFilterConfigurationSource(string? filterKey);
 
     /// <summary>
     ///     Sets the value indicating whether the discriminator mapping is complete.
@@ -114,31 +89,6 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
         => FindAnnotation(CoreAnnotationNames.DiscriminatorMappingComplete)?.GetConfigurationSource();
 
     /// <summary>
-    ///     Sets the discriminator value for this entity type.
-    /// </summary>
-    /// <param name="value">The value to set.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>The configured value.</returns>
-    object? SetDiscriminatorValue(object? value, bool fromDataAnnotation = false)
-        => SetAnnotation(CoreAnnotationNames.DiscriminatorValue, EntityType.CheckDiscriminatorValue(this, value), fromDataAnnotation)
-            ?.Value;
-
-    /// <summary>
-    ///     Removes the discriminator value for this entity type.
-    /// </summary>
-    /// <returns>The removed discriminator value.</returns>
-    object? RemoveDiscriminatorValue()
-        => RemoveAnnotation(CoreAnnotationNames.DiscriminatorValue)?.Value;
-
-    /// <summary>
-    ///     Gets the <see cref="ConfigurationSource" /> for the discriminator value.
-    /// </summary>
-    /// <returns>The <see cref="ConfigurationSource" /> or <see langword="null" /> if no discriminator value has been set.</returns>
-    ConfigurationSource? GetDiscriminatorValueConfigurationSource()
-        => FindAnnotation(CoreAnnotationNames.DiscriminatorValue)
-            ?.GetConfigurationSource();
-
-    /// <summary>
     ///     Sets the base type of this entity type. Returns <see langword="null" /> if this is not a derived type in an inheritance hierarchy.
     /// </summary>
     /// <param name="entityType">The base entity type.</param>
@@ -147,13 +97,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     IConventionEntityType? SetBaseType(IConventionEntityType? entityType, bool fromDataAnnotation = false);
 
     /// <summary>
-    ///     Returns the configuration source for the BaseType property.
-    /// </summary>
-    /// <returns>The configuration source for the BaseType property.</returns>
-    ConfigurationSource? GetBaseTypeConfigurationSource();
-
-    /// <summary>
-    ///     Gets all types in the model from which a given entity type derives, starting with the root.
+    ///     Gets all types in the model from which this entity type derives, starting with the root.
     /// </summary>
     /// <returns>
     ///     The base types.
@@ -162,7 +106,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
         => GetAllBaseTypesAscending().Reverse();
 
     /// <summary>
-    ///     Gets all types in the model from which a given entity type derives, starting with the closest one.
+    ///     Gets all types in the model from which this entity type derives, starting with the closest one.
     /// </summary>
     /// <returns>
     ///     The base types.
@@ -171,21 +115,21 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
         => GetAllBaseTypesInclusiveAscending().Skip(1);
 
     /// <summary>
-    ///     Returns all base types of the given <see cref="IReadOnlyEntityType" />, including the type itself, top to bottom.
+    ///     Returns all base types of this entity type, including the type itself, top to bottom.
     /// </summary>
     /// <returns>Base types.</returns>
     new IEnumerable<IConventionEntityType> GetAllBaseTypesInclusive()
         => GetAllBaseTypesInclusiveAscending().Reverse();
 
     /// <summary>
-    ///     Returns all base types of the given entity type, including the type itself, bottom to top.
+    ///     Returns all base types of this entity type, including the type itself, bottom to top.
     /// </summary>
     /// <returns>Base types.</returns>
     new IEnumerable<IConventionEntityType> GetAllBaseTypesInclusiveAscending()
         => ((IReadOnlyEntityType)this).GetAllBaseTypesInclusiveAscending().Cast<IConventionEntityType>();
 
     /// <summary>
-    ///     Gets all types in the model that derive from a given entity type.
+    ///     Gets all types in the model that derive from this entity type.
     /// </summary>
     /// <returns>The derived types.</returns>
     new IEnumerable<IConventionEntityType> GetDerivedTypes()
@@ -199,17 +143,17 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
         => ((IReadOnlyEntityType)this).GetDerivedTypesInclusive().Cast<IConventionEntityType>();
 
     /// <summary>
-    ///     Gets all types in the model that directly derive from a given entity type.
+    ///     Gets all types in the model that directly derive from this entity type.
     /// </summary>
     /// <returns>The derived types.</returns>
     new IEnumerable<IConventionEntityType> GetDirectlyDerivedTypes()
         => ((IReadOnlyEntityType)this).GetDirectlyDerivedTypes().Cast<IConventionEntityType>();
 
     /// <summary>
-    ///     Gets the root base type for a given entity type.
+    ///     Gets the root base type for this entity type.
     /// </summary>
     /// <returns>
-    ///     The root base type. If the given entity type is not a derived type, then the same entity type is returned.
+    ///     The root base type. If this entity type is not a derived type, then the same entity type is returned.
     /// </returns>
     new IConventionEntityType GetRootType()
         => (IConventionEntityType)((IReadOnlyEntityType)this).GetRootType();
@@ -292,7 +236,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns>The newly created key.</returns>
     IConventionKey? AddKey(IConventionProperty property, bool fromDataAnnotation = false)
-        => AddKey(new[] { property }, fromDataAnnotation);
+        => AddKey([property], fromDataAnnotation);
 
     /// <summary>
     ///     Adds a new alternate key to this entity type.
@@ -317,7 +261,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// <param name="property">The property that the key is defined on.</param>
     /// <returns>The key, or null if none is defined.</returns>
     new IConventionKey? FindKey(IReadOnlyProperty property)
-        => FindKey(new[] { property });
+        => FindKey([property]);
 
     /// <summary>
     ///     Gets all keys declared on the given <see cref="IReadOnlyEntityType" />.
@@ -368,7 +312,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
         IConventionKey principalKey,
         IConventionEntityType principalEntityType,
         bool fromDataAnnotation = false)
-        => AddForeignKey(new[] { property }, principalKey, principalEntityType, fromDataAnnotation);
+        => AddForeignKey([property], principalKey, principalEntityType, fromDataAnnotation);
 
     /// <summary>
     ///     Adds a new relationship to this entity type.
@@ -416,7 +360,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// <param name="property">The property to find the foreign keys on.</param>
     /// <returns>The foreign keys.</returns>
     new IEnumerable<IConventionForeignKey> FindForeignKeys(IReadOnlyProperty property)
-        => FindForeignKeys(new[] { property });
+        => FindForeignKeys([property]);
 
     /// <summary>
     ///     Gets the foreign keys defined on the given properties. Only foreign keys that are defined on exactly the specified
@@ -443,7 +387,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
         IReadOnlyProperty property,
         IReadOnlyKey principalKey,
         IReadOnlyEntityType principalEntityType)
-        => FindForeignKey(new[] { property }, principalKey, principalEntityType);
+        => FindForeignKey([property], principalKey, principalEntityType);
 
     /// <summary>
     ///     Gets the foreign keys declared on this entity type using the given properties.
@@ -531,7 +475,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// <param name="memberInfo">The navigation property on the entity class.</param>
     /// <returns>The navigation property, or <see langword="null" /> if none is found.</returns>
     new IConventionNavigation? FindNavigation(MemberInfo memberInfo)
-        => FindNavigation(Check.NotNull(memberInfo, nameof(memberInfo)).GetSimpleMemberName());
+        => FindNavigation(Check.NotNull(memberInfo).GetSimpleMemberName());
 
     /// <summary>
     ///     Gets a navigation property on the given entity type. Returns <see langword="null" /> if no navigation property is found.
@@ -548,7 +492,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// <param name="name">The name of the navigation property on the entity class.</param>
     /// <returns>The navigation property, or <see langword="null" /> if none is found.</returns>
     new IConventionNavigation? FindDeclaredNavigation(string name)
-        => (IConventionNavigation?)((IReadOnlyEntityType)this).FindDeclaredNavigation(Check.NotNull(name, nameof(name)));
+        => (IConventionNavigation?)((IReadOnlyEntityType)this).FindDeclaredNavigation(Check.NotNull(name));
 
     /// <summary>
     ///     Gets all navigation properties declared on this entity type.
@@ -585,6 +529,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     ///     Adds a new skip navigation property to this entity type.
     /// </summary>
     /// <param name="name">The name of the skip navigation property to add.</param>
+    /// <param name="navigationType">The navigation type.</param>
     /// <param name="memberInfo">
     ///     <para>
     ///         The corresponding CLR type member or <see langword="null" /> for a shadow navigation.
@@ -602,6 +547,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// <returns>The newly created skip navigation property.</returns>
     IConventionSkipNavigation? AddSkipNavigation(
         string name,
+        Type? navigationType,
         MemberInfo? memberInfo,
         IConventionEntityType targetEntityType,
         bool collection,
@@ -636,7 +582,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     ///     Gets the skip navigation properties declared on this entity type.
     /// </summary>
     /// <remarks>
-    ///     This method does not return skip navigation properties declared declared on base types.
+    ///     This method does not return skip navigation properties declared on base types.
     ///     It is useful when iterating over all entity types to avoid processing the same foreign key more than once.
     ///     Use <see cref="GetSkipNavigations" /> to also return skip navigation properties declared on base types.
     /// </remarks>
@@ -675,8 +621,8 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// <param name="property">The property to be indexed.</param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns>The newly created index.</returns>
-    IConventionIndex? AddIndex(IConventionProperty property, bool fromDataAnnotation = false)
-        => AddIndex(new[] { property }, fromDataAnnotation);
+    IConventionIndex? AddIndex(IConventionPropertyBase property, bool fromDataAnnotation = false)
+        => AddIndex([property], fromDataAnnotation);
 
     /// <summary>
     ///     Adds an unnamed index to this entity type.
@@ -684,7 +630,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// <param name="properties">The properties that are to be indexed.</param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns>The newly created index.</returns>
-    IConventionIndex? AddIndex(IReadOnlyList<IConventionProperty> properties, bool fromDataAnnotation = false);
+    IConventionIndex? AddIndex(IReadOnlyList<IConventionPropertyBase> properties, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Adds a named index to this entity type.
@@ -694,10 +640,10 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns>The newly created index.</returns>
     IConventionIndex? AddIndex(
-        IConventionProperty property,
+        IConventionPropertyBase property,
         string name,
         bool fromDataAnnotation = false)
-        => AddIndex(new[] { property }, name, fromDataAnnotation);
+        => AddIndex([property], name, fromDataAnnotation);
 
     /// <summary>
     ///     Adds a named index to this entity type.
@@ -707,7 +653,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns>The newly created index.</returns>
     IConventionIndex? AddIndex(
-        IReadOnlyList<IConventionProperty> properties,
+        IReadOnlyList<IConventionPropertyBase> properties,
         string name,
         bool fromDataAnnotation = false);
 
@@ -719,8 +665,8 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// </remarks>
     /// <param name="property">The property to find the index on.</param>
     /// <returns>The index, or <see langword="null" /> if none is found.</returns>
-    new IConventionIndex? FindIndex(IReadOnlyProperty property)
-        => FindIndex(new[] { property });
+    new IConventionIndex? FindIndex(IReadOnlyPropertyBase property)
+        => FindIndex([property]);
 
     /// <summary>
     ///     Gets the unnamed index defined on the given properties. Returns <see langword="null" /> if no index is defined.
@@ -730,7 +676,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// </remarks>
     /// <param name="properties">The properties to find the index on.</param>
     /// <returns>The index, or <see langword="null" /> if none is found.</returns>
-    new IConventionIndex? FindIndex(IReadOnlyList<IReadOnlyProperty> properties);
+    new IConventionIndex? FindIndex(IReadOnlyList<IReadOnlyPropertyBase> properties);
 
     /// <summary>
     ///     Gets the index with the given name. Returns <see langword="null" /> if no such index exists.
@@ -769,7 +715,7 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// </summary>
     /// <param name="properties">The properties that make up the index.</param>
     /// <returns>The index that was removed.</returns>
-    IConventionIndex? RemoveIndex(IReadOnlyList<IReadOnlyProperty> properties);
+    IConventionIndex? RemoveIndex(IReadOnlyList<IReadOnlyPropertyBase> properties);
 
     /// <summary>
     ///     Removes an index from this entity type.
@@ -779,195 +725,13 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     IConventionIndex? RemoveIndex(IReadOnlyIndex index);
 
     /// <summary>
-    ///     Adds a property to this entity type.
-    /// </summary>
-    /// <param name="memberInfo">The corresponding member on the entity class.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>The newly created property.</returns>
-    IConventionProperty? AddProperty(MemberInfo memberInfo, bool fromDataAnnotation = false)
-        => AddProperty(
-            memberInfo.GetSimpleMemberName(), memberInfo.GetMemberType(),
-            memberInfo, setTypeConfigurationSource: true, fromDataAnnotation);
-
-    /// <summary>
-    ///     Adds a property to this entity type.
-    /// </summary>
-    /// <param name="name">The name of the property to add.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>The newly created property.</returns>
-    IConventionProperty? AddProperty(string name, bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Adds a property to this entity type.
-    /// </summary>
-    /// <param name="name">The name of the property to add.</param>
-    /// <param name="propertyType">The type of value the property will hold.</param>
-    /// <param name="setTypeConfigurationSource">Indicates whether the type configuration source should be set.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>The newly created property.</returns>
-    IConventionProperty? AddProperty(
-        string name,
-        Type propertyType,
-        bool setTypeConfigurationSource = true,
-        bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Adds a property to this entity type.
-    /// </summary>
-    /// <param name="name">The name of the property to add.</param>
-    /// <param name="propertyType">The type of value the property will hold.</param>
-    /// <param name="memberInfo">
-    ///     <para>
-    ///         The corresponding CLR type member or <see langword="null" /> for a shadow property.
-    ///     </para>
-    ///     <para>
-    ///         An indexer with a <see cref="string" /> parameter and <see cref="object" /> return type can be used.
-    ///     </para>
-    /// </param>
-    /// <param name="setTypeConfigurationSource">Indicates whether the type configuration source should be set.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>The newly created property.</returns>
-    IConventionProperty? AddProperty(
-        string name,
-        Type propertyType,
-        MemberInfo? memberInfo,
-        bool setTypeConfigurationSource = true,
-        bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Adds a property backed by and indexer to this entity type.
-    /// </summary>
-    /// <param name="name">The name of the property to add.</param>
-    /// <param name="propertyType">The type of value the property will hold.</param>
-    /// <param name="setTypeConfigurationSource">Indicates whether the type configuration source should be set.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>The newly created property.</returns>
-    IConventionProperty? AddIndexerProperty(
-        string name,
-        Type propertyType,
-        bool setTypeConfigurationSource = true,
-        bool fromDataAnnotation = false)
-    {
-        var indexerPropertyInfo = FindIndexerPropertyInfo();
-        if (indexerPropertyInfo == null)
-        {
-            throw new InvalidOperationException(
-                CoreStrings.NonIndexerEntityType(name, DisplayName(), typeof(string).ShortDisplayName()));
-        }
-
-        return AddProperty(name, propertyType, indexerPropertyInfo, setTypeConfigurationSource, fromDataAnnotation);
-    }
-
-    /// <summary>
-    ///     Gets the property with a given name. Returns <see langword="null" /> if no property with the given name is defined.
-    /// </summary>
-    /// <remarks>
-    ///     This API only finds scalar properties and does not find navigation properties. Use
-    ///     <see cref="FindNavigation(string)" /> to find a navigation property.
-    /// </remarks>
-    /// <param name="name">The name of the property.</param>
-    /// <returns>The property, or <see langword="null" /> if none is found.</returns>
-    new IConventionProperty? FindProperty(string name);
-
-    /// <summary>
-    ///     Gets the properties defined on this entity type.
-    /// </summary>
-    /// <remarks>
-    ///     This API only returns scalar properties and does not return navigation properties. Use
-    ///     <see cref="GetNavigations()" /> to get navigation properties.
-    /// </remarks>
-    /// <returns>The properties defined on this entity type.</returns>
-    new IEnumerable<IConventionProperty> GetProperties();
-
-    /// <summary>
-    ///     Gets a property on the given entity type. Returns <see langword="null" /> if no property is found.
-    /// </summary>
-    /// <remarks>
-    ///     This API only finds scalar properties and does not find navigation properties. Use
-    ///     <see cref="FindNavigation(MemberInfo)" /> to find a navigation property.
-    /// </remarks>
-    /// <param name="memberInfo">The property on the entity class.</param>
-    /// <returns>The property, or <see langword="null" /> if none is found.</returns>
-    new IConventionProperty? FindProperty(MemberInfo memberInfo)
-        => (IConventionProperty?)((IReadOnlyEntityType)this).FindProperty(memberInfo);
-
-    /// <summary>
-    ///     Finds matching properties on the given entity type. Returns <see langword="null" /> if any property is not found.
-    /// </summary>
-    /// <remarks>
-    ///     This API only finds scalar properties and does not find navigation or service properties.
-    /// </remarks>
-    /// <param name="propertyNames">The property names.</param>
-    /// <returns>The properties, or <see langword="null" /> if any property is not found.</returns>
-    new IReadOnlyList<IConventionProperty>? FindProperties(IReadOnlyList<string> propertyNames)
-        => (IReadOnlyList<IConventionProperty>?)((IReadOnlyEntityType)this).FindProperties(propertyNames);
-
-    /// <summary>
-    ///     Gets a property with the given name.
-    /// </summary>
-    /// <remarks>
-    ///     This API only finds scalar properties and does not find navigation properties. Use
-    ///     <see cref="FindNavigation(string)" /> to find a navigation property.
-    /// </remarks>
-    /// <param name="name">The property name.</param>
-    /// <returns>The property, or <see langword="null" /> if none is found.</returns>
-    new IConventionProperty GetProperty(string name)
-        => (IConventionProperty)((IReadOnlyEntityType)this).GetProperty(name);
-
-    /// <summary>
-    ///     Finds a property declared on the type with the given name.
-    ///     Does not return properties defined on a base type.
-    /// </summary>
-    /// <param name="name">The property name.</param>
-    /// <returns>The property, or <see langword="null" /> if none is found.</returns>
-    new IConventionProperty? FindDeclaredProperty(string name)
-        => (IConventionProperty?)((IReadOnlyEntityType)this).FindDeclaredProperty(name);
-
-    /// <summary>
-    ///     Gets all non-navigation properties declared on this entity type.
-    /// </summary>
-    /// <remarks>
-    ///     This method does not return properties declared on base types.
-    ///     It is useful when iterating over all entity types to avoid processing the same property more than once.
-    ///     Use <see cref="GetProperties" /> to also return properties declared on base types.
-    /// </remarks>
-    /// <returns>Declared non-navigation properties.</returns>
-    new IEnumerable<IConventionProperty> GetDeclaredProperties()
-        => ((IReadOnlyEntityType)this).GetDeclaredProperties().Cast<IConventionProperty>();
-
-    /// <summary>
-    ///     Gets all non-navigation properties declared on the types derived from this entity type.
-    /// </summary>
-    /// <remarks>
-    ///     This method does not return properties declared on the given entity type itself.
-    ///     Use <see cref="GetProperties" /> to return properties declared on this
-    ///     and base entity typed types.
-    /// </remarks>
-    /// <returns>Derived non-navigation properties.</returns>
-    new IEnumerable<IConventionProperty> GetDerivedProperties()
-        => ((IReadOnlyEntityType)this).GetDerivedProperties().Cast<IConventionProperty>();
-
-    /// <summary>
-    ///     Removes a property from this entity type.
-    /// </summary>
-    /// <param name="name">The name of the property to remove.</param>
-    /// <returns>The property that was removed.</returns>
-    IConventionProperty? RemoveProperty(string name);
-
-    /// <summary>
-    ///     Removes a property from this entity type.
-    /// </summary>
-    /// <param name="property">The property to remove.</param>
-    /// <returns>The removed property, or <see langword="null" /> if the property was not found.</returns>
-    IConventionProperty? RemoveProperty(IReadOnlyProperty property);
-
-    /// <summary>
     ///     Adds a service property to this entity type.
     /// </summary>
     /// <param name="memberInfo">The <see cref="PropertyInfo" /> or <see cref="FieldInfo" /> of the property to add.</param>
+    /// <param name="serviceType">The type of the service, or <see langword="null" /> to use the type of the member.</param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns>The newly created service property.</returns>
-    IConventionServiceProperty AddServiceProperty(MemberInfo memberInfo, bool fromDataAnnotation = false);
+    IConventionServiceProperty AddServiceProperty(MemberInfo memberInfo, Type? serviceType = null, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Gets the service property with a given name.
@@ -1026,4 +790,65 @@ public interface IConventionEntityType : IReadOnlyEntityType, IConventionTypeBas
     /// <param name="property">The property to remove.</param>
     /// <returns>The removed property, or <see langword="null" /> if the property was not found.</returns>
     IConventionServiceProperty? RemoveServiceProperty(IReadOnlyServiceProperty property);
+
+    /// <summary>
+    ///     Finds a trigger with the given name.
+    /// </summary>
+    /// <param name="name">The trigger name.</param>
+    /// <returns>The trigger or <see langword="null" /> if no trigger with the given name was found.</returns>
+    new IConventionTrigger? FindDeclaredTrigger(string name);
+
+    /// <summary>
+    ///     Returns the declared triggers on the entity type.
+    /// </summary>
+    new IEnumerable<IConventionTrigger> GetDeclaredTriggers();
+
+    /// <summary>
+    ///     Gets all triggers defined on this entity type.
+    /// </summary>
+    /// <returns>The triggers defined on this entity type.</returns>
+    new IEnumerable<IConventionTrigger> GetTriggers()
+        => (BaseType?.GetTriggers() ?? []).Concat(GetDeclaredTriggers());
+
+    /// <summary>
+    ///     Creates a new trigger with the given name on entity type. Throws an exception if a trigger with the same name exists on the same
+    ///     entity type.
+    /// </summary>
+    /// <param name="name">The trigger name.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>The trigger.</returns>
+    IConventionTrigger? AddTrigger(
+        string name,
+        bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Removes the trigger with the given name.
+    /// </summary>
+    /// <param name="name">The trigger name.</param>
+    /// <returns>
+    ///     The removed trigger or <see langword="null" /> if no trigger with the given name was found
+    ///     or the existing trigger was configured from a higher source.
+    /// </returns>
+    IConventionTrigger? RemoveTrigger(string name);
+
+    /// <summary>
+    ///     Sets the <see cref="PropertyAccessMode" /> to use for navigations of this entity type.
+    /// </summary>
+    /// <remarks>
+    ///     Note that individual navigations can override this access mode. The value set here will
+    ///     be used for any navigation for which no override has been specified.
+    /// </remarks>
+    /// <param name="propertyAccessMode">The <see cref="PropertyAccessMode" />, or <see langword="null" /> to clear the mode set.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>The configured value.</returns>
+    PropertyAccessMode? SetNavigationAccessMode(PropertyAccessMode? propertyAccessMode, bool fromDataAnnotation = false)
+        => (PropertyAccessMode?)SetOrRemoveAnnotation(
+            CoreAnnotationNames.NavigationAccessMode, propertyAccessMode, fromDataAnnotation)?.Value;
+
+    /// <summary>
+    ///     Returns the configuration source for <see cref="IReadOnlyEntityType.GetNavigationAccessMode" />.
+    /// </summary>
+    /// <returns>The configuration source for <see cref="IReadOnlyEntityType.GetNavigationAccessMode" />.</returns>
+    ConfigurationSource? GetNavigationAccessModeConfigurationSource()
+        => FindAnnotation(CoreAnnotationNames.NavigationAccessMode)?.GetConfigurationSource();
 }

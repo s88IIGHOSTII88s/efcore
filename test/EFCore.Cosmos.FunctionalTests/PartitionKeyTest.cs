@@ -1,8 +1,9 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-namespace Microsoft.EntityFrameworkCore.Cosmos;
+namespace Microsoft.EntityFrameworkCore;
 
+// TODO: Consider removing these in favor of ReadItemPartitionKeyQueryTest
 public class PartitionKeyTest : IClassFixture<PartitionKeyTest.CosmosPartitionKeyFixture>
 {
     private const string DatabaseName = nameof(PartitionKeyTest);
@@ -21,15 +22,16 @@ public class PartitionKeyTest : IClassFixture<PartitionKeyTest.CosmosPartitionKe
         ClearLog();
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Can_add_update_delete_end_to_end_with_partition_key()
     {
         const string readSql =
-            @"SELECT c
+            """
+SELECT VALUE c
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")
-ORDER BY c[""PartitionKey""]
-OFFSET 0 LIMIT 1";
+ORDER BY c["PartitionKey"]
+OFFSET 0 LIMIT 1
+""";
 
         await PartitionKeyTestAsync(
             ctx => ctx.Customers.OrderBy(c => c.PartitionKey).FirstAsync(),
@@ -39,31 +41,34 @@ OFFSET 0 LIMIT 1";
             2);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Can_add_update_delete_end_to_end_with_with_partition_key_extension()
     {
         const string readSql =
-            @"SELECT c
+            """
+SELECT VALUE c
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")
-OFFSET 0 LIMIT 1";
+OFFSET 0 LIMIT 2
+""";
 
         await PartitionKeyTestAsync(
-            ctx => ctx.Customers.WithPartitionKey("1").FirstAsync(),
+            ctx => ctx.Customers.WithPartitionKey("1").SingleAsync(),
             readSql,
             ctx => ctx.Customers.WithPartitionKey("2").LastAsync(),
             ctx => ctx.Customers.WithPartitionKey("2").ToListAsync(),
             1);
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_query_with_implicit_partition_key_filter()
     {
         const string readSql =
-            @"SELECT c
+            """
+SELECT VALUE c
 FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND ((c[""Id""] = 42) OR (c[""Name""] = ""John Snow"")))
-OFFSET 0 LIMIT 1";
+WHERE ((c["Id"] = 42) OR (c["Name"] = "John Snow"))
+OFFSET 0 LIMIT 1
+""";
 
         await PartitionKeyTestAsync(
             ctx => ctx.Customers
@@ -113,7 +118,6 @@ OFFSET 0 LIMIT 1";
             var customerFromStore = await readSingleTask(innerContext);
 
             AssertSql(readSql);
-
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("Theon", customerFromStore.Name);
             Assert.Equal(1, customerFromStore.PartitionKey);
@@ -182,29 +186,24 @@ OFFSET 0 LIMIT 1";
             => (TestSqlLoggerFactory)ServiceProvider.GetRequiredService<ILoggerFactory>();
     }
 
-    public class PartitionKeyContext : DbContext
+    public class PartitionKeyContext(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public virtual DbSet<Customer> Customers { get; set; }
-
-        public PartitionKeyContext(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
+        public virtual DbSet<Customer> Customers
+            => Set<Customer>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<Customer>(
-                cb =>
-                {
-                    cb.HasPartitionKey(c => c.PartitionKey);
-                    cb.Property(c => c.PartitionKey).HasConversion<string>();
-                    cb.HasKey(c => new { c.Id, c.PartitionKey });
-                });
+            => modelBuilder.Entity<Customer>(cb =>
+            {
+                cb.HasPartitionKey(c => c.PartitionKey);
+                cb.Property(c => c.PartitionKey).HasConversion<string>();
+                cb.HasKey(c => new { c.Id, c.PartitionKey });
+            });
     }
 
     public class Customer
     {
         public int Id { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         public int PartitionKey { get; set; }
     }
 }

@@ -53,17 +53,17 @@ public class SqlServerValueGeneratorSelector : RelationalValueGeneratorSelector
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public override ValueGenerator Select(IProperty property, IEntityType entityType)
+    public override bool TrySelect(IProperty property, ITypeBase typeBase, out ValueGenerator? valueGenerator)
     {
         if (property.GetValueGeneratorFactory() != null
             || property.GetValueGenerationStrategy() != SqlServerValueGenerationStrategy.SequenceHiLo)
         {
-            return base.Select(property, entityType);
+            return base.TrySelect(property, typeBase, out valueGenerator);
         }
 
         var propertyType = property.ClrType.UnwrapNullableType().UnwrapEnumType();
 
-        var generator = _sequenceFactory.TryCreate(
+        valueGenerator = _sequenceFactory.TryCreate(
             property,
             propertyType,
             Cache.GetOrAddSequenceState(property, _connection),
@@ -71,16 +71,16 @@ public class SqlServerValueGeneratorSelector : RelationalValueGeneratorSelector
             _rawSqlCommandBuilder,
             _commandLogger);
 
-        if (generator != null)
+        if (valueGenerator != null)
         {
-            return generator;
+            return true;
         }
 
         var converter = property.GetTypeMapping().Converter;
         if (converter != null
             && converter.ProviderClrType != propertyType)
         {
-            generator = _sequenceFactory.TryCreate(
+            valueGenerator = _sequenceFactory.TryCreate(
                 property,
                 converter.ProviderClrType,
                 Cache.GetOrAddSequenceState(property, _connection),
@@ -88,15 +88,14 @@ public class SqlServerValueGeneratorSelector : RelationalValueGeneratorSelector
                 _rawSqlCommandBuilder,
                 _commandLogger);
 
-            if (generator != null)
+            if (valueGenerator != null)
             {
-                return generator.WithConverter(converter);
+                valueGenerator = valueGenerator.WithConverter(converter);
+                return true;
             }
         }
 
-        throw new ArgumentException(
-            CoreStrings.InvalidValueGeneratorFactoryProperty(
-                nameof(SqlServerSequenceValueGeneratorFactory), property.Name, property.DeclaringEntityType.DisplayName()));
+        return false;
     }
 
     /// <summary>
@@ -105,10 +104,10 @@ public class SqlServerValueGeneratorSelector : RelationalValueGeneratorSelector
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    protected override ValueGenerator? FindForType(IProperty property, IEntityType entityType, Type clrType)
+    protected override ValueGenerator? FindForType(IProperty property, ITypeBase typeBase, Type clrType)
         => property.ClrType.UnwrapNullableType() == typeof(Guid)
             ? property.ValueGenerated == ValueGenerated.Never || property.GetDefaultValueSql() != null
                 ? new TemporaryGuidValueGenerator()
                 : new SequentialGuidValueGenerator()
-            : base.FindForType(property, entityType, clrType);
+            : base.FindForType(property, typeBase, clrType);
 }

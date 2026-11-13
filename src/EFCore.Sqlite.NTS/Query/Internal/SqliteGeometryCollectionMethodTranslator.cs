@@ -14,7 +14,6 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Query.Internal;
 /// </summary>
 public class SqliteGeometryCollectionMethodTranslator : IMethodCallTranslator
 {
-    private static readonly MethodInfo Item = typeof(GeometryCollection).GetTypeInfo().GetRuntimeProperty("Item")!.GetMethod!;
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
     /// <summary>
@@ -24,9 +23,7 @@ public class SqliteGeometryCollectionMethodTranslator : IMethodCallTranslator
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public SqliteGeometryCollectionMethodTranslator(ISqlExpressionFactory sqlExpressionFactory)
-    {
-        _sqlExpressionFactory = sqlExpressionFactory;
-    }
+        => _sqlExpressionFactory = sqlExpressionFactory;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -39,23 +36,18 @@ public class SqliteGeometryCollectionMethodTranslator : IMethodCallTranslator
         MethodInfo method,
         IReadOnlyList<SqlExpression> arguments,
         IDiagnosticsLogger<DbLoggerCategory.Query> logger)
-    {
-        if (Equals(method, Item))
-        {
-            return _sqlExpressionFactory.Function(
-                "GeometryN",
-                new[]
-                {
-                    instance!,
-                    _sqlExpressionFactory.Add(
-                        arguments[0],
-                        _sqlExpressionFactory.Constant(1))
-                },
-                nullable: true,
-                argumentsPropagateNullability: new[] { true, true },
-                method.ReturnType);
-        }
-
-        return null;
-    }
+        => method.IsGenericMethod
+            && method.GetGenericMethodDefinition() == EnumerableMethods.ElementAt
+            && method.ReturnType == typeof(Geometry)
+            && arguments is [var collection, var index]
+                ? _sqlExpressionFactory.Function(
+                    "GeometryN",
+                    [
+                        collection,
+                        _sqlExpressionFactory.Add(index, _sqlExpressionFactory.Constant(1))
+                    ],
+                    nullable: true,
+                    argumentsPropagateNullability: Statics.TrueArrays[2],
+                    method.ReturnType)
+                : null;
 }

@@ -23,12 +23,14 @@ public interface IInternalServiceCollectionMap
     /// </summary>
     /// <typeparam name="TDependencies">The dependency type.</typeparam>
     /// <returns>The same collection map so that further methods can be chained.</returns>
-    IInternalServiceCollectionMap AddDependencySingleton<TDependencies>();
+    IInternalServiceCollectionMap AddDependencySingleton<
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TDependencies>();
 
     /// <summary>
     ///     Adds a <see cref="ServiceLifetime.Scoped" />  dependency object.
     /// </summary>
     /// <typeparam name="TDependencies">The dependency type.</typeparam>
     /// <returns>The same collection map so that further methods can be chained.</returns>
-    IInternalServiceCollectionMap AddDependencyScoped<TDependencies>();
+    IInternalServiceCollectionMap
+        AddDependencyScoped<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TDependencies>();
 }

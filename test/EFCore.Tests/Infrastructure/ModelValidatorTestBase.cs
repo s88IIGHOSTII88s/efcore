@@ -76,75 +76,116 @@ public abstract class ModelValidatorTestBase
         public int? P2 { get; set; }
         public int? P3 { get; set; }
 
-        public A A { get; set; }
+        public A A { get; set; } = null!;
 
         [NotMapped]
-        public A AnotherA { get; set; }
+        public A AnotherA { get; set; } = null!;
 
         [NotMapped]
-        public ICollection<A> ManyAs { get; set; }
+        public ICollection<A> ManyAs { get; set; } = null!;
     }
 
-    protected class C : A
+    protected class C : A;
+
+    protected class D : A;
+
+    protected class F : D;
+
+    protected class G
     {
+        public int Id { get; set; }
+
+        public int? P0 { get; set; }
+        public int? P1 { get; set; }
+        public int? P2 { get; set; }
+        public int? P3 { get; set; }
+
+        public A A { get; set; } = null!;
     }
 
-    protected class D : A
-    {
-    }
-
-    protected class F : D
-    {
-    }
-
-    protected abstract class Abstract : A
-    {
-    }
+    protected abstract class Abstract : A;
 
     // ReSharper disable once UnusedTypeParameter
-    protected class Generic<T> : Abstract
+    protected class Generic<T> : Abstract;
+
+    protected class BaseEntity
+    {
+        public int Id { get; set; }
+    }
+
+    protected class ChildA : BaseEntity
+    {
+        public OwnedType OwnedType { get; set; } = null!;
+    }
+
+    protected class ChildB : BaseEntity
     {
     }
 
-    public class SampleEntity
+    protected class ChildC : BaseEntity
+    {
+    }
+
+    protected class ChildD : BaseEntity
+    {
+    }
+
+    [Owned]
+    protected class OwnedType
+    {
+        public NestedOwnedType NestedOwnedType { get; set; } = null!;
+    }
+
+    [Owned]
+    protected class NestedOwnedType
+    {
+    }
+
+    protected class SampleEntity
     {
         public int Id { get; set; }
         public int Number { get; set; }
-        public string Name { get; set; }
-        public ReferencedEntity ReferencedEntity { get; set; }
+        public string? Name { get; set; }
+        public ReferencedEntity ReferencedEntity { get; set; } = null!;
 
         [NotMapped]
-        public ReferencedEntity AnotherReferencedEntity { get; set; }
+        public ReferencedEntity AnotherReferencedEntity { get; set; } = null!;
 
-        public ICollection<SampleEntity> OtherSamples { get; set; }
+        public ICollection<SampleEntity> OtherSamples { get; set; } = null!;
+
+        protected StructTag Tag { get; set; }
     }
 
-    public class AnotherSampleEntity
+    protected struct StructTag
+    {
+        public required string Key { get; set; }
+        public required string Value { get; set; }
+    }
+
+    protected class AnotherSampleEntity
     {
         public int Id { get; set; }
-        public ReferencedEntity ReferencedEntity { get; set; }
+        public ReferencedEntity ReferencedEntity { get; set; } = null!;
     }
 
-    public class ReferencedEntity
+    protected class ReferencedEntity
     {
         public int Id { get; set; }
         public int SampleEntityId { get; set; }
     }
 
-    public class SampleEntityMinimal
+    protected class SampleEntityMinimal
     {
         public int Id { get; set; }
-        public ReferencedEntityMinimal ReferencedEntity { get; set; }
+        public ReferencedEntityMinimal ReferencedEntity { get; set; } = null!;
     }
 
-    public class ReferencedEntityMinimal
-    {
-    }
+    protected class ReferencedEntityMinimal;
 
-    public class AnotherSampleEntityMinimal
+    protected class AnotherSampleEntityMinimal
     {
         public int Id { get; set; }
-        public ReferencedEntityMinimal ReferencedEntity { get; set; }
+        public ReferencedEntityMinimal ReferencedEntity { get; set; } = null!;
     }
 
     protected class E
@@ -153,6 +194,46 @@ public abstract class ModelValidatorTestBase
         public bool ImBool { get; set; }
         public bool ImNotUsed { get; set; }
         public bool? ImNot { get; set; }
+    }
+
+    protected class E2
+    {
+        private bool? _imBool;
+
+        public int Id { get; set; }
+
+        public bool ImBool
+        {
+            get => _imBool ?? true;
+            set => _imBool = value;
+        }
+    }
+
+    protected enum X
+    {
+        A = 1,
+        B
+    }
+
+    protected class WithEnum
+    {
+        public int Id { get; set; }
+        public X EnumWithDefaultConstraint { get; set; }
+        public X EnumNoDefaultConstraint { get; set; }
+        public X? NullableEnum { get; set; }
+    }
+
+    protected class WithEnum2
+    {
+        private X? _enumWithDefaultConstraint;
+
+        public int Id { get; set; }
+
+        public X EnumWithDefaultConstraint
+        {
+            get => _enumWithDefaultConstraint ?? X.B;
+            set => _enumWithDefaultConstraint = value;
+        }
     }
 
     protected class EntityWithInvalidProperties
@@ -189,81 +270,90 @@ public abstract class ModelValidatorTestBase
 
     protected class Customer
     {
+        private string _name = null!;
+        public string OtherName = null!;
+
         public int Id { get; set; }
-        public string Name { get; set; }
-        public string PartitionId { get; set; }
-        public ICollection<Order> Orders { get; set; }
+
+        public string Name
+        {
+            get => _name;
+            set => _name = value;
+        }
+
+        public string PartitionId { get; set; } = null!;
+        public ICollection<Order> Orders { get; set; } = null!;
     }
 
     protected class Order
     {
-        public static readonly PropertyInfo IdProperty = typeof(Order).GetProperty(nameof(Id));
+        public static readonly PropertyInfo IdProperty = typeof(Order).GetProperty(nameof(Id))!;
 
         public int Id { get; set; }
-        public string PartitionId { get; set; }
-        public Customer Customer { get; set; }
+        public string? PartitionId { get; set; }
+        public Customer? Customer { get; set; }
 
-        public OrderDetails OrderDetails { get; set; }
+        public OrderDetails? OrderDetails { get; set; }
 
         [NotMapped]
-        public virtual ICollection<Product> Products { get; set; }
+        public virtual ICollection<Product> Products { get; set; } = null!;
     }
 
     [Owned]
     protected class OrderDetails
     {
-        public Customer Customer { get; set; }
-        public string ShippingAddress { get; set; }
+        public Customer? Customer { get; set; }
+        public string? ShippingAddress { get; set; }
     }
 
     protected class OrderProduct
     {
-        public static readonly PropertyInfo OrderIdProperty = typeof(OrderProduct).GetProperty(nameof(OrderId));
-        public static readonly PropertyInfo ProductIdProperty = typeof(OrderProduct).GetProperty(nameof(ProductId));
+        public static readonly PropertyInfo OrderIdProperty = typeof(OrderProduct).GetProperty(nameof(OrderId))!;
+        public static readonly PropertyInfo ProductIdProperty = typeof(OrderProduct).GetProperty(nameof(ProductId))!;
 
         public int OrderId { get; set; }
         public int ProductId { get; set; }
-        public virtual Order Order { get; set; }
-        public virtual Product Product { get; set; }
+        public virtual Order Order { get; set; } = null!;
+        public virtual Product Product { get; set; } = null!;
     }
 
     protected class Product
     {
-        public static readonly PropertyInfo IdProperty = typeof(Product).GetProperty(nameof(Id));
+        public static readonly PropertyInfo IdProperty = typeof(Product).GetProperty(nameof(Id))!;
 
         public int Id { get; set; }
 
         [NotMapped]
-        public virtual ICollection<Order> Orders { get; set; }
+        public virtual ICollection<Order> Orders { get; set; } = null!;
     }
 
     protected class KeylessSeed
     {
-        public string Species { get; set; }
+        public string Species { get; set; } = null!;
     }
 
     protected class PrincipalOne
     {
         public int Id { get; set; }
 
-        public ICollection<DependentOne> DependentsOnes { get; set; }
+        public ICollection<DependentOne> DependentsOnes { get; set; } = null!;
     }
 
     protected class DependentOne
     {
-        public static readonly PropertyInfo PrincipalOneIdProperty = typeof(DependentOne).GetProperty(nameof(PrincipalOneId));
+        public static readonly PropertyInfo PrincipalOneIdProperty = typeof(DependentOne).GetProperty(nameof(PrincipalOneId))!;
 
         public int Id { get; set; }
 
-        public string PrincipalOneId { get; set; }
-        public PrincipalOne PrincipalOne { get; set; }
+        public string PrincipalOneId { get; set; } = null!;
+        public PrincipalOne PrincipalOne { get; set; } = null!;
     }
 
     protected class PrincipalTwo
     {
         public int Id { get; set; }
 
-        public ICollection<DependentTwo> DependentsTwos { get; set; }
+        public ICollection<DependentTwo> DependentsTwos { get; set; } = null!;
     }
 
     protected class DependentTwo
@@ -271,51 +361,87 @@ public abstract class ModelValidatorTestBase
         public int Id { get; set; }
 
         public int? PrincipalTwoId { get; set; }
-        public PrincipalTwo PrincipalTwo { get; set; }
+        public PrincipalTwo PrincipalTwo { get; set; } = null!;
     }
 
     protected class PrincipalThree
     {
         public int Id { get; set; }
 
-        public ICollection<DependentThree> DependentsThreesA { get; set; }
-        public ICollection<DependentThree> DependentsThreesB { get; set; }
+        public ICollection<DependentThree> DependentsThreesA { get; set; } = null!;
+        public ICollection<DependentThree> DependentsThreesB { get; set; } = null!;
     }
 
     protected class DependentThree
     {
-        public static readonly PropertyInfo PrincipalThreeIdProperty = typeof(DependentThree).GetProperty(nameof(PrincipalThreeId));
+        public static readonly PropertyInfo PrincipalThreeIdProperty = typeof(DependentThree).GetProperty(nameof(PrincipalThreeId))!;
 
         public int Id { get; set; }
 
         public int? PrincipalThreeId { get; set; }
-        public PrincipalThree PrincipalThreeA { get; set; }
-        public PrincipalThree PrincipalThreeB { get; set; }
+        public PrincipalThree PrincipalThreeA { get; set; } = null!;
+        public PrincipalThree PrincipalThreeB { get; set; } = null!;
     }
 
     protected class PrincipalFour
     {
         public int Id { get; set; }
 
-        public ICollection<DependentFour> DependentsFours { get; set; }
+        public ICollection<DependentFour> DependentsFours { get; set; } = null!;
     }
 
     protected class DependentFour
     {
-        public static readonly PropertyInfo PrincipalFourIdProperty = typeof(DependentFour).GetProperty(nameof(PrincipalFourId));
-        public static readonly PropertyInfo PrincipalFourId1Property = typeof(DependentFour).GetProperty(nameof(PrincipalFourId1));
+        public static readonly PropertyInfo PrincipalFourIdProperty = typeof(DependentFour).GetProperty(nameof(PrincipalFourId))!;
+        public static readonly PropertyInfo PrincipalFourId1Property = typeof(DependentFour).GetProperty(nameof(PrincipalFourId1))!;
 
         public int Id { get; set; }
 
-        public string PrincipalFourId1 { get; set; }
-        public string PrincipalFourId { get; set; }
-        public PrincipalFour PrincipalFour { get; set; }
+        public string PrincipalFourId1 { get; set; } = null!;
+        public string PrincipalFourId { get; set; } = null!;
+        public PrincipalFour PrincipalFour { get; set; } = null!;
+    }
+
+    protected class Blog
+    {
+        public int BlogId { get; set; }
+        public bool IsDeleted { get; set; }
+        public ICollection<PicturePost> PicturePosts { get; set; } = null!;
+        public List<BlogOwnedEntity> BlogOwnedEntities { get; set; } = null!;
+    }
+
+    protected class BlogOwnedEntity
+    {
+        public int BlogOwnedEntityId { get; set; }
+        public int BlogId { get; set; }
+        public Blog Blog { get; set; } = null!;
+    }
+
+    protected class Post
+    {
+        public int PostId { get; set; }
+        public int BlogId { get; set; }
+        public string Content { get; set; } = null!;
+        public bool IsDeleted { get; set; }
+        public Blog Blog { get; set; } = null!;
+    }
+
+    protected class PicturePost : Post
+    {
+        public string PictureUrl { get; set; } = null!;
+        public List<Picture> Pictures { get; set; } = null!;
+    }
+
+    protected class Picture
+    {
+        public int PictureId { get; set; }
+        public bool IsDeleted { get; set; }
+        public int PicturePostId { get; set; }
+        public PicturePost PicturePost { get; set; } = null!;
     }
 
     protected ModelValidatorTestBase()
-    {
-        LoggerFactory = new ListLoggerFactory(l => l == DbLoggerCategory.Model.Validation.Name || l == DbLoggerCategory.Model.Name);
-    }
+        => LoggerFactory = new ListLoggerFactory(l => l == DbLoggerCategory.Model.Validation.Name || l == DbLoggerCategory.Model.Name);
 
     protected ListLoggerFactory LoggerFactory { get; }
 
@@ -359,7 +485,7 @@ public abstract class ModelValidatorTestBase
     {
         Validate(modelBuilder);
 
-        var logEntries = LoggerFactory.Log.Where(l => l.Message.Contains(expectedMessage));
+        var logEntries = LoggerFactory.Log.Where(l => l.Message?.Contains(expectedMessage) == true);
 
         Assert.Empty(logEntries);
     }
@@ -391,15 +517,15 @@ public abstract class ModelValidatorTestBase
             new NullDbContextLogger());
     }
 
-    protected virtual TestHelpers.TestModelBuilder CreateConventionalModelBuilder(
-        Action<ModelConfigurationBuilder> configure = null,
+    protected virtual TestHelpers.TestModelBuilder CreateConventionModelBuilder(
+        Action<ModelConfigurationBuilder>? configure = null,
         bool sensitiveDataLoggingEnabled = false)
         => TestHelpers.CreateConventionBuilder(
             CreateModelLogger(sensitiveDataLoggingEnabled), CreateValidationLogger(sensitiveDataLoggingEnabled),
             configurationBuilder => configure?.Invoke(configurationBuilder));
 
     protected virtual TestHelpers.TestModelBuilder CreateConventionlessModelBuilder(
-        Action<ModelConfigurationBuilder> configure = null,
+        Action<ModelConfigurationBuilder>? configure = null,
         bool sensitiveDataLoggingEnabled = false)
         => TestHelpers.CreateConventionBuilder(
             CreateModelLogger(sensitiveDataLoggingEnabled), CreateValidationLogger(sensitiveDataLoggingEnabled),

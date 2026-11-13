@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 // ReSharper disable UnusedVariable
@@ -6,24 +6,17 @@
 
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class ConcurrencyDetectorDisabledTestBase<TFixture> : ConcurrencyDetectorTestBase<TFixture>
+public abstract class ConcurrencyDetectorDisabledTestBase<TFixture>(TFixture fixture) : ConcurrencyDetectorTestBase<TFixture>(fixture)
     where TFixture : ConcurrencyDetectorTestBase<TFixture>.ConcurrencyDetectorFixtureBase, new()
 {
-    protected ConcurrencyDetectorDisabledTestBase(TFixture fixture)
-        : base(fixture)
-    {
-    }
-
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
+    [Theory, MemberData(nameof(IsAsyncData))]
     public virtual async Task SaveChanges(bool async)
     {
-        await ConcurrencyDetectorTest(
-            async c =>
-            {
-                c.Products.Add(new Product { Id = 3, Name = "Unicorn Horseshoe Protection Pack" });
-                return async ? await c.SaveChangesAsync() : c.SaveChanges();
-            });
+        await ConcurrencyDetectorTest(async c =>
+        {
+            c.Products.Add(new Product { Id = 3, Name = "Unicorn Horseshoe Protection Pack" });
+            return async ? await c.SaveChangesAsync() : c.SaveChanges();
+        });
 
         using var ctx = CreateContext();
         var newProduct = await ctx.Products.FindAsync(3);
@@ -37,7 +30,7 @@ public abstract class ConcurrencyDetectorDisabledTestBase<TFixture> : Concurrenc
         using var context = CreateContext();
 
         var concurrencyDetector = context.GetService<IConcurrencyDetector>();
-        IDisposable disposer = null;
+        IDisposable disposer = null!;
 
         await Task.Run(() => disposer = concurrencyDetector.EnterCriticalSection());
 

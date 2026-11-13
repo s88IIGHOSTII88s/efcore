@@ -4,6 +4,8 @@
 using System.Data;
 using System.Globalization;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore.SqlServer.Internal;
+using Microsoft.EntityFrameworkCore.Storage.Json;
 
 namespace Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal;
 
@@ -18,7 +20,7 @@ public class SqlServerTimeSpanTypeMapping : TimeSpanTypeMapping
     // Note: this array will be accessed using the precision as an index
     // so the order of the entries in this array is important
     private readonly string[] _timeFormats =
-    {
+    [
         @"'{0:hh\:mm\:ss}'",
         @"'{0:hh\:mm\:ss\.F}'",
         @"'{0:hh\:mm\:ss\.FF}'",
@@ -27,7 +29,15 @@ public class SqlServerTimeSpanTypeMapping : TimeSpanTypeMapping
         @"'{0:hh\:mm\:ss\.FFFFF}'",
         @"'{0:hh\:mm\:ss\.FFFFFF}'",
         @"'{0:hh\:mm\:ss\.FFFFFFF}'"
-    };
+    ];
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public static new SqlServerTimeSpanTypeMapping Default { get; } = new("time");
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -41,7 +51,7 @@ public class SqlServerTimeSpanTypeMapping : TimeSpanTypeMapping
         StoreTypePostfix storeTypePostfix = StoreTypePostfix.Precision)
         : base(
             new RelationalTypeMappingParameters(
-                new CoreTypeMappingParameters(typeof(TimeSpan)),
+                new CoreTypeMappingParameters(typeof(TimeSpan), jsonValueReaderWriter: JsonTimeSpanReaderWriter.Instance),
                 storeType,
                 storeTypePostfix,
                 dbType))
@@ -77,14 +87,15 @@ public class SqlServerTimeSpanTypeMapping : TimeSpanTypeMapping
     {
         base.ConfigureParameter(parameter);
 
-        // Workaround for a SQLClient bug
+        // Workaround for SqlClient issue: https://github.com/dotnet/runtime/issues/22386
         if (DbType == System.Data.DbType.Time)
         {
             ((SqlParameter)parameter).SqlDbType = SqlDbType.Time;
         }
+
         if (Precision.HasValue)
         {
-            parameter.Scale = unchecked((byte)Precision.Value);
+            parameter.Scale = (byte)Precision.Value;
         }
     }
 
@@ -95,22 +106,7 @@ public class SqlServerTimeSpanTypeMapping : TimeSpanTypeMapping
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     protected override string SqlLiteralFormatString
-    {
-        get
-        {
-            if (Precision.HasValue)
-            {
-                var precision = Precision.Value;
-                if (precision <= 7
-                    && precision >= 0)
-                {
-                    return _timeFormats[precision];
-                }
-            }
-
-            return _timeFormats[7];
-        }
-    }
+        => _timeFormats[Precision is >= 0 and <= 7 ? Precision.Value : 7];
 
     /// <summary>
     ///     Generates the SQL representation of a literal value without conversion.
@@ -121,8 +117,27 @@ public class SqlServerTimeSpanTypeMapping : TimeSpanTypeMapping
     /// </returns>
     protected override string GenerateNonNullSqlLiteral(object value)
     {
-        return value is TimeSpan timeSpan && timeSpan.Milliseconds == 0
-            ? string.Format(CultureInfo.InvariantCulture, _timeFormats[0], value) //handle trailing decimal separator when no fractional seconds
-            : string.Format(CultureInfo.InvariantCulture, SqlLiteralFormatString, value);
+        // A value converter on the mapping may produce a provider value that isn't a TimeSpan
+        if (value is not TimeSpan timeSpan)
+        {
+            return string.Format(CultureInfo.InvariantCulture, SqlLiteralFormatString, value);
+        }
+
+        if (timeSpan < TimeSpan.Zero || timeSpan >= TimeSpan.FromDays(1))
+        {
+            throw new OverflowException(SqlServerStrings.TimeSpanLiteralOutOfRange(timeSpan));
+        }
+
+        var precision = Precision is >= 0 and <= 7 ? Precision.Value : 7;
+
+        // The F format specifiers omit trailing zeros, so when no fractional digit is left at this precision the literal would end
+        // with a decimal separator, which SQL Server rejects.
+        var fractionTicks = Math.Abs(timeSpan.Ticks % TimeSpan.TicksPerSecond);
+        var ticksPerDigit = TimeSpan.TicksPerSecond / (long)Math.Pow(10, precision);
+
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            fractionTicks < ticksPerDigit ? _timeFormats[0] : _timeFormats[precision],
+            value);
     }
 }

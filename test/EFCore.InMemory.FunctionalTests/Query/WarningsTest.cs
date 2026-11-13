@@ -10,11 +10,10 @@ using Microsoft.EntityFrameworkCore.InMemory.Internal;
 // ReSharper disable UnusedMember.Local
 // ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore.Query;
-#pragma warning disable xUnit1000 // Test classes must be public
-internal class WarningsTest
-#pragma warning restore xUnit1000 // Test classes must be public
+
+public class WarningsTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Should_throw_by_default_when_transaction()
     {
         var optionsBuilder
@@ -28,11 +27,10 @@ internal class WarningsTest
                 InMemoryEventId.TransactionIgnoredWarning,
                 InMemoryResources.LogTransactionsNotSupported(new TestLogger<InMemoryLoggingDefinitions>()).GenerateMessage(),
                 "InMemoryEventId.TransactionIgnoredWarning"),
-            Assert.Throws<InvalidOperationException>(
-                () => context.Database.BeginTransaction()).Message);
+            Assert.Throws<InvalidOperationException>(context.Database.BeginTransaction).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Should_throw_by_default_when_transaction_enlisted()
     {
         var optionsBuilder
@@ -46,11 +44,10 @@ internal class WarningsTest
                 InMemoryEventId.TransactionIgnoredWarning,
                 InMemoryResources.LogTransactionsNotSupported(new TestLogger<InMemoryLoggingDefinitions>()).GenerateMessage(),
                 "InMemoryEventId.TransactionIgnoredWarning"),
-            Assert.Throws<InvalidOperationException>(
-                () => context.Database.EnlistTransaction(new CommittableTransaction())).Message);
+            Assert.Throws<InvalidOperationException>(() => context.Database.EnlistTransaction(new CommittableTransaction())).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Should_not_throw_by_default_when_transaction_and_ignored()
     {
         var optionsBuilder
@@ -63,7 +60,7 @@ internal class WarningsTest
         context.Database.BeginTransaction();
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Throws_by_default_for_lazy_load_with_disposed_context()
     {
         var loggerFactory = new ListLoggerFactory();
@@ -93,11 +90,10 @@ internal class WarningsTest
                 CoreResources.LogLazyLoadOnDisposedContext(new TestLogger<InMemoryLoggingDefinitions>())
                     .GenerateMessage("WarningAsErrorEntity", "Nav"),
                 "CoreEventId.LazyLoadOnDisposedContextWarning"),
-            Assert.Throws<InvalidOperationException>(
-                () => entity.Nav).Message);
+            Assert.Throws<InvalidOperationException>(() => entity.Nav).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Lazy_load_with_disposed_context_can_be_configured_to_log()
     {
         var loggerFactory = new ListLoggerFactory();
@@ -129,16 +125,15 @@ internal class WarningsTest
 
         Assert.Null(entity.Nav);
 
-        var log = loggerFactory.Log.Single(
-            l => l.Message
-                == CoreResources
-                    .LogLazyLoadOnDisposedContext(new TestLogger<InMemoryLoggingDefinitions>())
-                    .GenerateMessage("WarningAsErrorEntity", "Nav"));
+        var log = loggerFactory.Log.Single(l => l.Message
+            == CoreResources
+                .LogLazyLoadOnDisposedContext(new TestLogger<InMemoryLoggingDefinitions>())
+                .GenerateMessage("WarningAsErrorEntity", "Nav"));
 
         Assert.Equal(LogLevel.Warning, log.Level);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Lazy_load_with_disposed_context_can_be_configured_to_log_at_debug_level()
     {
         var loggerFactory = new ListLoggerFactory();
@@ -170,16 +165,15 @@ internal class WarningsTest
 
         Assert.Null(entity.Nav);
 
-        var log = loggerFactory.Log.Single(
-            l => l.Message
-                == CoreResources
-                    .LogLazyLoadOnDisposedContext(new TestLogger<InMemoryLoggingDefinitions>())
-                    .GenerateMessage("WarningAsErrorEntity", "Nav"));
+        var log = loggerFactory.Log.Single(l => l.Message
+            == CoreResources
+                .LogLazyLoadOnDisposedContext(new TestLogger<InMemoryLoggingDefinitions>())
+                .GenerateMessage("WarningAsErrorEntity", "Nav"));
 
         Assert.Equal(LogLevel.Debug, log.Level);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Lazy_loading_is_logged_only_when_actually_loading()
     {
         var loggerFactory = new ListLoggerFactory();
@@ -208,6 +202,8 @@ internal class WarningsTest
                     .GenerateMessage("WarningAsErrorEntity", "Nav"),
                 loggerFactory.Log.Select(l => l.Message));
 
+            var entityEntry = context.Entry(entity);
+            Assert.True(entityEntry.Navigation("Nav").IsLoaded);
             loggerFactory.Clear();
             Assert.NotNull(entity.Nav);
             Assert.DoesNotContain(
@@ -217,7 +213,7 @@ internal class WarningsTest
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void No_throw_when_event_id_not_registered()
     {
         var serviceProvider = new ServiceCollection()
@@ -229,29 +225,20 @@ internal class WarningsTest
         context.WarningAsErrorEntities.FirstOrDefault();
     }
 
-    private class WarningAsErrorContext : DbContext
+    private class WarningAsErrorContext(
+        IServiceProvider serviceProvider,
+        bool defaultThrow = true,
+        EventId? toLog = null,
+        EventId? toThrow = null,
+        (EventId Id, LogLevel Level)? toChangeLevel = null) : DbContext
     {
-        private readonly IServiceProvider _serviceProvider;
-        private readonly bool _defaultThrow;
-        private readonly EventId? _toLog;
-        private readonly EventId? _toThrow;
-        private readonly (EventId Id, LogLevel Level)? _toChangeLevel;
+        private readonly IServiceProvider _serviceProvider = serviceProvider;
+        private readonly bool _defaultThrow = defaultThrow;
+        private readonly EventId? _toLog = toLog;
+        private readonly EventId? _toThrow = toThrow;
+        private readonly (EventId Id, LogLevel Level)? _toChangeLevel = toChangeLevel;
 
-        public WarningAsErrorContext(
-            IServiceProvider serviceProvider,
-            bool defaultThrow = true,
-            EventId? toLog = null,
-            EventId? toThrow = null,
-            (EventId Id, LogLevel Level)? toChangeLevel = null)
-        {
-            _serviceProvider = serviceProvider;
-            _defaultThrow = defaultThrow;
-            _toLog = toLog;
-            _toThrow = toThrow;
-            _toChangeLevel = toChangeLevel;
-        }
-
-        public DbSet<WarningAsErrorEntity> WarningAsErrorEntities { get; set; }
+        public DbSet<WarningAsErrorEntity> WarningAsErrorEntities { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder
@@ -262,49 +249,45 @@ internal class WarningsTest
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder
                 .UseInternalServiceProvider(_serviceProvider)
-                .UseInMemoryDatabase(nameof(WarningAsErrorContext)).ConfigureWarnings(
-                    c =>
+                .UseInMemoryDatabase(nameof(WarningAsErrorContext)).ConfigureWarnings(c =>
+                {
+                    if (_toThrow != null)
                     {
-                        if (_toThrow != null)
-                        {
-                            c.Throw(_toThrow.Value);
-                        }
-                        else if (_toLog != null)
-                        {
-                            c.Log(_toLog.Value);
-                        }
-                        else if (_toChangeLevel != null)
-                        {
-                            c.Log(_toChangeLevel.Value);
-                        }
-                        else if (_defaultThrow)
-                        {
-                            c.Default(WarningBehavior.Throw);
-                        }
-                    });
+                        c.Throw(_toThrow.Value);
+                    }
+                    else if (_toLog != null)
+                    {
+                        c.Log(_toLog.Value);
+                    }
+                    else if (_toChangeLevel != null)
+                    {
+                        c.Log(_toChangeLevel.Value);
+                    }
+                    else if (_defaultThrow)
+                    {
+                        c.Default(WarningBehavior.Throw);
+                    }
+                });
     }
 
     private class WarningAsErrorEntity
     {
-        private readonly Action<object, string> _loader;
-        private IncludedEntity _nav;
+        private readonly Action<object, string> _loader = null!;
 
         public WarningAsErrorEntity()
         {
         }
 
         private WarningAsErrorEntity(Action<object, string> lazyLoader)
-        {
-            _loader = lazyLoader;
-        }
+            => _loader = lazyLoader;
 
         public IncludedEntity Nav
         {
-            get => _loader.Load(this, ref _nav);
-            set => _nav = value;
-        }
+            get => _loader.Load(this, ref field);
+            set;
+        } = null!;
 
-        public string Id { get; set; }
+        public string Id { get; set; } = null!;
     }
 
     private class IncludedEntity

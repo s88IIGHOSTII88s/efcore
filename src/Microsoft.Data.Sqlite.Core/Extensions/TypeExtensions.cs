@@ -2,18 +2,14 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 // ReSharper disable once CheckNamespace
-namespace System
+
+namespace System;
+
+internal static class TypeExtensions
 {
-    internal static class TypeExtensions
-    {
-        public static bool IsNullable(this Type type)
-            => !type.IsValueType
-                || (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>));
+    public static Type UnwrapEnumType(this Type type)
+        => type.IsEnum ? Enum.GetUnderlyingType(type) : type;
 
-        public static Type UnwrapEnumType(this Type type)
-            => type.IsEnum ? Enum.GetUnderlyingType(type) : type;
-
-        public static Type UnwrapNullableType(this Type type)
-            => Nullable.GetUnderlyingType(type) ?? type;
-    }
+    public static Type UnwrapNullableType(this Type type)
+        => Nullable.GetUnderlyingType(type) ?? type;
 }

@@ -1,9 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable once CheckNamespace
+
 namespace Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -25,7 +24,7 @@ public static class RelationalKeyBuilderExtensions
     /// <returns>The same builder instance so that multiple calls can be chained.</returns>
     public static KeyBuilder HasName(this KeyBuilder keyBuilder, string? name)
     {
-        Check.NullButNotEmpty(name, nameof(name));
+        Check.NullButNotEmpty(name);
 
         keyBuilder.Metadata.SetName(name);
 
@@ -44,7 +43,7 @@ public static class RelationalKeyBuilderExtensions
     public static KeyBuilder<TEntity> HasName<TEntity>(
         this KeyBuilder<TEntity> keyBuilder,
         string? name)
-        => (KeyBuilder<TEntity>)HasName((KeyBuilder)keyBuilder, name);
+        => (KeyBuilder<TEntity>)((KeyBuilder)keyBuilder).HasName(name);
 
     /// <summary>
     ///     Configures the name of the key constraint in the database when targeting a relational database.

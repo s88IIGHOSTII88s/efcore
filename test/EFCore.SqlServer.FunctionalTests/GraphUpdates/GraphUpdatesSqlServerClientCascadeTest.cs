@@ -3,14 +3,10 @@
 
 namespace Microsoft.EntityFrameworkCore;
 
-public class GraphUpdatesSqlServerClientCascadeTest : GraphUpdatesSqlServerTestBase<
-    GraphUpdatesSqlServerClientCascadeTest.SqlServerFixture>
+public class GraphUpdatesSqlServerClientCascadeTest(GraphUpdatesSqlServerClientCascadeTest.SqlServerFixture fixture)
+    : GraphUpdatesSqlServerTestBase<
+        GraphUpdatesSqlServerClientCascadeTest.SqlServerFixture>(fixture)
 {
-    public GraphUpdatesSqlServerClientCascadeTest(SqlServerFixture fixture)
-        : base(fixture)
-    {
-    }
-
     protected override void UseTransaction(DatabaseFacade facade, IDbContextTransaction transaction)
         => facade.UseTransaction(transaction.GetDbTransaction());
 
@@ -19,7 +15,8 @@ public class GraphUpdatesSqlServerClientCascadeTest : GraphUpdatesSqlServerTestB
         public override bool NoStoreCascades
             => true;
 
-        protected override string StoreName { get; } = "GraphClientCascadeUpdatesTest";
+        protected override string StoreName
+            => "GraphClientCascadeUpdatesTest";
 
         protected override void OnModelCreating(ModelBuilder modelBuilder, DbContext context)
         {
@@ -28,7 +25,7 @@ public class GraphUpdatesSqlServerClientCascadeTest : GraphUpdatesSqlServerTestB
             foreach (var foreignKey in modelBuilder.Model
                          .GetEntityTypes()
                          .SelectMany(e => e.GetDeclaredForeignKeys())
-                         .Where(e => e.DeleteBehavior == DeleteBehavior.Cascade))
+                         .Where(e => e is { IsOwnership: false, DeleteBehavior: DeleteBehavior.Cascade }))
             {
                 foreignKey.DeleteBehavior = DeleteBehavior.ClientCascade;
             }

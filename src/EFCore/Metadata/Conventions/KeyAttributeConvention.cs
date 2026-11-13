@@ -2,13 +2,14 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 /// <summary>
 ///     A convention that configures the entity type key based on the <see cref="KeyAttribute" /> specified on a property or
-///     <see cref="PrimaryKeyAttribute"/> specified on a CLR type.
+///     <see cref="PrimaryKeyAttribute" /> specified on a CLR type.
 /// </summary>
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-conventions">Model building conventions</see> for more information and examples.
@@ -17,7 +18,8 @@ public class KeyAttributeConvention
     : PropertyAttributeConventionBase<KeyAttribute>,
         IModelFinalizingConvention,
         IEntityTypeAddedConvention,
-        IEntityTypeBaseTypeChangedConvention
+        IEntityTypeBaseTypeChangedConvention,
+        IComplexPropertyAddedConvention
 {
     /// <summary>
     ///     Creates a new instance of <see cref="KeyAttributeConvention" />.
@@ -49,32 +51,52 @@ public class KeyAttributeConvention
         CheckAttributesAndEnsurePrimaryKey((EntityType)entityTypeBuilder.Metadata, null, shouldThrow: false);
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Called after a property is added to the entity type with an attribute on the associated CLR property or field.
+    /// </summary>
+    /// <param name="propertyBuilder">The builder for the property.</param>
+    /// <param name="attribute">The attribute.</param>
+    /// <param name="clrMember">The member that has the attribute.</param>
+    /// <param name="context">Additional information associated with convention execution.</param>
     protected override void ProcessPropertyAdded(
         IConventionPropertyBuilder propertyBuilder,
         KeyAttribute attribute,
         MemberInfo clrMember,
         IConventionContext context)
     {
-        var entityType = propertyBuilder.Metadata.DeclaringEntityType;
-        if (entityType.IsKeyless)
+        if (propertyBuilder.Metadata.DeclaringType is EntityType entityType)
         {
-            switch (entityType.GetIsKeylessConfigurationSource())
+            if (entityType.IsKeyless)
             {
-                case ConfigurationSource.DataAnnotation:
-                    Dependencies.Logger.ConflictingKeylessAndKeyAttributesWarning(propertyBuilder.Metadata);
-                    return;
+                switch (entityType.GetIsKeylessConfigurationSource())
+                {
+                    case ConfigurationSource.DataAnnotation:
+                        Dependencies.Logger.ConflictingKeylessAndKeyAttributesWarning(propertyBuilder.Metadata);
+                        return;
 
-                case ConfigurationSource.Explicit:
-                    // fluent API overrides the attribute - no warning
-                    return;
+                    case ConfigurationSource.Explicit:
+                        // fluent API overrides the attribute - no warning
+                        return;
+                }
+            }
+
+            CheckAttributesAndEnsurePrimaryKey(
+                entityType,
+                propertyBuilder,
+                shouldThrow: false);
+        }
+        else
+        {
+            var property = propertyBuilder.Metadata;
+            var member = property.GetIdentifyingMemberInfo();
+            if (member != null
+                && Attribute.IsDefined(member, typeof(ForeignKeyAttribute), inherit: true))
+            {
+                throw new InvalidOperationException(
+                    CoreStrings.AttributeNotOnEntityTypeProperty(
+                        "Key", property.DeclaringType.DisplayName(), property.Name));
             }
         }
-
-        CheckAttributesAndEnsurePrimaryKey(
-            (EntityType)propertyBuilder.Metadata.DeclaringEntityType,
-            propertyBuilder,
-            shouldThrow: false);
     }
 
     private bool CheckAttributesAndEnsurePrimaryKey(
@@ -114,6 +136,30 @@ public class KeyAttributeConvention
         }
 
         return primaryKeyAttributeExists;
+    }
+
+    /// <summary>
+    ///     Called after a complex property is added to a type with an attribute on the associated CLR property or field.
+    /// </summary>
+    /// <param name="propertyBuilder">The builder for the property.</param>
+    /// <param name="attribute">The attribute.</param>
+    /// <param name="clrMember">The member that has the attribute.</param>
+    /// <param name="context">Additional information associated with convention execution.</param>
+    protected override void ProcessPropertyAdded(
+        IConventionComplexPropertyBuilder propertyBuilder,
+        KeyAttribute attribute,
+        MemberInfo clrMember,
+        IConventionContext context)
+    {
+        var property = propertyBuilder.Metadata;
+        var member = property.GetIdentifyingMemberInfo();
+        if (member != null
+            && Attribute.IsDefined(member, typeof(ForeignKeyAttribute), inherit: true))
+        {
+            throw new InvalidOperationException(
+                CoreStrings.AttributeNotOnEntityTypeProperty(
+                    "Key", property.DeclaringType.DisplayName(), property.Name));
+        }
     }
 
     /// <inheritdoc />
@@ -183,36 +229,21 @@ public class KeyAttributeConvention
         }
 
         IConventionKeyBuilder? keyBuilder;
-        if (!shouldThrow)
+        if (!shouldThrow
+            && !entityType.Builder.CanSetPrimaryKey(primaryKeyAttribute.PropertyNames, fromDataAnnotation: true))
         {
-            var keyProperties = new List<IConventionProperty>();
-            foreach (var propertyName in primaryKeyAttribute.PropertyNames)
-            {
-                var property = entityType.FindProperty(propertyName);
-                if (property == null)
-                {
-                    return true;
-                }
-
-                keyProperties.Add(property);
-            }
-
-            keyBuilder = entityType.Builder.PrimaryKey(keyProperties, fromDataAnnotation: true);
+            return true;
         }
-        else
-        {
-            try
-            {
-                // Using the PrimaryKey(propertyNames) overload gives us a chance to create a missing property
-                // e.g. if the CLR property existed but was non-public.
-                keyBuilder = entityType.Builder.PrimaryKey(primaryKeyAttribute.PropertyNames, fromDataAnnotation: true);
-            }
-            catch (InvalidOperationException exception)
-            {
-                CheckMissingProperties(entityType, primaryKeyAttribute, exception);
 
-                throw;
-            }
+        try
+        {
+            keyBuilder = entityType.Builder.PrimaryKey(primaryKeyAttribute.PropertyNames, fromDataAnnotation: true);
+        }
+        catch (InvalidOperationException exception)
+        {
+            CheckMissingProperties(entityType, primaryKeyAttribute, exception);
+
+            throw;
         }
 
         if (keyBuilder == null

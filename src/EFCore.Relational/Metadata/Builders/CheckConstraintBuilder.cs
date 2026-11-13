@@ -22,9 +22,7 @@ public class CheckConstraintBuilder : IInfrastructure<IConventionCheckConstraint
     /// </summary>
     [EntityFrameworkInternal]
     public CheckConstraintBuilder(IMutableCheckConstraint checkConstraint)
-    {
-        Builder = ((CheckConstraint)checkConstraint).Builder;
-    }
+        => Builder = ((CheckConstraint)checkConstraint).Builder;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -59,6 +57,22 @@ public class CheckConstraintBuilder : IInfrastructure<IConventionCheckConstraint
     public virtual CheckConstraintBuilder HasName(string name)
     {
         Builder.HasName(name, ConfigurationSource.Explicit);
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Adds or updates an annotation on the check constraint. If an annotation with the key specified in <paramref name="annotation" />
+    ///     already exists, its value will be updated.
+    /// </summary>
+    /// <param name="annotation">The key of the annotation to be added or updated.</param>
+    /// <param name="value">The value to be stored in the annotation.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public virtual CheckConstraintBuilder HasAnnotation(string annotation, object? value)
+    {
+        Check.NotEmpty(annotation);
+
+        Builder.HasAnnotation(annotation, value, ConfigurationSource.Explicit);
 
         return this;
     }

@@ -7,6 +7,6 @@ public class EntityLeaf : EntityBranch
 {
     public virtual bool? IsGreen { get; set; }
 
-    public virtual ICollection<EntityCompositeKey> CompositeKeySkipFull { get; set; }
-    public virtual ICollection<JoinCompositeKeyToLeaf> JoinCompositeKeyFull { get; set; }
+    public virtual ICollection<EntityCompositeKey> CompositeKeySkipFull { get; set; } = null!;
+    public virtual ICollection<JoinCompositeKeyToLeaf> JoinCompositeKeyFull { get; set; } = null!;
 }

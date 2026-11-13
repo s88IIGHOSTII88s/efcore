@@ -26,4 +26,13 @@ public interface IQueryCompilationContextFactory
     /// <param name="async">Specifies whether the query is async.</param>
     /// <returns>The created query compilation context.</returns>
     QueryCompilationContext Create(bool async);
+
+    /// <summary>
+    ///     Creates a new <see cref="QueryCompilationContext" />.
+    /// </summary>
+    /// <param name="async">Specifies whether the query is async.</param>
+    /// <returns>The created query compilation context.</returns>
+    [Experimental(EFDiagnostics.PrecompiledQueryExperimental)]
+    QueryCompilationContext CreatePrecompiled(bool async)
+        => throw new InvalidOperationException(CoreStrings.PrecompiledQueryNotSupported);
 }

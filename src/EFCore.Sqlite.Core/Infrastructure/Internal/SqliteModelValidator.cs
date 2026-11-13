@@ -11,7 +11,10 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Infrastructure.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
-public class SqliteModelValidator : RelationalModelValidator
+public class SqliteModelValidator(
+    ModelValidatorDependencies dependencies,
+    RelationalModelValidatorDependencies relationalDependencies)
+    : RelationalModelValidator(dependencies, relationalDependencies)
 {
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -19,40 +22,29 @@ public class SqliteModelValidator : RelationalModelValidator
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public SqliteModelValidator(
-        ModelValidatorDependencies dependencies,
-        RelationalModelValidatorDependencies relationalDependencies)
-        : base(dependencies, relationalDependencies)
-    {
-    }
-
-    /// <summary>
-    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-    ///     any release. You should only use it directly in your code with extreme caution and knowing that
-    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-    /// </summary>
     public override void Validate(IModel model, IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
-    {
-        base.Validate(model, logger);
+        => base.Validate(model, logger);
 
-        ValidateNoSchemas(model, logger);
-        ValidateNoSequences(model, logger);
-    }
-
-    /// <summary>
-    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-    ///     any release. You should only use it directly in your code with extreme caution and knowing that
-    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-    /// </summary>
-    protected virtual void ValidateNoSchemas(
-        IModel model,
+    /// <inheritdoc />
+    protected override void ValidateEntityType(
+        IEntityType entityType,
         IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
     {
-        foreach (var entityType in model.GetEntityTypes().Where(e => e.GetSchema() != null))
+        base.ValidateEntityType(entityType, logger);
+
+        ValidateNoSchema(entityType, logger);
+    }
+
+    /// <inheritdoc />
+    protected override void ValidateIndex(
+        IIndex index,
+        IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
+    {
+        base.ValidateIndex(index, logger);
+
+        if (index.CollectionIndices?.Any(indices => indices?.Any(i => i is null) == true) == true)
         {
-            logger.SchemaConfiguredWarning(entityType, entityType.GetSchema()!);
+            throw new InvalidOperationException(SqliteStrings.JsonIndexAllElementsNotSupported);
         }
     }
 
@@ -62,13 +54,42 @@ public class SqliteModelValidator : RelationalModelValidator
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    protected virtual void ValidateNoSequences(
-        IModel model,
+    protected virtual void ValidateNoSchema(
+        IEntityType entityType,
         IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
     {
-        foreach (var sequence in model.GetSequences())
+        var schema = entityType.GetSchema();
+        if (schema != null)
         {
-            logger.SequenceConfiguredWarning(sequence);
+            logger.SchemaConfiguredWarning(entityType, schema);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void ValidateSequence(
+        ISequence sequence,
+        IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
+    {
+        base.ValidateSequence(sequence, logger);
+
+        logger.SequenceConfiguredWarning(sequence);
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    protected override void ValidateStoredProcedures(
+        IEntityType entityType,
+        IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
+    {
+        if (entityType.GetInsertStoredProcedure() is not null
+            || entityType.GetUpdateStoredProcedure() is not null
+            || entityType.GetDeleteStoredProcedure() is not null)
+        {
+            throw new InvalidOperationException(SqliteStrings.StoredProceduresNotSupported(entityType.DisplayName()));
         }
     }
 
@@ -93,12 +114,90 @@ public class SqliteModelValidator : RelationalModelValidator
         {
             throw new InvalidOperationException(
                 SqliteStrings.DuplicateColumnNameSridMismatch(
-                    duplicateProperty.DeclaringEntityType.DisplayName(),
+                    duplicateProperty.DeclaringType.DisplayName(),
                     duplicateProperty.Name,
-                    property.DeclaringEntityType.DisplayName(),
+                    property.DeclaringType.DisplayName(),
                     property.Name,
                     columnName,
                     storeObject.DisplayName()));
+        }
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    protected override void ValidateValueGeneration(
+        IKey key,
+        IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
+    {
+        base.ValidateValueGeneration(key, logger);
+
+        var entityType = key.DeclaringEntityType;
+        var keyProperties = key.Properties;
+        if (!entityType.IsMappedToJson()
+            && key.IsPrimaryKey()
+            && keyProperties.Count(p => p.ClrType.UnwrapNullableType().IsInteger()) > 1
+            && keyProperties.Any(p => p.ValueGenerated == ValueGenerated.OnAdd
+                && p.ClrType.UnwrapNullableType().IsInteger()
+                && !p.TryGetDefaultValue(out _)
+                && p.GetDefaultValueSql() == null
+                && !p.IsForeignKey()))
+        {
+            logger.CompositeKeyWithValueGeneration(key);
+        }
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    protected override void ValidateSharedTableCompatibility(
+        IReadOnlyList<IEntityType> mappedTypes,
+        in StoreObjectIdentifier table,
+        IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
+    {
+        base.ValidateSharedTableCompatibility(mappedTypes, table, logger);
+
+        ValidateSqlReturningClause(mappedTypes, table, logger);
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    protected virtual void ValidateSqlReturningClause(
+        IReadOnlyList<IEntityType> mappedTypes,
+        in StoreObjectIdentifier table,
+        IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
+    {
+        bool? firstSqlOutputSetting = null;
+        IEntityType? firstMappedType = null;
+        foreach (var mappedType in mappedTypes)
+        {
+            if (((IConventionEntityType)mappedType).GetUseSqlReturningClauseConfigurationSource() is null)
+            {
+                continue;
+            }
+
+            if (firstSqlOutputSetting is null)
+            {
+                (firstSqlOutputSetting, firstMappedType) = (mappedType.IsSqlReturningClauseUsed(), mappedType);
+            }
+            else if (mappedType.IsSqlReturningClauseUsed() != firstSqlOutputSetting)
+            {
+                throw new InvalidOperationException(
+                    SqliteStrings.IncompatibleSqlReturningClauseMismatch(
+                        table.DisplayName(), firstMappedType!.DisplayName(), mappedType.DisplayName(),
+                        firstSqlOutputSetting.Value ? firstMappedType.DisplayName() : mappedType.DisplayName(),
+                        !firstSqlOutputSetting.Value ? firstMappedType.DisplayName() : mappedType.DisplayName()));
+            }
         }
     }
 }

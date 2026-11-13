@@ -5,9 +5,9 @@ namespace Microsoft.EntityFrameworkCore.TestModels.TransportationModel;
 
 public class LicensedOperator : Operator
 {
-    public string LicenseType { get; set; }
+    public string? LicenseType { get; set; }
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
         => obj is LicensedOperator other
             && base.Equals(other)
             && LicenseType == other.LicenseType;

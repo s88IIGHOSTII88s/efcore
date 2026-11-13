@@ -60,9 +60,19 @@ public class NumberToBytesConverter<TNumber> : ValueConverter<TNumber, byte[]>
     ///     A <see cref="ValueConverterInfo" /> for the default use of this converter.
     /// </summary>
     public static ValueConverterInfo DefaultInfo { get; }
-        = new(typeof(TNumber), typeof(byte[]), i => new NumberToBytesConverter<TNumber>(i.MappingHints), DefaultHints);
+        = new(
+            typeof(TNumber), typeof(byte[]),
+            i => ReferenceEquals(i.MappingHints, DefaultHints) ? Instance! : new NumberToBytesConverter<TNumber>(i.MappingHints),
+            DefaultHints);
 
-    private static Expression<Func<TNumber, byte[]>> ToBytes()
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [EntityFrameworkInternal]
+    public static Expression<Func<TNumber, byte[]>> ToBytes()
     {
         var type = typeof(TNumber).UnwrapNullableType();
 
@@ -93,7 +103,7 @@ public class NumberToBytesConverter<TNumber> : ValueConverter<TNumber, byte[]>
                         Expression.Call(
                             typeof(BitConverter).GetMethod(
                                 nameof(BitConverter.GetBytes),
-                                new[] { type })!,
+                                [type])!,
                             input));
 
         if (typeof(TNumber).IsNullableType())
@@ -101,7 +111,7 @@ public class NumberToBytesConverter<TNumber> : ValueConverter<TNumber, byte[]>
             output = Expression.Condition(
                 Expression.Property(
                     param,
-                    typeof(TNumber).GetProperty(nameof(Nullable<int>.HasValue))!),
+                    typeof(TNumber).GetProperty(nameof(Nullable<>.HasValue))!),
                 output,
                 Expression.Constant(null, typeof(byte[])));
         }
@@ -109,7 +119,14 @@ public class NumberToBytesConverter<TNumber> : ValueConverter<TNumber, byte[]>
         return Expression.Lambda<Func<TNumber, byte[]>>(output, param);
     }
 
-    private static Expression<Func<byte[], TNumber>> ToNumber()
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [EntityFrameworkInternal]
+    public static Expression<Func<byte[], TNumber>> ToNumber()
     {
         var type = typeof(TNumber).UnwrapNullableType();
         var param = Expression.Parameter(typeof(byte[]), "v");
@@ -129,7 +146,7 @@ public class NumberToBytesConverter<TNumber> : ValueConverter<TNumber, byte[]>
                     : (Expression)Expression.Call(
                         typeof(BitConverter).GetMethod(
                             "To" + type.Name,
-                            new[] { typeof(byte[]), typeof(int) })!,
+                            [typeof(byte[]), typeof(int)])!,
                         EnsureEndian(HandleEmptyArray(param)),
                         Expression.Constant(0));
 
@@ -147,57 +164,68 @@ public class NumberToBytesConverter<TNumber> : ValueConverter<TNumber, byte[]>
     }
 
     private static Expression HandleEmptyArray(Expression expression)
-    {
-        if (!typeof(TNumber).IsInteger())
-        {
-            return expression;
-        }
-
-        return Expression.Condition(
-            Expression.Equal(Expression.ArrayLength(expression), Expression.Constant(0)),
-            Expression.NewArrayBounds(typeof(byte), Expression.Constant(GetByteCount())),
-            expression);
-    }
+        => !typeof(TNumber).IsInteger()
+            ? expression
+            : Expression.Condition(
+                Expression.Equal(Expression.ArrayLength(expression), Expression.Constant(0)),
+                Expression.NewArrayBounds(typeof(byte), Expression.Constant(GetByteCount())),
+                expression);
 
     private static Expression EnsureEndian(Expression expression)
-    {
-        if (!BitConverter.IsLittleEndian)
-        {
-            return expression;
-        }
-
-        return GetByteCount() switch
-        {
-            8 => Expression.Call(ReverseLongMethod, expression),
-            4 => Expression.Call(ReverseIntMethod, expression),
-            2 => Expression.Call(ReverseShortMethod, expression),
-            _ => expression
-        };
-    }
+        => !BitConverter.IsLittleEndian
+            ? expression
+            : GetByteCount() switch
+            {
+                8 => Expression.Call(ReverseLongMethod, expression),
+                4 => Expression.Call(ReverseIntMethod, expression),
+                2 => Expression.Call(ReverseShortMethod, expression),
+                _ => expression
+            };
 
     private static readonly MethodInfo ReverseLongMethod
         = typeof(NumberToBytesConverter<TNumber>).GetMethod(
             nameof(ReverseLong),
-            BindingFlags.Static | BindingFlags.NonPublic)!;
+            BindingFlags.Static | BindingFlags.Public)!;
 
     private static readonly MethodInfo ReverseIntMethod
         = typeof(NumberToBytesConverter<TNumber>).GetMethod(
             nameof(ReverseInt),
-            BindingFlags.Static | BindingFlags.NonPublic)!;
+            BindingFlags.Static | BindingFlags.Public)!;
 
     private static readonly MethodInfo ReverseShortMethod
         = typeof(NumberToBytesConverter<TNumber>).GetMethod(
             nameof(ReverseShort),
-            BindingFlags.Static | BindingFlags.NonPublic)!;
+            BindingFlags.Static | BindingFlags.Public)!;
 
-    private static byte[] ReverseLong(byte[] bytes)
-        => new[] { bytes[7], bytes[6], bytes[5], bytes[4], bytes[3], bytes[2], bytes[1], bytes[0] };
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [EntityFrameworkInternal]
+    public static byte[] ReverseLong(byte[] bytes)
+        => [bytes[7], bytes[6], bytes[5], bytes[4], bytes[3], bytes[2], bytes[1], bytes[0]];
 
-    private static byte[] ReverseInt(byte[] bytes)
-        => new[] { bytes[3], bytes[2], bytes[1], bytes[0] };
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [EntityFrameworkInternal]
+    public static byte[] ReverseInt(byte[] bytes)
+        => [bytes[3], bytes[2], bytes[1], bytes[0]];
 
-    private static byte[] ReverseShort(byte[] bytes)
-        => new[] { bytes[1], bytes[0] };
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [EntityFrameworkInternal]
+    public static byte[] ReverseShort(byte[] bytes)
+        => [bytes[1], bytes[0]];
 
     private static int GetByteCount()
     {
@@ -228,9 +256,16 @@ public class NumberToBytesConverter<TNumber> : ValueConverter<TNumber, byte[]>
     private static readonly MethodInfo ToBytesMethod
         = typeof(NumberToBytesConverter<TNumber>).GetMethod(
             nameof(DecimalToBytes),
-            BindingFlags.Static | BindingFlags.NonPublic)!;
+            BindingFlags.Static | BindingFlags.Public)!;
 
-    private static byte[] DecimalToBytes(decimal value)
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [EntityFrameworkInternal]
+    public static byte[] DecimalToBytes(decimal value)
     {
         var bits = decimal.GetBits(value);
 
@@ -246,28 +281,40 @@ public class NumberToBytesConverter<TNumber> : ValueConverter<TNumber, byte[]>
     private static readonly MethodInfo ToDecimalMethod
         = typeof(NumberToBytesConverter<TNumber>).GetMethod(
             nameof(BytesToDecimal),
-            BindingFlags.Static | BindingFlags.NonPublic)!;
+            BindingFlags.Static | BindingFlags.Public)!;
 
-    private static decimal BytesToDecimal(byte[] bytes)
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [EntityFrameworkInternal]
+    public static decimal BytesToDecimal(byte[] bytes)
     {
-        var gotBytes = bytes;
+        var gotBytes = BitConverter.IsLittleEndian ? stackalloc byte[16] : bytes;
         if (BitConverter.IsLittleEndian)
         {
-            gotBytes = new byte[16];
-            Array.Copy(bytes, gotBytes, 16);
-            Array.Reverse(gotBytes, 0, 4);
-            Array.Reverse(gotBytes, 4, 4);
-            Array.Reverse(gotBytes, 8, 4);
-            Array.Reverse(gotBytes, 12, 4);
+            bytes.CopyTo(gotBytes);
+            gotBytes[..4].Reverse();
+            gotBytes.Slice(4, 4).Reverse();
+            gotBytes.Slice(8, 4).Reverse();
+            gotBytes.Slice(12, 4).Reverse();
         }
 
-        var specialBits = BitConverter.ToUInt32(gotBytes, 0);
+        var specialBits = BitConverter.ToUInt32(gotBytes);
 
         return new decimal(
-            BitConverter.ToInt32(gotBytes, 12),
-            BitConverter.ToInt32(gotBytes, 8),
-            BitConverter.ToInt32(gotBytes, 4),
+            BitConverter.ToInt32(gotBytes[12..]),
+            BitConverter.ToInt32(gotBytes[8..]),
+            BitConverter.ToInt32(gotBytes[4..]),
             (specialBits & 0x80000000) != 0,
             (byte)((specialBits & 0x00FF0000) >> 16));
     }
+
+    /// <summary>
+    ///     A cached, default instance of this converter.
+    /// </summary>
+    // Declared last so that all static fields used by the constructor are initialized before the instance is created.
+    public static NumberToBytesConverter<TNumber> Instance { get; } = new();
 }

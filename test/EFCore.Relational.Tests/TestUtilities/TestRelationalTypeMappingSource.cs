@@ -5,7 +5,9 @@ using System.Data;
 
 namespace Microsoft.EntityFrameworkCore.TestUtilities;
 
-public class TestRelationalTypeMappingSource : RelationalTypeMappingSource
+public class TestRelationalTypeMappingSource(
+    TypeMappingSourceDependencies dependencies,
+    RelationalTypeMappingSourceDependencies relationalDependencies) : RelationalTypeMappingSource(dependencies, relationalDependencies)
 {
     private static readonly RelationalTypeMapping _string
         = new StringTypeMapping("just_string(2000)", DbType.String);
@@ -86,6 +88,9 @@ public class TestRelationalTypeMappingSource : RelationalTypeMappingSource
     private static readonly RelationalTypeMapping _defaultTimeSpanMapping
         = new TimeSpanTypeMapping("default_timespan_mapping");
 
+    private static readonly RelationalTypeMapping _jsonMapping
+        = new StringTypeMapping("some_json_mapping", DbType.String);
+
     private readonly IReadOnlyDictionary<Type, RelationalTypeMapping> _simpleMappings
         = new Dictionary<Type, RelationalTypeMapping>
         {
@@ -103,7 +108,8 @@ public class TestRelationalTypeMappingSource : RelationalTypeMappingSource
             { typeof(decimal), _defaultDecimalMapping },
             { typeof(TimeSpan), _defaultTimeSpanMapping },
             { typeof(string), _string },
-            { typeof(int[]), _intArray }
+            { typeof(int[]), _intArray },
+            { typeof(JsonTypePlaceholder), _jsonMapping }
         };
 
     private readonly IReadOnlyDictionary<string, RelationalTypeMapping> _simpleNameMappings
@@ -113,36 +119,25 @@ public class TestRelationalTypeMappingSource : RelationalTypeMappingSource
             { "some_string(max)", _string },
             { "some_binary(max)", _binary },
             { "money", _defaultDecimalMapping },
-            { "dec", _defaultDecimalMapping }
+            { "dec", _defaultDecimalMapping },
+            { "some_json_mapping", _jsonMapping }
         };
 
-    public TestRelationalTypeMappingSource(
-        TypeMappingSourceDependencies dependencies,
-        RelationalTypeMappingSourceDependencies relationalDependencies)
-        : base(dependencies, relationalDependencies)
+    private class TestStringTypeMapping(
+        string storeType,
+        DbType? dbType,
+        bool unicode = false,
+        int? size = null,
+        bool fixedLength = false) : StringTypeMapping(
+        new RelationalTypeMappingParameters(
+            new CoreTypeMappingParameters(typeof(string)),
+            storeType,
+            StoreTypePostfix.None,
+            dbType,
+            unicode,
+            size,
+            fixedLength))
     {
-    }
-
-    private class TestStringTypeMapping : StringTypeMapping
-    {
-        public TestStringTypeMapping(
-            string storeType,
-            DbType? dbType,
-            bool unicode = false,
-            int? size = null,
-            bool fixedLength = false)
-            : base(
-                new RelationalTypeMappingParameters(
-                    new CoreTypeMappingParameters(typeof(string)),
-                    storeType,
-                    StoreTypePostfix.None,
-                    dbType,
-                    unicode,
-                    size,
-                    fixedLength))
-        {
-        }
-
         protected override string ProcessStoreType(
             RelationalTypeMappingParameters parameters,
             string storeType,
@@ -153,7 +148,7 @@ public class TestRelationalTypeMappingSource : RelationalTypeMappingSource
                     : storeType;
     }
 
-    protected override RelationalTypeMapping FindMapping(in RelationalTypeMappingInfo mappingInfo)
+    protected override RelationalTypeMapping? FindMapping(in RelationalTypeMappingInfo mappingInfo)
     {
         var clrType = mappingInfo.ClrType;
         var storeTypeName = mappingInfo.StoreTypeName;
@@ -168,7 +163,7 @@ public class TestRelationalTypeMappingSource : RelationalTypeMappingSource
                 var size = mappingInfo.Size ?? (mappingInfo.IsKeyOrIndex ? isAnsi ? 900 : 450 : null);
 
                 return new TestStringTypeMapping(
-                    storeTypeName ?? baseName + "(" + (size == null ? "max" : size.ToString()) + ")",
+                    storeTypeName ?? (baseName + "(" + (size == null ? "max" : size.ToString()) + ")"),
                     isAnsi ? DbType.AnsiString : null,
                     !isAnsi,
                     size,
@@ -187,7 +182,7 @@ public class TestRelationalTypeMappingSource : RelationalTypeMappingSource
 
                 return new ByteArrayTypeMapping(
                     storeTypeName
-                    ?? (isFixedLength ? "just_binary_fixed(" : "just_binary(") + (size == null ? "max" : size.ToString()) + ")",
+                    ?? ((isFixedLength ? "just_binary_fixed(" : "just_binary(") + (size == null ? "max" : size.ToString()) + ")"),
                     DbType.Binary,
                     size);
             }
@@ -197,30 +192,24 @@ public class TestRelationalTypeMappingSource : RelationalTypeMappingSource
             {
                 var precision = mappingInfo.Precision;
                 var scale = mappingInfo.Scale;
-                if (precision == _defaultDecimalMapping.Precision
-                    && scale == _defaultDecimalMapping.Scale)
-                {
-                    return _defaultDecimalMapping;
-                }
-
-                if (scale == null || scale == 0)
-                {
-                    return new DecimalTypeMapping(
-                        "decimal_mapping(" + precision + ")",
-                        precision: precision);
-                }
-
-                return new DecimalTypeMapping(
-                    "decimal_mapping(" + precision + "," + scale + ")",
-                    precision: precision,
-                    scale: scale);
+                return precision == _defaultDecimalMapping.Precision
+                    && scale == _defaultDecimalMapping.Scale
+                        ? _defaultDecimalMapping
+                        : scale is null or 0
+                            ? new DecimalTypeMapping(
+                                "decimal_mapping(" + precision + ")",
+                                precision: precision)
+                            : new DecimalTypeMapping(
+                                "decimal_mapping(" + precision + "," + scale + ")",
+                                precision: precision,
+                                scale: scale);
             }
 
             if (_simpleMappings.TryGetValue(clrType, out var mapping))
             {
                 return storeTypeName != null
                     && !mapping.StoreType.Equals(storeTypeName, StringComparison.Ordinal)
-                        ? mapping.Clone(storeTypeName, mapping.Size)
+                        ? mapping.WithStoreTypeAndSize(storeTypeName, mapping.Size)
                         : mapping;
             }
         }
@@ -232,14 +221,14 @@ public class TestRelationalTypeMappingSource : RelationalTypeMappingSource
                 : null;
     }
 
-    protected override string ParseStoreTypeName(
-        string storeTypeName,
-        out bool? unicode,
-        out int? size,
-        out int? precision,
-        out int? scale)
+    protected override string? ParseStoreTypeName(
+        string? storeTypeName,
+        ref bool? unicode,
+        ref int? size,
+        ref int? precision,
+        ref int? scale)
     {
-        var parsedName = base.ParseStoreTypeName(storeTypeName, out unicode, out size, out precision, out scale);
+        var parsedName = base.ParseStoreTypeName(storeTypeName, ref unicode, ref size, ref precision, ref scale);
 
         if (size.HasValue
             && storeTypeName?.StartsWith("default_decimal_mapping", StringComparison.OrdinalIgnoreCase) == true)

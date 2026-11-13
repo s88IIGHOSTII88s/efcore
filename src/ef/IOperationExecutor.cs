@@ -1,22 +1,32 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System;
 using System.Collections;
-using System.Collections.Generic;
 
 namespace Microsoft.EntityFrameworkCore.Tools;
 
 internal interface IOperationExecutor : IDisposable
 {
+    string? EFCoreVersion { get; }
+
     IDictionary AddMigration(string name, string? outputDir, string? contextType, string? @namespace);
-    IDictionary RemoveMigration(string? contextType, bool force);
+    IDictionary RemoveMigration(string? contextType, bool force, bool offline, string? connectionString);
     IEnumerable<IDictionary> GetMigrations(string? contextType, string? connectionString, bool noConnect);
-    void DropDatabase(string? contextType);
-    IDictionary GetContextInfo(string? name);
+    void DropDatabase(string? contextType, string? connectionString);
+    IDictionary GetContextInfo(string? name, string? connectionString = null);
     void UpdateDatabase(string? migration, string? connectionString, string? contextType);
+    IDictionary AddAndApplyMigration(string name, string? outputDir, string? contextType, string? @namespace, string? connectionString);
     IEnumerable<IDictionary> GetContextTypes();
-    void OptimizeContext(string? outputDir, string? modelNamespace, string? contextType);
+
+    IEnumerable<string> OptimizeContext(
+        string? outputDir,
+        string? modelNamespace,
+        string? contextType,
+        string? suffix,
+        bool scaffoldModel,
+        bool precompileQueries,
+        bool nativeAot,
+        string? langVersion);
 
     IDictionary ScaffoldContext(
         string provider,
@@ -37,4 +47,5 @@ internal interface IOperationExecutor : IDisposable
     string ScriptMigration(string? fromMigration, string? toMigration, bool idempotent, bool noTransactions, string? contextType);
 
     string ScriptDbContext(string? contextType);
+    void HasPendingModelChanges(string? contextType);
 }

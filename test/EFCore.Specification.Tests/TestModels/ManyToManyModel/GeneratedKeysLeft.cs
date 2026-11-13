@@ -8,7 +8,7 @@ namespace Microsoft.EntityFrameworkCore.TestModels.ManyToManyModel;
 public class GeneratedKeysLeft
 {
     public virtual int Id { get; set; }
-    public virtual string Name { get; set; }
+    public virtual string? Name { get; set; }
 
     public virtual ICollection<GeneratedKeysRight> Rights { get; } = new ObservableCollection<GeneratedKeysRight>();
 }

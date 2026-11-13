@@ -1,6 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+
 namespace Microsoft.EntityFrameworkCore.Metadata;
 
 /// <summary>
@@ -18,15 +20,10 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
     new IEntityType? BaseType { get; }
 
     /// <summary>
-    ///     Gets the <see cref="InstantiationBinding" /> for the preferred constructor.
+    ///     Gets the <see cref="InstantiationBinding" /> for the preferred constructor when creating instances with only service
+    ///     properties initialized.
     /// </summary>
-    InstantiationBinding? ConstructorBinding { get; }
-
-    /// <summary>
-    ///     Returns the <see cref="IProperty" /> that will be used for storing a discriminator value.
-    /// </summary>
-    new IProperty? FindDiscriminatorProperty()
-        => (IProperty?)((IReadOnlyEntityType)this).FindDiscriminatorProperty();
+    InstantiationBinding? ServiceOnlyConstructorBinding { get; }
 
     /// <summary>
     ///     Gets the root base type for a given entity type.
@@ -66,27 +63,27 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
         => ((IReadOnlyEntityType)this).GetAllBaseTypesInclusiveAscending().Cast<IEntityType>();
 
     /// <summary>
-    ///     Gets all types in the model that derive from a given entity type.
+    ///     Gets all types in the model that derive from this entity type.
     /// </summary>
     /// <returns>The derived types.</returns>
     new IEnumerable<IEntityType> GetDerivedTypes()
-        => ((IReadOnlyEntityType)this).GetDerivedTypes().Cast<IEntityType>();
+        => ((IReadOnlyTypeBase)this).GetDerivedTypes().Cast<IEntityType>();
 
     /// <summary>
-    ///     Returns all derived types of the given <see cref="IEntityType" />, including the type itself.
+    ///     Returns all derived types of this entity type, including the type itself.
     /// </summary>
     /// <returns>Derived types.</returns>
     new IEnumerable<IEntityType> GetDerivedTypesInclusive()
-        => ((IReadOnlyEntityType)this).GetDerivedTypesInclusive().Cast<IEntityType>();
+        => ((IReadOnlyTypeBase)this).GetDerivedTypesInclusive().Cast<IEntityType>();
 
     /// <summary>
-    ///     Gets all types in the model that directly derive from a given entity type.
+    ///     Gets all types in the model that directly derive from this entity type.
     /// </summary>
     /// <returns>The derived types.</returns>
     new IEnumerable<IEntityType> GetDirectlyDerivedTypes();
 
     /// <summary>
-    ///     Returns all the derived types of the given <see cref="IEntityType" />, including the type itself,
+    ///     Returns all the derived types of this entity type, including the type itself,
     ///     which are not <see langword="abstract" />.
     /// </summary>
     /// <returns>Non-abstract, derived types.</returns>
@@ -100,7 +97,7 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
     /// <param name="property">The property that the key is defined on.</param>
     /// <returns>The key, or null if none is defined.</returns>
     new IKey? FindKey(IReadOnlyProperty property)
-        => FindKey(new[] { property });
+        => FindKey([property]);
 
     /// <summary>
     ///     Returns the closest entity type that is a parent of both given entity types. If one of the given entities is
@@ -146,7 +143,7 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
     /// <remarks>
     ///     This method does not return keys declared on base types.
     ///     It is useful when iterating over all entity types to avoid processing the same key more than once.
-    ///     Use <see cref="IConventionEntityType.GetKeys" /> to also return keys declared on base types.
+    ///     Use <see cref="GetKeys" /> to also return keys declared on base types.
     /// </remarks>
     /// <returns>Declared keys.</returns>
     new IEnumerable<IKey> GetDeclaredKeys();
@@ -181,7 +178,7 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
     /// <param name="property">The property to find the foreign keys on.</param>
     /// <returns>The foreign keys.</returns>
     new IEnumerable<IForeignKey> FindForeignKeys(IReadOnlyProperty property)
-        => FindForeignKeys(new[] { property });
+        => FindForeignKeys([property]);
 
     /// <summary>
     ///     Gets the foreign keys defined on the given properties. Only foreign keys that are defined on exactly the specified
@@ -207,7 +204,7 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
         IReadOnlyProperty property,
         IReadOnlyKey principalKey,
         IReadOnlyEntityType principalEntityType)
-        => FindForeignKey(new[] { property }, principalKey, principalEntityType);
+        => FindForeignKey([property], principalKey, principalEntityType);
 
     /// <summary>
     ///     Gets the foreign keys declared on the given <see cref="IEntityType" /> using the given properties.
@@ -266,7 +263,7 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
     /// <param name="memberInfo">The navigation property on the entity class.</param>
     /// <returns>The navigation property, or <see langword="null" /> if none is found.</returns>
     new INavigation? FindNavigation(MemberInfo memberInfo)
-        => FindNavigation(Check.NotNull(memberInfo, nameof(memberInfo)).GetSimpleMemberName());
+        => FindNavigation(Check.NotNull(memberInfo).GetSimpleMemberName());
 
     /// <summary>
     ///     Gets a navigation property on the given entity type. Returns <see langword="null" /> if no navigation property is found.
@@ -308,6 +305,14 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
         => ((IReadOnlyEntityType)this).GetDerivedNavigations().Cast<INavigation>();
 
     /// <summary>
+    ///     Gets all navigation properties declared on the base types and types derived from this entity type.
+    /// </summary>
+    /// <returns>Navigation properties.</returns>
+    IEnumerable<INavigation> GetNavigationsInHierarchy()
+        => GetAllBaseTypes().Concat(GetDerivedTypesInclusive())
+            .SelectMany(t => t.GetDeclaredNavigations());
+
+    /// <summary>
     ///     Gets all navigation properties on the given entity type.
     /// </summary>
     /// <returns>All navigation properties on the given entity type.</returns>
@@ -341,7 +346,7 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
     ///     Gets all skip navigation properties declared on this entity type.
     /// </summary>
     /// <remarks>
-    ///     This method does not return skip navigation properties declared declared on base types.
+    ///     This method does not return skip navigation properties declared on base types.
     ///     It is useful when iterating over all entity types to avoid processing the same foreign key more than once.
     ///     Use <see cref="GetSkipNavigations" /> to also return skip navigation properties declared on base types.
     /// </remarks>
@@ -375,7 +380,7 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
     /// </remarks>
     /// <param name="properties">The properties to find the index on.</param>
     /// <returns>The index, or <see langword="null" /> if none is found.</returns>
-    new IIndex? FindIndex(IReadOnlyList<IReadOnlyProperty> properties);
+    new IIndex? FindIndex(IReadOnlyList<IReadOnlyPropertyBase> properties);
 
     /// <summary>
     ///     Gets the index with the given name. Returns <see langword="null" /> if no such index exists.
@@ -389,8 +394,8 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
     /// </summary>
     /// <param name="property">The property to find the index on.</param>
     /// <returns>The index, or <see langword="null" /> if none is found.</returns>
-    new IIndex? FindIndex(IReadOnlyProperty property)
-        => FindIndex(new[] { property });
+    new IIndex? FindIndex(IReadOnlyPropertyBase property)
+        => FindIndex([property]);
 
     /// <summary>
     ///     Gets all indexes declared on the given <see cref="IEntityType" />.
@@ -414,6 +419,10 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
     /// </summary>
     /// <returns>The indexes defined on this entity type.</returns>
     new IEnumerable<IIndex> GetIndexes();
+
+    // The following methods are needed for binary compatibility
+
+    #region DO NOT DELETE
 
     /// <summary>
     ///     Gets a property on the given entity type. Returns <see langword="null" /> if no property is found.
@@ -458,7 +467,7 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
     ///     <see cref="FindNavigation(string)" /> to find a navigation property.
     /// </remarks>
     /// <param name="name">The property name.</param>
-    /// <returns>The property, or <see langword="null" /> if none is found.</returns>
+    /// <returns>The property.</returns>
     new IProperty GetProperty(string name)
         => (IProperty)((IReadOnlyEntityType)this).GetProperty(name);
 
@@ -503,6 +512,8 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
     /// <returns>The properties defined on this entity type.</returns>
     new IEnumerable<IProperty> GetProperties();
 
+    #endregion
+
     /// <summary>
     ///     Returns the properties contained in foreign keys.
     /// </summary>
@@ -510,11 +521,29 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
     IEnumerable<IProperty> GetForeignKeyProperties();
 
     /// <summary>
+    ///     Gets all properties declared on the base types and types derived from this entity type.
+    /// </summary>
+    /// <returns>The properties.</returns>
+    IEnumerable<IProperty> ITypeBase.GetPropertiesInHierarchy()
+        => GetAllBaseTypes().Concat(GetDerivedTypesInclusive())
+            .SelectMany(t => t.GetDeclaredProperties());
+
+    /// <summary>
+    ///     Gets all properties declared on the base types and types derived from this entity type, including those on non-collection complex
+    ///     types.
+    /// </summary>
+    /// <returns>The properties.</returns>
+    IEnumerable<IProperty> ITypeBase.GetFlattenedPropertiesInHierarchy()
+        => GetAllBaseTypes().Concat(GetDerivedTypesInclusive())
+            .SelectMany(t => t.GetFlattenedDeclaredProperties());
+
+    /// <summary>
     ///     Returns the properties that need a value to be generated when the entity entry transitions to the
     ///     <see cref="EntityState.Added" /> state.
     /// </summary>
     /// <returns>The properties that need a value to be generated on add.</returns>
-    IEnumerable<IProperty> GetValueGeneratingProperties();
+    IEnumerable<IProperty> GetValueGeneratingProperties()
+        => GetProperties().Where(p => p.RequiresValueGenerator());
 
     /// <summary>
     ///     Gets the service property with a given name.
@@ -558,4 +587,32 @@ public interface IEntityType : IReadOnlyEntityType, ITypeBase
     /// </remarks>
     /// <returns>The service properties defined on this entity type.</returns>
     new IEnumerable<IServiceProperty> GetServiceProperties();
+
+    /// <summary>
+    ///     Finds a trigger with the given name.
+    /// </summary>
+    /// <param name="name">The trigger name.</param>
+    /// <returns>The trigger or <see langword="null" /> if no trigger with the given name was found.</returns>
+    new ITrigger? FindDeclaredTrigger(string name);
+
+    /// <summary>
+    ///     Returns the declared triggers on the entity type.
+    /// </summary>
+    new IEnumerable<ITrigger> GetDeclaredTriggers();
+
+    /// <summary>
+    ///     Gets all triggers defined on this entity type.
+    /// </summary>
+    /// <returns>The triggers defined on this entity type.</returns>
+    new IEnumerable<ITrigger> GetTriggers()
+        => (BaseType?.GetTriggers() ?? []).Concat(GetDeclaredTriggers());
+
+    internal const DynamicallyAccessedMemberTypes DynamicallyAccessedMemberTypes =
+        System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicConstructors
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicProperties
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicFields
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.Interfaces;
 }

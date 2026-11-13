@@ -5,6 +5,6 @@ namespace Microsoft.EntityFrameworkCore.TestModels.ComplexNavigationsModel;
 
 public class ComplexNavigationLanguage
 {
-    public string Name { get; set; }
-    public string CultureString { get; set; }
+    public string Name { get; set; } = null!;
+    public string? CultureString { get; set; }
 }

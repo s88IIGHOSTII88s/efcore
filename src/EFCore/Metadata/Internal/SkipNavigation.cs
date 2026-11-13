@@ -16,9 +16,9 @@ public class SkipNavigation : PropertyBase, IMutableSkipNavigation, IConventionS
     private ConfigurationSource? _foreignKeyConfigurationSource;
     private ConfigurationSource? _inverseConfigurationSource;
     private InternalSkipNavigationBuilder? _builder;
+    private readonly Type _type;
 
     // Warning: Never access these fields directly as access needs to be thread-safe
-    private IClrCollectionAccessor? _collectionAccessor;
     private bool _collectionAccessorInitialized;
     private ICollectionLoader? _manyToManyLoader;
 
@@ -30,6 +30,7 @@ public class SkipNavigation : PropertyBase, IMutableSkipNavigation, IConventionS
     /// </summary>
     public SkipNavigation(
         string name,
+        Type? navigationType,
         PropertyInfo? propertyInfo,
         FieldInfo? fieldInfo,
         EntityType declaringEntityType,
@@ -43,6 +44,11 @@ public class SkipNavigation : PropertyBase, IMutableSkipNavigation, IConventionS
         TargetEntityType = targetEntityType;
         IsCollection = collection;
         IsOnDependent = onDependent;
+        _type = navigationType
+            ?? this.GetIdentifyingMemberInfo()?.GetMemberType()
+            ?? (IsCollection
+                ? typeof(IEnumerable<>).MakeGenericType(TargetEntityType.ClrType)
+                : TargetEntityType.ClrType);
         _builder = new InternalSkipNavigationBuilder(this, targetEntityType.Model.Builder);
     }
 
@@ -67,10 +73,7 @@ public class SkipNavigation : PropertyBase, IMutableSkipNavigation, IConventionS
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public override Type ClrType
-        => this.GetIdentifyingMemberInfo()?.GetMemberType()
-            ?? (IsCollection
-                ? typeof(IEnumerable<>).MakeGenericType(TargetEntityType.ClrType)
-                : TargetEntityType.ClrType);
+        => _type;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -81,7 +84,7 @@ public class SkipNavigation : PropertyBase, IMutableSkipNavigation, IConventionS
     public virtual InternalSkipNavigationBuilder Builder
     {
         [DebuggerStepThrough]
-        get => _builder ?? throw new InvalidOperationException(CoreStrings.ObjectRemovedFromModel);
+        get => _builder ?? throw new InvalidOperationException(CoreStrings.ObjectRemovedFromModel(Name));
     }
 
     /// <summary>
@@ -90,8 +93,9 @@ public class SkipNavigation : PropertyBase, IMutableSkipNavigation, IConventionS
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual bool IsInModel
-        => _builder is not null;
+    public override bool IsInModel
+        => _builder is not null
+            && DeclaringEntityType.IsInModel;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -158,7 +162,7 @@ public class SkipNavigation : PropertyBase, IMutableSkipNavigation, IConventionS
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual bool IsCollection { get; }
+    public override bool IsCollection { get; }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -211,20 +215,17 @@ public class SkipNavigation : PropertyBase, IMutableSkipNavigation, IConventionS
         ProcessForeignKey(foreignKey);
         UpdateForeignKeyConfigurationSource(configurationSource);
 
-        if (Inverse?.JoinEntityType != null
-            && Inverse.JoinEntityType != JoinEntityType)
-        {
-            throw new InvalidOperationException(
-                CoreStrings.SkipInverseMismatchedForeignKey(
-                    foreignKey.Properties.Format(),
-                    Name, JoinEntityType!.DisplayName(),
-                    Inverse.Name, Inverse.JoinEntityType.DisplayName()));
-        }
-
-        return isChanging
-            ? (ForeignKey?)DeclaringEntityType.Model.ConventionDispatcher
-                .OnSkipNavigationForeignKeyChanged(Builder, foreignKey, oldForeignKey!)
-            : foreignKey;
+        return Inverse?.JoinEntityType != null
+            && Inverse.JoinEntityType != JoinEntityType
+                ? throw new InvalidOperationException(
+                    CoreStrings.SkipInverseMismatchedForeignKey(
+                        foreignKey.Properties.Format(),
+                        Name, JoinEntityType!.DisplayName(),
+                        Inverse.Name, Inverse.JoinEntityType.DisplayName()))
+                : isChanging
+                    ? (ForeignKey?)DeclaringEntityType.Model.ConventionDispatcher
+                        .OnSkipNavigationForeignKeyChanged(Builder, foreignKey, oldForeignKey!)
+                    : foreignKey;
     }
 
     /// <summary>
@@ -266,6 +267,12 @@ public class SkipNavigation : PropertyBase, IMutableSkipNavigation, IConventionS
                 ? (SkipNavigation?)DeclaringEntityType.Model.ConventionDispatcher
                     .OnSkipNavigationInverseChanged(Builder, inverse!, oldInverse!)
                 : inverse;
+        }
+
+        if (inverse == this)
+        {
+            throw new InvalidOperationException(
+                CoreStrings.SkipNavigationSelfInverse(Name, DeclaringEntityType.DisplayName()));
         }
 
         if (inverse.DeclaringEntityType != TargetEntityType)
@@ -319,7 +326,13 @@ public class SkipNavigation : PropertyBase, IMutableSkipNavigation, IConventionS
     /// </summary>
     public override PropertyAccessMode GetPropertyAccessMode()
         => (PropertyAccessMode)(this[CoreAnnotationNames.PropertyAccessMode]
-            ?? ((IReadOnlyTypeBase)DeclaringType).GetNavigationAccessMode());
+            ?? DeclaringEntityType.GetNavigationAccessMode());
+
+    /// <summary>
+    ///     Gets the sentinel value that indicates that this property is not set.
+    /// </summary>
+    public virtual object? Sentinel
+        => null;
 
     /// <summary>
     ///     Runs the conventions when an annotation was set or removed.
@@ -343,27 +356,13 @@ public class SkipNavigation : PropertyBase, IMutableSkipNavigation, IConventionS
     /// </summary>
     public virtual IClrCollectionAccessor? CollectionAccessor
         => NonCapturingLazyInitializer.EnsureInitialized(
-            ref _collectionAccessor,
+            ref field,
             ref _collectionAccessorInitialized,
             this,
             static navigation =>
             {
                 navigation.EnsureReadOnly();
-                return new ClrCollectionAccessorFactory().Create(navigation);
-            });
-
-    /// <summary>
-    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-    ///     any release. You should only use it directly in your code with extreme caution and knowing that
-    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-    /// </summary>
-    public virtual ICollectionLoader ManyToManyLoader
-        => NonCapturingLazyInitializer.EnsureInitialized(
-            ref _manyToManyLoader, this, static navigation =>
-            {
-                navigation.EnsureReadOnly();
-                return new ManyToManyLoaderFactory().Create(navigation);
+                return ClrCollectionAccessorFactory.Instance.Create(navigation);
             });
 
     /// <summary>
@@ -461,15 +460,15 @@ public class SkipNavigation : PropertyBase, IMutableSkipNavigation, IConventionS
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    IClrCollectionAccessor? INavigationBase.GetCollectionAccessor()
+    IClrCollectionAccessor? IPropertyBase.GetCollectionAccessor()
         => CollectionAccessor;
 
-    /// <summary>
-    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-    ///     any release. You should only use it directly in your code with extreme caution and knowing that
-    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-    /// </summary>
-    ICollectionLoader IRuntimeSkipNavigation.GetManyToManyLoader()
-        => ManyToManyLoader;
+    /// <inheritdoc />
+    ICollectionLoader IRuntimeSkipNavigation.GetManyToManyLoader(IManyToManyLoaderFactory factory)
+        => NonCapturingLazyInitializer.EnsureInitialized(
+            ref _manyToManyLoader, this, factory, static (navigation, factory) =>
+            {
+                navigation.EnsureReadOnly();
+                return factory.Create(navigation);
+            });
 }

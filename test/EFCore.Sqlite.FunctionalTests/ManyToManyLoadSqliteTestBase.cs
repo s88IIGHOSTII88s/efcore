@@ -5,18 +5,29 @@ using Microsoft.EntityFrameworkCore.TestModels.ManyToManyModel;
 
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class ManyToManyLoadSqliteTestBase<TFixture> : ManyToManyLoadTestBase<TFixture>
+public abstract class ManyToManyLoadSqliteTestBase<TFixture>(TFixture fixture) : ManyToManyLoadTestBase<TFixture>(fixture)
     where TFixture : ManyToManyLoadSqliteTestBase<TFixture>.ManyToManyLoadSqliteFixtureBase
 {
-    protected ManyToManyLoadSqliteTestBase(TFixture fixture)
-        : base(fixture)
+    public class ManyToManyLoadSqliteFixtureBase : ManyToManyLoadFixtureBase, ITestSqlLoggerFactory
     {
-    }
+        public TestSqlLoggerFactory TestSqlLoggerFactory
+            => (TestSqlLoggerFactory)ListLoggerFactory;
 
-    public class ManyToManyLoadSqliteFixtureBase : ManyToManyLoadFixtureBase
-    {
         protected override ITestStoreFactory TestStoreFactory
             => SqliteTestStoreFactory.Instance;
+
+        protected override async Task SeedAsync(ManyToManyContext context)
+        {
+            await base.SeedAsync(context);
+
+            await context.Database.ExecuteSqlRawAsync("DELETE FROM JoinOneToTwo WHERE OneId = 3");
+            foreach (var twoId in new[] { 10, 1, 19, 4, 16, 7, 13 })
+            {
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT INTO JoinOneToTwo (OneId, TwoId, JoinOneToTwoExtraId) VALUES (3, {0}, NULL)",
+                    twoId);
+            }
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder, DbContext context)
         {
@@ -34,6 +45,21 @@ public abstract class ManyToManyLoadSqliteTestBase<TFixture> : ManyToManyLoadTes
 
             modelBuilder
                 .Entity<JoinOneToThreePayloadFull>()
+                .Property(e => e.Payload)
+                .HasDefaultValue("Generated");
+
+            modelBuilder
+                .Entity<UnidirectionalJoinOneSelfPayload>()
+                .Property(e => e.Payload)
+                .HasDefaultValueSql("GETUTCDATE()");
+
+            modelBuilder
+                .SharedTypeEntity<Dictionary<string, object>>("UnidirectionalJoinOneToThreePayloadFullShared")
+                .IndexerProperty<string>("Payload")
+                .HasDefaultValue("Generated");
+
+            modelBuilder
+                .Entity<UnidirectionalJoinOneToThreePayloadFull>()
                 .Property(e => e.Payload)
                 .HasDefaultValue("Generated");
         }

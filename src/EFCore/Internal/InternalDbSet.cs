@@ -14,18 +14,18 @@ namespace Microsoft.EntityFrameworkCore.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
-public class InternalDbSet<TEntity> :
+public class InternalDbSet<[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TEntity> :
     DbSet<TEntity>,
     IQueryable<TEntity>,
     IAsyncEnumerable<TEntity>,
+    IInfrastructure<DbContext>,
     IInfrastructure<IServiceProvider>,
-    IResettableService
+    IResettableService,
+    ILocalViewOwner
     where TEntity : class
 {
     private readonly DbContext _context;
     private readonly string? _entityTypeName;
-    private IEntityType? _entityType;
-    private EntityQueryable<TEntity>? _entityQueryable;
     private LocalView<TEntity>? _localView;
 
     /// <summary>
@@ -48,20 +48,21 @@ public class InternalDbSet<TEntity> :
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    [field: AllowNull, MaybeNull]
     public override IEntityType EntityType
     {
         get
         {
-            if (_entityType != null)
+            if (field != null)
             {
-                return _entityType;
+                return field;
             }
 
-            _entityType = _entityTypeName != null
+            field = _entityTypeName != null
                 ? _context.Model.FindEntityType(_entityTypeName)
                 : _context.Model.FindEntityType(typeof(TEntity));
 
-            if (_entityType == null)
+            if (field == null)
             {
                 if (_context.Model.IsShared(typeof(TEntity)))
                 {
@@ -79,25 +80,25 @@ public class InternalDbSet<TEntity> :
                 throw new InvalidOperationException(CoreStrings.InvalidSetType(typeof(TEntity).ShortDisplayName()));
             }
 
-            if (_entityType.IsOwned())
+            if (field.IsOwned())
             {
                 var message = CoreStrings.InvalidSetTypeOwned(
-                    _entityType.DisplayName(), _entityType.FindOwnership()!.PrincipalEntityType.DisplayName());
-                _entityType = null;
+                    field.DisplayName(), field.FindOwnership()!.PrincipalEntityType.DisplayName());
+                field = null;
 
                 throw new InvalidOperationException(message);
             }
 
-            if (_entityType.ClrType != typeof(TEntity))
+            if (field.ClrType != typeof(TEntity))
             {
                 var message = CoreStrings.DbSetIncorrectGenericType(
-                    _entityType.ShortName(), _entityType.ClrType.ShortDisplayName(), typeof(TEntity).ShortDisplayName());
-                _entityType = null;
+                    field.ShortName(), field.ClrType.ShortDisplayName(), typeof(TEntity).ShortDisplayName());
+                field = null;
 
                 throw new InvalidOperationException(message);
             }
 
-            return _entityType;
+            return field;
         }
     }
 
@@ -113,6 +114,7 @@ public class InternalDbSet<TEntity> :
         }
     }
 
+    [field: AllowNull, MaybeNull]
     private EntityQueryable<TEntity> EntityQueryable
     {
         get
@@ -120,7 +122,7 @@ public class InternalDbSet<TEntity> :
             CheckState();
 
             return NonCapturingLazyInitializer.EnsureInitialized(
-                ref _entityQueryable,
+                ref field,
                 this,
                 static internalSet => internalSet.CreateEntityQueryable());
         }
@@ -202,7 +204,7 @@ public class InternalDbSet<TEntity> :
         TEntity entity,
         CancellationToken cancellationToken = default)
     {
-        var entry = EntryWithoutDetectChanges(Check.NotNull(entity, nameof(entity)));
+        var entry = EntryWithoutDetectChanges(Check.NotNull(entity));
 
         await SetEntityStateAsync(entry.GetInfrastructure(), EntityState.Added, cancellationToken)
             .ConfigureAwait(false);
@@ -233,7 +235,7 @@ public class InternalDbSet<TEntity> :
     /// </summary>
     public override EntityEntry<TEntity> Remove(TEntity entity)
     {
-        Check.NotNull(entity, nameof(entity));
+        Check.NotNull(entity);
 
         var entry = EntryWithoutDetectChanges(entity);
 
@@ -304,7 +306,7 @@ public class InternalDbSet<TEntity> :
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public override void AttachRange(params TEntity[] entities)
-        => SetEntityStates(Check.NotNull(entities, nameof(entities)), EntityState.Unchanged);
+        => SetEntityStates(Check.NotNull(entities), EntityState.Unchanged);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -314,7 +316,7 @@ public class InternalDbSet<TEntity> :
     /// </summary>
     public override void RemoveRange(params TEntity[] entities)
     {
-        Check.NotNull(entities, nameof(entities));
+        Check.NotNull(entities);
 
         var stateManager = _context.GetDependencies().StateManager;
 
@@ -344,7 +346,7 @@ public class InternalDbSet<TEntity> :
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public override void UpdateRange(params TEntity[] entities)
-        => SetEntityStates(Check.NotNull(entities, nameof(entities)), EntityState.Modified);
+        => SetEntityStates(Check.NotNull(entities), EntityState.Modified);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -353,7 +355,7 @@ public class InternalDbSet<TEntity> :
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public override void AddRange(IEnumerable<TEntity> entities)
-        => SetEntityStates(Check.NotNull(entities, nameof(entities)), EntityState.Added);
+        => SetEntityStates(Check.NotNull(entities), EntityState.Added);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -370,7 +372,7 @@ public class InternalDbSet<TEntity> :
         foreach (var entity in entities)
         {
             await SetEntityStateAsync(
-                    stateManager.GetOrCreateEntry(entity),
+                    stateManager.GetOrCreateEntry(entity, EntityType),
                     EntityState.Added,
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -384,7 +386,7 @@ public class InternalDbSet<TEntity> :
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public override void AttachRange(IEnumerable<TEntity> entities)
-        => SetEntityStates(Check.NotNull(entities, nameof(entities)), EntityState.Unchanged);
+        => SetEntityStates(Check.NotNull(entities), EntityState.Unchanged);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -394,7 +396,7 @@ public class InternalDbSet<TEntity> :
     /// </summary>
     public override void RemoveRange(IEnumerable<TEntity> entities)
     {
-        Check.NotNull(entities, nameof(entities));
+        Check.NotNull(entities);
 
         var stateManager = _context.GetDependencies().StateManager;
 
@@ -424,10 +426,46 @@ public class InternalDbSet<TEntity> :
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public override void UpdateRange(IEnumerable<TEntity> entities)
-        => SetEntityStates(Check.NotNull(entities, nameof(entities)), EntityState.Modified);
+        => SetEntityStates(Check.NotNull(entities), EntityState.Modified);
 
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public override EntityEntry<TEntity> Entry(TEntity entity)
+    {
+        Check.NotNull(entity);
+
+        var entry = EntryWithoutDetectChanges(entity);
+
+        if (_context.ChangeTracker.AutoDetectChangesEnabled)
+        {
+            entry.DetectChanges();
+        }
+
+        return entry;
+    }
+
+    [field: AllowNull, MaybeNull]
     private IEntityFinder<TEntity> Finder
-        => (IEntityFinder<TEntity>)_context.GetDependencies().EntityFinderFactory.Create(EntityType);
+    {
+        get
+        {
+            if (field == null)
+            {
+                if (EntityType.FindPrimaryKey() == null)
+                {
+                    throw new InvalidOperationException(CoreStrings.InvalidSetKeylessOperation(EntityType.DisplayName()));
+                }
+
+                field = (IEntityFinder<TEntity>)_context.GetDependencies().EntityFinderFactory.Create(EntityType);
+            }
+
+            return field;
+        }
+    }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -489,6 +527,15 @@ public class InternalDbSet<TEntity> :
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    DbContext IInfrastructure<DbContext>.Instance
+        => _context;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
     IServiceProvider IInfrastructure<IServiceProvider>.Instance
         => _context.GetInfrastructure();
 
@@ -499,7 +546,10 @@ public class InternalDbSet<TEntity> :
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     void IResettableService.ResetState()
-        => _localView = null;
+        => _localView?.Reset();
+
+    void ILocalViewOwner.OnStateManagerCleared()
+        => _localView?.OnStateManagerCleared();
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -507,8 +557,6 @@ public class InternalDbSet<TEntity> :
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    /// <param name="cancellationToken">A <see cref="CancellationToken" /> to observe while waiting for the task to complete.</param>
-    /// <exception cref="OperationCanceledException">If the <see cref="CancellationToken" /> is canceled.</exception>
     Task IResettableService.ResetStateAsync(CancellationToken cancellationToken)
     {
         ((IResettableService)this).ResetState();

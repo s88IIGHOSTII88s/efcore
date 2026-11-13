@@ -49,13 +49,25 @@ public class TableBase : Annotatable, ITableBase
     public override bool IsReadOnly
         => Model.IsReadOnly;
 
+    /// <inheritdoc />
+    public override bool Equals(object? obj)
+        => ReferenceEquals(this, obj)
+            || (obj is TableBase other
+                && GetType() == other.GetType()
+                && Name == other.Name
+                && Schema == other.Schema);
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+        => HashCode.Combine(GetType(), Name, Schema);
+
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
     ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual bool IsShared { get; set; }
+    public virtual bool IsShared { get; private set; }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -64,7 +76,16 @@ public class TableBase : Annotatable, ITableBase
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual SortedSet<ITableMappingBase> EntityTypeMappings { get; }
-        = new(TableMappingBaseComparer.Instance);
+        = new();
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual SortedSet<ITableMappingBase> ComplexTypeMappings { get; }
+        = new();
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -73,19 +94,55 @@ public class TableBase : Annotatable, ITableBase
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual SortedDictionary<string, IColumnBase> Columns { get; protected set; }
-        = new(StringComparer.Ordinal);
+        = [with(StringComparer.Ordinal)];
 
     /// <inheritdoc />
     public virtual IColumnBase? FindColumn(string name)
-        => Columns.TryGetValue(name, out var column)
-            ? column
+        => Columns.GetValueOrDefault(name);
+
+    /// <inheritdoc />
+    public virtual IColumnBase? FindColumn(IPropertyBase propertyBase)
+        => propertyBase switch
+        {
+            IProperty property => FindColumn(property),
+            INavigation navigation => FindColumn(navigation),
+            IComplexProperty complexProperty => FindColumn(complexProperty),
+            _ => null
+        };
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    protected virtual IColumnBase? FindColumn(IProperty property)
+        => property.GetDefaultColumnMappings()
+                .FirstOrDefault(cm => cm.TableMapping.Table == this)?.Column
+            ?? property.GetJsonElementMappings()
+                .FirstOrDefault(m => m.TableMapping.Table == this)?.Element.ContainingColumn;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    protected virtual IColumnBase? FindColumn(INavigation navigation)
+        => navigation.TargetEntityType.GetContainerColumnName() is { Length: > 0 } containerName
+            ? FindColumn(containerName)
             : null;
 
-    /// <inheritdoc />
-    public virtual IColumnBase? FindColumn(IProperty property)
-        => property.GetDefaultColumnMappings()
-            .FirstOrDefault(cm => cm.TableMapping.Table == this)
-            ?.Column;
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    protected virtual IColumnBase? FindColumn(IComplexProperty complexProperty)
+        => complexProperty.ComplexType.GetContainerColumnName() is { Length: > 0 } containerName
+            ? FindColumn(containerName)
+            : null;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -94,7 +151,7 @@ public class TableBase : Annotatable, ITableBase
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     [DisallowNull]
-    public virtual SortedDictionary<IEntityType, IEnumerable<IForeignKey>>? RowInternalForeignKeys { get; set; }
+    public virtual SortedDictionary<IEntityType, IEnumerable<IForeignKey>>? RowInternalForeignKeys { get; private set; }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -102,7 +159,7 @@ public class TableBase : Annotatable, ITableBase
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual SortedDictionary<IEntityType, IEnumerable<IForeignKey>>? ReferencingRowInternalForeignKeys { get; set; }
+    public virtual SortedDictionary<IEntityType, IEnumerable<IForeignKey>>? ReferencingRowInternalForeignKeys { get; private set; }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -111,29 +168,104 @@ public class TableBase : Annotatable, ITableBase
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     [DisallowNull]
-    public virtual Dictionary<IEntityType, bool>? OptionalEntityTypes { get; set; }
+    public virtual Dictionary<ITypeBase, bool>? OptionalTypes { get; set; }
 
-    /// <inheritdoc />
-    public virtual bool IsOptional(IEntityType entityType)
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual void AddTypeMapping(ITableMappingBase tableMapping, bool? optional)
     {
-        if (OptionalEntityTypes == null)
+        if (optional.HasValue)
         {
-            CheckMappedEntityType(entityType);
+            OptionalTypes ??= [];
+            OptionalTypes.Add(tableMapping.TypeBase, optional.Value);
+        }
+
+        if (tableMapping.TypeBase is IEntityType)
+        {
+            EntityTypeMappings.Add(tableMapping);
+        }
+        else
+        {
+            ComplexTypeMappings.Add(tableMapping);
+        }
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual void AddRowInternalForeignKey(IEntityType entityType, IForeignKey foreignKey)
+    {
+        if (RowInternalForeignKeys == null)
+        {
+            RowInternalForeignKeys = [with(EntityTypeFullNameComparer.Instance)];
+            IsShared = true;
+        }
+
+        if (!RowInternalForeignKeys.TryGetValue(entityType, out var foreignKeys))
+        {
+            foreignKeys = new SortedSet<IForeignKey>(ForeignKeyComparer.Instance);
+            RowInternalForeignKeys[entityType] = foreignKeys;
+        }
+
+        ((SortedSet<IForeignKey>)foreignKeys).Add(foreignKey);
+
+        var principalEntityType = foreignKey.PrincipalEntityType;
+        if (ReferencingRowInternalForeignKeys == null)
+        {
+            ReferencingRowInternalForeignKeys =
+                [with(EntityTypeFullNameComparer.Instance)];
+            IsShared = true;
+        }
+
+        if (!ReferencingRowInternalForeignKeys.TryGetValue(principalEntityType, out var referencingForeignKeys))
+        {
+            referencingForeignKeys = new SortedSet<IForeignKey>(ForeignKeyComparer.Instance);
+            ReferencingRowInternalForeignKeys[principalEntityType] = referencingForeignKeys;
+        }
+
+        ((SortedSet<IForeignKey>)referencingForeignKeys).Add(foreignKey);
+    }
+
+    /// <inheritdoc />
+    public virtual bool IsOptional(ITypeBase typeBase)
+    {
+        if (OptionalTypes == null)
+        {
+            CheckMappedType(typeBase);
             return false;
         }
 
-        return !OptionalEntityTypes.TryGetValue(entityType, out var optional)
-            ? throw new InvalidOperationException(RelationalStrings.TableNotMappedEntityType(entityType.DisplayName(), Name))
+        return !OptionalTypes.TryGetValue(typeBase, out var optional)
+            ? throw new InvalidOperationException(
+                RelationalStrings.TableNotMappedEntityType(typeBase.DisplayName(), ((ITableBase)this).SchemaQualifiedName))
             : optional;
     }
 
-    private void CheckMappedEntityType(IEntityType entityType)
+    private void CheckMappedType(ITypeBase typeBase)
     {
-        if (EntityTypeMappings.All(m => m.EntityType != entityType))
+        if (EntityTypeMappings.All(m => m.TypeBase != typeBase)
+            && ComplexTypeMappings.All(m => m.TypeBase != typeBase))
         {
-            throw new InvalidOperationException(RelationalStrings.TableNotMappedEntityType(entityType.DisplayName(), Name));
+            throw new InvalidOperationException(
+                RelationalStrings.TableNotMappedEntityType(typeBase.DisplayName(), ((ITableBase)this).SchemaQualifiedName));
         }
     }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public override string ToString()
+        => ((ITableBase)this).ToDebugString(MetadataDebugStringOptions.SingleLineDefault);
 
     /// <inheritdoc />
     IRelationalModel ITableBase.Model
@@ -147,6 +279,13 @@ public class TableBase : Annotatable, ITableBase
     {
         [DebuggerStepThrough]
         get => EntityTypeMappings;
+    }
+
+    /// <inheritdoc />
+    IEnumerable<ITableMappingBase> ITableBase.ComplexTypeMappings
+    {
+        [DebuggerStepThrough]
+        get => ComplexTypeMappings;
     }
 
     /// <inheritdoc />
@@ -165,8 +304,8 @@ public class TableBase : Annotatable, ITableBase
             return foreignKeys;
         }
 
-        CheckMappedEntityType(entityType);
-        return Enumerable.Empty<IForeignKey>();
+        CheckMappedType(entityType);
+        return [];
     }
 
     /// <inheritdoc />
@@ -178,7 +317,7 @@ public class TableBase : Annotatable, ITableBase
             return foreignKeys;
         }
 
-        CheckMappedEntityType(entityType);
-        return Enumerable.Empty<IForeignKey>();
+        CheckMappedType(entityType);
+        return [];
     }
 }

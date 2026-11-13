@@ -20,8 +20,11 @@ public static class TypeExtensions
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public static bool IsDefaultValue(this Type type, object? value)
-        => (value?.Equals(type.GetDefaultValue()) != false);
+    public static bool IsDefaultValue(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
+        this Type type,
+        object? value)
+        => value?.Equals(type.GetDefaultValue()) != false;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -52,19 +55,19 @@ public static class TypeExtensions
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public static PropertyInfo? FindIndexerProperty(this Type type)
+    public static PropertyInfo? FindIndexerProperty(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.NonPublicProperties)]
+        this Type type)
     {
         var defaultPropertyAttribute = type.GetCustomAttributes<DefaultMemberAttribute>().FirstOrDefault();
 
         return defaultPropertyAttribute == null
             ? null
             : type.GetRuntimeProperties()
-                .FirstOrDefault(
-                    pi =>
-                        pi.Name == defaultPropertyAttribute.MemberName
-                        && pi.IsIndexerProperty()
-                        && pi.SetMethod?.GetParameters() is ParameterInfo[] parameters
-                        && parameters.Length == 2
-                        && parameters[0].ParameterType == typeof(string));
+                .FirstOrDefault(pi =>
+                    pi.Name == defaultPropertyAttribute.MemberName
+                    && pi.IsIndexerProperty()
+                    && pi.SetMethod?.GetParameters() is { Length: 2 } parameters
+                    && parameters[0].ParameterType == typeof(string));
     }
 }

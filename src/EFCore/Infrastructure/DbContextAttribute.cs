@@ -5,12 +5,14 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure;
 
 /// <summary>
 ///     Identifies the <see cref="DbContext" /> that a class belongs to. For example, this attribute is used
-///     to identify which context a migration applies to.
+///     to identify which context a migration applies to. It is also used to indicate the contexts used in an assembly
+///     for design-time tools.
 /// </summary>
 /// <remarks>
-///     See <see href="https://aka.ms/efcore-docs-manage-schemas">Managing database schemas with EF Cor</see> for more information and examples.
+///     See <see href="https://aka.ms/efcore-docs-manage-schemas">Managing database schemas with EF Core</see> for more information and
+///     examples.
 /// </remarks>
-[AttributeUsage(AttributeTargets.Class)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Assembly, AllowMultiple = true)]
 public sealed class DbContextAttribute : Attribute
 {
     /// <summary>
@@ -19,7 +21,7 @@ public sealed class DbContextAttribute : Attribute
     /// <param name="contextType">The associated context.</param>
     public DbContextAttribute(Type contextType)
     {
-        Check.NotNull(contextType, nameof(contextType));
+        Check.NotNull(contextType);
 
         ContextType = contextType;
     }

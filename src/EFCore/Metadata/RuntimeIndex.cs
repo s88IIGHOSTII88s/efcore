@@ -12,9 +12,10 @@ namespace Microsoft.EntityFrameworkCore.Metadata;
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and examples.
 /// </remarks>
-public class RuntimeIndex : AnnotatableBase, IIndex
+public class RuntimeIndex : RuntimeAnnotatableBase, IIndex
 {
     private readonly bool _isUnique;
+    private readonly IReadOnlyList<IReadOnlyList<int?>?>? _collectionIndices;
 
     // Warning: Never access these fields directly as access needs to be thread-safe
     private object? _nullableValueFactory;
@@ -27,21 +28,23 @@ public class RuntimeIndex : AnnotatableBase, IIndex
     /// </summary>
     [EntityFrameworkInternal]
     public RuntimeIndex(
-        IReadOnlyList<RuntimeProperty> properties,
+        IReadOnlyList<RuntimePropertyBase> properties,
         RuntimeEntityType declaringEntityType,
         string? name,
-        bool unique)
+        bool unique,
+        IReadOnlyList<IReadOnlyList<int?>?>? collectionIndices)
     {
         Properties = properties;
         Name = name;
         DeclaringEntityType = declaringEntityType;
         _isUnique = unique;
+        _collectionIndices = collectionIndices;
     }
 
     /// <summary>
     ///     Gets the properties that this index is defined on.
     /// </summary>
-    public virtual IReadOnlyList<RuntimeProperty> Properties { get; }
+    public virtual IReadOnlyList<RuntimePropertyBase> Properties { get; }
 
     /// <summary>
     ///     Gets the name of this index.
@@ -65,6 +68,15 @@ public class RuntimeIndex : AnnotatableBase, IIndex
     }
 
     /// <summary>
+    ///     Gets the complex-collection indices traversed to reach each indexed property.
+    /// </summary>
+    IReadOnlyList<IReadOnlyList<int?>?>? IReadOnlyIndex.CollectionIndices
+    {
+        [DebuggerStepThrough]
+        get => _collectionIndices;
+    }
+
+    /// <summary>
     ///     Returns a string that represents the current object.
     /// </summary>
     /// <returns>A string that represents the current object.</returns>
@@ -84,7 +96,7 @@ public class RuntimeIndex : AnnotatableBase, IIndex
             () => ((IIndex)this).ToDebugString(MetadataDebugStringOptions.LongDefault));
 
     /// <inheritdoc />
-    IReadOnlyList<IReadOnlyProperty> IReadOnlyIndex.Properties
+    IReadOnlyList<IReadOnlyPropertyBase> IReadOnlyIndex.Properties
     {
         [DebuggerStepThrough]
         get => Properties;
@@ -98,7 +110,7 @@ public class RuntimeIndex : AnnotatableBase, IIndex
     }
 
     /// <inheritdoc />
-    IReadOnlyList<IProperty> IIndex.Properties
+    IReadOnlyList<IPropertyBase> IIndex.Properties
     {
         [DebuggerStepThrough]
         get => Properties;
@@ -124,7 +136,21 @@ public class RuntimeIndex : AnnotatableBase, IIndex
         => (IDependentKeyValueFactory<TKey>)NonCapturingLazyInitializer.EnsureInitialized(
             ref _nullableValueFactory, this, static index =>
             {
-                index.EnsureReadOnly();
-                return new CompositeValueFactory(index.Properties);
+                var properties = new List<IProperty>(index.Properties.Count);
+                foreach (var property in index.Properties)
+                {
+                    if (property is IComplexProperty complexProperty)
+                    {
+                        throw new InvalidOperationException(
+                            CoreStrings.IndexValueFactoryWithComplexProperty(
+                                index.Properties.Format(),
+                                ((IReadOnlyEntityType)index.DeclaringEntityType).DisplayName(),
+                                complexProperty.Name));
+                    }
+
+                    properties.Add((IProperty)property);
+                }
+
+                return new CompositeValueFactory(properties);
             });
 }

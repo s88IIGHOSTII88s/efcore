@@ -1,24 +1,18 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Collections;
 using Microsoft.EntityFrameworkCore.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Metadata;
 
 /// <summary>
-///     Represents a scalar property of an entity type.
+///     Represents a scalar property of a structural type.
 /// </summary>
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and examples.
 /// </remarks>
 public interface IProperty : IReadOnlyProperty, IPropertyBase
 {
-    /// <summary>
-    ///     Gets the type that this property belongs to.
-    /// </summary>
-    new IEntityType DeclaringEntityType { get; }
-
     /// <summary>
     ///     Creates an <see cref="IEqualityComparer{T}" /> for values of the given property type.
     /// </summary>
@@ -41,7 +35,7 @@ public interface IProperty : IReadOnlyProperty, IPropertyBase
     /// </summary>
     /// <returns>The list of all associated principal properties including the given property.</returns>
     new IReadOnlyList<IProperty> GetPrincipals()
-        => ((IReadOnlyProperty)this).GetPrincipals().Cast<IProperty>().ToList();
+        => GetPrincipals<IProperty>();
 
     /// <summary>
     ///     Gets all foreign keys that use this property (including composite foreign keys in which this property
@@ -84,13 +78,32 @@ public interface IProperty : IReadOnlyProperty, IPropertyBase
     ///     Gets the <see cref="ValueComparer" /> for this property.
     /// </summary>
     /// <returns>The comparer.</returns>
-    [DebuggerStepThrough]
     new ValueComparer GetValueComparer();
 
     /// <summary>
     ///     Gets the <see cref="ValueComparer" /> to use with keys for this property.
     /// </summary>
     /// <returns>The comparer.</returns>
-    [DebuggerStepThrough]
     new ValueComparer GetKeyValueComparer();
+
+    /// <summary>
+    ///     Gets the <see cref="ValueComparer" /> to use for the provider values for this property.
+    /// </summary>
+    /// <returns>The comparer.</returns>
+    new ValueComparer GetProviderValueComparer();
+
+    /// <summary>
+    ///     Gets the configuration for elements of the primitive collection represented by this property.
+    /// </summary>
+    /// <returns>The configuration for the elements.</returns>
+    new IElementType? GetElementType();
+
+    internal const DynamicallyAccessedMemberTypes DynamicallyAccessedMemberTypes =
+        System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicConstructors
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicProperties
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicFields
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.Interfaces;
 }

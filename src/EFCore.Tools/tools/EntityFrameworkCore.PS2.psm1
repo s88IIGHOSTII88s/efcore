@@ -277,16 +277,16 @@ function Remove-Migration(
     The name of the DbContext. Defaults to the database name.
 
 .PARAMETER Schemas
-    The schemas of tables to generate entity types for.
+    The schemas of tables and views to generate entity types for. All tables and views in the schemas will be included in the model, even if they are not explicitly included with the 'Tables' parameter.
 
 .PARAMETER Tables
-    The tables to generate entity types for.
+    The tables and views to generate entity types for. Tables or views in a specific schema can be included using the 'schema.table' or 'schema.view' format.
 
 .PARAMETER DataAnnotations
     Use attributes to configure the model (where possible). If omitted, only the fluent API is used.
 
 .PARAMETER UseDatabaseNames
-    Use table and column names directly from the database.
+    Use table, view, sequence, and column names directly from the database.
 
 .PARAMETER Force
     Overwrite existing files.
@@ -434,6 +434,16 @@ function Script-Migration(
 
 .PARAMETER Migration
     The target migration. If '0', all migrations will be reverted. Defaults to the last migration.
+    When used with -Add, this is the name of the new migration to create.
+
+.PARAMETER Add
+    Create a new migration with the given name and apply it immediately.
+
+.PARAMETER OutputDir
+    The directory to put files in. Paths are relative to the project directory. Requires -Add.
+
+.PARAMETER Namespace
+    The namespace to use for the migration. Matches the directory by default. Requires -Add.
 
 .PARAMETER Connection
     The connection string to the database. Defaults to the one specified in AddDbContext or OnConfiguring.
@@ -456,6 +466,9 @@ function Script-Migration(
 #>
 function Update-Database(
     $Migration,
+    [switch] $Add,
+    $OutputDir,
+    $Namespace,
     $Connection,
     $Context,
     $Project,

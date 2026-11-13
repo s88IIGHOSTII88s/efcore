@@ -1,10 +1,12 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.Storage.Json;
+
 namespace Microsoft.EntityFrameworkCore.Metadata;
 
 /// <summary>
-///     Represents a scalar property of an entity type.
+///     Represents a scalar property of a structural type.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -18,11 +20,6 @@ namespace Microsoft.EntityFrameworkCore.Metadata;
 /// </remarks>
 public interface IMutableProperty : IReadOnlyProperty, IMutablePropertyBase
 {
-    /// <summary>
-    ///     Gets the type that this property belongs to.
-    /// </summary>
-    new IMutableEntityType DeclaringEntityType { get; }
-
     /// <summary>
     ///     Gets or sets a value indicating whether this property can contain <see langword="null" />.
     /// </summary>
@@ -47,6 +44,18 @@ public interface IMutableProperty : IReadOnlyProperty, IMutablePropertyBase
     new bool IsConcurrencyToken { get; set; }
 
     /// <summary>
+    ///     Gets or sets a value indicating whether this property is automatically loaded when the entity is queried
+    ///     from the database. When set to <see langword="false" />, the property value will not be read from the database
+    ///     and the property will be excluded from <c>UPDATE</c> statements unless explicitly loaded or modified.
+    /// </summary>
+    new bool IsAutoLoaded { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the sentinel value that indicates that this property is not set.
+    /// </summary>
+    new object? Sentinel { get; set; }
+
+    /// <summary>
     ///     Finds the first principal property that the given property is constrained by
     ///     if the given property is part of a foreign key.
     /// </summary>
@@ -60,7 +69,7 @@ public interface IMutableProperty : IReadOnlyProperty, IMutablePropertyBase
     /// </summary>
     /// <returns>The list of all associated principal properties including the given property.</returns>
     new IReadOnlyList<IMutableProperty> GetPrincipals()
-        => ((IReadOnlyProperty)this).GetPrincipals().Cast<IMutableProperty>().ToList();
+        => GetPrincipals<IMutableProperty>();
 
     /// <summary>
     ///     Gets all foreign keys that use this property (including composite foreign keys in which this property
@@ -181,7 +190,7 @@ public interface IMutableProperty : IReadOnlyProperty, IMutablePropertyBase
     ///     A factory that will be used to create the value generator, or <see langword="null" /> to
     ///     clear any previously set factory.
     /// </param>
-    void SetValueGeneratorFactory(Func<IProperty, IEntityType, ValueGenerator>? valueGeneratorFactory);
+    void SetValueGeneratorFactory(Func<IProperty, ITypeBase, ValueGenerator>? valueGeneratorFactory);
 
     /// <summary>
     ///     Sets the factory to use for generating values for this property, or <see langword="null" /> to clear any previously set factory.
@@ -194,7 +203,9 @@ public interface IMutableProperty : IReadOnlyProperty, IMutablePropertyBase
     ///     A factory that will be used to create the value generator, or <see langword="null" /> to
     ///     clear any previously set factory.
     /// </param>
-    void SetValueGeneratorFactory(Type? valueGeneratorFactory);
+    void SetValueGeneratorFactory(
+        [DynamicallyAccessedMembers(ValueGeneratorFactory.DynamicallyAccessedMemberTypes)]
+        Type? valueGeneratorFactory);
 
     /// <summary>
     ///     Sets the custom <see cref="ValueConverter" /> for this property.
@@ -208,7 +219,7 @@ public interface IMutableProperty : IReadOnlyProperty, IMutablePropertyBase
     /// <param name="converterType">
     ///     A type that derives from <see cref="ValueConverter" />, or <see langword="null" /> to remove any previously set converter.
     /// </param>
-    void SetValueConverter(Type? converterType);
+    void SetValueConverter([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type? converterType);
 
     /// <summary>
     ///     Sets the type that the property value will be converted to before being sent to the database provider.
@@ -234,5 +245,62 @@ public interface IMutableProperty : IReadOnlyProperty, IMutablePropertyBase
     /// <param name="comparerType">
     ///     A type that derives from <see cref="ValueComparer" />, or <see langword="null" /> to remove any previously set comparer.
     /// </param>
-    void SetValueComparer(Type? comparerType);
+    void SetValueComparer([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type? comparerType);
+
+    /// <summary>
+    ///     Sets the custom <see cref="ValueComparer" /> to use for the provider values for this property.
+    /// </summary>
+    /// <param name="comparer">The comparer, or <see langword="null" /> to remove any previously set comparer.</param>
+    void SetProviderValueComparer(ValueComparer? comparer);
+
+    /// <summary>
+    ///     Sets the custom <see cref="ValueComparer" /> to use for the provider values for this property.
+    /// </summary>
+    /// <param name="comparerType">
+    ///     A type that derives from <see cref="ValueComparer" />, or <see langword="null" /> to remove any previously set comparer.
+    /// </param>
+    void SetProviderValueComparer(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
+        Type? comparerType);
+
+    /// <summary>
+    ///     Sets the type of <see cref="JsonValueReaderWriter{TValue}" /> to use for this property for this property.
+    /// </summary>
+    /// <param name="readerWriterType">
+    ///     A type that derives from <see cref="JsonValueReaderWriter{TValue}" />, or <see langword="null" /> to use the reader/writer
+    ///     from the type mapping.
+    /// </param>
+    void SetJsonValueReaderWriterType(Type? readerWriterType);
+
+    /// <summary>
+    ///     Gets the configuration for elements of the primitive collection represented by this property.
+    /// </summary>
+    /// <returns>The configuration for the elements.</returns>
+    new IMutableElementType? GetElementType();
+
+    /// <summary>
+    ///     Sets the configuration for elements of the primitive collection represented by this property.
+    /// </summary>
+    /// <param name="elementType">The element type, or <see langword="null" /> to remove the primitive collection configuration.</param>
+    [Obsolete(
+        "The element type of a primitive collection is now a creation-time concern. Recreate the property as a primitive collection "
+        + "using IMutableTypeBase.AddProperty with an element type instead.")]
+    void SetElementType(Type? elementType)
+        => ((IConventionProperty)this).SetElementType(elementType);
+
+    /// <inheritdoc />
+    bool IReadOnlyProperty.IsNullable
+        => IsNullable;
+
+    /// <inheritdoc />
+    ValueGenerated IReadOnlyProperty.ValueGenerated
+        => ValueGenerated;
+
+    /// <inheritdoc />
+    bool IReadOnlyProperty.IsConcurrencyToken
+        => IsConcurrencyToken;
+
+    /// <inheritdoc />
+    IReadOnlyElementType? IReadOnlyProperty.GetElementType()
+        => GetElementType();
 }

@@ -6,7 +6,13 @@ using NetTopologySuite.Geometries;
 
 namespace Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
 
-internal class SqlServerPointMemberTranslator : IMemberTranslator
+/// <summary>
+///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+///     any release. You should only use it directly in your code with extreme caution and knowing that
+///     doing so can result in application failures when updating to a new Entity Framework Core release.
+/// </summary>
+public class SqlServerPointMemberTranslator : IMemberTranslator
 {
     private static readonly IDictionary<MemberInfo, string> MemberToPropertyName = new Dictionary<MemberInfo, string>
     {
@@ -28,12 +34,22 @@ internal class SqlServerPointMemberTranslator : IMemberTranslator
 
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
     public SqlServerPointMemberTranslator(ISqlExpressionFactory sqlExpressionFactory)
-    {
-        _sqlExpressionFactory = sqlExpressionFactory;
-    }
+        => _sqlExpressionFactory = sqlExpressionFactory;
 
-    public SqlExpression? Translate(
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual SqlExpression? Translate(
         SqlExpression? instance,
         MemberInfo member,
         Type returnType,
@@ -46,10 +62,10 @@ internal class SqlServerPointMemberTranslator : IMemberTranslator
             var isGeography = string.Equals(storeType, "geography", StringComparison.OrdinalIgnoreCase);
 
             if (MemberToPropertyName.TryGetValue(member, out var propertyName)
-                || (isGeography
-                    ? GeographyMemberToPropertyName.TryGetValue(member, out propertyName)
-                    : GeometryMemberToPropertyName.TryGetValue(member, out propertyName))
-                && propertyName != null)
+                || ((isGeography
+                        ? GeographyMemberToPropertyName.TryGetValue(member, out propertyName)
+                        : GeometryMemberToPropertyName.TryGetValue(member, out propertyName))
+                    && propertyName != null))
             {
                 return _sqlExpressionFactory.NiladicFunction(
                     instance,

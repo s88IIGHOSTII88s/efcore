@@ -18,7 +18,8 @@ public class CosmosDiscriminatorConvention :
     IForeignKeyOwnershipChangedConvention,
     IForeignKeyRemovedConvention,
     IEntityTypeAddedConvention,
-    IEntityTypeAnnotationChangedConvention
+    IEntityTypeAnnotationChangedConvention,
+    IModelEmbeddedDiscriminatorNameConvention
 {
     /// <summary>
     ///     Creates a new instance of <see cref="CosmosDiscriminatorConvention" />.
@@ -29,21 +30,13 @@ public class CosmosDiscriminatorConvention :
     {
     }
 
-    /// <summary>
-    ///     Called after an entity type is added to the model.
-    /// </summary>
-    /// <param name="entityTypeBuilder">The builder for the entity type.</param>
-    /// <param name="context">Additional information associated with convention execution.</param>
+    /// <inheritdoc />
     public virtual void ProcessEntityTypeAdded(
         IConventionEntityTypeBuilder entityTypeBuilder,
         IConventionContext<IConventionEntityTypeBuilder> context)
         => ProcessEntityType(entityTypeBuilder);
 
-    /// <summary>
-    ///     Called after the ownership value for a foreign key is changed.
-    /// </summary>
-    /// <param name="relationshipBuilder">The builder for the foreign key.</param>
-    /// <param name="context">Additional information associated with convention execution.</param>
+    /// <inheritdoc />
     public virtual void ProcessForeignKeyOwnershipChanged(
         IConventionForeignKeyBuilder relationshipBuilder,
         IConventionContext<bool?> context)
@@ -53,31 +46,20 @@ public class CosmosDiscriminatorConvention :
         ProcessEntityType(entityType.Builder);
     }
 
-    /// <summary>
-    ///     Called after a foreign key is removed.
-    /// </summary>
-    /// <param name="entityTypeBuilder">The builder for the entity type.</param>
-    /// <param name="foreignKey">The removed foreign key.</param>
-    /// <param name="context">Additional information associated with convention execution.</param>
+    /// <inheritdoc />
     public virtual void ProcessForeignKeyRemoved(
         IConventionEntityTypeBuilder entityTypeBuilder,
         IConventionForeignKey foreignKey,
         IConventionContext<IConventionForeignKey> context)
     {
-        if (foreignKey.IsOwnership)
+        if (entityTypeBuilder.Metadata.IsInModel
+            && foreignKey.IsOwnership)
         {
             ProcessEntityType(entityTypeBuilder);
         }
     }
 
-    /// <summary>
-    ///     Called after an annotation is changed on an entity type.
-    /// </summary>
-    /// <param name="entityTypeBuilder">The builder for the entity type.</param>
-    /// <param name="name">The annotation name.</param>
-    /// <param name="annotation">The new annotation.</param>
-    /// <param name="oldAnnotation">The old annotation.</param>
-    /// <param name="context">Additional information associated with convention execution.</param>
+    /// <inheritdoc />
     public virtual void ProcessEntityTypeAnnotationChanged(
         IConventionEntityTypeBuilder entityTypeBuilder,
         string name,
@@ -86,7 +68,7 @@ public class CosmosDiscriminatorConvention :
         IConventionContext<IConventionAnnotation> context)
     {
         if (name != CosmosAnnotationNames.ContainerName
-            || (annotation == null) == (oldAnnotation == null))
+            || annotation == null == (oldAnnotation == null))
         {
             return;
         }
@@ -104,8 +86,8 @@ public class CosmosDiscriminatorConvention :
 
         if (entityType.IsDocumentRoot())
         {
-            entityTypeBuilder.HasDiscriminator(typeof(string))
-                ?.HasValue(entityType, entityType.ShortName());
+            var discriminator = HasDiscriminator(entityTypeBuilder);
+            discriminator?.HasValue(entityType, entityType.ShortName());
         }
         else
         {
@@ -113,13 +95,20 @@ public class CosmosDiscriminatorConvention :
         }
     }
 
-    /// <summary>
-    ///     Called after the base type of an entity type changes.
-    /// </summary>
-    /// <param name="entityTypeBuilder">The builder for the entity type.</param>
-    /// <param name="newBaseType">The new base entity type.</param>
-    /// <param name="oldBaseType">The old base entity type.</param>
-    /// <param name="context">Additional information associated with convention execution.</param>
+    /// <inheritdoc />
+    public override void ProcessDiscriminatorPropertySet(
+        IConventionTypeBaseBuilder structuralTypeBuilder,
+        string? name,
+        IConventionContext<string> context)
+    {
+        if (structuralTypeBuilder.Metadata is not IConventionEntityType entityType
+            || entityType.IsDocumentRoot())
+        {
+            base.ProcessDiscriminatorPropertySet(structuralTypeBuilder, name, context);
+        }
+    }
+
+    /// <inheritdoc />
     public override void ProcessEntityTypeBaseTypeChanged(
         IConventionEntityTypeBuilder entityTypeBuilder,
         IConventionEntityType? newBaseType,
@@ -131,45 +120,77 @@ public class CosmosDiscriminatorConvention :
             return;
         }
 
-        IConventionDiscriminatorBuilder? discriminator = null;
         var entityType = entityTypeBuilder.Metadata;
         if (newBaseType == null)
         {
             if (entityType.IsDocumentRoot())
             {
-                discriminator = entityTypeBuilder.HasDiscriminator(typeof(string));
+                HasDiscriminator(entityTypeBuilder);
             }
         }
         else
         {
             var rootType = newBaseType.GetRootType();
-            discriminator = rootType.IsInModel
-                ? rootType.Builder.HasDiscriminator(typeof(string))
-                : null;
-
-            if (newBaseType.BaseType == null)
+            if (!rootType.IsInModel
+                || !rootType.IsDocumentRoot())
             {
-                discriminator?.HasValue(newBaseType, newBaseType.ShortName());
+                return;
             }
-        }
 
-        if (discriminator != null)
-        {
-            discriminator.HasValue(entityTypeBuilder.Metadata, entityTypeBuilder.Metadata.ShortName());
-            SetDefaultDiscriminatorValues(entityType.GetDerivedTypes(), discriminator);
+            var discriminator = HasDiscriminator(rootType.Builder);
+            if (discriminator != null)
+            {
+                SetDefaultDiscriminatorValues(entityTypeBuilder.Metadata.GetDerivedTypesInclusive(), discriminator);
+            }
         }
     }
 
-    /// <summary>
-    ///     Called after an entity type is removed from the model.
-    /// </summary>
-    /// <param name="modelBuilder">The builder for the model.</param>
-    /// <param name="entityType">The removed entity type.</param>
-    /// <param name="context">Additional information associated with convention execution.</param>
+    private static IConventionDiscriminatorBuilder? HasDiscriminator(IConventionEntityTypeBuilder entityTypeBuilder)
+    {
+        var discriminator = entityTypeBuilder.HasDiscriminator(typeof(string));
+        var discriminatorProperty = discriminator?.EntityType.FindDiscriminatorProperty();
+        if (discriminatorProperty != null)
+        {
+            discriminatorProperty.Builder.ToJsonProperty(entityTypeBuilder.Metadata.Model.GetEmbeddedDiscriminatorName());
+        }
+
+        return discriminator;
+    }
+
+    /// <inheritdoc />
+    protected override void SetDefaultDiscriminatorValues(
+        IEnumerable<IConventionEntityType> entityTypes,
+        IConventionDiscriminatorBuilder discriminatorBuilder)
+    {
+        foreach (var entityType in entityTypes)
+        {
+            discriminatorBuilder.HasValue(entityType, entityType.ShortName());
+        }
+    }
+
+    /// <inheritdoc />
     public override void ProcessEntityTypeRemoved(
         IConventionModelBuilder modelBuilder,
         IConventionEntityType entityType,
         IConventionContext<IConventionEntityType> context)
     {
+    }
+
+    /// <inheritdoc />
+    public virtual void ProcessEmbeddedDiscriminatorName(
+        IConventionModelBuilder modelBuilder,
+        string? newName,
+        string? oldName,
+        IConventionContext<string> context)
+    {
+        if (oldName == newName)
+        {
+            return;
+        }
+
+        foreach (var entityType in modelBuilder.Metadata.GetEntityTypes())
+        {
+            ProcessEntityType(entityType.Builder);
+        }
     }
 }

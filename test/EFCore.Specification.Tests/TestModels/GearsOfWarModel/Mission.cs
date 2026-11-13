@@ -7,12 +7,13 @@ public class Mission
 {
     public int Id { get; set; }
 
-    public string CodeName { get; set; }
+    public string? CodeName { get; set; }
     public double? Rating { get; set; }
     public DateTimeOffset Timeline { get; set; }
     public TimeSpan Duration { get; set; }
     public DateOnly Date { get; set; }
     public TimeOnly Time { get; set; }
+    public MissionDifficulty Difficulty { get; set; }
 
-    public virtual ICollection<SquadMission> ParticipatingSquads { get; set; }
+    public virtual ICollection<SquadMission> ParticipatingSquads { get; set; } = null!;
 }

@@ -12,34 +12,32 @@ public class IdentityUser<TKey>
 
     public IdentityUser(string userName)
         : this()
-    {
-        UserName = userName;
-    }
+        => UserName = userName;
 
     [PersonalData]
-    public virtual TKey Id { get; set; }
+    public virtual TKey Id { get; set; } = default!;
 
     [ProtectedPersonalData]
-    public virtual string UserName { get; set; }
+    public virtual string? UserName { get; set; }
 
-    public virtual string NormalizedUserName { get; set; }
+    public virtual string? NormalizedUserName { get; set; }
 
     [ProtectedPersonalData]
-    public virtual string Email { get; set; }
+    public virtual string? Email { get; set; }
 
-    public virtual string NormalizedEmail { get; set; }
+    public virtual string? NormalizedEmail { get; set; }
 
     [PersonalData]
     public virtual bool EmailConfirmed { get; set; }
 
-    public virtual string PasswordHash { get; set; }
+    public virtual string? PasswordHash { get; set; }
 
-    public virtual string SecurityStamp { get; set; }
+    public virtual string? SecurityStamp { get; set; }
 
-    public virtual string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString();
+    public virtual string? ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString();
 
     [ProtectedPersonalData]
-    public virtual string PhoneNumber { get; set; }
+    public virtual string? PhoneNumber { get; set; }
 
     [PersonalData]
     public virtual bool PhoneNumberConfirmed { get; set; }
@@ -54,5 +52,5 @@ public class IdentityUser<TKey>
     public virtual int AccessFailedCount { get; set; }
 
     public override string ToString()
-        => UserName;
+        => UserName!;
 }

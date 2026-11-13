@@ -38,6 +38,7 @@ public class InMemoryOptionsExtension : IDbContextOptionsExtension
     protected InMemoryOptionsExtension(InMemoryOptionsExtension copyFrom)
     {
         _storeName = copyFrom._storeName;
+        _nullabilityCheckEnabled = copyFrom._nullabilityCheckEnabled;
         _databaseRoot = copyFrom._databaseRoot;
     }
 
@@ -150,14 +151,9 @@ public class InMemoryOptionsExtension : IDbContextOptionsExtension
     {
     }
 
-    private sealed class ExtensionInfo : DbContextOptionsExtensionInfo
+    private sealed class ExtensionInfo(IDbContextOptionsExtension extension) : DbContextOptionsExtensionInfo(extension)
     {
         private string? _logFragment;
-
-        public ExtensionInfo(IDbContextOptionsExtension extension)
-            : base(extension)
-        {
-        }
 
         private new InMemoryOptionsExtension Extension
             => (InMemoryOptionsExtension)base.Extension;
@@ -175,6 +171,16 @@ public class InMemoryOptionsExtension : IDbContextOptionsExtension
 
                     builder.Append("StoreName=").Append(Extension._storeName).Append(' ');
 
+                    if (Extension._databaseRoot is { } root)
+                    {
+                        builder.Append("DatabaseRoot=").Append(root.GetHashCode()).Append(' ');
+                    }
+
+                    if (Extension._nullabilityCheckEnabled)
+                    {
+                        builder.Append("NullabilityChecksEnabled ");
+                    }
+
                     _logFragment = builder.ToString();
                 }
 
@@ -183,14 +189,18 @@ public class InMemoryOptionsExtension : IDbContextOptionsExtension
         }
 
         public override int GetServiceProviderHashCode()
-            => Extension._databaseRoot?.GetHashCode() ?? 0;
+        {
+            var hashCode = new HashCode();
+            hashCode.Add(Extension._nullabilityCheckEnabled);
+            return hashCode.ToHashCode();
+        }
 
         public override bool ShouldUseSameServiceProvider(DbContextOptionsExtensionInfo other)
             => other is ExtensionInfo otherInfo
-                && Extension._databaseRoot == otherInfo.Extension._databaseRoot;
+                && Extension._nullabilityCheckEnabled == otherInfo.Extension._nullabilityCheckEnabled;
 
         public override void PopulateDebugInfo(IDictionary<string, string> debugInfo)
-            => debugInfo["InMemoryDatabase:DatabaseRoot"]
-                = (Extension._databaseRoot?.GetHashCode() ?? 0).ToString(CultureInfo.InvariantCulture);
+            => debugInfo["InMemoryDatabase:NullabilityChecksEnabled"]
+                = (!Extension._nullabilityCheckEnabled).GetHashCode().ToString(CultureInfo.InvariantCulture);
     }
 }

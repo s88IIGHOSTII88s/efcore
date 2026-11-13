@@ -25,79 +25,102 @@ public static class RelationalEventId
     {
         // Connection events
         ConnectionOpening = CoreEventId.RelationalBaseId,
-        ConnectionOpened,
-        ConnectionClosing,
-        ConnectionClosed,
-        ConnectionError,
+        ConnectionOpened = CoreEventId.RelationalBaseId + 1,
+        ConnectionClosing = CoreEventId.RelationalBaseId + 2,
+        ConnectionClosed = CoreEventId.RelationalBaseId + 3,
+        ConnectionError = CoreEventId.RelationalBaseId + 4,
+        ConnectionCreating = CoreEventId.RelationalBaseId + 5,
+        ConnectionCreated = CoreEventId.RelationalBaseId + 6,
+        ConnectionDisposing = CoreEventId.RelationalBaseId + 7,
+        ConnectionDisposed = CoreEventId.RelationalBaseId + 8,
+        ConnectionCanceled = CoreEventId.RelationalBaseId + 9,
 
         // Command events
         CommandExecuting = CoreEventId.RelationalBaseId + 100,
-        CommandExecuted,
-        CommandError,
-        CommandCreating,
-        CommandCreated,
-        CommandCanceled,
+        CommandExecuted = CoreEventId.RelationalBaseId + 101,
+        CommandError = CoreEventId.RelationalBaseId + 102,
+        CommandCreating = CoreEventId.RelationalBaseId + 103,
+        CommandCreated = CoreEventId.RelationalBaseId + 104,
+        CommandCanceled = CoreEventId.RelationalBaseId + 105,
+        CommandInitialized = CoreEventId.RelationalBaseId + 106,
 
         // Transaction events
         TransactionStarted = CoreEventId.RelationalBaseId + 200,
-        TransactionUsed,
-        TransactionCommitted,
-        TransactionRolledBack,
-        TransactionDisposed,
-        TransactionError,
-        AmbientTransactionWarning,
-        AmbientTransactionEnlisted,
-        ExplicitTransactionEnlisted,
-        TransactionStarting,
-        TransactionCommitting,
-        TransactionRollingBack,
-        CreatingTransactionSavepoint,
-        CreatedTransactionSavepoint,
-        RollingBackToTransactionSavepoint,
-        RolledBackToTransactionSavepoint,
-        ReleasingTransactionSavepoint,
-        ReleasedTransactionSavepoint,
+        TransactionUsed = CoreEventId.RelationalBaseId + 201,
+        TransactionCommitted = CoreEventId.RelationalBaseId + 202,
+        TransactionRolledBack = CoreEventId.RelationalBaseId + 203,
+        TransactionDisposed = CoreEventId.RelationalBaseId + 204,
+        TransactionError = CoreEventId.RelationalBaseId + 205,
+        AmbientTransactionWarning = CoreEventId.RelationalBaseId + 206,
+        AmbientTransactionEnlisted = CoreEventId.RelationalBaseId + 207,
+        ExplicitTransactionEnlisted = CoreEventId.RelationalBaseId + 208,
+        TransactionStarting = CoreEventId.RelationalBaseId + 209,
+        TransactionCommitting = CoreEventId.RelationalBaseId + 210,
+        TransactionRollingBack = CoreEventId.RelationalBaseId + 211,
+        CreatingTransactionSavepoint = CoreEventId.RelationalBaseId + 212,
+        CreatedTransactionSavepoint = CoreEventId.RelationalBaseId + 213,
+        RollingBackToTransactionSavepoint = CoreEventId.RelationalBaseId + 214,
+        RolledBackToTransactionSavepoint = CoreEventId.RelationalBaseId + 215,
+        ReleasingTransactionSavepoint = CoreEventId.RelationalBaseId + 216,
+        ReleasedTransactionSavepoint = CoreEventId.RelationalBaseId + 217,
 
         // DataReader events
         DataReaderDisposing = CoreEventId.RelationalBaseId + 300,
+        DataReaderClosing = CoreEventId.RelationalBaseId + 301,
 
         // Migrations events
         MigrateUsingConnection = CoreEventId.RelationalBaseId + 400,
-        MigrationReverting,
-        MigrationApplying,
-        MigrationGeneratingDownScript,
-        MigrationGeneratingUpScript,
-        MigrationsNotApplied,
-        MigrationsNotFound,
-        MigrationAttributeMissingWarning,
-        ColumnOrderIgnoredWarning,
+        MigrationReverting = CoreEventId.RelationalBaseId + 401,
+        MigrationApplying = CoreEventId.RelationalBaseId + 402,
+        MigrationGeneratingDownScript = CoreEventId.RelationalBaseId + 403,
+        MigrationGeneratingUpScript = CoreEventId.RelationalBaseId + 404,
+        MigrationsNotApplied = CoreEventId.RelationalBaseId + 405,
+        MigrationsNotFound = CoreEventId.RelationalBaseId + 406,
+        MigrationAttributeMissingWarning = CoreEventId.RelationalBaseId + 407,
+        ColumnOrderIgnoredWarning = CoreEventId.RelationalBaseId + 408,
+        PendingModelChangesWarning = CoreEventId.RelationalBaseId + 409,
+        NonTransactionalMigrationOperationWarning = CoreEventId.RelationalBaseId + 410,
+        AcquiringMigrationLock = CoreEventId.RelationalBaseId + 411,
+        MigrationsUserTransactionWarning = CoreEventId.RelationalBaseId + 412,
+        ModelSnapshotNotFound = CoreEventId.RelationalBaseId + 413,
+        OldMigrationVersionWarning = CoreEventId.RelationalBaseId + 414,
+        EntitySplittingFragmentOptionalityChangedWarning = CoreEventId.RelationalBaseId + 415,
 
         // Query events
         QueryClientEvaluationWarning = CoreEventId.RelationalBaseId + 500,
-        QueryPossibleUnintendedUseOfEqualsWarning,
+        QueryPossibleUnintendedUseOfEqualsWarning = CoreEventId.RelationalBaseId + 501,
+
         // ReSharper disable twice InconsistentNaming
-        Obsolete_QueryPossibleExceptionWithAggregateOperatorWarning,
-        Obsolete_ValueConversionSqlLiteralWarning,
-        MultipleCollectionIncludeWarning,
+        Obsolete_QueryPossibleExceptionWithAggregateOperatorWarning = CoreEventId.RelationalBaseId + 502,
+        Obsolete_ValueConversionSqlLiteralWarning = CoreEventId.RelationalBaseId + 503,
+        MultipleCollectionIncludeWarning = CoreEventId.RelationalBaseId + 504,
+        NonQueryOperationFailed = CoreEventId.RelationalBaseId + 505,
+        ExecuteDeleteFailed = CoreEventId.RelationalBaseId + 506,
+        ExecuteUpdateFailed = CoreEventId.RelationalBaseId + 507,
 
         // Model validation events
         ModelValidationKeyDefaultValueWarning = CoreEventId.RelationalBaseId + 600,
-        BoolWithDefaultWarning,
-        AllIndexPropertiesNotToMappedToAnyTable,
-        IndexPropertiesBothMappedAndNotMappedToTable,
-        IndexPropertiesMappedToNonOverlappingTables,
-        ForeignKeyPropertiesMappedToUnrelatedTables,
-        OptionalDependentWithoutIdentifyingPropertyWarning,
-        DuplicateColumnOrders,
-        ForeignKeyTpcPrincipalWarning,
-        TpcStoreGeneratedIdentityWarning,
+        BoolWithDefaultWarning = CoreEventId.RelationalBaseId + 601,
+        AllIndexPropertiesNotMappedToAnyTable = CoreEventId.RelationalBaseId + 602,
+        IndexPropertiesBothMappedAndNotMappedToTable = CoreEventId.RelationalBaseId + 603,
+        IndexPropertiesMappedToNonOverlappingTables = CoreEventId.RelationalBaseId + 604,
+        ForeignKeyPropertiesMappedToUnrelatedTables = CoreEventId.RelationalBaseId + 605,
+        OptionalDependentWithoutIdentifyingPropertyWarning = CoreEventId.RelationalBaseId + 606,
+        DuplicateColumnOrders = CoreEventId.RelationalBaseId + 607,
+        ForeignKeyTpcPrincipalWarning = CoreEventId.RelationalBaseId + 608,
+        TpcStoreGeneratedIdentityWarning = CoreEventId.RelationalBaseId + 609,
+        KeyPropertiesNotMappedToTable = CoreEventId.RelationalBaseId + 610,
+        StoredProcedureConcurrencyTokenNotMapped = CoreEventId.RelationalBaseId + 611,
+        TriggerOnNonRootTphEntity = CoreEventId.RelationalBaseId + 612,
+        OwnedEntityMappedToJsonCollectionWarning = CoreEventId.RelationalBaseId + 613,
 
         // Update events
         BatchReadyForExecution = CoreEventId.RelationalBaseId + 700,
-        BatchSmallerThanMinBatchSize,
-        BatchExecutorFailedToRollbackToSavepoint,
-        BatchExecutorFailedToReleaseSavepoint,
-        OptionalDependentWithAllNullPropertiesWarning
+        BatchSmallerThanMinBatchSize = CoreEventId.RelationalBaseId + 701,
+        BatchExecutorFailedToRollbackToSavepoint = CoreEventId.RelationalBaseId + 702,
+        BatchExecutorFailedToReleaseSavepoint = CoreEventId.RelationalBaseId + 703,
+        OptionalDependentWithAllNullPropertiesWarning = CoreEventId.RelationalBaseId + 704,
+        UnexpectedTrailingResultSetWhenSaving = CoreEventId.RelationalBaseId + 705,
     }
 
     private static readonly string _connectionPrefix = DbLoggerCategory.Database.Connection.Name + ".";
@@ -158,7 +181,35 @@ public static class RelationalEventId
     public static readonly EventId ConnectionClosed = MakeConnectionId(Id.ConnectionClosed);
 
     /// <summary>
-    ///     A error occurred while opening or using a database connection.
+    ///     A database connection is going to be disposed. This event is only triggered when Entity Framework is responsible for
+    ///     disposing the connection.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Database.Connection" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="ConnectionEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId ConnectionDisposing = MakeConnectionId(Id.ConnectionDisposing);
+
+    /// <summary>
+    ///     A database connection has been disposed. This event is only triggered when Entity Framework is responsible for
+    ///     disposing the connection.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Database.Connection" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="ConnectionEndEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId ConnectionDisposed = MakeConnectionId(Id.ConnectionDisposed);
+
+    /// <summary>
+    ///     An error occurred while opening or using a database connection.
     /// </summary>
     /// <remarks>
     ///     <para>
@@ -169,6 +220,45 @@ public static class RelationalEventId
     ///     </para>
     /// </remarks>
     public static readonly EventId ConnectionError = MakeConnectionId(Id.ConnectionError);
+
+    /// <summary>
+    ///     A <see cref="DbConnection" /> open operation has been canceled.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Database.Connection" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="ConnectionEndEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId ConnectionCanceled = MakeConnectionId(Id.ConnectionCanceled);
+
+    /// <summary>
+    ///     A <see cref="DbConnection" /> is about to be created by EF.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Database.Connection" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="ConnectionCreatingEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId ConnectionCreating = MakeConnectionId(Id.ConnectionCreating);
+
+    /// <summary>
+    ///     A <see cref="DbConnection" /> has been created by EF.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Database.Connection" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="ConnectionCreatedEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId ConnectionCreated = MakeConnectionId(Id.ConnectionCreated);
 
     private static readonly string _sqlPrefix = DbLoggerCategory.Database.Command.Name + ".";
 
@@ -213,6 +303,19 @@ public static class RelationalEventId
     ///     </para>
     /// </remarks>
     public static readonly EventId CommandCreated = MakeCommandId(Id.CommandCreated);
+
+    /// <summary>
+    ///     A <see cref="DbCommand" /> has been initialized with command text and other parameters.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Database.Command" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="CommandEndEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId CommandInitialized = MakeCommandId(Id.CommandInitialized);
 
     /// <summary>
     ///     A database command is executing.
@@ -505,6 +608,19 @@ public static class RelationalEventId
     /// </remarks>
     public static readonly EventId DataReaderDisposing = MakeCommandId(Id.DataReaderDisposing);
 
+    /// <summary>
+    ///     A database data reader is about to be closed.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Database.Command" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="DataReaderClosingEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId DataReaderClosing = MakeCommandId(Id.DataReaderClosing);
+
     private static readonly string _migrationsPrefix = DbLoggerCategory.Migrations.Name + ".";
 
     private static EventId MakeMigrationsId(Id id)
@@ -627,6 +743,100 @@ public static class RelationalEventId
     /// </remarks>
     public static readonly EventId ColumnOrderIgnoredWarning = MakeMigrationsId(Id.ColumnOrderIgnoredWarning);
 
+    /// <summary>
+    ///     The model contains changes compared to the last migration.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Migrations" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="DbContextTypeEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId PendingModelChangesWarning = MakeMigrationsId(Id.PendingModelChangesWarning);
+
+    /// <summary>
+    ///     A migration contains a non-transactional operation.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Migrations" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="MigrationCommandEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId NonTransactionalMigrationOperationWarning =
+        MakeMigrationsId(Id.NonTransactionalMigrationOperationWarning);
+
+    /// <summary>
+    ///     A migration lock is being acquired.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Migrations" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="EventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId AcquiringMigrationLock = MakeMigrationsId(Id.AcquiringMigrationLock);
+
+    /// <summary>
+    ///     A migration lock is being acquired.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Migrations" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="EventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId MigrationsUserTransactionWarning = MakeMigrationsId(Id.MigrationsUserTransactionWarning);
+
+    /// <summary>
+    ///     Model snapshot was not found.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Migrations" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="MigrationAssemblyEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId ModelSnapshotNotFound = MakeMigrationsId(Id.ModelSnapshotNotFound);
+
+    /// <summary>
+    ///     The last migration was created with an older version of EF Core.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Migrations" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="MigrationVersionEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId OldMigrationVersionWarning = MakeMigrationsId(Id.OldMigrationVersionWarning);
+
+    /// <summary>
+    ///     The optionality of an entity-splitting fragment changed since the last migration.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Migrations" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="EntityTypeMappingFragmentEventData" /> payload when used with a
+    ///         <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId EntitySplittingFragmentOptionalityChangedWarning =
+        MakeMigrationsId(Id.EntitySplittingFragmentOptionalityChangedWarning);
+
     private static readonly string _queryPrefix = DbLoggerCategory.Query.Name + ".";
 
     private static EventId MakeQueryId(Id id)
@@ -653,6 +863,45 @@ public static class RelationalEventId
     ///     This event is in the <see cref="DbLoggerCategory.Query" /> category.
     /// </remarks>
     public static readonly EventId MultipleCollectionIncludeWarning = MakeQueryId(Id.MultipleCollectionIncludeWarning);
+
+    /// <summary>
+    ///     An error occurred while executing a non-query operation.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Query" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="DbContextTypeErrorEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId NonQueryOperationFailed = MakeQueryId(Id.NonQueryOperationFailed);
+
+    /// <summary>
+    ///     An error occurred while executing an 'ExecuteDelete' operation.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Query" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="DbContextTypeErrorEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId ExecuteDeleteFailed = MakeQueryId(Id.ExecuteDeleteFailed);
+
+    /// <summary>
+    ///     An error occurred while executing an 'ExecuteUpdate' operation.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Query" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="DbContextTypeErrorEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId ExecuteUpdateFailed = MakeQueryId(Id.ExecuteUpdateFailed);
 
     private static readonly string _validationPrefix = DbLoggerCategory.Model.Validation.Name + ".";
 
@@ -696,8 +945,8 @@ public static class RelationalEventId
     ///         This event uses the <see cref="IndexEventData" /> payload when used with a <see cref="DiagnosticSource" />.
     ///     </para>
     /// </remarks>
-    public static readonly EventId AllIndexPropertiesNotToMappedToAnyTable =
-        MakeValidationId(Id.AllIndexPropertiesNotToMappedToAnyTable);
+    public static readonly EventId AllIndexPropertiesNotMappedToAnyTable =
+        MakeValidationId(Id.AllIndexPropertiesNotMappedToAnyTable);
 
     /// <summary>
     ///     An index specifies properties some of which are mapped and some of which are not mapped to a column in a table.
@@ -726,6 +975,63 @@ public static class RelationalEventId
     /// </remarks>
     public static readonly EventId IndexPropertiesMappedToNonOverlappingTables =
         MakeValidationId(Id.IndexPropertiesMappedToNonOverlappingTables);
+
+    /// <summary>
+    ///     A key specifies properties which don't map to a single table.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model.Validation" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="KeyEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId KeyPropertiesNotMappedToTable =
+        MakeValidationId(Id.KeyPropertiesNotMappedToTable);
+
+    /// <summary>
+    ///     An entity type is mapped to the stored procedure with a concurrency token not mapped to any original value parameter.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model.Validation" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="StoredProcedurePropertyEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId StoredProcedureConcurrencyTokenNotMapped =
+        MakeValidationId(Id.StoredProcedureConcurrencyTokenNotMapped);
+
+    /// <summary>
+    ///     Can't configure a trigger on the non-root entity type in a TPH hierarchy.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model.Validation" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="EntityTypeEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId TriggerOnNonRootTphEntity =
+        MakeValidationId(Id.TriggerOnNonRootTphEntity);
+
+    /// <summary>
+    ///     An owned entity type is mapped to JSON as a collection, which uses a synthesized ordinal key. This mapping is obsolete; map
+    ///     the type as a complex type collection instead.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model.Validation" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="EntityTypeEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId OwnedEntityMappedToJsonCollectionWarning =
+        MakeValidationId(Id.OwnedEntityMappedToJsonCollectionWarning);
 
     /// <summary>
     ///     A foreign key specifies properties which don't map to the related tables.
@@ -830,7 +1136,7 @@ public static class RelationalEventId
     public static readonly EventId BatchSmallerThanMinBatchSize = MakeUpdateId(Id.BatchSmallerThanMinBatchSize);
 
     /// <summary>
-    ///     An error occurred while the batch executor was rolling back the transaction to a savepoint, after an exception occured.
+    ///     An error occurred while the batch executor was rolling back the transaction to a savepoint, after an exception occurred.
     /// </summary>
     /// <remarks>
     ///     This event is in the <see cref="DbLoggerCategory.Update" /> category.
@@ -858,4 +1164,16 @@ public static class RelationalEventId
     /// </remarks>
     public static readonly EventId OptionalDependentWithAllNullPropertiesWarning
         = MakeUpdateId(Id.OptionalDependentWithAllNullPropertiesWarning);
+
+    /// <summary>
+    ///     An unexpected trailing result set was found when reading the results of a SaveChanges operation; this may indicate that a stored
+    ///     procedure returned a result set without being configured for it in the EF model. Check your stored procedure definitions.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Update" /> category.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId UnexpectedTrailingResultSetWhenSaving =
+        MakeUpdateId(Id.UnexpectedTrailingResultSetWhenSaving);
 }

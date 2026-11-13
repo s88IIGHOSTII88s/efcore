@@ -34,9 +34,7 @@ public class ModelRuntimeInitializer : IModelRuntimeInitializer
     /// </summary>
     /// <param name="dependencies">The dependencies to use.</param>
     public ModelRuntimeInitializer(ModelRuntimeInitializerDependencies dependencies)
-    {
-        Dependencies = dependencies;
-    }
+        => Dependencies = dependencies;
 
     /// <summary>
     ///     Dependencies for this service.
@@ -55,8 +53,7 @@ public class ModelRuntimeInitializer : IModelRuntimeInitializer
         bool designTime = true,
         IDiagnosticsLogger<DbLoggerCategory.Model.Validation>? validationLogger = null)
     {
-        if (model is Model mutableModel
-            && !mutableModel.IsReadOnly)
+        if (model is Model { IsReadOnly: false } mutableModel)
         {
             lock (SyncObject)
             {
@@ -76,6 +73,13 @@ public class ModelRuntimeInitializer : IModelRuntimeInitializer
                 {
                     model.ModelDependencies = Dependencies.ModelDependencies;
 
+                    if (Dependencies.CoreSingletonOptions.AreDetailedErrorsEnabled)
+                    {
+                        model.SetRuntimeAnnotation(
+                            CoreAnnotationNames.DetailedErrorsEnabled,
+                            true);
+                    }
+
                     InitializeModel(model, designTime, prevalidation: true);
 
                     if (validationLogger != null
@@ -89,12 +93,7 @@ public class ModelRuntimeInitializer : IModelRuntimeInitializer
             }
         }
 
-        if (designTime)
-        {
-            return model;
-        }
-
-        model = model.GetOrAddRuntimeAnnotationValue(
+        var finalizedModel = model.GetOrAddRuntimeAnnotationValue(
             CoreAnnotationNames.ReadOnlyModel,
             static model =>
             {
@@ -108,7 +107,7 @@ public class ModelRuntimeInitializer : IModelRuntimeInitializer
             },
             model);
 
-        return model;
+        return designTime ? model : finalizedModel;
     }
 
     /// <summary>

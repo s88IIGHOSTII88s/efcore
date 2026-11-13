@@ -5,14 +5,14 @@ namespace Microsoft.EntityFrameworkCore.Design;
 
 public class MethodCallCodeFragmentTest
 {
-    [ConditionalFact]
+    [Fact]
     public virtual void Ctor_throw_when_too_many_parameters_extension()
     {
         _ = new MethodCallCodeFragment(_extensionFuncMethodInfo, 1);
         Assert.Throws<ArgumentException>(() => new MethodCallCodeFragment(_extensionFuncMethodInfo, 1, 2));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Ctor_throw_when_too_many_parameters_instance()
     {
         _ = new MethodCallCodeFragment(_instanceFuncMethodInfo, 1);
@@ -20,14 +20,18 @@ public class MethodCallCodeFragmentTest
     }
 
     private static readonly MethodInfo _extensionFuncMethodInfo
-        = typeof(MethodCallCodeFragmentTest).GetRuntimeMethod(nameof(ExtensionFunc), new[] { typeof(object), typeof(int) })!;
+        = typeof(MethodCallCodeFragmentTestExtensions).GetRuntimeMethod(
+            nameof(MethodCallCodeFragmentTestExtensions.ExtensionFunc), [typeof(MethodCallCodeFragmentTest), typeof(int)])!;
 
     private static readonly MethodInfo _instanceFuncMethodInfo
-        = typeof(MethodCallCodeFragmentTest).GetRuntimeMethod(nameof(InstanceFunc), new[] { typeof(int) })!;
-
-    public static void ExtensionFunc(object thisParameter, int p)
-        => throw new NotSupportedException();
+        = typeof(MethodCallCodeFragmentTest).GetRuntimeMethod(nameof(InstanceFunc), [typeof(int)])!;
 
     public void InstanceFunc(int p)
+        => throw new NotSupportedException();
+}
+
+public static class MethodCallCodeFragmentTestExtensions
+{
+    public static void ExtensionFunc(this MethodCallCodeFragmentTest thisParameter, int p)
         => throw new NotSupportedException();
 }

@@ -15,12 +15,51 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Builders;
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-conventions">Model building conventions</see> for more information and examples.
 /// </remarks>
-public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
+public interface IConventionEntityTypeBuilder : IConventionTypeBaseBuilder
 {
     /// <summary>
     ///     Gets the entity type being configured.
     /// </summary>
     new IConventionEntityType Metadata { get; }
+
+    /// <summary>
+    ///     Sets the annotation stored under the given name. Overwrites the existing annotation if an
+    ///     annotation with the specified name already exists with same or lower <see cref="ConfigurationSource" />.
+    /// </summary>
+    /// <param name="name">The name of the annotation to be set.</param>
+    /// <param name="value">The value to be stored in the annotation.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     An <see cref="IConventionEntityTypeBuilder" /> to continue configuration if the annotation was set, <see langword="null" /> otherwise.
+    /// </returns>
+    new IConventionEntityTypeBuilder? HasAnnotation(string name, object? value, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Sets the annotation stored under the given name. Overwrites the existing annotation if an
+    ///     annotation with the specified name already exists with same or lower <see cref="ConfigurationSource" />.
+    ///     Removes the annotation if <see langword="null" /> value is specified.
+    /// </summary>
+    /// <param name="name">The name of the annotation to be set.</param>
+    /// <param name="value">The value to be stored in the annotation. <see langword="null" /> to remove the annotations.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     An <see cref="IConventionEntityTypeBuilder" /> to continue configuration if the annotation was set or removed,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    new IConventionEntityTypeBuilder? HasNonNullAnnotation(
+        string name,
+        object? value,
+        bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Removes the annotation with the given name from this object.
+    /// </summary>
+    /// <param name="name">The name of the annotation to remove.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     An <see cref="IConventionEntityTypeBuilder" /> to continue configuration if the annotation was set, <see langword="null" /> otherwise.
+    /// </returns>
+    new IConventionEntityTypeBuilder? HasNoAnnotation(string name, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Sets the base type of this entity type in an inheritance hierarchy.
@@ -44,120 +83,32 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
     bool CanSetBaseType(IConventionEntityType? baseEntityType, bool fromDataAnnotation = false);
 
     /// <summary>
-    ///     Returns an object that can be used to configure the property with the given name.
-    ///     If no matching property exists, then a new property will be added.
-    /// </summary>
-    /// <param name="propertyType">The type of value the property will hold.</param>
-    /// <param name="propertyName">The name of the property to be configured.</param>
-    /// <param name="setTypeConfigurationSource">Indicates whether the type configuration source should be set.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>
-    ///     An object that can be used to configure the property if it exists on the entity type,
-    ///     <see langword="null" /> otherwise.
-    /// </returns>
-    IConventionPropertyBuilder? Property(
-        Type propertyType,
-        string propertyName,
-        bool setTypeConfigurationSource = true,
-        bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns an object that can be used to configure the property with the given member info.
-    ///     If no matching property exists, then a new property will be added.
-    /// </summary>
-    /// <param name="memberInfo">The <see cref="PropertyInfo" /> or <see cref="FieldInfo" /> of the property.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>
-    ///     An object that can be used to configure the property if it exists on the entity type,
-    ///     <see langword="null" /> otherwise.
-    /// </returns>
-    IConventionPropertyBuilder? Property(MemberInfo memberInfo, bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns a value indicating whether the given property can be added to this entity type.
-    /// </summary>
-    /// <param name="propertyType">The type of value the property will hold.</param>
-    /// <param name="propertyName">The name of the property to be configured.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns><see langword="true" /> if the property can be added.</returns>
-    bool CanHaveProperty(
-        Type? propertyType,
-        string propertyName,
-        bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns a value indicating whether the given property can be added to this entity type.
-    /// </summary>
-    /// <param name="memberInfo">The <see cref="PropertyInfo" /> or <see cref="FieldInfo" /> of the property.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns><see langword="true" /> if the property can be added.</returns>
-    bool CanHaveProperty(MemberInfo memberInfo, bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns an object that can be used to configure the indexer property with the given name.
-    ///     If no matching property exists, then a new property will be added.
-    /// </summary>
-    /// <param name="propertyType">The type of value the property will hold.</param>
-    /// <param name="propertyName">The name of the property to be configured.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>
-    ///     An object that can be used to configure the property if it exists on the entity type,
-    ///     <see langword="null" /> otherwise.
-    /// </returns>
-    IConventionPropertyBuilder? IndexerProperty(
-        Type propertyType,
-        string propertyName,
-        bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns a value indicating whether the given indexer property can be added to this entity type.
-    /// </summary>
-    /// <param name="propertyType">The type of value the property will hold.</param>
-    /// <param name="propertyName">The name of the property to be configured.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns><see langword="true" /> if the property can be added.</returns>
-    bool CanHaveIndexerProperty(
-        Type propertyType,
-        string propertyName,
-        bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Creates a property with a name that's different from any existing properties.
-    /// </summary>
-    /// <param name="basePropertyName">The desired property name.</param>
-    /// <param name="propertyType">The type of value the property will hold.</param>
-    /// <param name="required">A value indicating whether the property is required.</param>
-    /// <returns>
-    ///     An object that can be used to configure the property if it exists on the entity type,
-    ///     <see langword="null" /> otherwise.
-    /// </returns>
-    IConventionPropertyBuilder? CreateUniqueProperty(Type propertyType, string basePropertyName, bool required);
-
-    /// <summary>
-    ///     Returns the existing properties with the given names or creates them if matching CLR members are found.
-    /// </summary>
-    /// <param name="propertyNames">The names of the properties.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>A list of properties if they exist on the entity type, <see langword="null" /> otherwise.</returns>
-    IReadOnlyList<IConventionProperty>? GetOrCreateProperties(
-        IReadOnlyList<string>? propertyNames,
-        bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns the existing properties matching the given members or creates them.
-    /// </summary>
-    /// <param name="memberInfos">The type members.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>A list of properties if they exist on the entity type, <see langword="null" /> otherwise.</returns>
-    IReadOnlyList<IConventionProperty>? GetOrCreateProperties(
-        IEnumerable<MemberInfo>? memberInfos,
-        bool fromDataAnnotation = false);
-
-    /// <summary>
     ///     Removes properties in the given list if they are not part of any metadata object.
     /// </summary>
     /// <param name="properties">The properties to remove.</param>
-    IConventionEntityTypeBuilder RemoveUnusedImplicitProperties(IReadOnlyList<IConventionProperty> properties);
+    new IConventionEntityTypeBuilder RemoveUnusedImplicitProperties(IReadOnlyList<IConventionProperty> properties);
+
+    /// <summary>
+    ///     Removes a property from this entity type.
+    /// </summary>
+    /// <param name="property">The property to be removed.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The same builder instance if the property was removed,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    new IConventionEntityTypeBuilder? HasNoProperty(IConventionProperty property, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Removes a complex property from this entity type.
+    /// </summary>
+    /// <param name="complexProperty">The complex property to be removed.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The same builder instance if the complex property was removed,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    new IConventionEntityTypeBuilder? HasNoComplexProperty(IConventionComplexProperty complexProperty, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Returns an object that can be used to configure the service property with the given member info.
@@ -174,6 +125,22 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
         bool fromDataAnnotation = false);
 
     /// <summary>
+    ///     Returns an object that can be used to configure the service property with the given member info.
+    ///     If no matching property exists, then a new property will be added.
+    /// </summary>
+    /// <param name="serviceType">The type of the service.</param>
+    /// <param name="memberInfo">The <see cref="PropertyInfo" /> or <see cref="FieldInfo" /> of the property.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     An object that can be used to configure the property if it exists on the entity type,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    IConventionServicePropertyBuilder? ServiceProperty(
+        Type serviceType,
+        MemberInfo memberInfo,
+        bool fromDataAnnotation = false);
+
+    /// <summary>
     ///     Returns a value indicating whether the given service property can be added to this entity type.
     /// </summary>
     /// <param name="memberInfo">The <see cref="PropertyInfo" /> or <see cref="FieldInfo" /> of the property.</param>
@@ -182,16 +149,23 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
     bool CanHaveServiceProperty(MemberInfo memberInfo, bool fromDataAnnotation = false);
 
     /// <summary>
-    ///     Indicates whether the given member name is ignored for the given configuration source.
+    ///     Removes a service property from this entity type.
     /// </summary>
-    /// <param name="memberName">The name of the member that might be ignored.</param>
+    /// <param name="serviceProperty">The service property to be removed.</param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns>
-    ///     <see langword="false" /> if the entity type contains a member with the given name,
-    ///     the given member name hasn't been ignored or it was ignored using a lower configuration source;
-    ///     <see langword="true" /> otherwise.
+    ///     The same builder instance if the service property was removed,
+    ///     <see langword="null" /> otherwise.
     /// </returns>
-    bool IsIgnored(string memberName, bool fromDataAnnotation = false);
+    IConventionEntityTypeBuilder? HasNoServiceProperty(IConventionServiceProperty serviceProperty, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Returns a value indicating whether the service property can be removed from this entity type.
+    /// </summary>
+    /// <param name="serviceProperty">The service property to be removed.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns><see langword="true" /> if the service property can be removed from this entity type.</returns>
+    bool CanRemoveServiceProperty(IConventionServiceProperty serviceProperty, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Excludes the given property from the entity type and prevents conventions from adding a matching property
@@ -200,23 +174,10 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
     /// <param name="memberName">The name of the member to be removed.</param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns>
-    ///     The same <see cref="IConventionEntityTypeBuilder" /> instance so that additional configuration calls can be chained
+    ///     The same builder instance so that additional configuration calls can be chained
     ///     if the given member was ignored, <see langword="null" /> otherwise.
     /// </returns>
-    IConventionEntityTypeBuilder? Ignore(string memberName, bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns a value indicating whether the given member name can be ignored from the given configuration source.
-    /// </summary>
-    /// <param name="memberName">The member name to be removed from the entity type.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns><see langword="true" /> if the given member name can be ignored.</returns>
-    /// <returns>
-    ///     <see langword="false" /> if the entity type contains a member with the given name
-    ///     that was configured using a higher configuration source;
-    ///     <see langword="true" /> otherwise.
-    /// </returns>
-    bool CanIgnore(string memberName, bool fromDataAnnotation = false);
+    new IConventionEntityTypeBuilder? Ignore(string memberName, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Sets the properties that make up the primary key for this entity type.
@@ -241,6 +202,14 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
     ///     <see langword="null" /> otherwise.
     /// </returns>
     IConventionKeyBuilder? PrimaryKey(IReadOnlyList<string>? propertyNames, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Returns a value indicating whether the given properties can be set as the primary key for this entity type.
+    /// </summary>
+    /// <param name="propertyNames">The names of the properties that make up the index.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns><see langword="true" /> if the given properties can be set as the primary key.</returns>
+    bool CanSetPrimaryKey(IReadOnlyList<string> propertyNames, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Returns a value indicating whether the given properties can be set as the primary key for this entity type.
@@ -369,6 +338,14 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
         IReadOnlyList<IConventionProperty> properties,
         string name,
         bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Returns a value indicating whether and index on the given properties can be added to this entity type.
+    /// </summary>
+    /// <param name="propertyNames">The names of the properties that make up the index.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns><see langword="true" /> if the index can be added.</returns>
+    bool CanHaveIndex(IReadOnlyList<string> propertyNames, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Removes an index from this entity type.
@@ -712,25 +689,6 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
     bool CanRemoveRelationship(IConventionForeignKey foreignKey, bool fromDataAnnotation = false);
 
     /// <summary>
-    ///     Removes a skip navigation from this entity type.
-    /// </summary>
-    /// <param name="skipNavigation">The skip navigation to be removed.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>
-    ///     The same builder instance if the skip navigation was removed,
-    ///     <see langword="null" /> otherwise.
-    /// </returns>
-    IConventionEntityTypeBuilder? HasNoSkipNavigation(IConventionSkipNavigation skipNavigation, bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns a value indicating whether the skip navigation can be removed from this entity type.
-    /// </summary>
-    /// <param name="skipNavigation">The skip navigation to be removed.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns><see langword="true" /> if the skip navigation can be removed from this entity type.</returns>
-    bool CanRemoveSkipNavigation(IConventionSkipNavigation skipNavigation, bool fromDataAnnotation = false);
-
-    /// <summary>
     ///     Returns a value indicating whether the given navigation can be added to this entity type.
     /// </summary>
     /// <param name="navigationName">The name of the navigation.</param>
@@ -747,6 +705,25 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
     /// <returns><see langword="true" /> if the configuration can be applied.</returns>
     bool CanHaveNavigation(MemberInfo navigation, bool fromDataAnnotation = false)
         => CanHaveNavigation(navigation.Name, navigation.GetMemberType(), fromDataAnnotation);
+
+    /// <summary>
+    ///     Removes a navigation from this entity type.
+    /// </summary>
+    /// <param name="navigation">The navigation to be removed.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The same builder instance if the navigation was removed,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    IConventionEntityTypeBuilder? HasNoNavigation(IConventionNavigation navigation, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Returns a value indicating whether the navigation can be removed from this entity type.
+    /// </summary>
+    /// <param name="navigation">The navigation to be removed.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns><see langword="true" /> if the navigation can be removed from this entity type.</returns>
+    bool CanRemoveNavigation(IConventionNavigation navigation, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Returns a value indicating whether the given skip navigation can be added to this entity type.
@@ -818,6 +795,7 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
     /// </summary>
     /// <param name="navigationName">The navigation property name.</param>
     /// <param name="targetEntityType">The entity type that the navigation targets.</param>
+    /// <param name="navigationType">The navigation type.</param>
     /// <param name="collection">Whether the navigation property is a collection property.</param>
     /// <param name="onDependent">
     ///     Whether the navigation property is defined on the dependent side of the underlying foreign key.
@@ -830,8 +808,54 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
     IConventionSkipNavigationBuilder? HasSkipNavigation(
         string navigationName,
         IConventionEntityType targetEntityType,
+        Type? navigationType = null,
         bool? collection = null,
         bool? onDependent = null,
+        bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Removes a skip navigation from this entity type.
+    /// </summary>
+    /// <param name="skipNavigation">The skip navigation to be removed.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The same builder instance if the skip navigation was removed,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    IConventionEntityTypeBuilder? HasNoSkipNavigation(IConventionSkipNavigation skipNavigation, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Returns a value indicating whether the skip navigation can be removed from this entity type.
+    /// </summary>
+    /// <param name="skipNavigation">The skip navigation to be removed.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns><see langword="true" /> if the skip navigation can be removed from this entity type.</returns>
+    bool CanRemoveSkipNavigation(IConventionSkipNavigation skipNavigation, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Configures a database trigger when targeting a relational database.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-triggers">Database triggers</see> for more information and examples.
+    /// </remarks>
+    /// <param name="modelName">The name of the trigger.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>The same builder instance if the check constraint was configured, <see langword="null" /> otherwise.</returns>
+    IConventionTriggerBuilder? HasTrigger(
+        string modelName,
+        bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Returns a value indicating whether the trigger can be configured.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-triggers">Database triggers</see> for more information and examples.
+    /// </remarks>
+    /// <param name="modelName">The name of the trigger.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns><see langword="true" /> if the configuration can be applied.</returns>
+    bool CanHaveTrigger(
+        string modelName,
         bool fromDataAnnotation = false);
 
     /// <summary>
@@ -847,6 +871,19 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
     IConventionEntityTypeBuilder? HasQueryFilter(LambdaExpression? filter, bool fromDataAnnotation = false);
 
     /// <summary>
+    ///     Specifies a LINQ predicate expression that will automatically be applied to any queries targeting
+    ///     this entity type.
+    /// </summary>
+    /// <param name="filterKey">The filter key.</param>
+    /// <param name="filter">The LINQ predicate expression.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The same builder instance if the query filter was set,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    IConventionEntityTypeBuilder? HasQueryFilter(string filterKey, LambdaExpression? filter, bool fromDataAnnotation = false);
+
+    /// <summary>
     ///     Returns a value indicating whether the given query filter can be set from the current configuration source.
     /// </summary>
     /// <param name="filter">The LINQ predicate expression.</param>
@@ -855,24 +892,13 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
     bool CanSetQueryFilter(LambdaExpression? filter, bool fromDataAnnotation = false);
 
     /// <summary>
-    ///     Configures a query used to provide data for a keyless entity type.
+    ///     Returns a value indicating whether the given query filter can be set from the current configuration source.
     /// </summary>
-    /// <param name="query">The query that will provide the underlying data for the keyless entity type.</param>
+    /// <param name="filterKey">The filter key.</param>
+    /// <param name="filter">The LINQ predicate expression.</param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>
-    ///     The same builder instance if the query was set, <see langword="null" /> otherwise.
-    /// </returns>
-    [Obsolete("Use InMemoryEntityTypeBuilderExtensions.ToInMemoryQuery")]
-    IConventionEntityTypeBuilder? HasDefiningQuery(LambdaExpression? query, bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns a value indicating whether the given defining query can be set from the current configuration source.
-    /// </summary>
-    /// <param name="query">The query that will provide the underlying data for the keyless entity type.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns><see langword="true" /> if the given defining query can be set.</returns>
-    [Obsolete("Use InMemoryEntityTypeBuilderExtensions.CanSetInMemoryQuery")]
-    bool CanSetDefiningQuery(LambdaExpression? query, bool fromDataAnnotation = false);
+    /// <returns><see langword="true" /> if the given query filter can be set.</returns>
+    bool CanSetQueryFilter(string filterKey, LambdaExpression? filter, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Configures the <see cref="ChangeTrackingStrategy" /> to be used for this entity type.
@@ -887,20 +913,9 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
     ///     The same builder instance if the <see cref="ChangeTrackingStrategy" /> was set,
     ///     <see langword="null" /> otherwise.
     /// </returns>
-    IConventionEntityTypeBuilder? HasChangeTrackingStrategy(
+    new IConventionEntityTypeBuilder? HasChangeTrackingStrategy(
         ChangeTrackingStrategy? changeTrackingStrategy,
         bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns a value indicating whether the given change tracking strategy can be set from the current configuration source.
-    /// </summary>
-    /// <param name="changeTrackingStrategy">
-    ///     The change tracking strategy to be used.
-    ///     <see langword="null" /> to reset to default.
-    /// </param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns><see langword="true" /> if the given change tracking strategy can be set.</returns>
-    bool CanSetChangeTrackingStrategy(ChangeTrackingStrategy? changeTrackingStrategy, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Sets the <see cref="PropertyAccessMode" /> to use for all properties of this entity type.
@@ -915,20 +930,9 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
     ///     The same builder instance if the <see cref="PropertyAccessMode" /> was set,
     ///     <see langword="null" /> otherwise.
     /// </returns>
-    IConventionEntityTypeBuilder? UsePropertyAccessMode(
+    new IConventionEntityTypeBuilder? UsePropertyAccessMode(
         PropertyAccessMode? propertyAccessMode,
         bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns a value indicating whether the given <see cref="PropertyAccessMode" /> can be set from the current configuration source.
-    /// </summary>
-    /// <param name="propertyAccessMode">
-    ///     The <see cref="PropertyAccessMode" /> to use for properties of this model.
-    ///     <see langword="null" /> to reset to default.
-    /// </param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns><see langword="true" /> if the given <see cref="PropertyAccessMode" /> can be set.</returns>
-    bool CanSetPropertyAccessMode(PropertyAccessMode? propertyAccessMode, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Configures the discriminator property used to identify which entity type each row in a table represents
@@ -988,42 +992,18 @@ public interface IConventionEntityTypeBuilder : IConventionAnnotatableBuilder
     IConventionEntityTypeBuilder? HasNoDiscriminator(bool fromDataAnnotation = false);
 
     /// <summary>
-    ///     Returns a value indicating whether the discriminator property can be configured.
+    ///     Gets or creates a builder for the target of a potential navigation.
     /// </summary>
-    /// <param name="name">The name of the discriminator property.</param>
+    /// <param name="targetClrType">The CLR type of the target.</param>
+    /// <param name="navigationInfo">The navigation property.</param>
+    /// <param name="createIfMissing">Whether the entity type should be created if currently not in the model.</param>
+    /// <param name="targetShouldBeOwned">Whether the target should be owned. <see langword="null" /> if it can be either.</param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns><see langword="true" /> if the configuration can be applied.</returns>
-    bool CanSetDiscriminator(string name, bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns a value indicating whether the discriminator property can be configured.
-    /// </summary>
-    /// <param name="type">The type of values stored in the discriminator property.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns><see langword="true" /> if the configuration can be applied.</returns>
-    bool CanSetDiscriminator(Type type, bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns a value indicating whether the discriminator property can be configured.
-    /// </summary>
-    /// <param name="type">The type of values stored in the discriminator property.</param>
-    /// <param name="name">The name of the discriminator property.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns><see langword="true" /> if the configuration can be applied.</returns>
-    bool CanSetDiscriminator(string name, Type type, bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns a value indicating whether the discriminator property can be configured.
-    /// </summary>
-    /// <param name="memberInfo">The property mapped to the discriminator property.</param>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns><see langword="true" /> if the configuration can be applied.</returns>
-    bool CanSetDiscriminator(MemberInfo memberInfo, bool fromDataAnnotation = false);
-
-    /// <summary>
-    ///     Returns a value indicating whether the discriminator property can be removed.
-    /// </summary>
-    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns><see langword="true" /> if the discriminator property can be removed.</returns>
-    bool CanRemoveDiscriminator(bool fromDataAnnotation = false);
+    /// <returns>The entity type builder or <see langword="null" /> if not found and can't be created.</returns>
+    IConventionEntityTypeBuilder? GetTargetEntityTypeBuilder(
+        Type targetClrType,
+        MemberInfo navigationInfo,
+        bool createIfMissing = true,
+        bool? targetShouldBeOwned = null,
+        bool fromDataAnnotation = false);
 }

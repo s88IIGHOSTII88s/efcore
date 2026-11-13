@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 namespace Microsoft.EntityFrameworkCore.Metadata;
 
 /// <summary>
-///     Represents a relational database function in an model in
+///     Represents a relational database function in a model in
 ///     the form that can be mutated while the model is being built.
 /// </summary>
 /// <remarks>
@@ -45,7 +45,7 @@ public interface IMutableDbFunction : IReadOnlyDbFunction, IMutableAnnotatable
     new RelationalTypeMapping? TypeMapping { get; set; }
 
     /// <summary>
-    ///     Gets the <see cref="IMutableModel" /> in which this function is defined.
+    ///     Gets the model in which this function is defined.
     /// </summary>
     new IMutableModel Model { get; }
 

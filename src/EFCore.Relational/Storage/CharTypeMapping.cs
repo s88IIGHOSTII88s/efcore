@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Data;
+using Microsoft.EntityFrameworkCore.Storage.Json;
 
 namespace Microsoft.EntityFrameworkCore.Storage;
 
@@ -18,8 +19,16 @@ namespace Microsoft.EntityFrameworkCore.Storage;
 ///     See <see href="https://aka.ms/efcore-docs-providers">Implementation of database providers and extensions</see>
 ///     for more information and examples.
 /// </remarks>
-public class CharTypeMapping : RelationalTypeMapping
+public class CharTypeMapping : RelationalTypeMapping<char>
 {
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public static CharTypeMapping Default { get; } = new("char");
+
     /// <summary>
     ///     Initializes a new instance of the <see cref="CharTypeMapping" /> class.
     /// </summary>
@@ -28,7 +37,7 @@ public class CharTypeMapping : RelationalTypeMapping
     public CharTypeMapping(
         string storeType,
         DbType? dbType = System.Data.DbType.String)
-        : base(storeType, typeof(char), dbType)
+        : base(storeType, typeof(char), dbType, jsonValueReaderWriter: JsonCharReaderWriter.Instance)
     {
     }
 
@@ -60,11 +69,6 @@ public class CharTypeMapping : RelationalTypeMapping
     {
         // NB: We can get Int32 values here too due to compiler-introduced convert nodes
         var charValue = Convert.ToChar(value);
-        if (charValue == '\'')
-        {
-            return "''''";
-        }
-
-        return "'" + charValue + "'";
+        return charValue == '\'' ? "''''" : "'" + charValue + "'";
     }
 }

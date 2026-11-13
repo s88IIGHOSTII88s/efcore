@@ -23,10 +23,8 @@ public class ObjectArrayParameterBinding : ParameterBinding
     public ObjectArrayParameterBinding(IReadOnlyList<ParameterBinding> bindings)
         : base(
             typeof(object[]),
-            Check.NotNull(bindings, nameof(bindings)).SelectMany(b => b.ConsumedProperties).ToArray())
-    {
-        _bindings = bindings;
-    }
+            Check.NotNull(bindings).SelectMany(b => b.ConsumedProperties).ToArray())
+        => _bindings = bindings;
 
     /// <summary>
     ///     Creates an expression tree representing the binding of the value of a property from a
@@ -37,18 +35,17 @@ public class ObjectArrayParameterBinding : ParameterBinding
     public override Expression BindToParameter(ParameterBindingInfo bindingInfo)
         => Expression.NewArrayInit(
             typeof(object),
-            _bindings.Select(
-                b =>
+            _bindings.Select(b =>
+            {
+                var expression = b.BindToParameter(bindingInfo);
+
+                if (expression.Type.IsValueType)
                 {
-                    var expression = b.BindToParameter(bindingInfo);
+                    expression = Expression.Convert(expression, typeof(object));
+                }
 
-                    if (expression.Type.IsValueType)
-                    {
-                        expression = Expression.Convert(expression, typeof(object));
-                    }
-
-                    return expression;
-                }));
+                return expression;
+            }));
 
     /// <summary>
     ///     Creates a copy that contains the given consumed properties.

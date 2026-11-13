@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -22,9 +22,7 @@ public class OwnedNavigationTemporalPeriodPropertyBuilder
     [EntityFrameworkInternal]
     public OwnedNavigationTemporalPeriodPropertyBuilder(
         PropertyBuilder propertyBuilder)
-    {
-        _propertyBuilder = propertyBuilder;
-    }
+        => _propertyBuilder = propertyBuilder;
 
     /// <summary>
     ///     Configures the column name the period property maps to.
@@ -38,6 +36,45 @@ public class OwnedNavigationTemporalPeriodPropertyBuilder
     public virtual OwnedNavigationTemporalPeriodPropertyBuilder HasColumnName(string name)
     {
         _propertyBuilder.HasColumnName(name);
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Configures the precision of the period property.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-temporal">Using SQL Server temporal tables with EF Core</see>
+    ///     for more information.
+    /// </remarks>
+    /// <param name="precision">The precision of the period property.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public virtual OwnedNavigationTemporalPeriodPropertyBuilder HasPrecision(int precision)
+    {
+        _propertyBuilder.HasPrecision(precision);
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Configures whether the period column is defined with the SQL Server <c>HIDDEN</c> flag,
+    ///     which excludes it from <c>SELECT *</c> results.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The default is <see langword="true" /> for period columns, matching the behavior of EF Core releases
+    ///         prior to this option being introduced. Set to <see langword="false" /> to make the column visible.
+    ///     </para>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-temporal">Using SQL Server temporal tables with EF Core</see>
+    ///         for more information.
+    ///     </para>
+    /// </remarks>
+    /// <param name="hidden">A value indicating whether the column should be hidden.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public virtual OwnedNavigationTemporalPeriodPropertyBuilder IsHidden(bool hidden = true)
+    {
+        _propertyBuilder.Metadata.SetIsHidden(hidden);
 
         return this;
     }

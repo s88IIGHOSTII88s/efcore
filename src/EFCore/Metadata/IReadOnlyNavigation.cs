@@ -42,15 +42,6 @@ public interface IReadOnlyNavigation : IReadOnlyNavigationBase
     }
 
     /// <summary>
-    ///     Gets a value indicating whether the navigation property is a collection property.
-    /// </summary>
-    new bool IsCollection
-    {
-        [DebuggerStepThrough]
-        get => !IsOnDependent && !ForeignKey.IsUnique;
-    }
-
-    /// <summary>
     ///     Gets the foreign key that defines the relationship this navigation property will navigate.
     /// </summary>
     IReadOnlyForeignKey ForeignKey { get; }
@@ -94,10 +85,10 @@ public interface IReadOnlyNavigation : IReadOnlyNavigationBase
     /// <summary>
     ///     Gets a value indicating whether the navigation property is a collection property.
     /// </summary>
-    bool IReadOnlyNavigationBase.IsCollection
+    bool IReadOnlyPropertyBase.IsCollection
     {
         [DebuggerStepThrough]
-        get => IsCollection;
+        get => !IsOnDependent && !ForeignKey.IsUnique;
     }
 
     /// <summary>
@@ -117,65 +108,81 @@ public interface IReadOnlyNavigation : IReadOnlyNavigationBase
         var builder = new StringBuilder();
         var indentString = new string(' ', indent);
 
-        builder.Append(indentString);
-
-        var singleLine = (options & MetadataDebugStringOptions.SingleLine) != 0;
-        if (singleLine)
+        try
         {
-            builder.Append($"Navigation: {DeclaringEntityType.DisplayName()}.");
+            builder.Append(indentString);
+
+            var singleLine = (options & MetadataDebugStringOptions.SingleLine) != 0;
+            if (singleLine)
+            {
+                builder.Append($"Navigation: {DeclaringEntityType.DisplayName()}.");
+            }
+
+            builder.Append(Name);
+
+            var field = GetFieldName();
+            if (field == null)
+            {
+                builder.Append(" (no field, ");
+            }
+            else if (!field.EndsWith(">k__BackingField", StringComparison.Ordinal))
+            {
+                builder.Append($" ({field}, ");
+            }
+            else
+            {
+                builder.Append(" (");
+            }
+
+            builder.Append(ClrType.ShortDisplayName()).Append(')');
+
+            if (IsCollection)
+            {
+                builder.Append(" Collection");
+            }
+            else if ((IsOnDependent && ForeignKey.IsRequired)
+                     || (!IsOnDependent && ForeignKey.IsRequiredDependent))
+            {
+                builder.Append(" Required");
+            }
+            else
+            {
+                builder.Append(" Optional");
+            }
+
+            builder.Append(IsOnDependent ? " ToPrincipal " : " ToDependent ");
+
+            builder.Append(TargetEntityType.DisplayName());
+
+            if (Inverse != null)
+            {
+                builder.Append(" Inverse: ").Append(Inverse.Name);
+            }
+
+            if (GetPropertyAccessMode() != PropertyAccessMode.PreferField)
+            {
+                builder.Append(" PropertyAccessMode.").Append(GetPropertyAccessMode());
+            }
+
+            if ((options & MetadataDebugStringOptions.IncludePropertyIndexes) != 0
+                && (this is RuntimeAnnotatableBase || this is AnnotatableBase { IsReadOnly: true }))
+            {
+                var indexes = ((INavigation)this).GetPropertyIndexes();
+                builder.Append(' ').Append(indexes.Index);
+                builder.Append(' ').Append(indexes.OriginalValueIndex);
+                builder.Append(' ').Append(indexes.RelationshipIndex);
+                builder.Append(' ').Append(indexes.ShadowIndex);
+                builder.Append(' ').Append(indexes.StoreGenerationIndex);
+            }
+
+            if (!singleLine && (options & MetadataDebugStringOptions.IncludeAnnotations) != 0)
+            {
+                builder.Append(AnnotationsToDebugString(indent + 2));
+            }
         }
-
-        builder.Append(Name);
-
-        var field = GetFieldName();
-        if (field == null)
+        catch (Exception exception)
         {
-            builder.Append(" (no field, ");
-        }
-        else if (!field.EndsWith(">k__BackingField", StringComparison.Ordinal))
-        {
-            builder.Append($" ({field}, ");
-        }
-        else
-        {
-            builder.Append(" (");
-        }
-
-        builder.Append(ClrType.ShortDisplayName()).Append(')');
-
-        if (IsCollection)
-        {
-            builder.Append(" Collection");
-        }
-
-        builder.Append(IsOnDependent ? " ToPrincipal " : " ToDependent ");
-
-        builder.Append(TargetEntityType.DisplayName());
-
-        if (Inverse != null)
-        {
-            builder.Append(" Inverse: ").Append(Inverse.Name);
-        }
-
-        if (GetPropertyAccessMode() != PropertyAccessMode.PreferField)
-        {
-            builder.Append(" PropertyAccessMode.").Append(GetPropertyAccessMode());
-        }
-
-        if ((options & MetadataDebugStringOptions.IncludePropertyIndexes) != 0
-            && ((AnnotatableBase)this).IsReadOnly)
-        {
-            var indexes = ((INavigation)this).GetPropertyIndexes();
-            builder.Append(' ').Append(indexes.Index);
-            builder.Append(' ').Append(indexes.OriginalValueIndex);
-            builder.Append(' ').Append(indexes.RelationshipIndex);
-            builder.Append(' ').Append(indexes.ShadowIndex);
-            builder.Append(' ').Append(indexes.StoreGenerationIndex);
-        }
-
-        if (!singleLine && (options & MetadataDebugStringOptions.IncludeAnnotations) != 0)
-        {
-            builder.Append(AnnotationsToDebugString(indent + 2));
+            builder.AppendLine().AppendLine(CoreStrings.DebugViewError(exception.Message));
         }
 
         return builder.ToString();

@@ -16,24 +16,63 @@ namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 /// </summary>
 public class SqlConstantExpression : SqlExpression
 {
-    private readonly ConstantExpression _constantExpression;
+    private static ConstructorInfo? _quotingConstructor;
 
     /// <summary>
     ///     Creates a new instance of the <see cref="SqlConstantExpression" /> class.
     /// </summary>
-    /// <param name="constantExpression">A <see cref="ConstantExpression" />.</param>
+    /// <param name="value">An <see cref="object" /> to set the <see cref="Value" /> property equal to.</param>
+    /// <param name="type">The <see cref="System.Type" /> of the expression.</param>
     /// <param name="typeMapping">The <see cref="RelationalTypeMapping" /> associated with the expression.</param>
-    public SqlConstantExpression(ConstantExpression constantExpression, RelationalTypeMapping? typeMapping)
-        : base(constantExpression.Type.UnwrapNullableType(), typeMapping)
+    public SqlConstantExpression(object? value, Type type, RelationalTypeMapping? typeMapping)
+        : this(value, type, false, typeMapping)
     {
-        _constantExpression = constantExpression;
+    }
+
+    /// <summary>
+    ///     Creates a new instance of the <see cref="SqlConstantExpression" /> class.
+    /// </summary>
+    /// <param name="value">An <see cref="object" /> to set the <see cref="Value" /> property equal to.</param>
+    /// <param name="typeMapping">The <see cref="RelationalTypeMapping" /> associated with the expression.</param>
+    public SqlConstantExpression(object value, RelationalTypeMapping? typeMapping)
+        : this(value, false, typeMapping)
+    {
+    }
+
+    /// <summary>
+    ///     Creates a new instance of the <see cref="SqlConstantExpression" /> class.
+    /// </summary>
+    /// <param name="value">An <see cref="object" /> to set the <see cref="Value" /> property equal to.</param>
+    /// <param name="type">The <see cref="System.Type" /> of the expression.</param>
+    /// <param name="sensitive"><see langword="true" /> if the expression contains sensitive values; otherwise, <see langword="false" />.</param>
+    /// <param name="typeMapping">The <see cref="RelationalTypeMapping" /> associated with the expression.</param>
+    public SqlConstantExpression(object? value, Type type, bool sensitive, RelationalTypeMapping? typeMapping)
+        : base(type.UnwrapNullableType(), typeMapping)
+    {
+        Value = value;
+        IsSensitive = sensitive;
+    }
+
+    /// <summary>
+    ///     Creates a new instance of the <see cref="SqlConstantExpression" /> class.
+    /// </summary>
+    /// <param name="value">An <see cref="object" /> to set the <see cref="Value" /> property equal to.</param>
+    /// <param name="sensitive"><see langword="true" /> if the expression contains sensitive values; otherwise, <see langword="false" />.</param>
+    /// <param name="typeMapping">The <see cref="RelationalTypeMapping" /> associated with the expression.</param>
+    public SqlConstantExpression(object value, bool sensitive, RelationalTypeMapping? typeMapping)
+        : this(value, value.GetType(), sensitive, typeMapping)
+    {
     }
 
     /// <summary>
     ///     The constant value.
     /// </summary>
-    public virtual object? Value
-        => _constantExpression.Value;
+    public virtual object? Value { get; }
+
+    /// <summary>
+    ///     Whether the expression contains sensitive values.
+    /// </summary>
+    public virtual bool IsSensitive { get; }
 
     /// <summary>
     ///     Applies supplied type mapping to this expression.
@@ -41,11 +80,24 @@ public class SqlConstantExpression : SqlExpression
     /// <param name="typeMapping">A relational type mapping to apply.</param>
     /// <returns>A new expression which has supplied type mapping.</returns>
     public virtual SqlExpression ApplyTypeMapping(RelationalTypeMapping? typeMapping)
-        => new SqlConstantExpression(_constantExpression, typeMapping);
+        => new SqlConstantExpression(Value, Type, IsSensitive, typeMapping);
 
     /// <inheritdoc />
     protected override Expression VisitChildren(ExpressionVisitor visitor)
         => this;
+
+    /// <inheritdoc />
+    public override Expression Quote()
+        => New(
+            _quotingConstructor ??= typeof(SqlConstantExpression)
+                .GetConstructor([typeof(object), typeof(Type), typeof(bool), typeof(RelationalTypeMapping)])!,
+            Type.IsValueType
+                ? Convert(
+                    Constant(Value, Type), typeof(object))
+                : Constant(Value, Type),
+            Constant(Type),
+            Constant(IsSensitive),
+            RelationalExpressionQuotingUtilities.QuoteTypeMapping(TypeMapping));
 
     /// <inheritdoc />
     protected override void Print(ExpressionPrinter expressionPrinter)
@@ -58,8 +110,8 @@ public class SqlConstantExpression : SqlExpression
     public override bool Equals(object? obj)
         => obj != null
             && (ReferenceEquals(this, obj)
-                || obj is SqlConstantExpression sqlConstantExpression
-                && Equals(sqlConstantExpression));
+                || (obj is SqlConstantExpression sqlConstantExpression
+                    && Equals(sqlConstantExpression)));
 
     private bool Equals(SqlConstantExpression sqlConstantExpression)
         => base.Equals(sqlConstantExpression)
@@ -96,5 +148,5 @@ public class SqlConstantExpression : SqlExpression
 
     /// <inheritdoc />
     public override int GetHashCode()
-        => HashCode.Combine(base.GetHashCode(), Value);
+        => HashCode.Combine(base.GetHashCode(), Value is IList list ? list.Count : Value);
 }

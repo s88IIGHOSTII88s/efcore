@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.EntityFrameworkCore.Design.Internal;
@@ -8,7 +8,7 @@ namespace Microsoft.EntityFrameworkCore.Scaffolding.Internal;
 
 public class CSharpModelGeneratorTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Language_works()
     {
         var generator = CreateGenerator();
@@ -18,11 +18,11 @@ public class CSharpModelGeneratorTest
         Assert.Equal("C#", result);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void WriteCode_works()
     {
         var generator = CreateGenerator();
-        var modelBuilder = RelationalTestHelpers.Instance.CreateConventionBuilder();
+        var modelBuilder = FakeRelationalTestHelpers.Instance.CreateConventionBuilder();
         modelBuilder.Entity("TestEntity").Property<int>("Id");
 
         var result = generator.GenerateModel(
@@ -48,7 +48,7 @@ public class CSharpModelGeneratorTest
     {
         var testAssembly = typeof(CSharpModelGeneratorTest).Assembly;
         var reporter = new TestOperationReporter();
-        return new DesignTimeServicesBuilder(testAssembly, testAssembly, reporter, new string[0])
+        return new DesignTimeServicesBuilder(testAssembly, testAssembly, reporter, [])
             .CreateServiceCollection("Microsoft.EntityFrameworkCore.SqlServer")
             .AddSingleton<IAnnotationCodeGenerator, AnnotationCodeGenerator>()
             .AddSingleton<IProviderConfigurationCodeGenerator, TestProviderCodeGenerator>()

@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.EntityFrameworkCore.Cosmos.Infrastructure.Internal;
+using Microsoft.EntityFrameworkCore.Cosmos.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Cosmos.Storage.Internal;
 
@@ -14,11 +15,7 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Storage.Internal;
 public class SingletonCosmosClientWrapper : ISingletonCosmosClientWrapper
 {
     private static readonly string UserAgent = " Microsoft.EntityFrameworkCore.Cosmos/" + ProductInfo.GetVersion();
-    private readonly CosmosClientOptions _options;
-    private readonly string? _endpoint;
-    private readonly string? _key;
-    private readonly string? _connectionString;
-    private CosmosClient? _client;
+    private readonly CosmosClient _client;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -28,14 +25,16 @@ public class SingletonCosmosClientWrapper : ISingletonCosmosClientWrapper
     /// </summary>
     public SingletonCosmosClientWrapper(ICosmosSingletonOptions options)
     {
-        _endpoint = options.AccountEndpoint;
-        _key = options.AccountKey;
-        _connectionString = options.ConnectionString;
         var configuration = new CosmosClientOptions { ApplicationName = UserAgent, Serializer = new JsonCosmosSerializer() };
 
         if (options.Region != null)
         {
             configuration.ApplicationRegion = options.Region;
+        }
+
+        if (options.PreferredRegions != null)
+        {
+            configuration.ApplicationPreferredRegions = options.PreferredRegions;
         }
 
         if (options.LimitToEndpoint != null)
@@ -88,7 +87,20 @@ public class SingletonCosmosClientWrapper : ISingletonCosmosClientWrapper
             configuration.HttpClientFactory = options.HttpClientFactory;
         }
 
-        _options = configuration;
+        if (options.EnableBulkExecution != null)
+        {
+            configuration.AllowBulkExecution = options.EnableBulkExecution.Value;
+        }
+
+        configuration.EnableContentResponseOnWrite = options.EnableContentResponseOnWrite == true;
+
+        _client = options switch
+        {
+            { ConnectionString: not null and not "" } => new CosmosClient(options.ConnectionString, configuration),
+            { TokenCredential: not null } => new CosmosClient(options.AccountEndpoint, options.TokenCredential, configuration),
+            { AccountEndpoint: not null } => new CosmosClient(options.AccountEndpoint, options.AccountKey, configuration),
+            _ => throw new InvalidOperationException(CosmosStrings.ConnectionInfoMissing)
+        };
     }
 
     /// <summary>
@@ -98,9 +110,7 @@ public class SingletonCosmosClientWrapper : ISingletonCosmosClientWrapper
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual CosmosClient Client
-        => _client ??= string.IsNullOrEmpty(_connectionString)
-            ? new CosmosClient(_endpoint, _key, _options)
-            : new CosmosClient(_connectionString, _options);
+        => _client;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -109,8 +119,5 @@ public class SingletonCosmosClientWrapper : ISingletonCosmosClientWrapper
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual void Dispose()
-    {
-        _client?.Dispose();
-        _client = null;
-    }
+        => _client.Dispose();
 }

@@ -25,15 +25,25 @@ public static class CosmosEventId
     private enum Id
     {
         // Database events
+        [Obsolete("Synchronous I/O has been fully removed and now always throws.")]
+        SyncNotSupported = CoreEventId.ProviderBaseId,
 
         // Command events
         ExecutingSqlQuery = CoreEventId.ProviderBaseId + 100,
-        ExecutingReadItem,
-        ExecutedReadNext,
-        ExecutedReadItem,
-        ExecutedCreateItem,
-        ExecutedReplaceItem,
-        ExecutedDeleteItem
+        ExecutingReadItem = CoreEventId.ProviderBaseId + 101,
+        ExecutedReadNext = CoreEventId.ProviderBaseId + 102,
+        ExecutedReadItem = CoreEventId.ProviderBaseId + 103,
+        ExecutedCreateItem = CoreEventId.ProviderBaseId + 104,
+        ExecutedReplaceItem = CoreEventId.ProviderBaseId + 105,
+        ExecutedDeleteItem = CoreEventId.ProviderBaseId + 106,
+        ExecutedTransactionalBatch = CoreEventId.ProviderBaseId + 107,
+
+        // Update events
+        PrimaryKeyValueNotSet = CoreEventId.ProviderBaseId + 200,
+        BulkExecutionWithTransactionalBatch = CoreEventId.ProviderBaseId + 201,
+
+        // Model validation events
+        NoPartitionKeyDefined = CoreEventId.ProviderBaseId + 600,
     }
 
     private static readonly string CommandPrefix = DbLoggerCategory.Database.Command.Name + ".";
@@ -95,6 +105,21 @@ public static class CosmosEventId
         = new((int)Id.ExecutedReadItem, CommandPrefix + Id.ExecutedReadItem);
 
     /// <summary>
+    ///     TransactionalBatch was executed.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Database.Command" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="CosmosTransactionalBatchExecutedEventData" /> payload when used with a
+    ///         <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId ExecutedTransactionalBatch
+        = new((int)Id.ExecutedTransactionalBatch, CommandPrefix + Id.ExecutedTransactionalBatch);
+
+    /// <summary>
     ///     CreateItem was executed.
     /// </summary>
     /// <remarks>
@@ -135,4 +160,55 @@ public static class CosmosEventId
     /// </remarks>
     public static readonly EventId ExecutedDeleteItem
         = new((int)Id.ExecutedDeleteItem, CommandPrefix + Id.ExecutedDeleteItem);
+
+    private static EventId MakeValidationId(Id id)
+        => new((int)id, DbLoggerCategory.Model.Validation.Name + "." + id);
+
+    /// <summary>
+    ///     No partition key has been configured for an entity type. It is highly recommended that an appropriate partition key be defined.
+    ///     See https://aka.ms/efdocs-cosmos-partition-keys for more information.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model.Validation" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="EntityTypeEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId NoPartitionKeyDefined = MakeValidationId(Id.NoPartitionKeyDefined);
+
+    private static EventId MakeUpdateId(Id id)
+        => new((int)id, DbLoggerCategory.Update.Name + "." + id);
+
+    /// <summary>
+    ///     A property is not configured to generate values and has the CLR default or sentinel value while saving a new entity
+    ///     to the database. The Azure Cosmos DB database provider for EF Core does not generate key values by default. This means key
+    ///     values must be explicitly set before saving new entities. See https://aka.ms/ef-cosmos-keys for more information.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Update" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="PropertyEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId PrimaryKeyValueNotSet = MakeUpdateId(Id.PrimaryKeyValueNotSet);
+
+    /// <summary>
+    ///     SaveChanges was invoked with both bulk execution and batching being enabled. Transactional batches can not be run in bulk thus they
+    ///     will skip bulk execution. Use AutoTransactionBehavior.Never to leverage bulk execution. If batching was intended, suppress this warning
+    ///     using <c>DbContextOptionsBuilder.ConfigureWarnings(w => w.Ignore(CosmosEventId.BulkExecutionWithTransactionalBatch))</c>
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Update" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="Microsoft.EntityFrameworkCore.Cosmos.Diagnostics.AutoTransactionBehaviorEventData" /> payload when
+    ///         used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId BulkExecutionWithTransactionalBatch = MakeUpdateId(Id.BulkExecutionWithTransactionalBatch);
 }

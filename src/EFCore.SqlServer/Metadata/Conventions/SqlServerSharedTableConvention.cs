@@ -11,7 +11,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 /// </summary>
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-conventions">Model building conventions</see>, and
-///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
 ///     for more information and examples.
 /// </remarks>
 public class SqlServerSharedTableConvention : SharedTableConvention
@@ -27,6 +27,14 @@ public class SqlServerSharedTableConvention : SharedTableConvention
         : base(dependencies, relationalDependencies)
     {
     }
+
+    /// <inheritdoc />
+    protected override bool IndexesUniqueAcrossTables
+        => false;
+
+    /// <inheritdoc />
+    protected override bool DefaultConstraintsUniqueAcrossTables
+        => true;
 
     /// <inheritdoc />
     protected override bool AreCompatible(IReadOnlyKey key, IReadOnlyKey duplicateKey, in StoreObjectIdentifier storeObject)

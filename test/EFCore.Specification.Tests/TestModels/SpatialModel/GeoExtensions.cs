@@ -11,8 +11,8 @@ public static class GeoExtensions
     {
         var converter = new GeoPointConverter();
 
-        var xPoint = (Point)converter.ConvertToProvider(x);
-        var yPoint = (Point)converter.ConvertToProvider(y);
+        var xPoint = (Point)converter.ConvertToProvider(x)!;
+        var yPoint = (Point)converter.ConvertToProvider(y)!;
 
         return yPoint.Distance(xPoint);
     }

@@ -71,7 +71,10 @@ public abstract class AnnotatableBuilder<TMetadata, TModelBuilder> : IConvention
                 return this;
             }
 
-            if (!CanSetAnnotationValue(existingAnnotation, value, configurationSource, canOverrideSameSource))
+            var existingConfigurationSource = existingAnnotation.GetConfigurationSource();
+            if (!configurationSource.Overrides(existingConfigurationSource)
+                || (configurationSource == existingConfigurationSource
+                    && !canOverrideSameSource))
             {
                 return null;
             }
@@ -100,7 +103,7 @@ public abstract class AnnotatableBuilder<TMetadata, TModelBuilder> : IConvention
         object? value,
         ConfigurationSource configurationSource)
         => value == null
-            ? RemoveAnnotation(name, configurationSource)
+            ? HasNoAnnotation(name, configurationSource)
             : HasAnnotation(name, value, configurationSource, canOverrideSameSource: true);
 
     /// <summary>
@@ -140,7 +143,7 @@ public abstract class AnnotatableBuilder<TMetadata, TModelBuilder> : IConvention
     /// <param name="name">The name of the annotation to remove.</param>
     /// <param name="configurationSource">The configuration source of the annotation to be set.</param>
     /// <returns>The same builder so that multiple calls can be chained.</returns>
-    public virtual AnnotatableBuilder<TMetadata, TModelBuilder>? RemoveAnnotation(
+    public virtual AnnotatableBuilder<TMetadata, TModelBuilder>? HasNoAnnotation(
         string name,
         ConfigurationSource configurationSource)
     {
@@ -170,7 +173,7 @@ public abstract class AnnotatableBuilder<TMetadata, TModelBuilder> : IConvention
     ///     Copies all the explicitly configured annotations from the given object overwriting any existing ones.
     /// </summary>
     /// <param name="annotatable">The object to copy annotations from.</param>
-    public virtual void MergeAnnotationsFrom(TMetadata annotatable)
+    public virtual AnnotatableBuilder<TMetadata, TModelBuilder> MergeAnnotationsFrom(TMetadata annotatable)
         => MergeAnnotationsFrom(annotatable, ConfigurationSource.Explicit);
 
     /// <summary>
@@ -178,20 +181,26 @@ public abstract class AnnotatableBuilder<TMetadata, TModelBuilder> : IConvention
     /// </summary>
     /// <param name="annotatable">The object to copy annotations from.</param>
     /// <param name="minimalConfigurationSource">The minimum configuration source for an annotation to be copied.</param>
-    public virtual void MergeAnnotationsFrom(TMetadata annotatable, ConfigurationSource minimalConfigurationSource)
+    public virtual AnnotatableBuilder<TMetadata, TModelBuilder> MergeAnnotationsFrom(
+        TMetadata annotatable,
+        ConfigurationSource minimalConfigurationSource)
     {
+        var builder = this;
         foreach (var annotation in annotatable.GetAnnotations())
         {
             var configurationSource = annotation.GetConfigurationSource();
             if (configurationSource.Overrides(minimalConfigurationSource))
             {
-                HasAnnotation(
-                    annotation.Name,
-                    annotation.Value,
-                    configurationSource,
-                    canOverrideSameSource: false);
+                builder = builder.HasAnnotation(
+                        annotation.Name,
+                        annotation.Value,
+                        configurationSource,
+                        canOverrideSameSource: true)
+                    ?? builder;
             }
         }
+
+        return builder;
     }
 
     /// <inheritdoc />
@@ -229,7 +238,7 @@ public abstract class AnnotatableBuilder<TMetadata, TModelBuilder> : IConvention
     /// <inheritdoc />
     [DebuggerStepThrough]
     IConventionAnnotatableBuilder? IConventionAnnotatableBuilder.HasNoAnnotation(string name, bool fromDataAnnotation)
-        => RemoveAnnotation(name, fromDataAnnotation ? ConfigurationSource.DataAnnotation : ConfigurationSource.Convention);
+        => HasNoAnnotation(name, fromDataAnnotation ? ConfigurationSource.DataAnnotation : ConfigurationSource.Convention);
 
     /// <inheritdoc />
     [DebuggerStepThrough]

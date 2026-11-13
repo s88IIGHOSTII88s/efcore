@@ -7,9 +7,15 @@ using Microsoft.EntityFrameworkCore.SqlServer.Metadata.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Migrations;
 
-public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBase
+public class SqlServerMigrationsSqlGeneratorTest() : MigrationsSqlGeneratorTestBase(
+    SqlServerTestHelpers.Instance,
+    new ServiceCollection().AddEntityFrameworkSqlServerNetTopologySuite(),
+    SqlServerTestHelpers.Instance.AddProviderOptions(
+        ((IRelationalDbContextOptionsBuilderInfrastructure)
+            new SqlServerDbContextOptionsBuilder(new DbContextOptionsBuilder()).UseNetTopologySuite())
+        .OptionsBuilder).Options)
 {
-    [ConditionalFact]
+    [Fact]
     public void CreateIndexOperation_unique_online()
     {
         Generate(
@@ -18,17 +24,118 @@ public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBas
                 Name = "IX_People_Name",
                 Table = "People",
                 Schema = "dbo",
-                Columns = new[] { "FirstName", "LastName" },
+                Columns = ["FirstName", "LastName"],
                 IsUnique = true,
                 [SqlServerAnnotationNames.CreatedOnline] = true
             });
 
         AssertSql(
-            @"CREATE UNIQUE INDEX [IX_People_Name] ON [dbo].[People] ([FirstName], [LastName]) WHERE [FirstName] IS NOT NULL AND [LastName] IS NOT NULL WITH (ONLINE = ON);
-");
+            """
+CREATE UNIQUE INDEX [IX_People_Name] ON [dbo].[People] ([FirstName], [LastName]) WHERE [FirstName] IS NOT NULL AND [LastName] IS NOT NULL WITH (ONLINE = ON);
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
+    public void CreateIndexOperation_unique_sortintempdb()
+    {
+        Generate(
+            new CreateIndexOperation
+            {
+                Name = "IX_People_Name",
+                Table = "People",
+                Schema = "dbo",
+                Columns = ["FirstName", "LastName"],
+                IsUnique = true,
+                [SqlServerAnnotationNames.SortInTempDb] = true
+            });
+
+        AssertSql(
+            """
+CREATE UNIQUE INDEX [IX_People_Name] ON [dbo].[People] ([FirstName], [LastName]) WHERE [FirstName] IS NOT NULL AND [LastName] IS NOT NULL WITH (SORT_IN_TEMPDB = ON);
+""");
+    }
+
+    [Theory, InlineData(DataCompressionType.None, "NONE"), InlineData(DataCompressionType.Row, "ROW"),
+     InlineData(DataCompressionType.Page, "PAGE")]
+    public void CreateIndexOperation_unique_datacompression(DataCompressionType dataCompression, string dataCompressionSql)
+    {
+        Generate(
+            new CreateIndexOperation
+            {
+                Name = "IX_People_Name",
+                Table = "People",
+                Schema = "dbo",
+                Columns = ["FirstName", "LastName"],
+                IsUnique = true,
+                [SqlServerAnnotationNames.DataCompression] = dataCompression
+            });
+
+        AssertSql(
+            $"""
+CREATE UNIQUE INDEX [IX_People_Name] ON [dbo].[People] ([FirstName], [LastName]) WHERE [FirstName] IS NOT NULL AND [LastName] IS NOT NULL WITH (DATA_COMPRESSION = {dataCompressionSql});
+""");
+    }
+
+    [Fact]
+    public virtual void AddColumnOperation_mistyped_default_legacy()
+    {
+        Generate(
+            new AddColumnOperation
+            {
+                Table = "People",
+                Name = "Id",
+                ClrType = typeof(int),
+                ColumnType = "int",
+                DefaultValue = "",
+                IsNullable = false
+            });
+
+        AssertSql(
+            """
+ALTER TABLE [People] ADD [Id] int NOT NULL DEFAULT N'';
+""");
+    }
+
+    [Fact]
+    public virtual void AddColumnOperation_default_constraint_name_with_closing_bracket()
+    {
+        Generate(
+            new AddColumnOperation
+            {
+                Table = "People",
+                Name = "Age",
+                ClrType = typeof(int),
+                ColumnType = "int",
+                DefaultValue = 0,
+                IsNullable = false,
+                [RelationalAnnotationNames.DefaultConstraintName] = "DF_People]Age"
+            });
+
+        AssertSql(
+            """
+ALTER TABLE [People] ADD [Age] int NOT NULL CONSTRAINT [DF_People]]Age] DEFAULT 0;
+""");
+    }
+
+    [Fact]
+    public virtual void DropColumnOperation_default_constraint_name_with_closing_bracket()
+    {
+        Generate(
+            new DropColumnOperation
+            {
+                Table = "People",
+                Name = "Age",
+                [RelationalAnnotationNames.DefaultConstraintName] = "DF_People]Age"
+            });
+
+        AssertSql(
+            """
+ALTER TABLE [People] DROP CONSTRAINT [DF_People]]Age];
+ALTER TABLE [People] DROP COLUMN [Age];
+""");
+    }
+
+    [Fact]
     public virtual void AddColumnOperation_identity_legacy()
     {
         Generate(
@@ -45,8 +152,298 @@ public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBas
             });
 
         AssertSql(
-            @"ALTER TABLE [People] ADD [Id] int NOT NULL IDENTITY;
-");
+            """
+ALTER TABLE [People] ADD [Id] int NOT NULL IDENTITY;
+""");
+    }
+
+    [Fact]
+    public virtual void AddColumnOperation_identity_not_propagated_to_history_table()
+    {
+        Generate(
+            modelBuilder => modelBuilder.Entity(
+                "Customer", e =>
+                {
+                    e.Property<int>("Id").ValueGeneratedOnAdd();
+                    e.Property<DateTime>("PeriodStart").ValueGeneratedOnAddOrUpdate();
+                    e.Property<DateTime>("PeriodEnd").ValueGeneratedOnAddOrUpdate();
+                    e.HasKey("Id");
+                    e.ToTable(
+                        "Customers", tb => tb.IsTemporal(ttb =>
+                        {
+                            ttb.UseHistoryTable("CustomersHistory");
+                            ttb.HasPeriodStart("PeriodStart");
+                            ttb.HasPeriodEnd("PeriodEnd");
+                        }));
+                }),
+            new AddColumnOperation
+            {
+                Table = "CustomersHistory",
+                Name = "Number",
+                ClrType = typeof(int),
+                ColumnType = "int",
+                DefaultValue = 0,
+                IsNullable = false,
+                [SqlServerAnnotationNames.ValueGenerationStrategy] =
+                    SqlServerValueGenerationStrategy.IdentityColumn
+            });
+
+        AssertSql(
+            """
+ALTER TABLE [CustomersHistory] ADD [Number] int NOT NULL DEFAULT 0;
+""");
+    }
+
+    [Fact]
+    public virtual void AddColumnOperation_default_constraint_name_not_propagated_to_history_table()
+    {
+        Generate(
+            modelBuilder => modelBuilder.Entity(
+                "Customer", e =>
+                {
+                    e.Property<int>("Id").ValueGeneratedOnAdd();
+                    e.Property<int>("Number");
+                    e.Property<DateTime>("PeriodStart").ValueGeneratedOnAddOrUpdate();
+                    e.Property<DateTime>("PeriodEnd").ValueGeneratedOnAddOrUpdate();
+                    e.HasKey("Id");
+                    e.ToTable(
+                        "Customers", tb => tb.IsTemporal(ttb =>
+                        {
+                            ttb.UseHistoryTable("CustomersHistory");
+                            ttb.HasPeriodStart("PeriodStart");
+                            ttb.HasPeriodEnd("PeriodEnd");
+                        }));
+                }),
+            new DropColumnOperation
+            {
+                Table = "Customers",
+                Name = "Name"
+            },
+            new AddColumnOperation
+            {
+                Table = "Customers",
+                Name = "Number",
+                ClrType = typeof(int),
+                ColumnType = "int",
+                IsNullable = false,
+                DefaultValue = 0,
+                [RelationalAnnotationNames.DefaultConstraintName] = "DF_Customers_Number"
+            });
+
+        AssertSql(
+            """
+ALTER TABLE [Customers] SET (SYSTEM_VERSIONING = OFF)
+
+GO
+
+DECLARE @var1 nvarchar(max);
+SELECT @var1 = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[Customers]') AND [c].[name] = N'Name';
+IF @var1 IS NOT NULL EXEC(N'ALTER TABLE [Customers] DROP CONSTRAINT ' + @var1 + ';');
+ALTER TABLE [Customers] DROP COLUMN [Name];
+GO
+
+DECLARE @var2 nvarchar(max);
+SELECT @var2 = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[CustomersHistory]') AND [c].[name] = N'Name';
+IF @var2 IS NOT NULL EXEC(N'ALTER TABLE [CustomersHistory] DROP CONSTRAINT ' + @var2 + ';');
+ALTER TABLE [CustomersHistory] DROP COLUMN [Name];
+GO
+
+ALTER TABLE [Customers] ADD [Number] int NOT NULL CONSTRAINT [DF_Customers_Number] DEFAULT 0;
+GO
+
+ALTER TABLE [CustomersHistory] ADD [Number] int NOT NULL DEFAULT 0;
+GO
+
+DECLARE @historyTableSchema nvarchar(max) = QUOTENAME(SCHEMA_NAME())
+EXEC(N'ALTER TABLE [Customers] SET (SYSTEM_VERSIONING = ON (HISTORY_TABLE = ' + @historyTableSchema + '.[CustomersHistory]))')
+""");
+    }
+
+    [Fact]
+    public virtual void AlterColumnOperation_default_constraint_name_not_propagated_to_history_table()
+    {
+        Generate(
+            modelBuilder => modelBuilder.Entity(
+                "Customer", e =>
+                {
+                    e.Property<int>("Id").ValueGeneratedOnAdd();
+                    e.Property<int>("Number");
+                    e.Property<DateTime>("PeriodStart").ValueGeneratedOnAddOrUpdate();
+                    e.Property<DateTime>("PeriodEnd").ValueGeneratedOnAddOrUpdate();
+                    e.HasKey("Id");
+                    e.ToTable(
+                        "Customers", tb => tb.IsTemporal(ttb =>
+                        {
+                            ttb.UseHistoryTable("CustomersHistory");
+                            ttb.HasPeriodStart("PeriodStart");
+                            ttb.HasPeriodEnd("PeriodEnd");
+                        }));
+                }),
+            new AlterColumnOperation
+            {
+                Table = "Customers",
+                Name = "Number",
+                ClrType = typeof(int),
+                ColumnType = "int",
+                IsNullable = false,
+                OldColumn = new AddColumnOperation
+                {
+                    Table = "Customers",
+                    Name = "Number",
+                    ClrType = typeof(int),
+                    ColumnType = "int",
+                    IsNullable = false,
+                    DefaultValue = 1,
+                    [RelationalAnnotationNames.DefaultConstraintName] = "DF_Customers_Number"
+                },
+                [SqlServerAnnotationNames.IsTemporal] = true,
+                [SqlServerAnnotationNames.TemporalHistoryTableName] = "CustomersHistory",
+                [SqlServerAnnotationNames.TemporalPeriodStartColumnName] = "PeriodStart",
+                [SqlServerAnnotationNames.TemporalPeriodEndColumnName] = "PeriodEnd"
+            });
+
+        AssertSql(
+            """
+ALTER TABLE [Customers] SET (SYSTEM_VERSIONING = OFF)
+
+GO
+
+ALTER TABLE [Customers] DROP CONSTRAINT [DF_Customers_Number];
+ALTER TABLE [Customers] ALTER COLUMN [Number] int NOT NULL;
+GO
+
+DECLARE @var1 nvarchar(max);
+SELECT @var1 = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[CustomersHistory]') AND [c].[name] = N'Number';
+IF @var1 IS NOT NULL EXEC(N'ALTER TABLE [CustomersHistory] DROP CONSTRAINT ' + @var1 + ';');
+ALTER TABLE [CustomersHistory] ALTER COLUMN [Number] int NOT NULL;
+GO
+
+DECLARE @historyTableSchema nvarchar(max) = QUOTENAME(SCHEMA_NAME())
+EXEC(N'ALTER TABLE [Customers] SET (SYSTEM_VERSIONING = ON (HISTORY_TABLE = ' + @historyTableSchema + '.[CustomersHistory]))')
+""");
+    }
+
+    [Fact]
+    public virtual void AlterColumnOperation_new_default_constraint_name_not_propagated_to_history_table()
+    {
+        Generate(
+            modelBuilder => modelBuilder.Entity(
+                "Customer", e =>
+                {
+                    e.Property<int>("Id").ValueGeneratedOnAdd();
+                    e.Property<int>("Number");
+                    e.Property<DateTime>("PeriodStart").ValueGeneratedOnAddOrUpdate();
+                    e.Property<DateTime>("PeriodEnd").ValueGeneratedOnAddOrUpdate();
+                    e.HasKey("Id");
+                    e.ToTable(
+                        "Customers", tb => tb.IsTemporal(ttb =>
+                        {
+                            ttb.UseHistoryTable("CustomersHistory");
+                            ttb.HasPeriodStart("PeriodStart");
+                            ttb.HasPeriodEnd("PeriodEnd");
+                        }));
+                }),
+            new AlterColumnOperation
+            {
+                Table = "Customers",
+                Name = "Number",
+                ClrType = typeof(int),
+                ColumnType = "int",
+                IsNullable = false,
+                DefaultValue = 0,
+                OldColumn = new AddColumnOperation
+                {
+                    Table = "Customers",
+                    Name = "Number",
+                    ClrType = typeof(int),
+                    ColumnType = "int",
+                    IsNullable = true
+                },
+                [RelationalAnnotationNames.DefaultConstraintName] = "DF_Customers_Number",
+                [SqlServerAnnotationNames.IsTemporal] = true,
+                [SqlServerAnnotationNames.TemporalHistoryTableName] = "CustomersHistory",
+                [SqlServerAnnotationNames.TemporalPeriodStartColumnName] = "PeriodStart",
+                [SqlServerAnnotationNames.TemporalPeriodEndColumnName] = "PeriodEnd"
+            });
+
+        AssertSql(
+            """
+ALTER TABLE [Customers] SET (SYSTEM_VERSIONING = OFF)
+
+GO
+
+DECLARE @var1 nvarchar(max);
+SELECT @var1 = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[Customers]') AND [c].[name] = N'Number';
+IF @var1 IS NOT NULL EXEC(N'ALTER TABLE [Customers] DROP CONSTRAINT ' + @var1 + ';');
+UPDATE [Customers] SET [Number] = 0 WHERE [Number] IS NULL;
+ALTER TABLE [Customers] ALTER COLUMN [Number] int NOT NULL;
+ALTER TABLE [Customers] ADD CONSTRAINT [DF_Customers_Number] DEFAULT 0 FOR [Number];
+GO
+
+DECLARE @var2 nvarchar(max);
+SELECT @var2 = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[CustomersHistory]') AND [c].[name] = N'Number';
+IF @var2 IS NOT NULL EXEC(N'ALTER TABLE [CustomersHistory] DROP CONSTRAINT ' + @var2 + ';');
+UPDATE [CustomersHistory] SET [Number] = 0 WHERE [Number] IS NULL;
+ALTER TABLE [CustomersHistory] ALTER COLUMN [Number] int NOT NULL;
+ALTER TABLE [CustomersHistory] ADD DEFAULT 0 FOR [Number];
+GO
+
+DECLARE @historyTableSchema nvarchar(max) = QUOTENAME(SCHEMA_NAME())
+EXEC(N'ALTER TABLE [Customers] SET (SYSTEM_VERSIONING = ON (HISTORY_TABLE = ' + @historyTableSchema + '.[CustomersHistory]))')
+""");
+    }
+
+    [Fact]
+    public virtual void AddColumnOperation_identity_legacy_not_propagated_to_history_table()
+    {
+        var migrationBuilder = new MigrationBuilder("Microsoft.EntityFrameworkCore.SqlServer");
+
+        migrationBuilder.AddColumn<int>(
+                name: "Number",
+                table: "CustomersHistory",
+                type: "int",
+                nullable: false,
+                defaultValue: 0)
+            .Annotation("SqlServer:Identity", "1, 1")
+            .Annotation("SqlServer:IsTemporal", true)
+            .Annotation("SqlServer:TemporalHistoryTableName", "CustomersHistory")
+            .Annotation("SqlServer:TemporalHistoryTableSchema", null)
+            .Annotation("SqlServer:TemporalPeriodEndColumnName", "PeriodEnd")
+            .Annotation("SqlServer:TemporalPeriodStartColumnName", "PeriodStart");
+
+        Generate(
+            modelBuilder => modelBuilder.Entity(
+                "Customer", e =>
+                {
+                    e.Property<int>("Id").ValueGeneratedOnAdd();
+                    e.Property<DateTime>("PeriodStart").ValueGeneratedOnAddOrUpdate();
+                    e.Property<DateTime>("PeriodEnd").ValueGeneratedOnAddOrUpdate();
+                    e.HasKey("Id");
+                    e.Property<string>("Name");
+                    e.ToTable(
+                        "Customers", tb => tb.IsTemporal(ttb =>
+                        {
+                            ttb.UseHistoryTable("CustomersHistory");
+                            ttb.HasPeriodStart("PeriodStart");
+                            ttb.HasPeriodEnd("PeriodEnd");
+                        }));
+                }),
+            migrationBuilder.Operations.ToArray());
+
+        AssertSql(
+            """
+ALTER TABLE [CustomersHistory] ADD [Number] int NOT NULL DEFAULT 0;
+""");
     }
 
     public override void AddColumnOperation_without_column_type()
@@ -54,8 +451,9 @@ public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBas
         base.AddColumnOperation_without_column_type();
 
         AssertSql(
-            @"ALTER TABLE [People] ADD [Alias] nvarchar(max) NOT NULL;
-");
+            """
+ALTER TABLE [People] ADD [Alias] nvarchar(max) NOT NULL;
+""");
     }
 
     public override void AddColumnOperation_with_unicode_no_model()
@@ -63,8 +461,9 @@ public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBas
         base.AddColumnOperation_with_unicode_no_model();
 
         AssertSql(
-            @"ALTER TABLE [Person] ADD [Name] varchar(max) NULL;
-");
+            """
+ALTER TABLE [Person] ADD [Name] varchar(max) NULL;
+""");
     }
 
     public override void AddColumnOperation_with_fixed_length_no_model()
@@ -72,8 +471,9 @@ public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBas
         base.AddColumnOperation_with_fixed_length_no_model();
 
         AssertSql(
-            @"ALTER TABLE [Person] ADD [Name] char(100) NULL;
-");
+            """
+ALTER TABLE [Person] ADD [Name] char(100) NULL;
+""");
     }
 
     public override void AddColumnOperation_with_maxLength_no_model()
@@ -81,8 +481,9 @@ public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBas
         base.AddColumnOperation_with_maxLength_no_model();
 
         AssertSql(
-            @"ALTER TABLE [Person] ADD [Name] nvarchar(30) NULL;
-");
+            """
+ALTER TABLE [Person] ADD [Name] nvarchar(30) NULL;
+""");
     }
 
     public override void AddColumnOperation_with_maxLength_overridden()
@@ -90,8 +491,9 @@ public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBas
         base.AddColumnOperation_with_maxLength_overridden();
 
         AssertSql(
-            @"ALTER TABLE [Person] ADD [Name] nvarchar(32) NULL;
-");
+            """
+ALTER TABLE [Person] ADD [Name] nvarchar(32) NULL;
+""");
     }
 
     public override void AddColumnOperation_with_precision_and_scale_overridden()
@@ -99,8 +501,9 @@ public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBas
         base.AddColumnOperation_with_precision_and_scale_overridden();
 
         AssertSql(
-            @"ALTER TABLE [Person] ADD [Pi] decimal(15,10) NOT NULL;
-");
+            """
+ALTER TABLE [Person] ADD [Pi] decimal(15,10) NOT NULL;
+""");
     }
 
     public override void AddColumnOperation_with_precision_and_scale_no_model()
@@ -108,8 +511,9 @@ public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBas
         base.AddColumnOperation_with_precision_and_scale_no_model();
 
         AssertSql(
-            @"ALTER TABLE [Person] ADD [Pi] decimal(20,7) NOT NULL;
-");
+            """
+ALTER TABLE [Person] ADD [Pi] decimal(20,7) NOT NULL;
+""");
     }
 
     public override void AddColumnOperation_with_unicode_overridden()
@@ -117,11 +521,12 @@ public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBas
         base.AddColumnOperation_with_unicode_overridden();
 
         AssertSql(
-            @"ALTER TABLE [Person] ADD [Name] nvarchar(max) NULL;
-");
+            """
+ALTER TABLE [Person] ADD [Name] nvarchar(max) NULL;
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AddColumnOperation_with_rowversion_overridden()
     {
         Generate(
@@ -136,11 +541,12 @@ public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBas
             });
 
         AssertSql(
-            @"ALTER TABLE [Person] ADD [RowVersion] rowversion NULL;
-");
+            """
+ALTER TABLE [Person] ADD [RowVersion] rowversion NULL;
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AddColumnOperation_with_rowversion_no_model()
     {
         Generate(
@@ -154,8 +560,9 @@ public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBas
             });
 
         AssertSql(
-            @"ALTER TABLE [Person] ADD [RowVersion] rowversion NULL;
-");
+            """
+ALTER TABLE [Person] ADD [RowVersion] rowversion NULL;
+""");
     }
 
     public override void AlterColumnOperation_without_column_type()
@@ -163,14 +570,14 @@ public class SqlServerMigrationsSqlGeneratorTest : MigrationsSqlGeneratorTestBas
         base.AlterColumnOperation_without_column_type();
 
         AssertSql(
-            @"DECLARE @var0 sysname;
-SELECT @var0 = [d].[name]
-FROM [sys].[default_constraints] [d]
-INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
-WHERE ([d].[parent_object_id] = OBJECT_ID(N'[People]') AND [c].[name] = N'LuckyNumber');
-IF @var0 IS NOT NULL EXEC(N'ALTER TABLE [People] DROP CONSTRAINT [' + @var0 + '];');
+            """
+DECLARE @var nvarchar(max);
+SELECT @var = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[People]') AND [c].[name] = N'LuckyNumber';
+IF @var IS NOT NULL EXEC(N'ALTER TABLE [People] DROP CONSTRAINT ' + @var + ';');
 ALTER TABLE [People] ALTER COLUMN [LuckyNumber] int NOT NULL;
-");
+""");
     }
 
     public override void AddForeignKeyOperation_without_principal_columns()
@@ -178,11 +585,78 @@ ALTER TABLE [People] ALTER COLUMN [LuckyNumber] int NOT NULL;
         base.AddForeignKeyOperation_without_principal_columns();
 
         AssertSql(
-            @"ALTER TABLE [People] ADD FOREIGN KEY ([SpouseId]) REFERENCES [People];
-");
+            """
+ALTER TABLE [People] ADD FOREIGN KEY ([SpouseId]) REFERENCES [People];
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
+    public virtual void AlterColumnOperation_computed_column_with_only_clr_type_change_is_noop()
+    {
+        // Regression test for #33425: when the CLR type of a property mapped to a computed column
+        // changes (e.g. int → long for a column with .HasComputedColumnSql("DATALENGTH(...)")) but
+        // the expression and IsStored are unchanged, no SQL should be emitted. SQL Server rejects
+        // ALTER COLUMN on computed columns with "Cannot alter column ... because it is 'COMPUTED'",
+        // and the underlying database column's type is derived from the expression — there is
+        // nothing to change.
+        Generate(
+            new AlterColumnOperation
+            {
+                Table = "Files",
+                Name = "FileSize",
+                ClrType = typeof(long),
+                ColumnType = "bigint",
+                IsNullable = false,
+                ComputedColumnSql = "DATALENGTH([FileContents])",
+                OldColumn = new AddColumnOperation
+                {
+                    ClrType = typeof(int),
+                    ColumnType = "int",
+                    IsNullable = false,
+                    ComputedColumnSql = "DATALENGTH([FileContents])"
+                }
+            });
+
+        AssertSql("");
+    }
+
+    [Fact]
+    public virtual void AlterColumnOperation_computed_column_with_changed_expression_drops_and_adds()
+    {
+        // Regression guard: when the computed column expression itself changes, SQL Server still
+        // cannot ALTER COLUMN — but a drop+add is required to apply the new expression. This path
+        // must remain intact.
+        Generate(
+            new AlterColumnOperation
+            {
+                Table = "Files",
+                Name = "FileSize",
+                ClrType = typeof(long),
+                ColumnType = "bigint",
+                IsNullable = false,
+                ComputedColumnSql = "LEN([FileContents])",
+                OldColumn = new AddColumnOperation
+                {
+                    ClrType = typeof(int),
+                    ColumnType = "int",
+                    IsNullable = false,
+                    ComputedColumnSql = "DATALENGTH([FileContents])"
+                }
+            });
+
+        AssertSql(
+            """
+DECLARE @var nvarchar(max);
+SELECT @var = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[Files]') AND [c].[name] = N'FileSize';
+IF @var IS NOT NULL EXEC(N'ALTER TABLE [Files] DROP CONSTRAINT ' + @var + ';');
+ALTER TABLE [Files] DROP COLUMN [FileSize];
+ALTER TABLE [Files] ADD [FileSize] AS LEN([FileContents]);
+""");
+    }
+
+    [Fact]
     public virtual void AlterColumnOperation_with_identity_legacy()
     {
         Generate(
@@ -196,28 +670,27 @@ ALTER TABLE [People] ALTER COLUMN [LuckyNumber] int NOT NULL;
             });
 
         AssertSql(
-            @"DECLARE @var0 sysname;
-SELECT @var0 = [d].[name]
-FROM [sys].[default_constraints] [d]
-INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
-WHERE ([d].[parent_object_id] = OBJECT_ID(N'[People]') AND [c].[name] = N'Id');
-IF @var0 IS NOT NULL EXEC(N'ALTER TABLE [People] DROP CONSTRAINT [' + @var0 + '];');
+            """
+DECLARE @var nvarchar(max);
+SELECT @var = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[People]') AND [c].[name] = N'Id';
+IF @var IS NOT NULL EXEC(N'ALTER TABLE [People] DROP CONSTRAINT ' + @var + ';');
 ALTER TABLE [People] ALTER COLUMN [Id] int NOT NULL;
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AlterColumnOperation_with_index_no_oldColumn()
     {
         Generate(
             modelBuilder => modelBuilder
                 .HasAnnotation(CoreAnnotationNames.ProductVersion, "1.0.0-rtm")
-                .Entity<Person>(
-                    x =>
-                    {
-                        x.Property<string>("Name").HasMaxLength(30);
-                        x.HasIndex("Name");
-                    }),
+                .Entity<Person>(x =>
+                {
+                    x.Property<string>("Name").HasMaxLength(30);
+                    x.HasIndex("Name");
+                }),
             new AlterColumnOperation
             {
                 Table = "Person",
@@ -229,28 +702,27 @@ ALTER TABLE [People] ALTER COLUMN [Id] int NOT NULL;
             });
 
         AssertSql(
-            @"DECLARE @var0 sysname;
-SELECT @var0 = [d].[name]
-FROM [sys].[default_constraints] [d]
-INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
-WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Person]') AND [c].[name] = N'Name');
-IF @var0 IS NOT NULL EXEC(N'ALTER TABLE [Person] DROP CONSTRAINT [' + @var0 + '];');
+            """
+DECLARE @var nvarchar(max);
+SELECT @var = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[Person]') AND [c].[name] = N'Name';
+IF @var IS NOT NULL EXEC(N'ALTER TABLE [Person] DROP CONSTRAINT ' + @var + ';');
 ALTER TABLE [Person] ALTER COLUMN [Name] nvarchar(30) NULL;
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AlterColumnOperation_with_added_index()
     {
         Generate(
             modelBuilder => modelBuilder
                 .HasAnnotation(CoreAnnotationNames.ProductVersion, "1.1.0")
-                .Entity<Person>(
-                    x =>
-                    {
-                        x.Property<string>("Name").HasMaxLength(30);
-                        x.HasIndex("Name");
-                    }),
+                .Entity<Person>(x =>
+                {
+                    x.Property<string>("Name").HasMaxLength(30);
+                    x.HasIndex("Name");
+                }),
             new AlterColumnOperation
             {
                 Table = "Person",
@@ -264,35 +736,34 @@ ALTER TABLE [Person] ALTER COLUMN [Name] nvarchar(30) NULL;
             {
                 Name = "IX_Person_Name",
                 Table = "Person",
-                Columns = new[] { "Name" }
+                Columns = ["Name"]
             });
 
         AssertSql(
-            @"DECLARE @var0 sysname;
-SELECT @var0 = [d].[name]
-FROM [sys].[default_constraints] [d]
-INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
-WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Person]') AND [c].[name] = N'Name');
-IF @var0 IS NOT NULL EXEC(N'ALTER TABLE [Person] DROP CONSTRAINT [' + @var0 + '];');
+            """
+DECLARE @var nvarchar(max);
+SELECT @var = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[Person]') AND [c].[name] = N'Name';
+IF @var IS NOT NULL EXEC(N'ALTER TABLE [Person] DROP CONSTRAINT ' + @var + ';');
 ALTER TABLE [Person] ALTER COLUMN [Name] nvarchar(30) NULL;
 GO
 
 CREATE INDEX [IX_Person_Name] ON [Person] ([Name]);
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AlterColumnOperation_with_added_index_no_oldType()
     {
         Generate(
             modelBuilder => modelBuilder
                 .HasAnnotation(CoreAnnotationNames.ProductVersion, "2.1.0")
-                .Entity<Person>(
-                    x =>
-                    {
-                        x.Property<string>("Name");
-                        x.HasIndex("Name");
-                    }),
+                .Entity<Person>(x =>
+                {
+                    x.Property<string>("Name");
+                    x.HasIndex("Name");
+                }),
             new AlterColumnOperation
             {
                 Table = "Person",
@@ -305,24 +776,24 @@ CREATE INDEX [IX_Person_Name] ON [Person] ([Name]);
             {
                 Name = "IX_Person_Name",
                 Table = "Person",
-                Columns = new[] { "Name" }
+                Columns = ["Name"]
             });
 
         AssertSql(
-            @"DECLARE @var0 sysname;
-SELECT @var0 = [d].[name]
-FROM [sys].[default_constraints] [d]
-INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
-WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Person]') AND [c].[name] = N'Name');
-IF @var0 IS NOT NULL EXEC(N'ALTER TABLE [Person] DROP CONSTRAINT [' + @var0 + '];');
+            """
+DECLARE @var nvarchar(max);
+SELECT @var = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[Person]') AND [c].[name] = N'Name';
+IF @var IS NOT NULL EXEC(N'ALTER TABLE [Person] DROP CONSTRAINT ' + @var + ';');
 ALTER TABLE [Person] ALTER COLUMN [Name] nvarchar(450) NULL;
 GO
 
 CREATE INDEX [IX_Person_Name] ON [Person] ([Name]);
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AlterColumnOperation_identity_legacy()
     {
         Generate(
@@ -341,73 +812,124 @@ CREATE INDEX [IX_Person_Name] ON [Person] ([Name]);
             });
 
         AssertSql(
-            @"DECLARE @var0 sysname;
-SELECT @var0 = [d].[name]
-FROM [sys].[default_constraints] [d]
-INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
-WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Person]') AND [c].[name] = N'Id');
-IF @var0 IS NOT NULL EXEC(N'ALTER TABLE [Person] DROP CONSTRAINT [' + @var0 + '];');
+            """
+DECLARE @var nvarchar(max);
+SELECT @var = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[Person]') AND [c].[name] = N'Id';
+IF @var IS NOT NULL EXEC(N'ALTER TABLE [Person] DROP CONSTRAINT ' + @var + ';');
 ALTER TABLE [Person] ALTER COLUMN [Id] bigint NOT NULL;
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
+    public virtual void AlterColumnOperation_change_identity_seed()
+    {
+        Generate(
+            modelBuilder => modelBuilder.HasAnnotation(CoreAnnotationNames.ProductVersion, "10.0.0"),
+            new AlterColumnOperation
+            {
+                Table = "Person",
+                Name = "Id",
+                ClrType = typeof(int),
+                ColumnType = "int",
+                [SqlServerAnnotationNames.Identity] = "100, 1",
+                OldColumn = new AddColumnOperation
+                {
+                    ClrType = typeof(int),
+                    ColumnType = "int",
+                    [SqlServerAnnotationNames.Identity] = "10, 1"
+                }
+            });
+
+        AssertSql(
+            """
+DBCC CHECKIDENT(N'[Person]', RESEED, 100);
+""");
+    }
+
+    [Fact]
+    public virtual void AlterColumnOperation_change_identity_seed_above_int_range()
+    {
+        Generate(
+            modelBuilder => modelBuilder.HasAnnotation(CoreAnnotationNames.ProductVersion, "10.0.0"),
+            new AlterColumnOperation
+            {
+                Table = "Person",
+                Name = "Id",
+                ClrType = typeof(long),
+                ColumnType = "bigint",
+                [SqlServerAnnotationNames.Identity] = "3000000000, 1",
+                OldColumn = new AddColumnOperation
+                {
+                    ClrType = typeof(long),
+                    ColumnType = "bigint",
+                    [SqlServerAnnotationNames.Identity] = "1, 1"
+                }
+            });
+
+        AssertSql(
+            """
+DBCC CHECKIDENT(N'[Person]', RESEED, 3000000000);
+""");
+    }
+
+    [Fact]
     public virtual void AlterColumnOperation_add_identity_legacy()
     {
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => Generate(
-                modelBuilder => modelBuilder.HasAnnotation(CoreAnnotationNames.ProductVersion, "1.1.0"),
-                new AlterColumnOperation
-                {
-                    Table = "Person",
-                    Name = "Id",
-                    ClrType = typeof(int),
-                    [SqlServerAnnotationNames.ValueGenerationStrategy] = SqlServerValueGenerationStrategy.IdentityColumn,
-                    OldColumn = new AddColumnOperation { ClrType = typeof(int) }
-                }));
+        var ex = Assert.Throws<InvalidOperationException>(() => Generate(
+            modelBuilder => modelBuilder.HasAnnotation(CoreAnnotationNames.ProductVersion, "1.1.0"),
+            new AlterColumnOperation
+            {
+                Table = "Person",
+                Name = "Id",
+                ClrType = typeof(int),
+                [SqlServerAnnotationNames.ValueGenerationStrategy] = SqlServerValueGenerationStrategy.IdentityColumn,
+                OldColumn = new AddColumnOperation { ClrType = typeof(int) }
+            }));
 
         Assert.Equal(SqlServerStrings.AlterIdentityColumn, ex.Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AlterColumnOperation_remove_identity_legacy()
     {
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => Generate(
-                modelBuilder => modelBuilder.HasAnnotation(CoreAnnotationNames.ProductVersion, "1.1.0"),
-                new AlterColumnOperation
+        var ex = Assert.Throws<InvalidOperationException>(() => Generate(
+            modelBuilder => modelBuilder.HasAnnotation(CoreAnnotationNames.ProductVersion, "1.1.0"),
+            new AlterColumnOperation
+            {
+                Table = "Person",
+                Name = "Id",
+                ClrType = typeof(int),
+                OldColumn = new AddColumnOperation
                 {
-                    Table = "Person",
-                    Name = "Id",
                     ClrType = typeof(int),
-                    OldColumn = new AddColumnOperation
-                    {
-                        ClrType = typeof(int),
-                        [SqlServerAnnotationNames.ValueGenerationStrategy] = SqlServerValueGenerationStrategy.IdentityColumn
-                    }
-                }));
+                    [SqlServerAnnotationNames.ValueGenerationStrategy] = SqlServerValueGenerationStrategy.IdentityColumn
+                }
+            }));
 
         Assert.Equal(SqlServerStrings.AlterIdentityColumn, ex.Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void CreateDatabaseOperation()
     {
         Generate(
             new SqlServerCreateDatabaseOperation { Name = "Northwind" });
 
         AssertSql(
-            @"CREATE DATABASE [Northwind];
+            """
+CREATE DATABASE [Northwind];
 GO
 
 IF SERVERPROPERTY('EngineEdition') <> 5
 BEGIN
     ALTER DATABASE [Northwind] SET READ_COMMITTED_SNAPSHOT ON;
 END;
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void CreateDatabaseOperation_with_filename()
     {
         Generate(
@@ -417,7 +939,8 @@ END;
         var expectedLog = Path.GetFullPath("Narf_log.ldf");
 
         AssertSql(
-            $@"CREATE DATABASE [Northwind]
+            $"""
+CREATE DATABASE [Northwind]
 ON (NAME = N'Narf', FILENAME = N'{expectedFile}')
 LOG ON (NAME = N'Narf_log', FILENAME = N'{expectedLog}');
 GO
@@ -426,10 +949,10 @@ IF SERVERPROPERTY('EngineEdition') <> 5
 BEGIN
     ALTER DATABASE [Northwind] SET READ_COMMITTED_SNAPSHOT ON;
 END;
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void CreateDatabaseOperation_with_filename_and_datadirectory()
     {
         var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
@@ -441,7 +964,8 @@ END;
         var expectedLog = Path.Combine(baseDirectory, "Narf_log.ldf");
 
         AssertSql(
-            $@"CREATE DATABASE [Northwind]
+            $"""
+CREATE DATABASE [Northwind]
 ON (NAME = N'Narf', FILENAME = N'{expectedFile}')
 LOG ON (NAME = N'Narf_log', FILENAME = N'{expectedLog}');
 GO
@@ -450,10 +974,10 @@ IF SERVERPROPERTY('EngineEdition') <> 5
 BEGIN
     ALTER DATABASE [Northwind] SET READ_COMMITTED_SNAPSHOT ON;
 END;
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void CreateDatabaseOperation_with_filename_and_custom_datadirectory()
     {
         var dataDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
@@ -469,7 +993,8 @@ END;
         var expectedLog = Path.Combine(dataDirectory, "Narf_log.ldf");
 
         AssertSql(
-            $@"CREATE DATABASE [Northwind]
+            $"""
+CREATE DATABASE [Northwind]
 ON (NAME = N'Narf', FILENAME = N'{expectedFile}')
 LOG ON (NAME = N'Narf_log', FILENAME = N'{expectedLog}');
 GO
@@ -478,17 +1003,18 @@ IF SERVERPROPERTY('EngineEdition') <> 5
 BEGIN
     ALTER DATABASE [Northwind] SET READ_COMMITTED_SNAPSHOT ON;
 END;
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void CreateDatabaseOperation_with_collation()
     {
         Generate(
             new SqlServerCreateDatabaseOperation { Name = "Northwind", Collation = "German_PhoneBook_CI_AS" });
 
         AssertSql(
-            @"CREATE DATABASE [Northwind]
+            """
+CREATE DATABASE [Northwind]
 COLLATE German_PhoneBook_CI_AS;
 GO
 
@@ -496,10 +1022,10 @@ IF SERVERPROPERTY('EngineEdition') <> 5
 BEGIN
     ALTER DATABASE [Northwind] SET READ_COMMITTED_SNAPSHOT ON;
 END;
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AlterDatabaseOperation_collation()
     {
         Generate(
@@ -510,23 +1036,24 @@ END;
             Sql);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AlterDatabaseOperation_collation_to_default()
     {
         Generate(
             new AlterDatabaseOperation { Collation = null, OldDatabase = { Collation = "SQL_Latin1_General_CP1_CI_AS" } });
 
         AssertSql(
-            @"BEGIN
-DECLARE @db_name nvarchar(max) = DB_NAME();
-DECLARE @defaultCollation nvarchar(max) = CAST(SERVERPROPERTY('Collation') AS nvarchar(max));
-EXEC(N'ALTER DATABASE [' + @db_name + '] COLLATE ' + @defaultCollation + N';');
+            """
+BEGIN
+DECLARE @db_name nvarchar(max) = QUOTENAME(DB_NAME());
+DECLARE @defaultCollation1 nvarchar(max) = CAST(SERVERPROPERTY('Collation') AS nvarchar(max));
+EXEC(N'ALTER DATABASE ' + @db_name + ' COLLATE ' + @defaultCollation1 + N';');
 END
 
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void AlterDatabaseOperation_memory_optimized()
     {
         Generate(
@@ -537,24 +1064,25 @@ END
             Sql);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void DropDatabaseOperation()
     {
         Generate(
             new SqlServerDropDatabaseOperation { Name = "Northwind" });
 
         AssertSql(
-            @"IF SERVERPROPERTY('EngineEdition') <> 5
+            """
+IF SERVERPROPERTY('EngineEdition') <> 5
 BEGIN
     ALTER DATABASE [Northwind] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 END;
 GO
 
 DROP DATABASE [Northwind];
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void DropIndexOperations_throws_when_no_table()
     {
         var migrationBuilder = new MigrationBuilder("SqlServer");
@@ -562,13 +1090,12 @@ DROP DATABASE [Northwind];
         migrationBuilder.DropIndex(
             name: "IX_Name");
 
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => Generate(migrationBuilder.Operations.ToArray()));
+        var ex = Assert.Throws<InvalidOperationException>(() => Generate(migrationBuilder.Operations.ToArray()));
 
         Assert.Equal(SqlServerStrings.IndexTableRequired, ex.Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void MoveSequenceOperation_legacy()
     {
         Generate(
@@ -580,11 +1107,12 @@ DROP DATABASE [Northwind];
             });
 
         AssertSql(
-            @"ALTER SCHEMA [my] TRANSFER [dbo].[EntityFrameworkHiLoSequence];
-");
+            """
+ALTER SCHEMA [my] TRANSFER [dbo].[EntityFrameworkHiLoSequence];
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void MoveTableOperation_legacy()
     {
         Generate(
@@ -596,11 +1124,81 @@ DROP DATABASE [Northwind];
             });
 
         AssertSql(
-            @"ALTER SCHEMA [hr] TRANSFER [dbo].[People];
-");
+            """
+ALTER SCHEMA [hr] TRANSFER [dbo].[People];
+""");
     }
 
-    [ConditionalFact]
+    [Fact] // Issue #38601
+    public virtual void RenameTableOperation_temporal_table_moved_into_model_default_schema()
+    {
+        Generate(
+            modelBuilder =>
+            {
+                modelBuilder.HasDefaultSchema("dbo");
+                modelBuilder.Entity(
+                    "Customer", e =>
+                    {
+                        e.Property<int>("Id").ValueGeneratedOnAdd();
+                        e.Property<string>("Name");
+                        e.Property<DateTime>("PeriodStart").ValueGeneratedOnAddOrUpdate();
+                        e.Property<DateTime>("PeriodEnd").ValueGeneratedOnAddOrUpdate();
+                        e.HasKey("Id");
+                        e.ToTable(
+                            "Customers", tb => tb.IsTemporal(ttb =>
+                            {
+                                ttb.UseHistoryTable("CustomersHistory");
+                                ttb.HasPeriodStart("PeriodStart");
+                                ttb.HasPeriodEnd("PeriodEnd");
+                            }));
+                    });
+            },
+            new EnsureSchemaOperation { Name = "dbo" },
+            new RenameTableOperation
+            {
+                Name = "Customers",
+                Schema = null,
+                NewName = "Customers",
+                NewSchema = "dbo",
+                [SqlServerAnnotationNames.IsTemporal] = true,
+                [SqlServerAnnotationNames.TemporalHistoryTableName] = "CustomersHistory",
+                [SqlServerAnnotationNames.TemporalHistoryTableSchema] = null,
+                [SqlServerAnnotationNames.TemporalPeriodStartColumnName] = "PeriodStart",
+                [SqlServerAnnotationNames.TemporalPeriodEndColumnName] = "PeriodEnd"
+            },
+            new AlterTableOperation
+            {
+                Name = "Customers",
+                Schema = "dbo",
+                [SqlServerAnnotationNames.IsTemporal] = true,
+                [SqlServerAnnotationNames.TemporalHistoryTableName] = "CustomersHistory",
+                [SqlServerAnnotationNames.TemporalHistoryTableSchema] = "dbo",
+                [SqlServerAnnotationNames.TemporalPeriodStartColumnName] = "PeriodStart",
+                [SqlServerAnnotationNames.TemporalPeriodEndColumnName] = "PeriodEnd",
+                OldTable =
+                {
+                    [SqlServerAnnotationNames.IsTemporal] = true,
+                    [SqlServerAnnotationNames.TemporalHistoryTableName] = "CustomersHistory",
+                    [SqlServerAnnotationNames.TemporalHistoryTableSchema] = null,
+                    [SqlServerAnnotationNames.TemporalPeriodStartColumnName] = "PeriodStart",
+                    [SqlServerAnnotationNames.TemporalPeriodEndColumnName] = "PeriodEnd"
+                }
+            });
+
+        AssertSql(
+            """
+ALTER TABLE [dbo].[Customers] SET (SYSTEM_VERSIONING = OFF)
+
+GO
+
+ALTER SCHEMA [dbo] TRANSFER [Customers];
+GO
+
+ALTER TABLE [dbo].[Customers] SET (SYSTEM_VERSIONING = ON (HISTORY_TABLE = [dbo].[CustomersHistory]))
+""");
+    }
+
+    [Fact]
     public virtual void RenameIndexOperations_throws_when_no_table()
     {
         var migrationBuilder = new MigrationBuilder("SqlServer");
@@ -609,13 +1207,12 @@ DROP DATABASE [Northwind];
             name: "IX_OldIndex",
             newName: "IX_NewIndex");
 
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => Generate(migrationBuilder.Operations.ToArray()));
+        var ex = Assert.Throws<InvalidOperationException>(() => Generate(migrationBuilder.Operations.ToArray()));
 
         Assert.Equal(SqlServerStrings.IndexTableRequired, ex.Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void RenameSequenceOperation_legacy()
     {
         Generate(
@@ -627,18 +1224,20 @@ DROP DATABASE [Northwind];
             });
 
         AssertSql(
-            @"EXEC sp_rename N'[dbo].[EntityFrameworkHiLoSequence]', N'MySequence';
-");
+            """
+EXEC sp_rename N'[dbo].[EntityFrameworkHiLoSequence]', N'MySequence', 'OBJECT';
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public override void RenameTableOperation_legacy()
     {
         base.RenameTableOperation_legacy();
 
         AssertSql(
-            @"EXEC sp_rename N'[dbo].[People]', N'Person';
-");
+            """
+EXEC sp_rename N'[dbo].[People]', N'Person', 'OBJECT';
+""");
     }
 
     public override void RenameTableOperation()
@@ -646,69 +1245,95 @@ DROP DATABASE [Northwind];
         base.RenameTableOperation();
 
         AssertSql(
-            @"EXEC sp_rename N'[dbo].[People]', N'Person';
-");
+            """
+EXEC sp_rename N'[dbo].[People]', N'Person', 'OBJECT';
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void SqlOperation_handles_backslash()
     {
         Generate(
             new SqlOperation { Sql = @"-- Multiline \" + EOL + "comment" });
 
         AssertSql(
-            @"-- Multiline comment
-");
+            """
+-- Multiline comment
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void SqlOperation_ignores_sequential_gos()
     {
         Generate(
             new SqlOperation { Sql = "-- Ready set" + EOL + "GO" + EOL + "GO" });
 
         AssertSql(
-            @"-- Ready set
-");
+            """
+-- Ready set
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void SqlOperation_handles_go()
     {
         Generate(
             new SqlOperation { Sql = "-- I" + EOL + "go" + EOL + "-- Too" });
 
         AssertSql(
-            @"-- I
+            """
+-- I
 GO
 
 -- Too
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void SqlOperation_handles_go_with_count()
     {
         Generate(
             new SqlOperation { Sql = "-- I" + EOL + "GO 2" });
 
         AssertSql(
-            @"-- I
+            """
+-- I
 GO
 
 -- I
-");
+""");
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void SqlOperation_ignores_non_go()
     {
         Generate(
             new SqlOperation { Sql = "-- I GO 2" });
 
         AssertSql(
-            @"-- I GO 2
-");
+            """
+-- I GO 2
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_ignores_line_starting_with_go_identifier()
+    {
+        Generate(
+            new SqlOperation
+            {
+                Sql = "SELECT" + EOL + "    ColumnA," + EOL + "    GoodColumn," + EOL + "    ColumnC" + EOL + "FROM" + EOL + "   [Table]"
+            });
+
+        AssertSql(
+            """
+SELECT
+    ColumnA,
+    GoodColumn,
+    ColumnC
+FROM
+   [Table]
+""");
     }
 
     public override void SqlOperation()
@@ -716,8 +1341,557 @@ GO
         base.SqlOperation();
 
         AssertSql(
-            @"-- I <3 DDL
-");
+            """
+-- I <3 DDL
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_block_comment_with_single_quote()
+    {
+        Generate(
+            new SqlOperation { Sql = "/* It's a comment */" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+/* It's a comment */
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_multiline_block_comment_with_single_quote()
+    {
+        Generate(
+            new SqlOperation
+            {
+                Sql = "/* This is" + EOL + "   a multiline comment with ' quote */" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;"
+            });
+
+        AssertSql(
+            """
+/* This is
+   a multiline comment with ' quote */
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_block_comment_with_multiple_quotes()
+    {
+        Generate(
+            new SqlOperation { Sql = "/* It's a comment with 'multiple' quotes */" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+/* It's a comment with 'multiple' quotes */
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_block_comment_before_procedure()
+    {
+        Generate(
+            new SqlOperation
+            {
+                Sql = "/* It's a procedure */"
+                    + EOL
+                    + "CREATE PROCEDURE dbo.proc1 AS SELECT 1;"
+                    + EOL
+                    + "go"
+                    + EOL
+                    + "/* Another one */"
+                    + EOL
+                    + "CREATE PROCEDURE dbo.proc2 AS SELECT 2;"
+            });
+
+        AssertSql(
+            """
+/* It's a procedure */
+CREATE PROCEDURE dbo.proc1 AS SELECT 1;
+GO
+
+/* Another one */
+CREATE PROCEDURE dbo.proc2 AS SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_empty_block_comment()
+    {
+        Generate(
+            new SqlOperation { Sql = "/**/" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+/**/
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_nested_comments_and_strings()
+    {
+        Generate(
+            new SqlOperation
+            {
+                Sql = "/* Block comment */"
+                    + EOL
+                    + "SELECT 'string with '' escaped quotes';"
+                    + EOL
+                    + "go"
+                    + EOL
+                    + "-- Line comment"
+                    + EOL
+                    + "SELECT 1;"
+            });
+
+        AssertSql(
+            """
+/* Block comment */
+SELECT 'string with '' escaped quotes';
+GO
+
+-- Line comment
+SELECT 1;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_block_comment_after_string()
+    {
+        Generate(
+            new SqlOperation { Sql = "SELECT 'test';" + EOL + "/* It's a comment */" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+SELECT 'test';
+/* It's a comment */
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_block_comment_with_asterisks()
+    {
+        Generate(
+            new SqlOperation { Sql = "/** It's a comment with extra stars **/" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+/** It's a comment with extra stars **/
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_line_comment_with_block_comment_start()
+    {
+        Generate(
+            new SqlOperation { Sql = "-- /*" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+-- /*
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_block_comment_with_line_comment_inside()
+    {
+        Generate(
+            new SqlOperation { Sql = "/* Block comment -- with line comment */" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+/* Block comment -- with line comment */
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_multiline_block_comment_with_go_on_separate_line()
+    {
+        Generate(
+            new SqlOperation
+            {
+                Sql = "/* Comment with" + EOL + "go" + EOL + "inside */" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;"
+            });
+
+        AssertSql(
+            """
+/* Comment with
+go
+inside */
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_square_bracket_identifier()
+    {
+        Generate(
+            new SqlOperation { Sql = "INSERT INTO [go] VALUES (1);" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+INSERT INTO [go] VALUES (1);
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_escaped_square_bracket_identifier()
+    {
+        Generate(
+            new SqlOperation { Sql = "INSERT INTO [g]]o] VALUES (1);" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+INSERT INTO [g]]o] VALUES (1);
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_double_quote_identifier()
+    {
+        Generate(
+            new SqlOperation { Sql = "INSERT INTO \"" + EOL + "go" + EOL + "\" VALUES (1);" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+INSERT INTO "
+go
+" VALUES (1);
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_quote_before_go()
+    {
+        Generate(
+            new SqlOperation { Sql = "SELECT 'test\"';" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+SELECT 'test"';
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_forward_slash_before_go()
+    {
+        Generate(
+            new SqlOperation { Sql = "SELECT 1/2;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+SELECT 1/2;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_asterisk_before_go()
+    {
+        Generate(
+            new SqlOperation { Sql = "SELECT 1*2;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+SELECT 1*2;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_dash_before_go()
+    {
+        Generate(
+            new SqlOperation { Sql = "SELECT 1-2;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+SELECT 1-2;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_square_bracket_before_go()
+    {
+        Generate(
+            new SqlOperation { Sql = "SELECT [" + EOL + "column" + EOL + "];" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+SELECT [
+column
+];
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_double_quote_before_go()
+    {
+        Generate(
+            new SqlOperation { Sql = "SELECT \"go\"\"lum\";" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+SELECT "go""lum";
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_line_comment_inside_quotes()
+    {
+        Generate(
+            new SqlOperation { Sql = "SELECT '-- not a comment';" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+SELECT '-- not a comment';
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_line_comment_inside_square_brackets()
+    {
+        Generate(
+            new SqlOperation { Sql = "SELECT [-- column];" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+SELECT [-- column];
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_line_comment_inside_double_quotes()
+    {
+        Generate(
+            new SqlOperation { Sql = "SELECT \"-- column\";" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+SELECT "-- column";
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_brackets_inside_block_comment()
+    {
+        Generate(
+            new SqlOperation { Sql = "/* [bracket identifier */" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+/* [bracket identifier */
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_double_quotes_inside_block_comment()
+    {
+        Generate(
+            new SqlOperation { Sql = "/* \"double quote */" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+/* "double quote */
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_single_quote_inside_block_comment()
+    {
+        Generate(
+            new SqlOperation { Sql = "/* ' quote */" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+/* ' quote */
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_quotes_inside_line_comment()
+    {
+        Generate(
+            new SqlOperation { Sql = "-- 'quote' [bracket] \"double\"" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+-- 'quote' [bracket] "double"
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_brackets_inside_line_comment()
+    {
+        Generate(
+            new SqlOperation { Sql = "-- [column" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+-- [column
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_double_quotes_inside_line_comment()
+    {
+        Generate(
+            new SqlOperation { Sql = "-- \"column" + EOL + "SELECT 1;" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+-- "column
+SELECT 1;
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_escaped_quotes_in_string()
+    {
+        Generate(
+            new SqlOperation { Sql = "SELECT 'test''s value';" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+SELECT 'test''s value';
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_multiple_delimiters_in_string()
+    {
+        Generate(
+            new SqlOperation { Sql = "SELECT '[bracket] and \"quote\"';" + EOL + "go" + EOL + "SELECT 2;" });
+
+        AssertSql(
+            """
+SELECT '[bracket] and "quote"';
+GO
+
+SELECT 2;
+""");
+    }
+
+    [Fact]
+    public virtual void SqlOperation_handles_go_in_script_with_suppress_transaction()
+    {
+        Generate(
+            new SqlOperation
+            {
+                Sql = "CREATE PROCEDURE dbo.Proc1 AS SELECT 1;"
+                    + EOL
+                    + "GO"
+                    + EOL
+                    + "CREATE VIEW view1 AS SELECT 1 AS Id;"
+                    + EOL
+                    + "GO 2"
+                    + EOL
+                    + "SELECT 1;",
+                SuppressTransaction = true
+            },
+            MigrationsSqlGenerationOptions.Script);
+
+        AssertSql(
+            """
+CREATE PROCEDURE dbo.Proc1 AS SELECT 1;
+GO
+CREATE VIEW view1 AS SELECT 1 AS Id;
+GO 2
+SELECT 1;
+""");
     }
 
     public override void InsertDataOperation_all_args_spatial()
@@ -725,7 +1899,8 @@ GO
         base.InsertDataOperation_all_args_spatial();
 
         AssertSql(
-            @"IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Full Name', N'Geometry') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
+            """
+IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Full Name', N'Geometry') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
     SET IDENTITY_INSERT [dbo].[People] ON;
 INSERT INTO [dbo].[People] ([Id], [Full Name], [Geometry])
 VALUES (0, NULL, NULL),
@@ -738,7 +1913,7 @@ VALUES (0, NULL, NULL),
 (7, 'Aemon Targaryen', geography::Parse('GEOMETRYCOLLECTION (LINESTRING (1.1 2.2 NULL, 2.2 2.2 NULL, 2.2 1.1 NULL, 7.1 7.2 NULL), LINESTRING (7.1 7.2 NULL, 20.2 20.2 NULL, 20.2 1.1 NULL, 70.1 70.2 NULL), MULTIPOINT ((1.1 2.2 NULL), (2.2 2.2 NULL), (2.2 1.1 NULL)), POLYGON ((1.1 2.2 NULL, 2.2 2.2 NULL, 2.2 1.1 NULL, 1.1 2.2 NULL)), POLYGON ((10.1 20.2 NULL, 20.2 20.2 NULL, 20.2 10.1 NULL, 10.1 20.2 NULL)), POINT (1.1 2.2 3.3), MULTILINESTRING ((1.1 2.2 NULL, 2.2 2.2 NULL, 2.2 1.1 NULL, 7.1 7.2 NULL), (7.1 7.2 NULL, 20.2 20.2 NULL, 20.2 1.1 NULL, 70.1 70.2 NULL)), MULTIPOLYGON (((10.1 20.2 NULL, 20.2 20.2 NULL, 20.2 10.1 NULL, 10.1 20.2 NULL)), ((1.1 2.2 NULL, 2.2 2.2 NULL, 2.2 1.1 NULL, 1.1 2.2 NULL))))'));
 IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Full Name', N'Geometry') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
     SET IDENTITY_INSERT [dbo].[People] OFF;
-");
+""");
     }
 
     // The test data we're using is geographic but is represented in NTS as a GeometryCollection
@@ -750,13 +1925,14 @@ IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Full
         base.InsertDataOperation_required_args();
 
         AssertSql(
-            @"IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
+            """
+IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
     SET IDENTITY_INSERT [dbo].[People] ON;
 INSERT INTO [dbo].[People] ([First Name])
 VALUES (N'John');
 IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
     SET IDENTITY_INSERT [dbo].[People] OFF;
-");
+""");
     }
 
     public override void InsertDataOperation_required_args_composite()
@@ -764,13 +1940,14 @@ IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name'
         base.InsertDataOperation_required_args_composite();
 
         AssertSql(
-            @"IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name', N'Last Name') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
+            """
+IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name', N'Last Name') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
     SET IDENTITY_INSERT [dbo].[People] ON;
 INSERT INTO [dbo].[People] ([First Name], [Last Name])
 VALUES (N'John', N'Snow');
 IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name', N'Last Name') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
     SET IDENTITY_INSERT [dbo].[People] OFF;
-");
+""");
     }
 
     public override void InsertDataOperation_required_args_multiple_rows()
@@ -778,14 +1955,95 @@ IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name'
         base.InsertDataOperation_required_args_multiple_rows();
 
         AssertSql(
-            @"IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
+            """
+IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
     SET IDENTITY_INSERT [dbo].[People] ON;
 INSERT INTO [dbo].[People] ([First Name])
 VALUES (N'John'),
 (N'Daenerys');
 IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
     SET IDENTITY_INSERT [dbo].[People] OFF;
-");
+""");
+    }
+
+    [Fact]
+    public virtual void InsertDataOperation_max_batch_size_is_respected()
+    {
+        // The SQL Server max batch size is 42 by default
+        var values = new object[50, 1];
+        for (var i = 0; i < 50; i++)
+        {
+            values[i, 0] = "Foo" + i;
+        }
+
+        Generate(
+            CreateGotModel,
+            new InsertDataOperation
+            {
+                Table = "People",
+                Columns = ["First Name"],
+                Values = values
+            });
+
+        AssertSql(
+            """
+IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
+    SET IDENTITY_INSERT [dbo].[People] ON;
+INSERT INTO [dbo].[People] ([First Name])
+VALUES (N'Foo0'),
+(N'Foo1'),
+(N'Foo2'),
+(N'Foo3'),
+(N'Foo4'),
+(N'Foo5'),
+(N'Foo6'),
+(N'Foo7'),
+(N'Foo8'),
+(N'Foo9'),
+(N'Foo10'),
+(N'Foo11'),
+(N'Foo12'),
+(N'Foo13'),
+(N'Foo14'),
+(N'Foo15'),
+(N'Foo16'),
+(N'Foo17'),
+(N'Foo18'),
+(N'Foo19'),
+(N'Foo20'),
+(N'Foo21'),
+(N'Foo22'),
+(N'Foo23'),
+(N'Foo24'),
+(N'Foo25'),
+(N'Foo26'),
+(N'Foo27'),
+(N'Foo28'),
+(N'Foo29'),
+(N'Foo30'),
+(N'Foo31'),
+(N'Foo32'),
+(N'Foo33'),
+(N'Foo34'),
+(N'Foo35'),
+(N'Foo36'),
+(N'Foo37'),
+(N'Foo38'),
+(N'Foo39'),
+(N'Foo40'),
+(N'Foo41');
+INSERT INTO [dbo].[People] ([First Name])
+VALUES (N'Foo42'),
+(N'Foo43'),
+(N'Foo44'),
+(N'Foo45'),
+(N'Foo46'),
+(N'Foo47'),
+(N'Foo48'),
+(N'Foo49');
+IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name') AND [object_id] = OBJECT_ID(N'[dbo].[People]'))
+    SET IDENTITY_INSERT [dbo].[People] OFF;
+""");
     }
 
     public override void InsertDataOperation_throws_for_unsupported_column_types()
@@ -796,7 +2054,8 @@ IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'First Name'
         base.DeleteDataOperation_all_args();
 
         AssertSql(
-            @"DELETE FROM [People]
+            """
+DELETE FROM [People]
 WHERE [First Name] = N'Hodor';
 SELECT @@ROWCOUNT;
 
@@ -816,7 +2075,7 @@ DELETE FROM [People]
 WHERE [First Name] = N'Harry';
 SELECT @@ROWCOUNT;
 
-");
+""");
     }
 
     public override void DeleteDataOperation_all_args_composite()
@@ -824,7 +2083,8 @@ SELECT @@ROWCOUNT;
         base.DeleteDataOperation_all_args_composite();
 
         AssertSql(
-            @"DELETE FROM [People]
+            """
+DELETE FROM [People]
 WHERE [First Name] = N'Hodor' AND [Last Name] IS NULL;
 SELECT @@ROWCOUNT;
 
@@ -844,7 +2104,7 @@ DELETE FROM [People]
 WHERE [First Name] = N'Harry' AND [Last Name] = N'Strickland';
 SELECT @@ROWCOUNT;
 
-");
+""");
     }
 
     public override void DeleteDataOperation_required_args()
@@ -852,11 +2112,12 @@ SELECT @@ROWCOUNT;
         base.DeleteDataOperation_required_args();
 
         AssertSql(
-            @"DELETE FROM [People]
+            """
+DELETE FROM [People]
 WHERE [Last Name] = N'Snow';
 SELECT @@ROWCOUNT;
 
-");
+""");
     }
 
     public override void DeleteDataOperation_required_args_composite()
@@ -864,11 +2125,12 @@ SELECT @@ROWCOUNT;
         base.DeleteDataOperation_required_args_composite();
 
         AssertSql(
-            @"DELETE FROM [People]
+            """
+DELETE FROM [People]
 WHERE [First Name] = N'John' AND [Last Name] = N'Snow';
 SELECT @@ROWCOUNT;
 
-");
+""");
     }
 
     public override void UpdateDataOperation_all_args()
@@ -876,7 +2138,8 @@ SELECT @@ROWCOUNT;
         base.UpdateDataOperation_all_args();
 
         AssertSql(
-            @"UPDATE [People] SET [Birthplace] = N'Winterfell', [House Allegiance] = N'Stark', [Culture] = N'Northmen'
+            """
+UPDATE [People] SET [Birthplace] = N'Winterfell', [House Allegiance] = N'Stark', [Culture] = N'Northmen'
 WHERE [First Name] = N'Hodor';
 SELECT @@ROWCOUNT;
 
@@ -884,7 +2147,7 @@ UPDATE [People] SET [Birthplace] = N'Dragonstone', [House Allegiance] = N'Targar
 WHERE [First Name] = N'Daenerys';
 SELECT @@ROWCOUNT;
 
-");
+""");
     }
 
     public override void UpdateDataOperation_all_args_composite()
@@ -892,7 +2155,8 @@ SELECT @@ROWCOUNT;
         base.UpdateDataOperation_all_args_composite();
 
         AssertSql(
-            @"UPDATE [People] SET [House Allegiance] = N'Stark'
+            """
+UPDATE [People] SET [House Allegiance] = N'Stark'
 WHERE [First Name] = N'Hodor' AND [Last Name] IS NULL;
 SELECT @@ROWCOUNT;
 
@@ -900,7 +2164,7 @@ UPDATE [People] SET [House Allegiance] = N'Targaryen'
 WHERE [First Name] = N'Daenerys' AND [Last Name] = N'Targaryen';
 SELECT @@ROWCOUNT;
 
-");
+""");
     }
 
     public override void UpdateDataOperation_all_args_composite_multi()
@@ -908,7 +2172,8 @@ SELECT @@ROWCOUNT;
         base.UpdateDataOperation_all_args_composite_multi();
 
         AssertSql(
-            @"UPDATE [People] SET [Birthplace] = N'Winterfell', [House Allegiance] = N'Stark', [Culture] = N'Northmen'
+            """
+UPDATE [People] SET [Birthplace] = N'Winterfell', [House Allegiance] = N'Stark', [Culture] = N'Northmen'
 WHERE [First Name] = N'Hodor' AND [Last Name] IS NULL;
 SELECT @@ROWCOUNT;
 
@@ -916,7 +2181,7 @@ UPDATE [People] SET [Birthplace] = N'Dragonstone', [House Allegiance] = N'Targar
 WHERE [First Name] = N'Daenerys' AND [Last Name] = N'Targaryen';
 SELECT @@ROWCOUNT;
 
-");
+""");
     }
 
     public override void UpdateDataOperation_all_args_multi()
@@ -924,11 +2189,12 @@ SELECT @@ROWCOUNT;
         base.UpdateDataOperation_all_args_multi();
 
         AssertSql(
-            @"UPDATE [People] SET [Birthplace] = N'Dragonstone', [House Allegiance] = N'Targaryen', [Culture] = N'Valyrian'
+            """
+UPDATE [People] SET [Birthplace] = N'Dragonstone', [House Allegiance] = N'Targaryen', [Culture] = N'Valyrian'
 WHERE [First Name] = N'Daenerys';
 SELECT @@ROWCOUNT;
 
-");
+""");
     }
 
     public override void UpdateDataOperation_required_args()
@@ -936,11 +2202,12 @@ SELECT @@ROWCOUNT;
         base.UpdateDataOperation_required_args();
 
         AssertSql(
-            @"UPDATE [People] SET [House Allegiance] = N'Targaryen'
+            """
+UPDATE [People] SET [House Allegiance] = N'Targaryen'
 WHERE [First Name] = N'Daenerys';
 SELECT @@ROWCOUNT;
 
-");
+""");
     }
 
     public override void UpdateDataOperation_required_args_composite()
@@ -948,11 +2215,12 @@ SELECT @@ROWCOUNT;
         base.UpdateDataOperation_required_args_composite();
 
         AssertSql(
-            @"UPDATE [People] SET [House Allegiance] = N'Targaryen'
+            """
+UPDATE [People] SET [House Allegiance] = N'Targaryen'
 WHERE [First Name] = N'Daenerys' AND [Last Name] = N'Targaryen';
 SELECT @@ROWCOUNT;
 
-");
+""");
     }
 
     public override void UpdateDataOperation_required_args_composite_multi()
@@ -960,11 +2228,12 @@ SELECT @@ROWCOUNT;
         base.UpdateDataOperation_required_args_composite_multi();
 
         AssertSql(
-            @"UPDATE [People] SET [Birthplace] = N'Dragonstone', [House Allegiance] = N'Targaryen', [Culture] = N'Valyrian'
+            """
+UPDATE [People] SET [Birthplace] = N'Dragonstone', [House Allegiance] = N'Targaryen', [Culture] = N'Valyrian'
 WHERE [First Name] = N'Daenerys' AND [Last Name] = N'Targaryen';
 SELECT @@ROWCOUNT;
 
-");
+""");
     }
 
     public override void UpdateDataOperation_required_args_multi()
@@ -972,11 +2241,12 @@ SELECT @@ROWCOUNT;
         base.UpdateDataOperation_required_args_multi();
 
         AssertSql(
-            @"UPDATE [People] SET [Birthplace] = N'Dragonstone', [House Allegiance] = N'Targaryen', [Culture] = N'Valyrian'
+            """
+UPDATE [People] SET [Birthplace] = N'Dragonstone', [House Allegiance] = N'Targaryen', [Culture] = N'Valyrian'
 WHERE [First Name] = N'Daenerys';
 SELECT @@ROWCOUNT;
 
-");
+""");
     }
 
     public override void UpdateDataOperation_required_args_multiple_rows()
@@ -984,7 +2254,8 @@ SELECT @@ROWCOUNT;
         base.UpdateDataOperation_required_args_multiple_rows();
 
         AssertSql(
-            @"UPDATE [People] SET [House Allegiance] = N'Stark'
+            """
+UPDATE [People] SET [House Allegiance] = N'Stark'
 WHERE [First Name] = N'Hodor';
 SELECT @@ROWCOUNT;
 
@@ -992,7 +2263,7 @@ UPDATE [People] SET [House Allegiance] = N'Targaryen'
 WHERE [First Name] = N'Daenerys';
 SELECT @@ROWCOUNT;
 
-");
+""");
     }
 
     public override void DefaultValue_with_line_breaks(bool isUnicode)
@@ -1009,16 +2280,37 @@ SELECT @@ROWCOUNT;
         AssertSql(expectedSql);
     }
 
-    [ConditionalFact]
+    public override void DefaultValue_with_line_breaks_2(bool isUnicode)
+    {
+        base.DefaultValue_with_line_breaks_2(isUnicode);
+
+        var storeType = isUnicode ? "nvarchar(max)" : "varchar(max)";
+        var unicodePrefix = isUnicode ? "N" : string.Empty;
+        var unicodePrefixForType = isUnicode ? "n" : string.Empty;
+        var expectedSql = @$"CREATE TABLE [dbo].[TestLineBreaks] (
+    [TestDefaultValue] {storeType} NOT NULL DEFAULT CONCAT(CAST({unicodePrefix}'0' AS {storeType}), {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'1', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'2', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'3', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'4', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'5', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'6', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'7', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'8', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'9', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'10', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'11', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'12', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'13', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'14', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'15', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'16', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'17', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'18', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'19', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'20', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'21', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'22', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'23', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'24', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'25', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'26', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'27', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'28', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'29', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'30', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'31', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'32', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'33', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'34', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'35', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'36', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'37', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'38', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'39', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'40', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'41', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'42', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'43', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'44', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'45', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'46', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'47', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'48', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'49', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'50', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'51', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'52', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'53', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'54', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'55', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'56', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'57', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'58', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'59', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'60', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'61', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'62', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'63', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'64', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'65', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'66', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'67', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'68', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'69', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'70', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'71', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'72', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'73', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'74', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'75', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'76', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'77', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'78', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'79', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'80', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'81', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'82', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'83', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'84', CONCAT(CAST({unicodePrefixForType}char(13) AS {storeType}), {unicodePrefixForType}char(10), {unicodePrefix}'85', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'86', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'87', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'88', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'89', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'90', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'91', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'92', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'93', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'94', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'95', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'96', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'97', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'98', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'99', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'100', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'101', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'102', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'103', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'104', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'105', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'106', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'107', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'108', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'109', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'110', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'111', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'112', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'113', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'114', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'115', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'116', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'117', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'118', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'119', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'120', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'121', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'122', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'123', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'124', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'125', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'126', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'127', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'128', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'129', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'130', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'131', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'132', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'133', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'134', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'135', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'136', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'137', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'138', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'139', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'140', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'141', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'142', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'143', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'144', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'145', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'146', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'147', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'148', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'149', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'150', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'151', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'152', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'153', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'154', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'155', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'156', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'157', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'158', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'159', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'160', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'161', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'162', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'163', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'164', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'165', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'166', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'167', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'168', {unicodePrefixForType}char(13), CONCAT(CAST({unicodePrefixForType}char(10) AS {storeType}), {unicodePrefix}'169', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'170', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'171', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'172', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'173', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'174', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'175', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'176', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'177', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'178', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'179', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'180', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'181', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'182', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'183', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'184', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'185', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'186', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'187', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'188', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'189', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'190', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'191', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'192', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'193', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'194', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'195', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'196', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'197', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'198', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'199', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'200', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'201', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'202', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'203', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'204', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'205', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'206', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'207', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'208', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'209', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'210', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'211', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'212', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'213', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'214', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'215', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'216', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'217', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'218', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'219', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'220', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'221', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'222', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'223', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'224', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'225', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'226', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'227', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'228', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'229', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'230', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'231', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'232', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'233', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'234', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'235', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'236', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'237', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'238', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'239', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'240', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'241', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'242', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'243', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'244', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'245', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'246', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'247', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'248', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'249', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'250', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'251', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'252', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), CONCAT(CAST({unicodePrefix}'253' AS {storeType}), {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'254', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'255', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'256', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'257', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'258', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'259', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'260', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'261', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'262', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'263', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'264', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'265', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'266', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'267', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'268', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'269', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'270', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'271', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'272', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'273', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'274', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'275', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'276', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'277', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'278', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'279', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'280', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'281', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'282', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'283', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'284', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'285', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'286', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'287', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'288', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'289', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'290', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'291', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'292', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'293', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'294', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'295', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'296', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'297', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'298', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10), {unicodePrefix}'299', {unicodePrefixForType}char(13), {unicodePrefixForType}char(10)))))
+);
+";
+        AssertSql(expectedSql);
+    }
+
+    public override void Sequence_restart_operation(long? startsAt)
+    {
+        base.Sequence_restart_operation(startsAt);
+
+        var expectedSql = startsAt.HasValue
+            ? @$"ALTER SEQUENCE [dbo].[TestRestartSequenceOperation] RESTART WITH {startsAt};"
+            : @"ALTER SEQUENCE [dbo].[TestRestartSequenceOperation] RESTART;";
+        AssertSql(expectedSql);
+    }
+
+    [Fact]
     public virtual void CreateIndex_generates_exec_when_legacy_filter_and_idempotent()
     {
         Generate(
-            modelBuilder =>
-            {
-                modelBuilder
-                    .HasAnnotation(CoreAnnotationNames.ProductVersion, "1.1.0")
-                    .Entity("Table1").Property<int?>("Column1");
-            },
+            modelBuilder => modelBuilder
+                .HasAnnotation(CoreAnnotationNames.ProductVersion, "1.1.0")
+                .Entity("Table1").Property<int?>("Column1"),
             migrationBuilder => migrationBuilder.CreateIndex(
                 name: "IX_Table1_Column1",
                 table: "Table1",
@@ -1027,18 +2319,267 @@ SELECT @@ROWCOUNT;
             MigrationsSqlGenerationOptions.Idempotent);
 
         AssertSql(
-            @"EXEC(N'CREATE UNIQUE INDEX [IX_Table1_Column1] ON [Table1] ([Column1]) WHERE [Column1] IS NOT NULL');
-");
+            """
+EXEC(N'CREATE UNIQUE INDEX [IX_Table1_Column1] ON [Table1] ([Column1]) WHERE [Column1] IS NOT NULL');
+""");
     }
 
-    public SqlServerMigrationsSqlGeneratorTest()
-        : base(
-            SqlServerTestHelpers.Instance,
-            new ServiceCollection().AddEntityFrameworkSqlServerNetTopologySuite(),
-            SqlServerTestHelpers.Instance.AddProviderOptions(
-                ((IRelationalDbContextOptionsBuilderInfrastructure)
-                    new SqlServerDbContextOptionsBuilder(new DbContextOptionsBuilder()).UseNetTopologySuite())
-                .OptionsBuilder).Options)
+    [Fact]
+    public virtual void AlterColumn_make_required_with_idempotent()
     {
+        Generate(
+            new AlterColumnOperation
+            {
+                Table = "Person",
+                Name = "Name",
+                ClrType = typeof(string),
+                IsNullable = false,
+                DefaultValue = "",
+                OldColumn = new AddColumnOperation
+                {
+                    Table = "Person",
+                    Name = "Name",
+                    ClrType = typeof(string),
+                    IsNullable = true
+                }
+            },
+            MigrationsSqlGenerationOptions.Idempotent);
+
+        AssertSql(
+            """
+DECLARE @var nvarchar(max);
+SELECT @var = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[Person]') AND [c].[name] = N'Name';
+IF @var IS NOT NULL EXEC(N'ALTER TABLE [Person] DROP CONSTRAINT ' + @var + ';');
+EXEC(N'UPDATE [Person] SET [Name] = N'''' WHERE [Name] IS NULL');
+ALTER TABLE [Person] ALTER COLUMN [Name] nvarchar(max) NOT NULL;
+ALTER TABLE [Person] ADD DEFAULT N'' FOR [Name];
+""");
     }
+
+    [Fact]
+    public void Invalid_column_type_for_unmappable_clr_type_throws_meaningful_exception()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            Generate(
+                new AddColumnOperation
+                {
+                    Name = "TestColumn",
+                    Table = "TestTable",
+                    ClrType = typeof(FileStream), // Unmappable CLR type
+                    ColumnType = null,
+                    IsNullable = false
+                }));
+
+        Assert.Equal(RelationalStrings.UnsupportedTypeForColumn("TestTable", "TestColumn", "FileStream"), ex.Message);
+    }
+
+    [Fact]
+    public virtual void AlterColumnOperation_json_to_nvarchar_not_null()
+    {
+        Generate(
+            modelBuilder => modelBuilder.HasAnnotation(CoreAnnotationNames.ProductVersion, "2.1.0"),
+            new AlterColumnOperation
+            {
+                Table = "People",
+                Name = "Settings",
+                ClrType = typeof(string),
+                ColumnType = "nvarchar(max)",
+                IsNullable = false,
+                OldColumn = new AddColumnOperation
+                {
+                    ClrType = typeof(string),
+                    ColumnType = "json",
+                    IsNullable = false
+                }
+            });
+
+        AssertSql(
+            """
+DECLARE @var nvarchar(max);
+SELECT @var = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[People]') AND [c].[name] = N'Settings';
+IF @var IS NOT NULL EXEC(N'ALTER TABLE [People] DROP CONSTRAINT ' + @var + ';');
+EXEC sp_rename N'[People].[Settings]', N'ef_temp_Settings', 'COLUMN';
+ALTER TABLE [People] ADD [Settings] nvarchar(max) NULL;
+EXEC(N'UPDATE [People] SET [Settings] = CONVERT(nvarchar(max), [ef_temp_Settings])');
+ALTER TABLE [People] DROP COLUMN [ef_temp_Settings];
+ALTER TABLE [People] ALTER COLUMN [Settings] nvarchar(max) NOT NULL;
+""");
+    }
+
+    [Fact]
+    public virtual void AlterColumnOperation_json_to_nvarchar_nullable()
+    {
+        Generate(
+            modelBuilder => modelBuilder.HasAnnotation(CoreAnnotationNames.ProductVersion, "2.1.0"),
+            new AlterColumnOperation
+            {
+                Table = "People",
+                Name = "Settings",
+                ClrType = typeof(string),
+                ColumnType = "nvarchar(max)",
+                IsNullable = true,
+                OldColumn = new AddColumnOperation
+                {
+                    ClrType = typeof(string),
+                    ColumnType = "json",
+                    IsNullable = false
+                }
+            });
+
+        AssertSql(
+            """
+DECLARE @var nvarchar(max);
+SELECT @var = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[People]') AND [c].[name] = N'Settings';
+IF @var IS NOT NULL EXEC(N'ALTER TABLE [People] DROP CONSTRAINT ' + @var + ';');
+EXEC sp_rename N'[People].[Settings]', N'ef_temp_Settings', 'COLUMN';
+ALTER TABLE [People] ADD [Settings] nvarchar(max) NULL;
+EXEC(N'UPDATE [People] SET [Settings] = CONVERT(nvarchar(max), [ef_temp_Settings])');
+ALTER TABLE [People] DROP COLUMN [ef_temp_Settings];
+""");
+    }
+
+    [Fact]
+    public virtual void AlterColumnOperation_json_to_nvarchar_idempotent()
+    {
+        Generate(
+            modelBuilder => modelBuilder.HasAnnotation(CoreAnnotationNames.ProductVersion, "2.1.0"),
+            [
+                new AlterColumnOperation
+                {
+                    Table = "People",
+                    Name = "Settings",
+                    ClrType = typeof(string),
+                    ColumnType = "nvarchar(max)",
+                    IsNullable = false,
+                    OldColumn = new AddColumnOperation
+                    {
+                        ClrType = typeof(string),
+                        ColumnType = "json",
+                        IsNullable = false
+                    }
+                }
+            ],
+            MigrationsSqlGenerationOptions.Idempotent);
+
+        AssertSql(
+            """
+DECLARE @var nvarchar(max);
+SELECT @var = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[People]') AND [c].[name] = N'Settings';
+IF @var IS NOT NULL EXEC(N'ALTER TABLE [People] DROP CONSTRAINT ' + @var + ';');
+EXEC sp_rename N'[People].[Settings]', N'ef_temp_Settings', 'COLUMN';
+ALTER TABLE [People] ADD [Settings] nvarchar(max) NULL;
+EXEC(N'UPDATE [People] SET [Settings] = CONVERT(nvarchar(max), [ef_temp_Settings])');
+ALTER TABLE [People] DROP COLUMN [ef_temp_Settings];
+ALTER TABLE [People] ALTER COLUMN [Settings] nvarchar(max) NOT NULL;
+""");
+    }
+
+    [Fact]
+    public virtual void AlterColumnOperation_nvarchar_to_json_uses_alter_column()
+    {
+        // Up migration (nvarchar → json) should still use plain ALTER COLUMN since SQL Server
+        // allows implicit conversion from nvarchar to json.
+        Generate(
+            modelBuilder => modelBuilder.HasAnnotation(CoreAnnotationNames.ProductVersion, "2.1.0"),
+            new AlterColumnOperation
+            {
+                Table = "People",
+                Name = "Settings",
+                ClrType = typeof(string),
+                ColumnType = "json",
+                IsNullable = false,
+                OldColumn = new AddColumnOperation
+                {
+                    ClrType = typeof(string),
+                    ColumnType = "nvarchar(max)",
+                    IsNullable = false
+                }
+            });
+
+        AssertSql(
+            """
+DECLARE @var nvarchar(max);
+SELECT @var = QUOTENAME(OBJECT_NAME([c].[default_object_id]))
+FROM [sys].[columns] [c]
+WHERE [c].[object_id] = OBJECT_ID(N'[People]') AND [c].[name] = N'Settings';
+IF @var IS NOT NULL EXEC(N'ALTER TABLE [People] DROP CONSTRAINT ' + @var + ';');
+ALTER TABLE [People] ALTER COLUMN [Settings] json NOT NULL;
+""");
+    }
+
+    [ConditionalFact(typeof(SqlServerTestEnvironment), nameof(SqlServerTestEnvironment.IsJsonTypeSupported))]
+    public virtual void Create_json_index_over_complex_property_member()
+    {
+        var services = TestHelpers.CreateContextServices(CustomServices!, ContextOptions!);
+        var modelBuilder = TestHelpers.CreateConventionBuilder(services);
+        BuildModel(modelBuilder);
+
+        var model = modelBuilder.FinalizeModel(designTime: true);
+        var operation = Assert.Single(
+            services.GetRequiredService<IMigrationsModelDiffer>()
+                .GetDifferences(null, model.GetRelationalModel())
+                .OfType<CreateIndexOperation>());
+
+        // Scaffolded migration code cannot contain the non-literal RelationalJsonIndex annotation;
+        // removing this filter would make CSharpMigrationOperationGenerator throw here.
+        var migrationCode = TestHelpers.CreateDesignServiceProvider().GetRequiredService<IMigrationsCodeGenerator>()
+            .GenerateMigration("Migrations", "AddJsonIndex", [operation], []);
+        Assert.DoesNotContain(RelationalAnnotationNames.JsonIndex, migrationCode);
+
+        operation.RemoveAnnotation(RelationalAnnotationNames.JsonIndex);
+        Generate(BuildModel, operation);
+
+        AssertSql(
+            """
+CREATE JSON INDEX [IX_Blogs_Details_Slug] ON [Blogs]([Details]) FOR (N'$.Slug');
+""");
+
+        static void BuildModel(ModelBuilder modelBuilder)
+            => modelBuilder.Entity<JsonIndexBlog>(
+                e =>
+                {
+                    e.ToTable("Blogs");
+                    e.ComplexProperty(
+                        b => b.Details, cb =>
+                        {
+                            cb.ToJson().HasColumnType("json");
+                            cb.Property(i => i.Slug);
+                            cb.Property(i => i.Owner);
+                        });
+                    e.HasIndex(b => b.Details.Slug);
+                });
+    }
+
+    private class JsonIndexBlog
+    {
+        public int Id { get; set; }
+        public JsonIndexBlogDetails Details { get; set; } = null!;
+    }
+
+    private class JsonIndexBlogDetails
+    {
+        public string Slug { get; set; } = null!;
+        public string Owner { get; set; } = null!;
+    }
+
+    private static void CreateGotModel(ModelBuilder b)
+        => b.HasDefaultSchema("dbo").Entity(
+            "Person", pb =>
+            {
+                pb.ToTable("People");
+                pb.Property<string>("FirstName").HasColumnName("First Name");
+                pb.Property<string>("LastName").HasColumnName("Last Name");
+                pb.Property<string>("Birthplace").HasColumnName("Birthplace");
+                pb.Property<string>("Allegiance").HasColumnName("House Allegiance");
+                pb.Property<string>("Culture").HasColumnName("Culture");
+                pb.HasKey("FirstName", "LastName");
+            });
 }

@@ -11,16 +11,11 @@ namespace Microsoft.EntityFrameworkCore.TestUtilities;
 
 public class TestSqlLoggerFactory : ListLoggerFactory
 {
-    private readonly bool _proceduralQueryGeneration = false;
-
     private const string FileNewLine = @"
 ";
 
     private static readonly string _eol = Environment.NewLine;
 
-    private static readonly object _queryBaselineFileLock = new();
-    private static readonly HashSet<string> _overriddenMethods = new();
-    private static readonly object _queryBaselineRewritingLock = new();
     private static readonly ConcurrentDictionary<string, QueryBaselineRewritingFileInfo> _queryBaselineRewritingFileInfos = new();
 
     public TestSqlLoggerFactory()
@@ -30,9 +25,7 @@ public class TestSqlLoggerFactory : ListLoggerFactory
 
     public TestSqlLoggerFactory(Func<string, bool> shouldLogCategory)
         : base(c => shouldLogCategory(c) || c == DbLoggerCategory.Database.Command.Name)
-    {
-        Logger = new TestSqlLogger(shouldLogCategory(DbLoggerCategory.Database.Command.Name));
-    }
+        => Logger = new TestSqlLogger(shouldLogCategory(DbLoggerCategory.Database.Command.Name));
 
     public IReadOnlyList<string> SqlStatements
         => ((TestSqlLogger)Logger).SqlStatements;
@@ -43,23 +36,45 @@ public class TestSqlLoggerFactory : ListLoggerFactory
     public string Sql
         => string.Join(_eol + _eol, SqlStatements);
 
-    public void AssertBaseline(string[] expected, bool assertOrder = true)
+    public void OutputSql()
     {
-        if (_proceduralQueryGeneration)
+        Logger.TestOutputHelper?.WriteLine("SQL sent to the database:");
+        Logger.TestOutputHelper?.WriteLine(Sql);
+    }
+
+    public override void WriteTestOutput()
+    {
+        var failedSqlStatements = ((TestSqlLogger)Logger).FailedSqlStatements;
+        if (Logger.TestOutputHelper is ITestOutputHelper outputHelper && failedSqlStatements.Count > 0)
         {
-            return;
+            outputHelper.WriteLine("Failed SQL queries that resulted in database errors:");
+            outputHelper.WriteLine("");
+
+            foreach (var sql in failedSqlStatements)
+            {
+                outputHelper.WriteLine(sql);
+                outputHelper.WriteLine("");
+            }
         }
 
+        base.WriteTestOutput();
+    }
+
+    public void AssertBaseline(string[] expected, bool assertOrder = true, bool forUpdate = false)
+    {
+        var offset = forUpdate ? 1 : 0;
+        var sqlStatements = ((TestSqlLogger)Logger).GetSqlStatementsForBaseline(expected, assertOrder, offset);
+        var count = sqlStatements.Count - offset - offset;
         try
         {
             if (assertOrder)
             {
                 for (var i = 0; i < expected.Length; i++)
                 {
-                    Assert.Equal(expected[i], SqlStatements[i], ignoreLineEndingDifferences: true);
+                    Assert.Equal(expected[i], sqlStatements[i + offset], ignoreLineEndingDifferences: true);
                 }
 
-                Assert.Empty(SqlStatements.Skip(expected.Length));
+                Assert.Empty(sqlStatements.Skip(expected.Length + offset + offset));
             }
             else
             {
@@ -68,32 +83,22 @@ public class TestSqlLoggerFactory : ListLoggerFactory
                     var normalizedExpectedFragment = NormalizeLineEndings(expectedFragment);
                     Assert.Contains(
                         normalizedExpectedFragment,
-                        SqlStatements);
+                        sqlStatements);
                 }
             }
         }
         catch
         {
             var methodCallLine = Environment.StackTrace.Split(
-                new[] { _eol },
+                [_eol],
                 StringSplitOptions.RemoveEmptyEntries)[3][6..];
 
             var indexMethodEnding = methodCallLine.IndexOf(')') + 1;
-            var testName = methodCallLine.Substring(0, indexMethodEnding);
+            var testName = methodCallLine[..indexMethodEnding];
             var parts = methodCallLine[indexMethodEnding..].Split(" ", StringSplitOptions.RemoveEmptyEntries);
             var fileName = parts[1][..^5];
             var lineNumber = int.Parse(parts[2]);
 
-            var currentDirectory = Directory.GetCurrentDirectory();
-            var logFile = currentDirectory.Substring(
-                    0,
-                    currentDirectory.LastIndexOf(
-                        $"{Path.DirectorySeparatorChar}artifacts{Path.DirectorySeparatorChar}",
-                        StringComparison.Ordinal)
-                    + 1)
-                + "QueryBaseline.txt";
-
-            var testInfo = testName + " : " + lineNumber + FileNewLine;
             const string indent = FileNewLine + "                ";
 
             if (Environment.GetEnvironmentVariable("EF_TEST_REWRITE_BASELINES")?.ToUpper() is "1" or "TRUE")
@@ -102,14 +107,15 @@ public class TestSqlLoggerFactory : ListLoggerFactory
             }
 
             var sql = string.Join(
-                "," + indent + "//" + indent, SqlStatements.Take(9).Select(sql => "@\"" + sql.Replace("\"", "\"\"") + "\""));
+                "," + indent + "//" + indent,
+                sqlStatements.Skip(offset).Take(count).Select(sql => "\"\"\"" + FileNewLine + sql + FileNewLine + "\"\"\""));
 
-            var newBaseLine = $@"            AssertSql(
-                {string.Join("," + indent + "//" + indent, SqlStatements.Take(20).Select(sql => "@\"" + sql.Replace("\"", "\"\"") + "\""))});
+            var newBaseLine = $@"        Assert{(forUpdate ? "ExecuteUpdate" : "")}Sql(
+{sql});
 
 ";
 
-            if (SqlStatements.Count > 20)
+            if (sqlStatements.Count > 20)
             {
                 newBaseLine += "Output truncated.";
             }
@@ -117,63 +123,27 @@ public class TestSqlLoggerFactory : ListLoggerFactory
             Logger.TestOutputHelper?.WriteLine("---- New Baseline -------------------------------------------------------------------");
             Logger.TestOutputHelper?.WriteLine(newBaseLine);
 
-            var contents = testInfo + newBaseLine + FileNewLine + "--------------------" + FileNewLine;
-
-            var indexSimpleMethodEnding = methodCallLine.IndexOf('(');
-            var indexSimpleMethodStarting = methodCallLine.LastIndexOf('.', indexSimpleMethodEnding) + 1;
-            var methodName = methodCallLine.Substring(indexSimpleMethodStarting, indexSimpleMethodEnding - indexSimpleMethodStarting);
-
-            var manipulatedSql = string.IsNullOrEmpty(sql)
-                ? ""
-                : @$"
-{sql}";
-
-            var overrideString = testName.Contains("Boolean async")
-                ? @$"        public override async Task {methodName}(bool async)
-        {{
-            await base.{methodName}(async);
-
-            AssertSql({manipulatedSql});
-        }}
-
-"
-                : @$"        public override void {methodName}()
-        {{
-            base.{methodName}();
-
-            AssertSql({manipulatedSql});
-        }}
-
-";
-
-            lock (_queryBaselineFileLock)
-            {
-                File.AppendAllText(logFile, contents);
-
-                // if (!_overriddenMethods.Any())
-                // {
-                //     File.Delete(logFile);
-                // }
-                //
-                // if (!_overriddenMethods.Contains(methodName))
-                // {
-                //     File.AppendAllText(logFile, overrideString);
-                //     _overriddenMethods.Add(methodName);
-                // }
-            }
-
             throw;
         }
 
         void RewriteSourceWithNewBaseline(string fileName, int lineNumber)
         {
-            var fileInfo = _queryBaselineRewritingFileInfos.GetOrAdd(fileName, _ => new());
+            var fileInfo = _queryBaselineRewritingFileInfos.GetOrAdd(fileName, _ => new QueryBaselineRewritingFileInfo());
             lock (fileInfo.Lock)
             {
-                // First, adjust our lineNumber to take into account any baseline rewriting that already occured in this file
+                // Check if we've already processed this line - if so no need to do it again
+                if (fileInfo.ProcessedLines.Contains(lineNumber))
+                {
+                    return;
+                }
+
+                fileInfo.ProcessedLines.Add(lineNumber);
+
+                // First, adjust our lineNumber to take into account any baseline rewriting that already occurred in this file
+                var origLineNumber = lineNumber;
                 foreach (var displacement in fileInfo.LineDisplacements)
                 {
-                    if (displacement.Key < lineNumber)
+                    if (displacement.Key < origLineNumber)
                     {
                         lineNumber += displacement.Value;
                     }
@@ -189,20 +159,25 @@ public class TestSqlLoggerFactory : ListLoggerFactory
                     // First have Roslyn parse the file
                     SyntaxTree syntaxTree;
                     using (var stream = File.OpenRead(fileName))
+                    using (var bufferedStream = new BufferedStream(stream))
                     {
-                        syntaxTree = CSharpSyntaxTree.ParseText(SourceText.From(stream));
+                        syntaxTree = CSharpSyntaxTree.ParseText(
+                            SourceText.From(bufferedStream),
+                            new CSharpParseOptions(preprocessorSymbols: ["DEBUG"]));
                     }
 
-                    // Read through the source file, copying contents to a temp file (with the baseline changE)
-                    using (var inputStream = File.OpenRead(fileName))
-                    using (var outputStream = File.Open(fileName + ".tmp", FileMode.Create, FileAccess.Write))
+                    // Read through the source file, copying contents to a temp file (with the baseline change)
+                    using (var inputFileStream = File.OpenRead(fileName))
+                    using (var inputStream = new BufferedStream(inputFileStream))
+                    using (var outputFileStream = File.Open(fileName + ".tmp", FileMode.Create, FileAccess.Write))
+                    using (var outputStream = new BufferedStream(outputFileStream))
                     {
                         // Detect whether a byte-order mark (BOM) exists, to write out the same
                         var buffer = new byte[3];
-                        inputStream.Read(buffer, 0, 3);
+                        inputStream.ReadExactly(buffer, 0, 3);
                         inputStream.Position = 0;
 
-                        var hasUtf8ByteOrderMark = (buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF);
+                        var hasUtf8ByteOrderMark = buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF;
 
                         using var reader = new StreamReader(inputStream);
                         using var writer = new StreamWriter(outputStream, new UTF8Encoding(hasUtf8ByteOrderMark));
@@ -282,13 +257,13 @@ public class TestSqlLoggerFactory : ListLoggerFactory
                         // Skip over the invocation on the read side, and write the new baseline invocation
                         var tempBuf = new char[Math.Max(1024, invocation.Span.Length)];
                         reader.ReadBlock(tempBuf, 0, invocation.Span.Length);
-                        var numNewlinesInOrigin = tempBuf.Count(c => c is '\n' or '\r');
+                        var numNewlinesInOrigin = tempBuf.Count(c => c is '\n');
 
                         indentBuilder.Append("    ");
                         var indent = indentBuilder.ToString();
-                        var newBaseLine = $@"AssertSql(
-{indent}{string.Join(",\n" + indent + "//\n" + indent, SqlStatements.Select(sql => "@\"" + sql.Replace("\"", "\"\"") + "\""))})";
-                        var numNewlinesInRewritten = newBaseLine.Count(c => c is '\n' or '\r');
+                        var newBaseLine = $@"Assert{(forUpdate ? "ExecuteUpdate" : "")}Sql(
+{string.Join("," + Environment.NewLine + indent + "//" + Environment.NewLine, SqlStatements.Skip(offset).Take(count).Select(sql => indent + "\"\"\"" + Environment.NewLine + sql + Environment.NewLine + "\"\"\""))})";
+                        var numNewlinesInRewritten = newBaseLine.Count(c => c is '\n');
 
                         writer.Write(newBaseLine);
 
@@ -297,39 +272,37 @@ public class TestSqlLoggerFactory : ListLoggerFactory
                         var lineDiff = numNewlinesInRewritten - numNewlinesInOrigin;
                         if (lineDiff != 0)
                         {
-                            fileInfo.LineDisplacements[lineNumber] = lineDiff;
+                            fileInfo.LineDisplacements[origLineNumber] = lineDiff;
                         }
 
                         // Copy the rest of the file contents as-is
-                        int count;
-                        while ((count = reader.ReadBlock(tempBuf, 0, 1024)) > 0)
+                        int c;
+                        while ((c = reader.ReadBlock(tempBuf, 0, 1024)) > 0)
                         {
-                            writer.Write(tempBuf, 0, count);
+                            writer.Write(tempBuf, 0, c);
                         }
                     }
+
+                    File.Move(fileName + ".tmp", fileName, overwrite: true);
                 }
-                catch
+                finally
                 {
                     File.Delete(fileName + ".tmp");
-                    throw;
                 }
-
-                File.Move(fileName + ".tmp", fileName, overwrite: true);
             }
         }
     }
 
-    protected class TestSqlLogger : ListLogger
+    protected class TestSqlLogger(bool shouldLogCommands) : ListLogger
     {
-        private readonly bool _shouldLogCommands;
+        private readonly bool _shouldLogCommands = shouldLogCommands;
 
-        public TestSqlLogger(bool shouldLogCommands)
-        {
-            _shouldLogCommands = shouldLogCommands;
-        }
+        public List<string> SqlStatements { get; } = [];
+        public List<string> Parameters { get; } = [];
 
-        public List<string> SqlStatements { get; } = new();
-        public List<string> Parameters { get; } = new();
+        public List<string> FailedSqlStatements { get; } = [];
+
+        private List<(string Statement, bool IsError)> SqlStatementsAndErrors { get; } = [];
 
         private readonly StringBuilder _stringBuilder = new();
 
@@ -339,18 +312,50 @@ public class TestSqlLoggerFactory : ListLoggerFactory
 
             SqlStatements.Clear();
             Parameters.Clear();
+            FailedSqlStatements.Clear();
+            SqlStatementsAndErrors.Clear();
+        }
+
+        public List<string> GetSqlStatementsForBaseline(string[] expected, bool assertOrder, int offset)
+        {
+            var expectedIndex = 0;
+            var statements = new List<string>();
+            var statementCount = SqlStatementsAndErrors.Count;
+
+            for (var i = 0; i < statementCount; i++)
+            {
+                var (statement, isError) = SqlStatementsAndErrors[i];
+                var inBaseline = i >= offset && i < statementCount - offset;
+                var expectedStatement = inBaseline
+                    && (assertOrder
+                        ? expectedIndex < expected.Length
+                            && NormalizeLineEndings(statement) == NormalizeLineEndings(expected[expectedIndex])
+                        : expected.Any(expectedStatement => NormalizeLineEndings(statement) == NormalizeLineEndings(expectedStatement)));
+
+                if (!inBaseline || !isError || expectedStatement)
+                {
+                    statements.Add(statement);
+
+                    if (assertOrder && expectedStatement)
+                    {
+                        expectedIndex++;
+                    }
+                }
+            }
+
+            return statements;
         }
 
         protected override void UnsafeLog<TState>(
             LogLevel logLevel,
             EventId eventId,
-            string message,
+            string? message,
             TState state,
-            Exception exception)
+            Exception? exception)
         {
-            if ((eventId.Id == RelationalEventId.CommandExecuted.Id
-                    || eventId.Id == RelationalEventId.CommandError.Id
-                    || eventId.Id == RelationalEventId.CommandExecuting.Id))
+            if (eventId.Id == RelationalEventId.CommandExecuted.Id
+                || eventId.Id == RelationalEventId.CommandError.Id
+                || eventId.Id == RelationalEventId.CommandExecuting.Id)
             {
                 if (_shouldLogCommands)
                 {
@@ -361,68 +366,88 @@ public class TestSqlLoggerFactory : ListLoggerFactory
                     && message != null
                     && eventId.Id != RelationalEventId.CommandExecuting.Id)
                 {
-                    var structure = (IReadOnlyList<KeyValuePair<string, object>>)state;
+                    var structure = (IReadOnlyList<KeyValuePair<string, object>>)state!;
 
                     var parameters = structure.Where(i => i.Key == "parameters").Select(i => (string)i.Value).First();
                     var commandText = structure.Where(i => i.Key == "commandText").Select(i => (string)i.Value).First();
 
+                    var isCommandError = eventId.Id == RelationalEventId.CommandError.Id;
                     if (!string.IsNullOrWhiteSpace(parameters))
                     {
                         Parameters.Add(parameters);
 
                         _stringBuilder.Clear();
 
-                        var inQuotes = false;
-                        var inCurlies = false;
                         for (var i = 0; i < parameters.Length; i++)
                         {
                             var c = parameters[i];
-                            switch (c)
+                            if (c == ','
+                                && TryGetChar(parameters, i + 1, out var nextChar1)
+                                && nextChar1 == ' '
+                                && TryGetChar(parameters, i - 1, out var prevChar1)
+                                && (prevChar1 == '\''
+                                    || prevChar1 == ')'
+                                    // handles NULL (matching only 'LL' as "good enough")
+                                    || (prevChar1 == 'L' && TryGetChar(parameters, i - 2, out var prevChar2) && prevChar2 == 'L')))
                             {
-                                case '\'':
-                                    inQuotes = !inQuotes;
-                                    goto default;
-                                case '{':
-                                    inCurlies = true;
-                                    goto default;
-                                case '}':
-                                    inCurlies = false;
-                                    goto default;
-                                case ',' when parameters[i + 1] == ' ' && !inQuotes && !inCurlies:
-                                    _stringBuilder.Append(_eol);
-                                    i++;
-                                    continue;
-                                default:
-                                    _stringBuilder.Append(c);
-                                    continue;
+                                _stringBuilder.Append(_eol);
+                                i++;
+                                continue;
                             }
+
+                            _stringBuilder.Append(c);
                         }
 
                         _stringBuilder.Append(_eol).Append(_eol);
                         parameters = _stringBuilder.ToString();
                     }
 
-                    SqlStatements.Add(parameters + commandText);
+                    var sqlStatement = parameters + commandText;
+                    SqlStatementsAndErrors.Add((sqlStatement, isCommandError));
+                    SqlStatements.Add(sqlStatement);
+
+                    if (isCommandError)
+                    {
+                        FailedSqlStatements.Add(sqlStatement);
+                    }
                 }
             }
             else
             {
                 base.UnsafeLog(logLevel, eventId, message, state, exception);
             }
+
+            static bool TryGetChar(string s, int index, out char c)
+            {
+                if (index < 0 || index >= s.Length)
+                {
+                    c = default;
+                    return false;
+                }
+
+                c = s[index];
+                return true;
+            }
         }
     }
 
-    private struct QueryBaselineRewritingFileInfo
+    private readonly struct QueryBaselineRewritingFileInfo
     {
-        public QueryBaselineRewritingFileInfo() {}
+        public QueryBaselineRewritingFileInfo() { }
 
-        public object Lock { get; set; } = new();
+        public object Lock { get; } = new();
+
+        /// <summary>
+        ///     Contains information on which lines in the file where we've already performed baseline rewriting; we use this to
+        ///     avoid processing the same line twice (e.g. when a test is a theory that's executed multiple times).
+        /// </summary>
+        public readonly HashSet<int> ProcessedLines = [];
 
         /// <summary>
         ///     Contains information on where previous baseline rewriting caused line numbers to shift; this is used in adjusting line
         ///     numbers for later errors. The keys are (pre-rewriting) line numbers, and the values are offsets that have been applied to
         ///     them.
         /// </summary>
-        public SortedDictionary<int, int> LineDisplacements = new();
+        public readonly SortedDictionary<int, int> LineDisplacements = [];
     }
 }

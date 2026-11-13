@@ -19,26 +19,32 @@ public interface IMigrationsScaffolder
     /// <param name="rootNamespace">The project's root namespace.</param>
     /// <param name="subNamespace">The migration's sub-namespace.</param>
     /// <param name="language">The project's language.</param>
+    /// <param name="dryRun">If <see langword="true" />, then nothing is actually written to disk.</param>
     /// <returns>The scaffolded migration.</returns>
     ScaffoldedMigration ScaffoldMigration(
         string migrationName,
         string? rootNamespace,
         string? subNamespace = null,
-        string? language = null);
+        string? language = null,
+        bool dryRun = false);
 
     /// <summary>
     ///     Removes the previous migration.
     /// </summary>
     /// <param name="projectDir">The project's root directory.</param>
     /// <param name="rootNamespace">The project's root namespace.</param>
-    /// <param name="force">Don't check to see if the migration has been applied to the database.</param>
+    /// <param name="force">Revert the migration if it has been applied to the database.</param>
     /// <param name="language">The project's language.</param>
+    /// <param name="dryRun">If <see langword="true" />, then nothing is actually written to disk.</param>
+    /// <param name="offline">Remove the migration without connecting to the database.</param>
     /// <returns>The removed migration files.</returns>
     MigrationFiles RemoveMigration(
         string projectDir,
         string? rootNamespace,
         bool force,
-        string? language);
+        string? language,
+        bool dryRun = false,
+        bool offline = false);
 
     /// <summary>
     ///     Saves a scaffolded migration to files.
@@ -46,9 +52,11 @@ public interface IMigrationsScaffolder
     /// <param name="projectDir">The project's root directory.</param>
     /// <param name="migration">The scaffolded migration.</param>
     /// <param name="outputDir">The directory to put files in. Paths are relative to the project directory.</param>
+    /// <param name="dryRun">If <see langword="true" />, then nothing is actually written to disk.</param>
     /// <returns>The saved migrations files.</returns>
     MigrationFiles Save(
         string projectDir,
         ScaffoldedMigration migration,
-        string? outputDir);
+        string? outputDir,
+        bool dryRun = false);
 }

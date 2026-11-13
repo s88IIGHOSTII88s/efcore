@@ -10,7 +10,8 @@ public class MonsterContext<
     TSmartCard, TRsaToken, TPasswordReset, TPageView, TLastLogin, TMessage, TAnOrder, TOrderNote, TOrderQualityCheck,
     TOrderLine, TProduct, TProductDetail, TProductReview, TProductPhoto, TProductWebFeature, TSupplier, TSupplierLogo,
     TSupplierInfo, TCustomerInfo, TComputer, TComputerDetail, TDriver, TLicense, TConcurrencyInfo, TAuditInfo,
-    TContactDetails, TDimensions, TPhone, TBackOrderLine, TDiscontinuedProduct, TProductPageView> : MonsterContext
+    TContactDetails, TDimensions, TPhone, TBackOrderLine, TDiscontinuedProduct, TProductPageView>(DbContextOptions options)
+    : MonsterContext(options)
     where TCustomer : class, ICustomer, new()
     where TBarcode : class, IBarcode, new()
     where TIncorrectScan : class, IIncorrectScan, new()
@@ -51,11 +52,6 @@ public class MonsterContext<
     where TDiscontinuedProduct : class, TProduct, IDiscontinuedProduct, new()
     where TProductPageView : class, TPageView, IProductPageView, new()
 {
-    public MonsterContext(DbContextOptions options)
-        : base(options)
-    {
-    }
-
     public override IQueryable<ICustomer> Customers
         => Set<TCustomer>();
 
@@ -155,8 +151,7 @@ public class MonsterContext<
 
         modelBuilder.Entity<TSuspiciousActivity>();
         modelBuilder.Entity<TLastLogin>().HasKey(e => e.Username);
-        modelBuilder.Entity<TMessage>().HasKey(
-            e => new { e.MessageId, e.FromUsername });
+        modelBuilder.Entity<TMessage>().HasKey(e => new { e.MessageId, e.FromUsername });
 
         modelBuilder.Entity<TOrderNote>().HasKey(e => e.NoteId);
 
@@ -168,173 +163,153 @@ public class MonsterContext<
 
         modelBuilder.Entity<TLicense>().HasKey(e => e.Name);
 
-        modelBuilder.Entity<TAnOrder>(
-            b =>
-            {
-                b.HasMany(e => (IEnumerable<TOrderLine>)e.OrderLines).WithOne(e => (TAnOrder)e.Order)
-                    .HasForeignKey(e => e.OrderId);
+        modelBuilder.Entity<TAnOrder>(b =>
+        {
+            b.HasMany(e => (IEnumerable<TOrderLine>)e.OrderLines).WithOne(e => (TAnOrder)e.Order)
+                .HasForeignKey(e => e.OrderId);
 
-                b.HasMany(e => (IEnumerable<TOrderNote>)e.Notes).WithOne(e => (TAnOrder)e.Order)
-                    .HasPrincipalKey(e => e.AlternateId);
+            b.HasMany(e => (IEnumerable<TOrderNote>)e.Notes).WithOne(e => (TAnOrder)e.Order)
+                .HasPrincipalKey(e => e.AlternateId);
 
-                b.OwnsOne(e => (TConcurrencyInfo)e.Concurrency).Property(c => c.Token).IsConcurrencyToken();
-            });
+            b.OwnsOne(e => (TConcurrencyInfo)e.Concurrency).Property(c => c.Token).IsConcurrencyToken();
+        });
 
-        modelBuilder.Entity<TOrderQualityCheck>(
-            b =>
-            {
-                b.HasKey(e => e.OrderId);
+        modelBuilder.Entity<TOrderQualityCheck>(b =>
+        {
+            b.HasKey(e => e.OrderId);
 
-                b.HasOne(e => (TAnOrder)e.Order).WithOne()
-                    .HasForeignKey<TOrderQualityCheck>(e => e.OrderId)
-                    .HasPrincipalKey<TAnOrder>(e => e.AlternateId);
-            });
+            b.HasOne(e => (TAnOrder)e.Order).WithOne()
+                .HasForeignKey<TOrderQualityCheck>(e => e.OrderId)
+                .HasPrincipalKey<TAnOrder>(e => e.AlternateId);
+        });
 
-        modelBuilder.Entity<TProduct>(
-            b =>
-            {
-                b.HasMany(e => (IEnumerable<TProductReview>)e.Reviews).WithOne(e => (TProduct)e.Product);
-                b.HasMany(e => (IEnumerable<TBarcode>)e.Barcodes).WithOne(e => (TProduct)e.Product);
-                b.HasMany(e => (IEnumerable<TProductPhoto>)e.Photos).WithOne();
-                b.HasOne(e => (TProductDetail)e.Detail).WithOne(e => (TProduct)e.Product)
-                    .HasForeignKey<TProductDetail>(e => e.ProductId);
+        modelBuilder.Entity<TProduct>(b =>
+        {
+            b.HasMany(e => (IEnumerable<TProductReview>)e.Reviews).WithOne(e => (TProduct)e.Product);
+            b.HasMany(e => (IEnumerable<TBarcode>)e.Barcodes).WithOne(e => (TProduct)e.Product);
+            b.HasMany(e => (IEnumerable<TProductPhoto>)e.Photos).WithOne();
+            b.HasOne(e => (TProductDetail)e.Detail).WithOne(e => (TProduct)e.Product)
+                .HasForeignKey<TProductDetail>(e => e.ProductId);
 
-                b.OwnsOne(e => (TConcurrencyInfo)e.ComplexConcurrency).Property(c => c.Token).IsConcurrencyToken();
+            b.OwnsOne(e => (TConcurrencyInfo)e.ComplexConcurrency).Property(c => c.Token).IsConcurrencyToken();
 
-                b.OwnsOne(
-                    e => (TAuditInfo)e.NestedComplexConcurrency,
-                    ab => ab.OwnsOne(a => (TConcurrencyInfo)a.Concurrency).Property(c => c.Token).IsConcurrencyToken());
+            b.OwnsOne(
+                e => (TAuditInfo)e.NestedComplexConcurrency,
+                ab => ab.OwnsOne(a => (TConcurrencyInfo)a.Concurrency).Property(c => c.Token).IsConcurrencyToken());
 
-                b.OwnsOne(e => (TDimensions)e.Dimensions);
+            b.OwnsOne(e => (TDimensions)e.Dimensions);
 
-                b.Ignore(e => e.Suppliers);
-            });
+            b.Ignore(e => e.Suppliers);
+        });
 
-        modelBuilder.Entity<TOrderLine>(
-            b =>
-            {
-                b.HasKey(
-                    e => new { e.OrderId, e.ProductId });
+        modelBuilder.Entity<TOrderLine>(b =>
+        {
+            b.HasKey(e => new { e.OrderId, e.ProductId });
 
-                b.HasOne(e => (TProduct)e.Product).WithMany().HasForeignKey(e => e.ProductId);
-            });
+            b.HasOne(e => (TProduct)e.Product).WithMany().HasForeignKey(e => e.ProductId);
+        });
 
-        modelBuilder.Entity<TSupplier>(
-            b =>
-            {
-                b.HasOne(e => (TSupplierLogo)e.Logo).WithOne().HasForeignKey<TSupplierLogo>(e => e.SupplierId);
-                b.Ignore(e => e.Products);
-            });
+        modelBuilder.Entity<TSupplier>(b =>
+        {
+            b.HasOne(e => (TSupplierLogo)e.Logo).WithOne().HasForeignKey<TSupplierLogo>(e => e.SupplierId);
+            b.Ignore(e => e.Products);
+        });
 
-        modelBuilder.Entity<TCustomer>(
-            b =>
-            {
-                b.HasMany(e => (IEnumerable<TAnOrder>)e.Orders).WithOne(e => (TCustomer)e.Customer);
-                b.HasMany(e => (IEnumerable<TLogin>)e.Logins).WithOne(e => (TCustomer)e.Customer);
-                b.HasOne(e => (TCustomerInfo)e.Info).WithOne().HasForeignKey<TCustomerInfo>(e => e.CustomerInfoId);
+        modelBuilder.Entity<TCustomer>(b =>
+        {
+            b.HasMany(e => (IEnumerable<TAnOrder>)e.Orders).WithOne(e => (TCustomer)e.Customer);
+            b.HasMany(e => (IEnumerable<TLogin>)e.Logins).WithOne(e => (TCustomer)e.Customer);
+            b.HasOne(e => (TCustomerInfo)e.Info).WithOne().HasForeignKey<TCustomerInfo>(e => e.CustomerInfoId);
 
-                b.HasOne(e => (TCustomer)e.Husband).WithOne(e => (TCustomer)e.Wife)
-                    .HasForeignKey<TCustomer>(e => e.HusbandId);
+            b.HasOne(e => (TCustomer)e.Husband).WithOne(e => (TCustomer)e.Wife)
+                .HasForeignKey<TCustomer>(e => e.HusbandId);
 
-                b.OwnsOne(
-                    e => (TAuditInfo)e.Auditing,
-                    ab => ab.OwnsOne(a => (TConcurrencyInfo)a.Concurrency).Property(c => c.Token).IsConcurrencyToken());
-                b.OwnsOne(
-                    e => (TContactDetails)e.ContactInfo,
-                    cb =>
-                    {
-                        cb.OwnsOne(c => (TPhone)c.HomePhone);
-                        cb.OwnsOne(c => (TPhone)c.MobilePhone);
-                        cb.OwnsOne(c => (TPhone)c.WorkPhone);
-                    });
-            });
+            b.OwnsOne(
+                e => (TAuditInfo)e.Auditing,
+                ab => ab.OwnsOne(a => (TConcurrencyInfo)a.Concurrency).Property(c => c.Token).IsConcurrencyToken());
+            b.OwnsOne(
+                e => (TContactDetails)e.ContactInfo,
+                cb =>
+                {
+                    cb.OwnsOne(c => (TPhone)c.HomePhone);
+                    cb.OwnsOne(c => (TPhone)c.MobilePhone);
+                    cb.OwnsOne(c => (TPhone)c.WorkPhone);
+                });
+        });
 
-        modelBuilder.Entity<TComplaint>(
-            b =>
-            {
-                b.HasOne(e => (TCustomer)e.Customer)
-                    .WithMany()
-                    .HasForeignKey(e => e.CustomerId);
+        modelBuilder.Entity<TComplaint>(b =>
+        {
+            b.HasOne(e => (TCustomer)e.Customer)
+                .WithMany()
+                .HasForeignKey(e => e.CustomerId);
 
-                b.HasOne(e => (TResolution)e.Resolution).WithOne(e => (TComplaint)e.Complaint)
-                    .HasPrincipalKey<TComplaint>(e => e.AlternateId);
-            });
+            b.HasOne(e => (TResolution)e.Resolution).WithOne(e => (TComplaint)e.Complaint)
+                .HasPrincipalKey<TComplaint>(e => e.AlternateId);
+        });
 
-        modelBuilder.Entity<TProductPhoto>(
-            b =>
-            {
-                b.HasKey(
-                    e => new { e.PhotoId, e.ProductId });
+        modelBuilder.Entity<TProductPhoto>(b =>
+        {
+            b.HasKey(e => new { e.PhotoId, e.ProductId });
 
-                b.HasMany(e => (IEnumerable<TProductWebFeature>)e.Features).WithOne(e => (TProductPhoto)e.Photo)
-                    .HasForeignKey(
-                        e => new { e.PhotoId, e.ProductId })
-                    .HasPrincipalKey(
-                        e => new { e.PhotoId, e.ProductId });
-            });
+            b.HasMany(e => (IEnumerable<TProductWebFeature>)e.Features).WithOne(e => (TProductPhoto)e.Photo)
+                .HasForeignKey(e => new { e.PhotoId, e.ProductId })
+                .HasPrincipalKey(e => new { e.PhotoId, e.ProductId });
+        });
 
-        modelBuilder.Entity<TProductReview>(
-            b =>
-            {
-                b.HasKey(
-                    e => new { e.ReviewId, e.ProductId });
+        modelBuilder.Entity<TProductReview>(b =>
+        {
+            b.HasKey(e => new { e.ReviewId, e.ProductId });
 
-                b.HasMany(e => (IEnumerable<TProductWebFeature>)e.Features).WithOne(e => (TProductReview)e.Review)
-                    .HasForeignKey(
-                        e => new { e.ReviewId, e.ProductId })
-                    .HasPrincipalKey(
-                        e => new { e.ReviewId, e.ProductId });
-            });
+            b.HasMany(e => (IEnumerable<TProductWebFeature>)e.Features).WithOne(e => (TProductReview)e.Review)
+                .HasForeignKey(e => new { e.ReviewId, e.ProductId })
+                .HasPrincipalKey(e => new { e.ReviewId, e.ProductId });
+        });
 
-        modelBuilder.Entity<TLogin>(
-            b =>
-            {
-                var key = b.HasKey(e => e.Username);
+        modelBuilder.Entity<TLogin>(b =>
+        {
+            var key = b.HasKey(e => e.Username);
 
-                b.HasMany(e => (IEnumerable<TMessage>)e.SentMessages).WithOne(e => (TLogin)e.Sender)
-                    .HasForeignKey(e => e.FromUsername);
+            b.HasMany(e => (IEnumerable<TMessage>)e.SentMessages).WithOne(e => (TLogin)e.Sender)
+                .HasForeignKey(e => e.FromUsername);
 
-                b.HasMany(e => (IEnumerable<TMessage>)e.ReceivedMessages).WithOne(e => (TLogin)e.Recipient)
-                    .HasForeignKey(e => e.ToUsername);
+            b.HasMany(e => (IEnumerable<TMessage>)e.ReceivedMessages).WithOne(e => (TLogin?)e.Recipient)
+                .HasForeignKey(e => e.ToUsername);
 
-                b.HasMany(e => (IEnumerable<TAnOrder>)e.Orders).WithOne(e => (TLogin)e.Login)
-                    .HasForeignKey(e => e.Username);
+            b.HasMany(e => (IEnumerable<TAnOrder>)e.Orders).WithOne(e => (TLogin)e.Login)
+                .HasForeignKey(e => e.Username);
 
-                var entityType = b.Metadata;
-                var activityEntityType = entityType.Model.FindEntityType(typeof(TSuspiciousActivity));
-                activityEntityType.AddForeignKey(activityEntityType.FindProperty("Username"), key.Metadata, entityType);
+            var entityType = b.Metadata;
+            var activityEntityType = entityType.Model.FindEntityType(typeof(TSuspiciousActivity))!;
+            activityEntityType.AddForeignKey(activityEntityType.FindProperty("Username")!, key.Metadata, entityType);
 
-                b.HasOne(e => (TLastLogin)e.LastLogin).WithOne(e => (TLogin)e.Login)
-                    .HasForeignKey<TLastLogin>(e => e.Username);
-            });
+            b.HasOne(e => (TLastLogin)e.LastLogin).WithOne(e => (TLogin)e.Login)
+                .HasForeignKey<TLastLogin>(e => e.Username);
+        });
 
-        modelBuilder.Entity<TPasswordReset>(
-            b =>
-            {
-                b.HasKey(
-                    e => new { e.ResetNo, e.Username });
+        modelBuilder.Entity<TPasswordReset>(b =>
+        {
+            b.HasKey(e => new { e.ResetNo, e.Username });
 
-                b.HasOne(e => (TLogin)e.Login).WithMany()
-                    .HasForeignKey(e => e.Username)
-                    .HasPrincipalKey(e => e.AlternateUsername);
-            });
+            b.HasOne(e => (TLogin)e.Login).WithMany()
+                .HasForeignKey(e => e.Username)
+                .HasPrincipalKey(e => e.AlternateUsername);
+        });
 
         modelBuilder.Entity<TPageView>().HasOne(e => (TLogin)e.Login).WithMany()
             .HasForeignKey(e => e.Username);
 
-        modelBuilder.Entity<TBarcode>(
-            b =>
-            {
-                b.HasKey(e => e.Code);
+        modelBuilder.Entity<TBarcode>(b =>
+        {
+            b.HasKey(e => e.Code);
 
-                b.HasMany(e => (IEnumerable<TIncorrectScan>)e.BadScans).WithOne(e => (TBarcode)e.ExpectedBarcode)
-                    .HasForeignKey(e => e.ExpectedCode);
+            b.HasMany(e => (IEnumerable<TIncorrectScan>)e.BadScans).WithOne(e => (TBarcode)e.ExpectedBarcode!)
+                .HasForeignKey(e => e.ExpectedCode);
 
-                b.HasOne(e => (TBarcodeDetail)e.Detail).WithOne()
-                    .HasForeignKey<TBarcodeDetail>(e => e.Code);
-            });
+            b.HasOne(e => (TBarcodeDetail)e.Detail).WithOne()
+                .HasForeignKey<TBarcodeDetail>(e => e.Code);
+        });
 
-        modelBuilder.Entity<TIncorrectScan>().HasOne(e => (TBarcode)e.ActualBarcode).WithMany()
+        modelBuilder.Entity<TIncorrectScan>().HasOne(e => (TBarcode)e.ActualBarcode!).WithMany()
             .HasForeignKey(e => e.ActualCode);
 
         modelBuilder.Entity<TSupplierInfo>().HasOne(e => (TSupplier)e.Supplier).WithMany();
@@ -344,54 +319,48 @@ public class MonsterContext<
 
         modelBuilder.Entity<TComputerDetail>().OwnsOne(cd => (TDimensions)cd.Dimensions);
 
-        modelBuilder.Entity<TDriver>(
-            b =>
-            {
-                b.HasKey(e => e.Name);
-                b.HasOne(e => (TLicense)e.License).WithOne(e => (TDriver)e.Driver)
-                    .HasPrincipalKey<TDriver>(e => e.Name);
-            });
+        modelBuilder.Entity<TDriver>(b =>
+        {
+            b.HasKey(e => e.Name);
+            b.HasOne(e => (TLicense)e.License).WithOne(e => (TDriver)e.Driver)
+                .HasPrincipalKey<TDriver>(e => e.Name);
+        });
 
-        modelBuilder.Entity<TSmartCard>(
-            b =>
-            {
-                b.HasKey(e => e.Username);
+        modelBuilder.Entity<TSmartCard>(b =>
+        {
+            b.HasKey(e => e.Username);
 
-                b.HasOne(e => (TLogin)e.Login).WithOne()
-                    .HasForeignKey<TSmartCard>(e => e.Username);
+            b.HasOne(e => (TLogin)e.Login).WithOne()
+                .HasForeignKey<TSmartCard>(e => e.Username);
 
-                b.HasOne(e => (TLastLogin)e.LastLogin).WithOne()
-                    .HasForeignKey<TLastLogin>(e => e.SmartcardUsername);
-            });
+            b.HasOne(e => (TLastLogin)e.LastLogin!).WithOne()
+                .HasForeignKey<TLastLogin>(e => e.SmartcardUsername);
+        });
 
-        modelBuilder.Entity<TRsaToken>(
-            b =>
-            {
-                b.HasKey(e => e.Serial);
-                b.HasOne(e => (TLogin)e.Login).WithOne()
-                    .HasForeignKey<TRsaToken>(e => e.Username);
-            });
+        modelBuilder.Entity<TRsaToken>(b =>
+        {
+            b.HasKey(e => e.Serial);
+            b.HasOne(e => (TLogin)e.Login).WithOne()
+                .HasForeignKey<TRsaToken>(e => e.Username);
+        });
 
         // TODO: Many-to-many
         //modelBuilder.Entity<TSupplier>().ForeignKeys(fk => fk.HasForeignKey<TProduct>(e => e.SupplierId));
 
-        modelBuilder.Entity<TBackOrderLine>(
-            bb => bb.HasOne(b => (TSupplier)b.Supplier)
-                .WithMany(s => (ICollection<TBackOrderLine>)s.BackOrderLines)
-                .HasForeignKey(e => e.SupplierId));
+        modelBuilder.Entity<TBackOrderLine>(bb => bb.HasOne(b => (TSupplier)b.Supplier)
+            .WithMany(s => (ICollection<TBackOrderLine>)s.BackOrderLines)
+            .HasForeignKey(e => e.SupplierId));
 
-        modelBuilder.Entity<TDiscontinuedProduct>(
-            db => db.HasOne(d => (TProduct)d.ReplacedBy)
-                .WithMany(p => (ICollection<TDiscontinuedProduct>)p.Replaces)
-                .HasForeignKey(e => e.ReplacementProductId));
+        modelBuilder.Entity<TDiscontinuedProduct>(db => db.HasOne(d => (TProduct)d.ReplacedBy)
+            .WithMany(p => (ICollection<TDiscontinuedProduct>)p.Replaces)
+            .HasForeignKey(e => e.ReplacementProductId));
 
-        modelBuilder.Entity<TProductPageView>(
-            pb => pb.HasOne(p => (TProduct)p.Product)
-                .WithMany()
-                .HasForeignKey(e => e.ProductId));
+        modelBuilder.Entity<TProductPageView>(pb => pb.HasOne(p => (TProduct)p.Product)
+            .WithMany()
+            .HasForeignKey(e => e.ProductId));
     }
 
-    public override void SeedUsingFKs()
+    public override Task SeedUsingFKs()
     {
         var customer0 = Add(
             new TCustomer { Name = "Eeky Bear" }).Entity;
@@ -432,21 +401,21 @@ public class MonsterContext<
         var barcode1 = Add(
             new TBarcode
             {
-                Code = new byte[] { 1, 2, 3, 4 },
+                Code = [1, 2, 3, 4],
                 ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue,
                 Text = "Barcode 1 2 3 4"
             }).Entity;
         var barcode2 = Add(
             new TBarcode
             {
-                Code = new byte[] { 2, 2, 3, 4 },
+                Code = [2, 2, 3, 4],
                 ProductId = Entry(product2).Property(e => e.ProductId).CurrentValue,
                 Text = "Barcode 2 2 3 4"
             }).Entity;
         var barcode3 = Add(
             new TBarcode
             {
-                Code = new byte[] { 3, 2, 3, 4 },
+                Code = [3, 2, 3, 4],
                 ProductId = Entry(product3).Property(e => e.ProductId).CurrentValue,
                 Text = "Barcode 3 2 3 4"
             }).Entity;
@@ -524,17 +493,20 @@ public class MonsterContext<
         var suspiciousActivity1 = Add(
             new TSuspiciousActivity
             {
-                Activity = "Pig prints on keyboard", Username = Entry(login3).Property(e => e.Username).CurrentValue
+                Activity = "Pig prints on keyboard",
+                Username = Entry(login3).Property(e => e.Username).CurrentValue
             }).Entity;
         var suspiciousActivity2 = Add(
             new TSuspiciousActivity
             {
-                Activity = "Crumbs in the cupboard", Username = Entry(login3).Property(e => e.Username).CurrentValue
+                Activity = "Crumbs in the cupboard",
+                Username = Entry(login3).Property(e => e.Username).CurrentValue
             }).Entity;
         var suspiciousActivity3 = Add(
                 new TSuspiciousActivity
                 {
-                    Activity = "Donuts gone missing", Username = Entry(login3).Property(e => e.Username).CurrentValue
+                    Activity = "Donuts gone missing",
+                    Username = Entry(login3).Property(e => e.Username).CurrentValue
                 })
             .Entity;
 
@@ -746,12 +718,14 @@ public class MonsterContext<
         var productDetail1 = Add(
             new TProductDetail
             {
-                Details = "A Waffle Cart specialty!", ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue
+                Details = "A Waffle Cart specialty!",
+                ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue
             }).Entity;
         var productDetail2 = Add(
                 new TProductDetail
                 {
-                    Details = "Eeky Bear's favorite!", ProductId = Entry(product2).Property(e => e.ProductId).CurrentValue
+                    Details = "Eeky Bear's favorite!",
+                    ProductId = Entry(product2).Property(e => e.ProductId).CurrentValue
                 })
             .Entity;
 
@@ -761,7 +735,8 @@ public class MonsterContext<
         var productReview2 = Add(
                 new TProductReview
                 {
-                    ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue, Review = "Good with maple syrup."
+                    ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue,
+                    Review = "Good with maple syrup."
                 })
             .Entity;
         var productReview3 = Add(
@@ -769,13 +744,13 @@ public class MonsterContext<
             .Entity;
 
         var productPhoto1 = Add(
-                new TProductPhoto { ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue, Photo = new byte[] { 101, 102 } })
+                new TProductPhoto { ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue, Photo = [101, 102] })
             .Entity;
         var productPhoto2 = Add(
-                new TProductPhoto { ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue, Photo = new byte[] { 103, 104 } })
+                new TProductPhoto { ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue, Photo = [103, 104] })
             .Entity;
         var productPhoto3 = Add(
-                new TProductPhoto { ProductId = Entry(product3).Property(e => e.ProductId).CurrentValue, Photo = new byte[] { 105, 106 } })
+                new TProductPhoto { ProductId = Entry(product3).Property(e => e.ProductId).CurrentValue, Photo = [105, 106] })
             .Entity;
 
         var productWebFeature1 = Add(
@@ -801,16 +776,14 @@ public class MonsterContext<
             new TSupplier { Name = "Ants By Boris" }).Entity;
 
         var supplierLogo1 = Add(
-                new TSupplierLogo
-                {
-                    SupplierId = Entry(supplier1).Property(e => e.SupplierId).CurrentValue, Logo = new byte[] { 201, 202 }
-                })
+                new TSupplierLogo { SupplierId = Entry(supplier1).Property(e => e.SupplierId).CurrentValue, Logo = [201, 202] })
             .Entity;
 
         var supplierInfo1 = Add(
             new TSupplierInfo
             {
-                SupplierId = Entry(supplier1).Property(e => e.SupplierId).CurrentValue, Information = "Seems a bit dodgy."
+                SupplierId = Entry(supplier1).Property(e => e.SupplierId).CurrentValue,
+                Information = "Seems a bit dodgy."
             }).Entity;
         var supplierInfo2 = Add(
                 new TSupplierInfo { SupplierId = Entry(supplier1).Property(e => e.SupplierId).CurrentValue, Information = "Orange fur?" })
@@ -818,19 +791,22 @@ public class MonsterContext<
         var supplierInfo3 = Add(
                 new TSupplierInfo
                 {
-                    SupplierId = Entry(supplier2).Property(e => e.SupplierId).CurrentValue, Information = "Very expensive!"
+                    SupplierId = Entry(supplier2).Property(e => e.SupplierId).CurrentValue,
+                    Information = "Very expensive!"
                 })
             .Entity;
 
         var customerInfo1 = Add(
             new TCustomerInfo
             {
-                CustomerInfoId = Entry(customer1).Property(e => e.CustomerId).CurrentValue, Information = "Really likes tea."
+                CustomerInfoId = Entry(customer1).Property(e => e.CustomerId).CurrentValue,
+                Information = "Really likes tea."
             }).Entity;
         var customerInfo2 = Add(
             new TCustomerInfo
             {
-                CustomerInfoId = Entry(customer2).Property(e => e.CustomerId).CurrentValue, Information = "Mrs Bossy Pants!"
+                CustomerInfoId = Entry(customer2).Property(e => e.CustomerId).CurrentValue,
+                Information = "Mrs Bossy Pants!"
             }).Entity;
 
         var computer1 = Add(
@@ -887,10 +863,10 @@ public class MonsterContext<
                 ExpirationDate = new DateTime(2018, 9, 19)
             }).Entity;
 
-        SaveChanges();
+        return SaveChangesAsync();
     }
 
-    public override void SeedUsingNavigations(bool dependentNavs, bool principalNavs)
+    public override Task SeedUsingNavigations(bool dependentNavs, bool principalNavs)
     {
         var customer0 = Add(
             new TCustomer { Name = "Eeky Bear" }).Entity;
@@ -900,7 +876,7 @@ public class MonsterContext<
             new TCustomer { Name = "Tarquin Tiger" }).Entity;
 
         var customer2 = Add(
-            new TCustomer { Name = "Sue Pandy", Husband = dependentNavs ? customer0 : null }).Entity;
+            new TCustomer { Name = "Sue Pandy", Husband = dependentNavs ? customer0 : null! }).Entity;
         if (principalNavs)
         {
             customer0.Wife = customer2;
@@ -935,24 +911,24 @@ public class MonsterContext<
         var barcode1 = Add(
                 new TBarcode
                 {
-                    Code = new byte[] { 1, 2, 3, 4 },
-                    Product = dependentNavs ? product1 : null,
+                    Code = [1, 2, 3, 4],
+                    Product = dependentNavs ? product1 : null!,
                     Text = "Barcode 1 2 3 4"
                 })
             .Entity;
         var barcode2 = Add(
                 new TBarcode
                 {
-                    Code = new byte[] { 2, 2, 3, 4 },
-                    Product = dependentNavs ? product2 : null,
+                    Code = [2, 2, 3, 4],
+                    Product = dependentNavs ? product2 : null!,
                     Text = "Barcode 2 2 3 4"
                 })
             .Entity;
         var barcode3 = Add(
                 new TBarcode
                 {
-                    Code = new byte[] { 3, 2, 3, 4 },
-                    Product = dependentNavs ? product3 : null,
+                    Code = [3, 2, 3, 4],
+                    Product = dependentNavs ? product3 : null!,
                     Text = "Barcode 3 2 3 4"
                 })
             .Entity;
@@ -982,7 +958,7 @@ public class MonsterContext<
                 ScanDate = new DateTime(2014, 5, 28, 19, 9, 6),
                 Details = "Treats not Donuts",
                 ActualBarcode = barcode3,
-                ExpectedBarcode = dependentNavs ? barcode2 : null
+                ExpectedBarcode = dependentNavs ? barcode2 : null!
             }).Entity;
         if (principalNavs)
         {
@@ -996,7 +972,7 @@ public class MonsterContext<
                 ScanDate = new DateTime(2014, 5, 28, 19, 15, 31),
                 Details = "Wot no waffles?",
                 ActualBarcode = barcode2,
-                ExpectedBarcode = dependentNavs ? barcode1 : null
+                ExpectedBarcode = dependentNavs ? barcode1 : null!
             }).Entity;
         if (principalNavs)
         {
@@ -1023,7 +999,7 @@ public class MonsterContext<
             }).Entity;
 
         var resolution = Add(
-                new TResolution { Complaint = dependentNavs ? complaint2 : null, Details = "Destroyed all coffee in Redmond area." })
+                new TResolution { Complaint = dependentNavs ? complaint2 : null!, Details = "Destroyed all coffee in Redmond area." })
             .Entity;
         if (principalNavs)
         {
@@ -1033,21 +1009,21 @@ public class MonsterContext<
         var login1 = Add(
             new TLogin
             {
-                Customer = dependentNavs ? customer1 : null,
+                Customer = dependentNavs ? customer1 : null!,
                 Username = "MrsKoalie73",
                 AlternateUsername = "Sheila"
             }).Entity;
         var login2 = Add(
             new TLogin
             {
-                Customer = dependentNavs ? customer2 : null,
+                Customer = dependentNavs ? customer2 : null!,
                 Username = "MrsBossyPants",
                 AlternateUsername = "Sue"
             }).Entity;
         var login3 = Add(
                 new TLogin
                 {
-                    Customer = dependentNavs ? customer3 : null,
+                    Customer = dependentNavs ? customer3 : null!,
                     Username = "TheStripedMenace",
                     AlternateUsername = "Tarquin"
                 })
@@ -1065,17 +1041,20 @@ public class MonsterContext<
         var suspiciousActivity1 = Add(
             new TSuspiciousActivity
             {
-                Activity = "Pig prints on keyboard", Username = Entry(login3).Property(e => e.Username).CurrentValue
+                Activity = "Pig prints on keyboard",
+                Username = Entry(login3).Property(e => e.Username).CurrentValue
             }).Entity;
         var suspiciousActivity2 = Add(
             new TSuspiciousActivity
             {
-                Activity = "Crumbs in the cupboard", Username = Entry(login3).Property(e => e.Username).CurrentValue
+                Activity = "Crumbs in the cupboard",
+                Username = Entry(login3).Property(e => e.Username).CurrentValue
             }).Entity;
         var suspiciousActivity3 = Add(
                 new TSuspiciousActivity
                 {
-                    Activity = "Donuts gone missing", Username = Entry(login3).Property(e => e.Username).CurrentValue
+                    Activity = "Donuts gone missing",
+                    Username = Entry(login3).Property(e => e.Username).CurrentValue
                 })
             .Entity;
 
@@ -1175,7 +1154,7 @@ public class MonsterContext<
                 Body = "Fancy a cup of tea?",
                 FromUsername = Entry(login1).Property(e => e.Username).CurrentValue,
                 Sender = login1,
-                Recipient = dependentNavs ? login2 : null,
+                Recipient = dependentNavs ? login2 : null!,
                 Sent = DateTime.Now
             }).Entity;
         if (principalNavs)
@@ -1193,7 +1172,7 @@ public class MonsterContext<
                 Body = "Love one!",
                 FromUsername = Entry(login2).Property(e => e.Username).CurrentValue,
                 Sender = login2,
-                Recipient = dependentNavs ? login1 : null,
+                Recipient = dependentNavs ? login1 : null!,
                 Sent = DateTime.Now
             }).Entity;
         if (principalNavs)
@@ -1209,7 +1188,7 @@ public class MonsterContext<
                 Body = "I'll put the kettle on.",
                 FromUsername = Entry(login1).Property(e => e.Username).CurrentValue,
                 Sender = login1,
-                Recipient = dependentNavs ? login2 : null,
+                Recipient = dependentNavs ? login2 : null!,
                 Sent = DateTime.Now
             }).Entity;
         if (principalNavs)
@@ -1221,24 +1200,24 @@ public class MonsterContext<
         var order1 = Add(
                 new TAnOrder
                 {
-                    Customer = dependentNavs ? customer1 : null,
-                    Login = dependentNavs ? login1 : null,
+                    Customer = dependentNavs ? customer1 : null!,
+                    Login = dependentNavs ? login1 : null!,
                     AlternateId = 77
                 })
             .Entity;
         var order2 = Add(
                 new TAnOrder
                 {
-                    Customer = dependentNavs ? customer2 : null,
-                    Login = dependentNavs ? login2 : null,
+                    Customer = dependentNavs ? customer2 : null!,
+                    Login = dependentNavs ? login2 : null!,
                     AlternateId = 78
                 })
             .Entity;
         var order3 = Add(
                 new TAnOrder
                 {
-                    Customer = dependentNavs ? customer3 : null,
-                    Login = dependentNavs ? login3 : null,
+                    Customer = dependentNavs ? customer3 : null!,
+                    Login = dependentNavs ? login3 : null!,
                     AlternateId = 79
                 })
             .Entity;
@@ -1254,11 +1233,11 @@ public class MonsterContext<
         }
 
         var orderNote1 = Add(
-            new TOrderNote { Note = "Must have tea!", Order = dependentNavs ? order1 : null }).Entity;
+            new TOrderNote { Note = "Must have tea!", Order = dependentNavs ? order1 : null! }).Entity;
         var orderNote2 = Add(
-            new TOrderNote { Note = "And donuts!", Order = dependentNavs ? order1 : null }).Entity;
+            new TOrderNote { Note = "And donuts!", Order = dependentNavs ? order1 : null! }).Entity;
         var orderNote3 = Add(
-            new TOrderNote { Note = "But no coffee. :-(", Order = dependentNavs ? order1 : null }).Entity;
+            new TOrderNote { Note = "But no coffee. :-(", Order = dependentNavs ? order1 : null! }).Entity;
         if (principalNavs)
         {
             order1.InitializeCollections();
@@ -1354,11 +1333,11 @@ public class MonsterContext<
         }
 
         var productReview1 = Add(
-            new TProductReview { Product = dependentNavs ? product1 : null, Review = "Better than Tarqies!" }).Entity;
+            new TProductReview { Product = dependentNavs ? product1 : null!, Review = "Better than Tarqies!" }).Entity;
         var productReview2 = Add(
-            new TProductReview { Product = dependentNavs ? product1 : null, Review = "Good with maple syrup." }).Entity;
+            new TProductReview { Product = dependentNavs ? product1 : null!, Review = "Good with maple syrup." }).Entity;
         var productReview3 = Add(
-            new TProductReview { Product = dependentNavs ? product2 : null, Review = "Eeky says yes!" }).Entity;
+            new TProductReview { Product = dependentNavs ? product2 : null!, Review = "Eeky says yes!" }).Entity;
         if (principalNavs)
         {
             product1.Reviews.Add(productReview1);
@@ -1367,13 +1346,13 @@ public class MonsterContext<
         }
 
         var productPhoto1 = Add(
-                new TProductPhoto { ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue, Photo = new byte[] { 101, 102 } })
+                new TProductPhoto { ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue, Photo = [101, 102] })
             .Entity;
         var productPhoto2 = Add(
-                new TProductPhoto { ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue, Photo = new byte[] { 103, 104 } })
+                new TProductPhoto { ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue, Photo = [103, 104] })
             .Entity;
         var productPhoto3 = Add(
-                new TProductPhoto { ProductId = Entry(product3).Property(e => e.ProductId).CurrentValue, Photo = new byte[] { 105, 106 } })
+                new TProductPhoto { ProductId = Entry(product3).Property(e => e.ProductId).CurrentValue, Photo = [105, 106] })
             .Entity;
         if (principalNavs)
         {
@@ -1386,9 +1365,9 @@ public class MonsterContext<
             new TProductWebFeature
             {
                 Heading = "Waffle Style",
-                Photo = dependentNavs ? productPhoto1 : null,
+                Photo = dependentNavs ? productPhoto1 : null!,
                 ProductId = Entry(product1).Property(e => e.ProductId).CurrentValue,
-                Review = dependentNavs ? productReview1 : null
+                Review = dependentNavs ? productReview1 : null!
             }).Entity;
         if (principalNavs)
         {
@@ -1403,7 +1382,7 @@ public class MonsterContext<
             {
                 Heading = "What does the waffle say?",
                 ProductId = Entry(product2).Property(e => e.ProductId).CurrentValue,
-                Review = dependentNavs ? productReview3 : null
+                Review = dependentNavs ? productReview3 : null!
             }).Entity;
         if (principalNavs)
         {
@@ -1420,7 +1399,7 @@ public class MonsterContext<
             new TSupplierLogo
             {
                 SupplierId = !principalNavs ? Entry(supplier1).Property(e => e.SupplierId).CurrentValue : 0,
-                Logo = new byte[] { 201, 202 }
+                Logo = [201, 202]
             }).Entity;
         if (principalNavs)
         {
@@ -1437,12 +1416,14 @@ public class MonsterContext<
         var customerInfo1 = Add(
             new TCustomerInfo
             {
-                CustomerInfoId = Entry(customer1).Property(e => e.CustomerId).CurrentValue, Information = "Really likes tea."
+                CustomerInfoId = Entry(customer1).Property(e => e.CustomerId).CurrentValue,
+                Information = "Really likes tea."
             }).Entity;
         var customerInfo2 = Add(
             new TCustomerInfo
             {
-                CustomerInfoId = Entry(customer2).Property(e => e.CustomerId).CurrentValue, Information = "Mrs Bossy Pants!"
+                CustomerInfoId = Entry(customer2).Property(e => e.CustomerId).CurrentValue,
+                Information = "Mrs Bossy Pants!"
             }).Entity;
         if (principalNavs)
         {
@@ -1520,16 +1501,16 @@ public class MonsterContext<
             driver2.License = license2;
         }
 
-        SaveChanges();
+        return SaveChangesAsync();
     }
 
-    public override void SeedUsingNavigationsWithDeferredAdd()
+    public override Task SeedUsingNavigationsWithDeferredAdd()
     {
         var toAdd = new List<object>[4];
 
         for (var i = 0; i < toAdd.Length; i++)
         {
-            toAdd[i] = new List<object>();
+            toAdd[i] = [];
         }
 
         var customer0 = toAdd[0].AddEx(
@@ -1568,11 +1549,11 @@ public class MonsterContext<
         };
 
         var barcode1 = toAdd[1].AddEx(
-            new TBarcode { Code = new byte[] { 1, 2, 3, 4 }, Text = "Barcode 1 2 3 4" });
+            new TBarcode { Code = [1, 2, 3, 4], Text = "Barcode 1 2 3 4" });
         var barcode2 = toAdd[1].AddEx(
-            new TBarcode { Code = new byte[] { 2, 2, 3, 4 }, Text = "Barcode 2 2 3 4" });
+            new TBarcode { Code = [2, 2, 3, 4], Text = "Barcode 2 2 3 4" });
         var barcode3 = toAdd[1].AddEx(
-            new TBarcode { Code = new byte[] { 3, 2, 3, 4 }, Text = "Barcode 3 2 3 4" });
+            new TBarcode { Code = [3, 2, 3, 4], Text = "Barcode 3 2 3 4" });
 
         product1.InitializeCollections();
         product1.Barcodes.Add(barcode1);
@@ -1648,12 +1629,14 @@ public class MonsterContext<
         var suspiciousActivity1 = toAdd[2].AddEx(
             new TSuspiciousActivity
             {
-                Activity = "Pig prints on keyboard", Username = Entry(login3).Property(e => e.Username).CurrentValue
+                Activity = "Pig prints on keyboard",
+                Username = Entry(login3).Property(e => e.Username).CurrentValue
             });
         var suspiciousActivity2 = toAdd[2].AddEx(
             new TSuspiciousActivity
             {
-                Activity = "Crumbs in the cupboard", Username = Entry(login3).Property(e => e.Username).CurrentValue
+                Activity = "Crumbs in the cupboard",
+                Username = Entry(login3).Property(e => e.Username).CurrentValue
             });
         var suspiciousActivity3 = toAdd[2].AddEx(
             new TSuspiciousActivity { Activity = "Donuts gone missing", Username = Entry(login3).Property(e => e.Username).CurrentValue });
@@ -1876,11 +1859,11 @@ public class MonsterContext<
         product2.Reviews.Add(productReview3);
 
         var productPhoto1 = toAdd[0].AddEx(
-            new TProductPhoto { Photo = new byte[] { 101, 102 } });
+            new TProductPhoto { Photo = [101, 102] });
         var productPhoto2 = toAdd[0].AddEx(
-            new TProductPhoto { Photo = new byte[] { 103, 104 } });
+            new TProductPhoto { Photo = [103, 104] });
         var productPhoto3 = toAdd[0].AddEx(
-            new TProductPhoto { Photo = new byte[] { 105, 106 } });
+            new TProductPhoto { Photo = [105, 106] });
 
         product1.Photos.Add(productPhoto1);
         product1.Photos.Add(productPhoto2);
@@ -1906,7 +1889,7 @@ public class MonsterContext<
             new TSupplier { Name = "Ants By Boris" });
 
         var supplierLogo1 = toAdd[0].AddEx(
-            new TSupplierLogo { Logo = new byte[] { 201, 202 } });
+            new TSupplierLogo { Logo = [201, 202] });
 
         supplier1.Logo = supplierLogo1;
 
@@ -1987,7 +1970,7 @@ public class MonsterContext<
             Add(entity);
         }
 
-        SaveChanges();
+        return SaveChangesAsync();
     }
 }
 
@@ -1995,7 +1978,7 @@ internal static class Adder
 {
     public static TValue AddEx<TValue>(this List<object> list, TValue value)
     {
-        list.Add(value);
+        list.Add(value!);
         return value;
     }
 }

@@ -15,11 +15,10 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Storage.Internal;
 public class InMemoryStore : IInMemoryStore
 {
     private readonly IInMemoryTableFactory _tableFactory;
-    private readonly bool _useNameMatching;
 
     private readonly object _lock = new();
 
-    private Dictionary<object, IInMemoryTable>? _tables;
+    private Dictionary<string, IInMemoryTable>? _tables;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -27,13 +26,8 @@ public class InMemoryStore : IInMemoryStore
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public InMemoryStore(
-        IInMemoryTableFactory tableFactory,
-        bool useNameMatching)
-    {
-        _tableFactory = tableFactory;
-        _useNameMatching = useNameMatching;
-    }
+    public InMemoryStore(IInMemoryTableFactory tableFactory)
+        => _tableFactory = tableFactory;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -44,13 +38,12 @@ public class InMemoryStore : IInMemoryStore
     public virtual InMemoryIntegerValueGenerator<TProperty> GetIntegerValueGenerator<TProperty>(
         IProperty property)
     {
+        var entityType = property.DeclaringType.ContainingEntityType;
         lock (_lock)
         {
-            var entityType = property.DeclaringEntityType;
-
             return EnsureTable(entityType).GetIntegerValueGenerator<TProperty>(
                 property,
-                entityType.GetDerivedTypesInclusive().Select(type => EnsureTable(type)).ToArray());
+                entityType.GetDerivedTypesInclusive().Select(EnsureTable).ToArray());
         }
     }
 
@@ -81,7 +74,7 @@ public class InMemoryStore : IInMemoryStore
                     foreach (var targetSeed in entityType.GetSeedData())
                     {
                         targetEntityType ??= updateAdapter.Model.FindEntityType(entityType.Name)!;
-                        var entry = updateAdapter.CreateEntry(targetSeed, targetEntityType);
+                        var entry = updateAdapter.CreateEntry(GetValues(targetSeed, targetEntityType), targetEntityType);
                         entry.EntityState = EntityState.Added;
                         entries.Add(entry);
                     }
@@ -92,6 +85,20 @@ public class InMemoryStore : IInMemoryStore
 
             return valuesSeeded;
         }
+    }
+
+    private static Dictionary<IProperty, object?> GetValues(IDictionary<string, object?> seed, IEntityType entityType)
+    {
+        var values = new Dictionary<IProperty, object?>();
+        foreach (var (name, value) in seed)
+        {
+            if (entityType.FindProperty(name) is { } property)
+            {
+                values[property] = value;
+            }
+        }
+
+        return values;
     }
 
     /// <summary>
@@ -115,8 +122,8 @@ public class InMemoryStore : IInMemoryStore
         }
     }
 
-    private static Dictionary<object, IInMemoryTable> CreateTables()
-        => new();
+    private static Dictionary<string, IInMemoryTable> CreateTables()
+        => [];
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -133,8 +140,7 @@ public class InMemoryStore : IInMemoryStore
             {
                 foreach (var et in entityType.GetDerivedTypesInclusive().Where(et => !et.IsAbstract()))
                 {
-                    var key = _useNameMatching ? (object)et.Name : et;
-                    if (_tables.TryGetValue(key, out var table))
+                    if (_tables.TryGetValue(et.Name, out var table))
                     {
                         data.Add(new InMemoryTableSnapshot(et, table.SnapshotRows()));
                     }
@@ -176,19 +182,19 @@ public class InMemoryStore : IInMemoryStore
                         continue;
                     }
 
-                    table.Delete(entry);
+                    table.Delete(entry.SharedIdentityEntry, updateLogger);
                 }
 
                 switch (entry.EntityState)
                 {
                     case EntityState.Added:
-                        table.Create(entry);
+                        table.Create(entry, updateLogger);
                         break;
                     case EntityState.Deleted:
-                        table.Delete(entry);
+                        table.Delete(entry, updateLogger);
                         break;
                     case EntityState.Modified:
-                        table.Update(entry);
+                        table.Update(entry, updateLogger);
                         break;
                 }
 
@@ -211,7 +217,7 @@ public class InMemoryStore : IInMemoryStore
         var entityTypes = entityType.GetAllBaseTypesInclusive();
         foreach (var currentEntityType in entityTypes)
         {
-            var key = _useNameMatching ? (object)currentEntityType.Name : currentEntityType;
+            var key = currentEntityType.Name;
             if (!_tables.TryGetValue(key, out var table))
             {
                 _tables.Add(key, table = _tableFactory.Create(currentEntityType, baseTable));
@@ -220,6 +226,6 @@ public class InMemoryStore : IInMemoryStore
             baseTable = table;
         }
 
-        return _tables[_useNameMatching ? entityType.Name : entityType];
+        return _tables[entityType.Name];
     }
 }

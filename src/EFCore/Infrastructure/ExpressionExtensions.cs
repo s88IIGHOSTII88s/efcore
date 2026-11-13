@@ -1,7 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore.Internal;
 
@@ -29,7 +28,7 @@ public static class ExpressionExtensions
     /// <param name="characterLimit">An optional limit to the number of characters included. Additional output will be truncated.</param>
     /// <returns>The printable representation.</returns>
     public static string Print(this Expression expression, int? characterLimit = null)
-        => new ExpressionPrinter().Print(expression, characterLimit);
+        => new ExpressionPrinter().PrintExpression(expression, characterLimit);
 
     /// <summary>
     ///     Creates a <see cref="MemberExpression"></see> that represents accessing either a field or a property.
@@ -58,26 +57,29 @@ public static class ExpressionExtensions
     /// <param name="memberExpression">The member to which assignment will be made.</param>
     /// <param name="valueExpression">The value that will be assigned.</param>
     /// <returns>The <see cref="BinaryExpression" /> representing the assignment binding.</returns>
+    [UnconditionalSuppressMessage(
+         "ReflectionAnalysis", "IL2077",
+         Justification = "AssignBinaryExpression is preserved via DynamicDependency below"),
+     DynamicDependency(DynamicallyAccessedMemberTypes.All, "System.Linq.Expressions.AssignBinaryExpression", "System.Linq.Expressions")]
     public static Expression Assign(
         this MemberExpression memberExpression,
         Expression valueExpression)
     {
-        if (memberExpression.Member is FieldInfo fieldInfo
-            && fieldInfo.IsInitOnly)
-        {
-            return (BinaryExpression)Activator.CreateInstance(
-                AssignBinaryExpressionType,
+        return memberExpression.Member is FieldInfo { IsInitOnly: true }
+            ? (BinaryExpression)Activator.CreateInstance(
+                GetAssignBinaryExpressionType(),
                 BindingFlags.NonPublic | BindingFlags.Instance,
                 null,
-                new object[] { memberExpression, valueExpression },
-                null)!;
-        }
+                [memberExpression, valueExpression],
+                null)!
+            : Expression.Assign(memberExpression, valueExpression);
 
-        return Expression.Assign(memberExpression, valueExpression);
+        [UnconditionalSuppressMessage(
+            "ReflectionAnalysis", "IL2026",
+            Justification = "DynamicDependency ensures AssignBinaryExpression isn't trimmed")]
+        static Type GetAssignBinaryExpressionType()
+            => typeof(Expression).Assembly.GetType("System.Linq.Expressions.AssignBinaryExpression", throwOnError: true)!;
     }
-
-    private static readonly Type AssignBinaryExpressionType
-        = typeof(Expression).Assembly.GetType("System.Linq.Expressions.AssignBinaryExpression", throwOnError: true)!;
 
     /// <summary>
     ///     If the given a method-call expression represents a call to <see cref="EF.Property{TProperty}" />, then this
@@ -141,7 +143,7 @@ public static class ExpressionExtensions
     /// <param name="propertyAccessExpression">The expression.</param>
     /// <returns>The <see cref="PropertyInfo" />.</returns>
     public static PropertyInfo GetPropertyAccess(this LambdaExpression propertyAccessExpression)
-        => GetInternalMemberAccess<PropertyInfo>(propertyAccessExpression);
+        => propertyAccessExpression.GetInternalMemberAccess<PropertyInfo>();
 
     /// <summary>
     ///     Gets the <see cref="MemberInfo" /> represented by a simple member-access expression.
@@ -152,7 +154,7 @@ public static class ExpressionExtensions
     /// <param name="memberAccessExpression">The expression.</param>
     /// <returns>The <see cref="MemberInfo" />.</returns>
     public static MemberInfo GetMemberAccess(this LambdaExpression memberAccessExpression)
-        => GetInternalMemberAccess<MemberInfo>(memberAccessExpression);
+        => memberAccessExpression.GetInternalMemberAccess<MemberInfo>();
 
     private static TMemberInfo GetInternalMemberAccess<TMemberInfo>(this LambdaExpression memberAccessExpression)
         where TMemberInfo : MemberInfo
@@ -164,36 +166,11 @@ public static class ExpressionExtensions
         var parameterExpression = memberAccessExpression.Parameters[0];
         var memberInfo = parameterExpression.MatchSimpleMemberAccess<TMemberInfo>(memberAccessExpression.Body);
 
-        if (memberInfo == null)
-        {
-            throw new ArgumentException(
+        return memberInfo == null
+            ? throw new ArgumentException(
                 CoreStrings.InvalidMemberExpression(memberAccessExpression),
-                nameof(memberAccessExpression));
-        }
-
-        var declaringType = memberInfo.DeclaringType;
-        var parameterType = parameterExpression.Type;
-
-        if (declaringType != null
-            && declaringType != parameterType
-            && declaringType.IsInterface
-            && declaringType.IsAssignableFrom(parameterType)
-            && memberInfo is PropertyInfo propertyInfo)
-        {
-            var propertyGetter = propertyInfo.GetMethod;
-            var interfaceMapping = parameterType.GetTypeInfo().GetRuntimeInterfaceMap(declaringType);
-            var index = Array.FindIndex(interfaceMapping.InterfaceMethods, p => p.Equals(propertyGetter));
-            var targetMethod = interfaceMapping.TargetMethods[index];
-            foreach (var runtimeProperty in parameterType.GetRuntimeProperties())
-            {
-                if (targetMethod.Equals(runtimeProperty.GetMethod))
-                {
-                    return (TMemberInfo)(object)runtimeProperty;
-                }
-            }
-        }
-
-        return memberInfo;
+                nameof(memberAccessExpression))
+            : (TMemberInfo)memberInfo.ResolveMemberForType(parameterExpression.Type);
     }
 
     /// <summary>
@@ -223,14 +200,10 @@ public static class ExpressionExtensions
         var propertyPaths = propertyAccessExpression
             .MatchMemberAccessList((p, e) => e.MatchSimpleMemberAccess<PropertyInfo>(p));
 
-        if (propertyPaths == null)
-        {
-            throw new ArgumentException(
+        return propertyPaths
+            ?? throw new ArgumentException(
                 CoreStrings.InvalidMembersExpression(propertyAccessExpression),
                 nameof(propertyAccessExpression));
-        }
-
-        return propertyPaths;
     }
 
     /// <summary>
@@ -253,14 +226,10 @@ public static class ExpressionExtensions
         var memberPaths = memberAccessExpression
             .MatchMemberAccessList((p, e) => e.MatchSimpleMemberAccess<MemberInfo>(p));
 
-        if (memberPaths == null)
-        {
-            throw new ArgumentException(
+        return memberPaths
+            ?? throw new ArgumentException(
                 CoreStrings.InvalidMembersExpression(memberAccessExpression),
                 nameof(memberAccessExpression));
-        }
-
-        return memberPaths;
     }
 
     /// <summary>
@@ -282,11 +251,13 @@ public static class ExpressionExtensions
         Type type,
         int index,
         IPropertyBase? property)
-        => Expression.Call(
-            ValueBufferTryReadValueMethod.MakeGenericMethod(type),
-            valueBuffer,
-            Expression.Constant(index),
-            Expression.Constant(property, typeof(IPropertyBase)));
+        => property is INavigationBase
+            ? Expression.Constant(null, typeof(object))
+            : Expression.Call(
+                MakeValueBufferTryReadValueMethod(type),
+                valueBuffer,
+                Expression.Constant(index),
+                Expression.Constant(property, typeof(IPropertyBase)));
 
     /// <summary>
     ///     <para>
@@ -300,6 +271,12 @@ public static class ExpressionExtensions
     /// </summary>
     public static readonly MethodInfo ValueBufferTryReadValueMethod
         = typeof(ExpressionExtensions).GetTypeInfo().GetDeclaredMethod(nameof(ValueBufferTryReadValue))!;
+
+    [UnconditionalSuppressMessage(
+        "ReflectionAnalysis", "IL2060",
+        Justification = "ValueBufferTryReadValueMethod has no DynamicallyAccessedMembers annotations and is safe to construct.")]
+    private static MethodInfo MakeValueBufferTryReadValueMethod(Type type)
+        => ValueBufferTryReadValueMethod.MakeGenericMethod(type);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static TValue ValueBufferTryReadValue<TValue>(
@@ -353,7 +330,14 @@ public static class ExpressionExtensions
         bool makeNullable = true) // No shadow entities in runtime
         => CreateEFPropertyExpression(target, property.DeclaringType.ClrType, property.ClrType, property.Name, makeNullable);
 
-    private static Expression CreateEFPropertyExpression(
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [EntityFrameworkInternal]
+    public static Expression CreateEFPropertyExpression(
         Expression target,
         Type propertyDeclaringType,
         Type propertyType,
@@ -371,9 +355,101 @@ public static class ExpressionExtensions
             propertyType = propertyType.MakeNullable();
         }
 
+        // EF.Property expects an object as its first argument. If the target is a struct (complex type), we need an explicit up-cast to
+        // object.
+        if (target.Type.IsValueType)
+        {
+            target = Expression.Convert(target, typeof(object));
+        }
+
         return Expression.Call(
-            EF.PropertyMethod.MakeGenericMethod(propertyType),
+            EF.MakePropertyMethod(propertyType),
             target,
             Expression.Constant(propertyName));
+    }
+
+    private static readonly MethodInfo ObjectEqualsMethodInfo
+        = typeof(object).GetRuntimeMethod(nameof(object.Equals), [typeof(object), typeof(object)])!;
+
+    /// <summary>
+    ///     <para>
+    ///         Creates an <see cref="Expression" /> tree representing equality comparison between 2 expressions using
+    ///         <see cref="object.Equals(object?, object?)" /> method.
+    ///     </para>
+    ///     <para>
+    ///         This method is typically used by database providers (and other extensions). It is generally
+    ///         not used in application code.
+    ///     </para>
+    /// </summary>
+    /// <param name="left">The left expression in equality comparison.</param>
+    /// <param name="right">The right expression in equality comparison.</param>
+    /// <param name="negated">If the comparison is non-equality.</param>
+    /// <returns>An expression to compare left and right expressions.</returns>
+    public static Expression CreateEqualsExpression(
+        Expression left,
+        Expression right,
+        bool negated = false)
+    {
+        var result = Expression.Call(ObjectEqualsMethodInfo, AddConvertToObject(left), AddConvertToObject(right));
+
+        return negated
+            ? Expression.Not(result)
+            : result;
+
+        static Expression AddConvertToObject(Expression expression)
+            => expression.Type.IsValueType
+                ? Expression.Convert(expression, typeof(object))
+                : expression;
+    }
+
+    /// <summary>
+    ///     Returns whether the given expression represents a member access and if so, returns the decomposed base expression and the member
+    ///     identity.
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <param name="model">The model being used.</param>
+    /// <param name="baseExpression">The given expression, with the top-level member access node removed.</param>
+    /// <returns>
+    ///     <see langword="true" /> if <paramref name="expression" /> represents a member access, <see langword="false" /> otherwise.
+    /// </returns>
+    public static bool IsMemberAccess(
+        Expression expression,
+        IModel model,
+        [NotNullWhen(true)] out Expression? baseExpression)
+        => IsMemberAccess(expression, model, out baseExpression, out _);
+
+    /// <summary>
+    ///     Returns whether the given expression represents a member access and if so, returns the decomposed base expression and the member
+    ///     identity.
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <param name="model">The model being used.</param>
+    /// <param name="baseExpression">The given expression, with the top-level member access node removed.</param>
+    /// <param name="memberIdentity">A <see cref="MemberIdentity" /> representing the member being accessed.</param>
+    /// <returns>
+    ///     <see langword="true" /> if <paramref name="expression" /> represents a member access, <see langword="false" /> otherwise.
+    /// </returns>
+    public static bool IsMemberAccess(
+        Expression expression,
+        IModel model,
+        [NotNullWhen(true)] out Expression? baseExpression,
+        out MemberIdentity memberIdentity)
+    {
+        switch (expression)
+        {
+            case MemberExpression { Expression: not null } member:
+                baseExpression = member.Expression;
+                memberIdentity = MemberIdentity.Create(member.Member);
+                return true;
+            case MethodCallExpression methodCall
+                when methodCall.TryGetEFPropertyArguments(out baseExpression, out var propertyName)
+                || methodCall.TryGetIndexerArguments(model, out baseExpression, out propertyName):
+                memberIdentity = MemberIdentity.Create(propertyName);
+                return true;
+            default:
+                memberIdentity = MemberIdentity.None;
+                baseExpression = null;
+                return false;
+        }
     }
 }

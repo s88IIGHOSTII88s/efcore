@@ -7,8 +7,8 @@ public class LocustHighCommand
 {
     public int Id { get; set; }
 
-    public string Name { get; set; }
+    public string? Name { get; set; }
     public bool IsOperational { get; set; }
 
-    public List<LocustCommander> Commanders { get; set; }
+    public List<LocustCommander> Commanders { get; set; } = null!;
 }

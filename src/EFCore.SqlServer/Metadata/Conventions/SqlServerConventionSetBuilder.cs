@@ -1,9 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable once CheckNamespace
+
 namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 /// <summary>
@@ -19,7 +18,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 ///     </para>
 ///     <para>
 ///         See <see href="https://aka.ms/efcore-docs-conventions">Model building conventions</see>, and
-///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
 ///         for more information and examples.
 ///     </para>
 /// </remarks>
@@ -38,9 +37,7 @@ public class SqlServerConventionSetBuilder : RelationalConventionSetBuilder
         RelationalConventionSetBuilderDependencies relationalDependencies,
         ISqlGenerationHelper sqlGenerationHelper)
         : base(dependencies, relationalDependencies)
-    {
-        _sqlGenerationHelper = sqlGenerationHelper;
-    }
+        => _sqlGenerationHelper = sqlGenerationHelper;
 
     /// <summary>
     ///     Builds and returns the convention set for the current database provider.
@@ -50,81 +47,31 @@ public class SqlServerConventionSetBuilder : RelationalConventionSetBuilder
     {
         var conventionSet = base.CreateConventionSet();
 
-        var valueGenerationStrategyConvention = new SqlServerValueGenerationStrategyConvention(Dependencies, RelationalDependencies);
-        conventionSet.ModelInitializedConventions.Add(valueGenerationStrategyConvention);
-        conventionSet.ModelInitializedConventions.Add(
-            new RelationalMaxIdentifierLengthConvention(128, Dependencies, RelationalDependencies));
+        conventionSet.Add(new SqlServerValueGenerationStrategyConvention(Dependencies, RelationalDependencies));
+        conventionSet.Add(new RelationalMaxIdentifierLengthConvention(128, Dependencies, RelationalDependencies));
+        conventionSet.Add(new SqlServerIndexConvention(Dependencies, RelationalDependencies, _sqlGenerationHelper));
+        conventionSet.Add(new SqlServerMemoryOptimizedTablesConvention(Dependencies, RelationalDependencies));
+        conventionSet.Add(new SqlServerDbFunctionConvention(Dependencies, RelationalDependencies));
+        conventionSet.Add(new SqlServerOutputClauseConvention(Dependencies, RelationalDependencies));
 
-        ValueGenerationConvention valueGenerationConvention =
-            new SqlServerValueGenerationConvention(Dependencies, RelationalDependencies);
-        var sqlServerIndexConvention = new SqlServerIndexConvention(Dependencies, RelationalDependencies, _sqlGenerationHelper);
-        ReplaceConvention(conventionSet.EntityTypeBaseTypeChangedConventions, valueGenerationConvention);
-        conventionSet.EntityTypeBaseTypeChangedConventions.Add(sqlServerIndexConvention);
-
-        var sqlServerInMemoryTablesConvention = new SqlServerMemoryOptimizedTablesConvention(Dependencies, RelationalDependencies);
-        conventionSet.EntityTypeAnnotationChangedConventions.Add(sqlServerInMemoryTablesConvention);
-
-        ReplaceConvention(
-            conventionSet.ForeignKeyPropertiesChangedConventions,
-            (RelationalValueGenerationConvention)valueGenerationConvention);
-
-        ReplaceConvention(
-            conventionSet.ForeignKeyOwnershipChangedConventions,
-            (RelationalValueGenerationConvention)valueGenerationConvention);
-
-        ReplaceConvention(
-            conventionSet.EntityTypeAnnotationChangedConventions,
-            (RelationalValueGenerationConvention)valueGenerationConvention);
+        conventionSet.Replace<CascadeDeleteConvention>(
+            new SqlServerOnDeleteConvention(Dependencies, RelationalDependencies));
+        conventionSet.Replace<StoreGenerationConvention>(
+            new SqlServerStoreGenerationConvention(Dependencies, RelationalDependencies));
+        conventionSet.Replace<ValueGenerationConvention>(
+            new SqlServerValueGenerationConvention(Dependencies, RelationalDependencies));
+        conventionSet.Replace<RuntimeModelConvention>(new SqlServerRuntimeModelConvention(Dependencies, RelationalDependencies));
+        conventionSet.Replace<SharedTableConvention>(
+            new SqlServerSharedTableConvention(Dependencies, RelationalDependencies));
+        conventionSet.Replace<AutoLoadConvention>(new SqlServerAutoLoadConvention(Dependencies));
 
         var sqlServerTemporalConvention = new SqlServerTemporalConvention(Dependencies, RelationalDependencies);
         ConventionSet.AddBefore(
             conventionSet.EntityTypeAnnotationChangedConventions,
             sqlServerTemporalConvention,
             typeof(SqlServerValueGenerationConvention));
-
-        ReplaceConvention(conventionSet.EntityTypePrimaryKeyChangedConventions, valueGenerationConvention);
-
-        conventionSet.KeyAddedConventions.Add(sqlServerInMemoryTablesConvention);
-
-        var sqlServerOnDeleteConvention = new SqlServerOnDeleteConvention(Dependencies, RelationalDependencies);
-        ReplaceConvention(conventionSet.ForeignKeyAddedConventions, valueGenerationConvention);
-        ReplaceConvention(conventionSet.ForeignKeyAddedConventions, (CascadeDeleteConvention)sqlServerOnDeleteConvention);
-
-        ReplaceConvention(conventionSet.ForeignKeyRemovedConventions, valueGenerationConvention);
-
-        ReplaceConvention(conventionSet.ForeignKeyRequirednessChangedConventions, (CascadeDeleteConvention)sqlServerOnDeleteConvention);
-
-        conventionSet.SkipNavigationForeignKeyChangedConventions.Add(sqlServerOnDeleteConvention);
-
-        conventionSet.IndexAddedConventions.Add(sqlServerInMemoryTablesConvention);
-        conventionSet.IndexAddedConventions.Add(sqlServerIndexConvention);
-
-        conventionSet.IndexUniquenessChangedConventions.Add(sqlServerIndexConvention);
-
-        conventionSet.IndexAnnotationChangedConventions.Add(sqlServerIndexConvention);
-
-        conventionSet.PropertyNullabilityChangedConventions.Add(sqlServerIndexConvention);
-
-        StoreGenerationConvention storeGenerationConvention =
-            new SqlServerStoreGenerationConvention(Dependencies, RelationalDependencies);
-        conventionSet.PropertyAnnotationChangedConventions.Add(sqlServerIndexConvention);
-        ReplaceConvention(conventionSet.PropertyAnnotationChangedConventions, storeGenerationConvention);
-        ReplaceConvention(
-            conventionSet.PropertyAnnotationChangedConventions, (RelationalValueGenerationConvention)valueGenerationConvention);
-
-        conventionSet.ModelFinalizingConventions.Add(valueGenerationStrategyConvention);
-        ReplaceConvention(conventionSet.ModelFinalizingConventions, storeGenerationConvention);
-        ReplaceConvention(
-            conventionSet.ModelFinalizingConventions,
-            (SharedTableConvention)new SqlServerSharedTableConvention(Dependencies, RelationalDependencies));
-        conventionSet.ModelFinalizingConventions.Add(new SqlServerDbFunctionConvention(Dependencies, RelationalDependencies));
-        conventionSet.ModelFinalizingConventions.Add(sqlServerTemporalConvention);
-
-        ReplaceConvention(
-            conventionSet.ModelFinalizedConventions,
-            (RuntimeModelConvention)new SqlServerRuntimeModelConvention(Dependencies, RelationalDependencies));
-
         conventionSet.SkipNavigationForeignKeyChangedConventions.Add(sqlServerTemporalConvention);
+        conventionSet.ModelFinalizingConventions.Add(sqlServerTemporalConvention);
 
         return conventionSet;
     }
@@ -162,10 +109,9 @@ public class SqlServerConventionSetBuilder : RelationalConventionSetBuilder
     {
         var serviceProvider = new ServiceCollection()
             .AddEntityFrameworkSqlServer()
-            .AddDbContext<DbContext>(
-                (p, o) =>
-                    o.UseSqlServer("Server=.")
-                        .UseInternalServiceProvider(p))
+            .AddDbContext<DbContext>((p, o) =>
+                o.UseSqlServer("Server=.")
+                    .UseInternalServiceProvider(p))
             .BuildServiceProvider();
 
         return serviceProvider.GetRequiredService<IServiceScopeFactory>().CreateScope();

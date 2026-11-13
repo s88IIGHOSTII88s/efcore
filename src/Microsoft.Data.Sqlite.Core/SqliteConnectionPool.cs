@@ -2,79 +2,75 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 
-namespace Microsoft.Data.Sqlite
+namespace Microsoft.Data.Sqlite;
+
+internal class SqliteConnectionPool
 {
-    internal class SqliteConnectionPool
+    private static readonly Random _random = new();
+
+    private readonly SqliteConnectionStringBuilder _connectionOptions;
+    private readonly List<SqliteConnectionInternal> _connections = [];
+    private readonly Stack<SqliteConnectionInternal> _warmPool = new();
+    private readonly Stack<SqliteConnectionInternal> _coldPool = new();
+
+    private Timer? _pruneTimer;
+    private State _state = State.Active;
+
+    public SqliteConnectionPool(SqliteConnectionStringBuilder connectionOptions)
     {
-        private static readonly Random _random = new();
-
-        private readonly SqliteConnectionStringBuilder _connectionOptions;
-        private readonly List<SqliteConnectionInternal> _connections = new();
-        private readonly ConcurrentStack<SqliteConnectionInternal> _warmPool = new();
-        private readonly ConcurrentStack<SqliteConnectionInternal> _coldPool = new();
-        private readonly Semaphore _poolSemaphore = new(0, int.MaxValue);
-
-        private Timer? _pruneTimer;
-        private State _state = State.Active;
-
-        public SqliteConnectionPool(SqliteConnectionStringBuilder connectionOptions)
+        lock (_random)
         {
-            lock (_random)
-            {
-                // 2-4 minutes in 10 second intervals
-                var prunePeriod = TimeSpan.FromSeconds(_random.Next(2 * 6, 4 * 6) * 10);
-                _pruneTimer = new Timer(PruneCallback, null, prunePeriod, prunePeriod);
-            }
-
-            _connectionOptions = connectionOptions;
+            // 2-4 minutes in 10 second intervals
+            var prunePeriod = TimeSpan.FromSeconds(_random.Next(2 * 6, 4 * 6) * 10);
+            _pruneTimer = new Timer(PruneCallback, null, prunePeriod, prunePeriod);
         }
 
-        public int Count
-            => _connections.Count;
+        _connectionOptions = connectionOptions;
+    }
 
-        public void Shutdown()
+    public int Count
+        => _connections.Count;
+
+    public void Shutdown()
+    {
+        _state = State.Disabled;
+
+        _pruneTimer?.Dispose();
+        _pruneTimer = null;
+    }
+
+    public SqliteConnectionInternal GetConnection()
+    {
+        SqliteConnectionInternal? connection = null;
+        do
         {
-            _state = State.Disabled;
-
-            _pruneTimer?.Dispose();
-            _pruneTimer = null;
-        }
-
-        public SqliteConnectionInternal GetConnection()
-        {
-            SqliteConnectionInternal? connection = null;
-            do
+            lock (_connections)
             {
-                if (_poolSemaphore.WaitOne(0))
-                {
-                    if (!_warmPool.TryPop(out connection)
-                        && !_coldPool.TryPop(out connection))
-                    {
-                        Debug.Fail("Inconceivable!");
-                    }
-                }
-                else if (Count % 2 == 1 || !ReclaimLeakedConnections())
+                if (!TryPop(_warmPool, out connection)
+                    && !TryPop(_coldPool, out connection)
+                    && (Count % 2 == 1 || !ReclaimLeakedConnections()))
                 {
                     connection = new SqliteConnectionInternal(_connectionOptions, this);
 
-                    lock (_connections)
-                    {
-                        _connections.Add(connection);
-                    }
+                    _connections.Add(connection);
                 }
             }
-            while (connection == null);
-
-            return connection;
         }
+        while (connection == null);
 
-        public void Return(SqliteConnectionInternal connection)
+        return connection;
+    }
+
+    private static bool TryPop(Stack<SqliteConnectionInternal> stack, out SqliteConnectionInternal? connection)
+        => stack.TryPop(out connection);
+
+    public void Return(SqliteConnectionInternal connection)
+    {
+        lock (_connections)
         {
             connection.Deactivate();
 
@@ -82,102 +78,86 @@ namespace Microsoft.Data.Sqlite
                 && connection.CanBePooled)
             {
                 _warmPool.Push(connection);
-                _poolSemaphore.Release();
             }
             else
             {
                 DisposeConnection(connection);
             }
         }
+    }
 
-        public void Clear()
+    public void Clear()
+    {
+        lock (_connections)
         {
-            lock (_connections)
+            foreach (var connection in _connections)
             {
-                foreach (var connection in _connections)
-                {
-                    connection.DoNotPool();
-                }
+                connection.DoNotPool();
             }
 
-            while (_warmPool.TryPop(out var connection))
+            while (TryPop(_warmPool, out var connection))
             {
-                DisposeConnection(connection);
+                DisposeConnection(connection!);
             }
 
-            while (_coldPool.TryPop(out var connection))
+            while (TryPop(_coldPool, out var connection))
             {
-                DisposeConnection(connection);
+                DisposeConnection(connection!);
             }
 
             ReclaimLeakedConnections();
         }
+    }
 
-        private void PruneCallback(object? _)
+    private void PruneCallback(object? _)
+    {
+        lock (_connections)
         {
-            while (Count > 0)
+            while (TryPop(_coldPool, out var connection))
             {
-                if (!_poolSemaphore.WaitOne(0))
-                {
-                    break;
-                }
-
-                if (_coldPool.TryPop(out var connection))
-                {
-                    DisposeConnection(connection);
-                }
-                else
-                {
-                    _poolSemaphore.Release();
-                    break;
-                }
+                DisposeConnection(connection!);
             }
 
-            if (_poolSemaphore.WaitOne(0))
+            while (TryPop(_warmPool, out var connection))
             {
-                while (_warmPool.TryPop(out var connection))
-                {
-                    _coldPool.Push(connection);
-                }
-
-                _poolSemaphore.Release();
+                _coldPool.Push(connection!);
             }
         }
+    }
 
-        private void DisposeConnection(SqliteConnectionInternal connection)
+    private void DisposeConnection(SqliteConnectionInternal connection)
+    {
+        lock (_connections)
         {
-            lock (_connections)
-            {
-                _connections.Remove(connection);
-            }
-
-            connection.Dispose();
+            _connections.Remove(connection);
         }
 
-        private bool ReclaimLeakedConnections()
+        connection.Dispose();
+    }
+
+    private bool ReclaimLeakedConnections()
+    {
+        var leakedConnectionsFound = false;
+
+        List<SqliteConnectionInternal> leakedConnections;
+        lock (_connections)
         {
-            var leakedConnectionsFound = false;
-
-            List<SqliteConnectionInternal> leakedConnections;
-            lock (_connections)
-            {
-                leakedConnections = _connections.Where(c => c.Leaked).ToList();
-            }
-
-            foreach (var connection in leakedConnections)
-            {
-                leakedConnectionsFound = true;
-
-                Return(connection);
-            }
-
-            return leakedConnectionsFound;
+            leakedConnections = _connections.Where(c => c.Leaked).ToList();
         }
 
-        private enum State
+        foreach (var connection in leakedConnections)
         {
-            Active,
-            Disabled
+            leakedConnectionsFound = true;
+
+            Return(connection);
         }
+
+        return leakedConnectionsFound;
+    }
+
+    private enum State
+    {
+        Active,
+        Disabled
     }
 }

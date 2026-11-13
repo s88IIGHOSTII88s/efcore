@@ -5,9 +5,9 @@ using Microsoft.Data.SqlClient;
 
 namespace Microsoft.EntityFrameworkCore;
 
-public class NavigationTest : IClassFixture<NavigationTestFixture>
+public class NavigationTest(NavigationTestFixture fixture) : IClassFixture<NavigationTestFixture>
 {
-    [ConditionalFact]
+    [Fact]
     public void Duplicate_entries_are_not_created_for_navigations_to_principal()
     {
         using var context = _fixture.CreateContext();
@@ -22,15 +22,15 @@ public class NavigationTest : IClassFixture<NavigationTestFixture>
         var entityType = model.GetEntityTypes().First();
 
         Assert.Equal(
-            "ForeignKey: GoTPerson {'LoverId'} -> GoTPerson {'Id'} Unique ToDependent: LoverReverse ToPrincipal: Lover ClientSetNull",
+            "ForeignKey: GoTPerson {'LoverId'} -> GoTPerson {'Id'} Unique ClientSetNull ToDependent: LoverReverse ToPrincipal: Lover",
             entityType.GetForeignKeys().First().ToString());
 
         Assert.Equal(
-            "ForeignKey: GoTPerson {'SiblingReverseId'} -> GoTPerson {'Id'} ToDependent: Siblings ToPrincipal: SiblingReverse ClientSetNull",
+            "ForeignKey: GoTPerson {'SiblingReverseId'} -> GoTPerson {'Id'} ClientSetNull ToDependent: Siblings ToPrincipal: SiblingReverse",
             entityType.GetForeignKeys().Skip(1).First().ToString());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Duplicate_entries_are_not_created_for_navigations_to_dependent()
     {
         using var context = _fixture.CreateContext();
@@ -45,42 +45,32 @@ public class NavigationTest : IClassFixture<NavigationTestFixture>
         var entityType = model.GetEntityTypes().First();
 
         Assert.Equal(
-            "ForeignKey: GoTPerson {'LoverId'} -> GoTPerson {'Id'} Unique ToDependent: LoverReverse ToPrincipal: Lover ClientSetNull",
+            "ForeignKey: GoTPerson {'LoverId'} -> GoTPerson {'Id'} Unique ClientSetNull ToDependent: LoverReverse ToPrincipal: Lover",
             entityType.GetForeignKeys().First().ToString());
 
         Assert.Equal(
-            "ForeignKey: GoTPerson {'SiblingReverseId'} -> GoTPerson {'Id'} ToDependent: Siblings ToPrincipal: SiblingReverse ClientSetNull",
+            "ForeignKey: GoTPerson {'SiblingReverseId'} -> GoTPerson {'Id'} ClientSetNull ToDependent: Siblings ToPrincipal: SiblingReverse",
             entityType.GetForeignKeys().Skip(1).First().ToString());
     }
 
-    private readonly NavigationTestFixture _fixture;
-
-    public NavigationTest(NavigationTestFixture fixture)
-    {
-        _fixture = fixture;
-    }
+    private readonly NavigationTestFixture _fixture = fixture;
 }
 
 public class GoTPerson
 {
     public int Id { get; set; }
-    public string Name { get; set; }
+    public string? Name { get; set; }
 
-    public List<GoTPerson> Siblings { get; set; }
-    public GoTPerson Lover { get; set; }
-    public GoTPerson LoverReverse { get; set; }
-    public GoTPerson SiblingReverse { get; set; }
+    public List<GoTPerson> Siblings { get; set; } = null!;
+    public GoTPerson? Lover { get; set; }
+    public GoTPerson? LoverReverse { get; set; }
+    public GoTPerson? SiblingReverse { get; set; }
 }
 
-public class GoTContext : DbContext
+public class GoTContext(DbContextOptions options) : DbContext(options)
 {
-    public GoTContext(DbContextOptions options)
-        : base(options)
-    {
-    }
-
-    public DbSet<GoTPerson> People { get; set; }
-    public Func<ModelBuilder, int> ConfigAction { get; set; }
+    public DbSet<GoTPerson> People { get; set; } = null!;
+    public Func<ModelBuilder, int> ConfigAction { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
         => ConfigAction.Invoke(modelBuilder);
@@ -96,7 +86,7 @@ public class NavigationTestFixture
             .AddEntityFrameworkSqlServer()
             .BuildServiceProvider(validateScopes: true);
 
-        var connStrBuilder = new SqlConnectionStringBuilder(TestEnvironment.DefaultConnection)
+        var connStrBuilder = new SqlConnectionStringBuilder(SqlServerTestEnvironment.DefaultConnection)
         {
             InitialCatalog = "StateManagerBug",
             MultipleActiveResultSets = true,

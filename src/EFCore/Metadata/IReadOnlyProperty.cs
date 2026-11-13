@@ -3,22 +3,18 @@
 
 using System.Text;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Microsoft.EntityFrameworkCore.Storage.Json;
 
 namespace Microsoft.EntityFrameworkCore.Metadata;
 
 /// <summary>
-///     Represents a scalar property of an entity type.
+///     Represents a scalar property of a structural type.
 /// </summary>
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and examples.
 /// </remarks>
 public interface IReadOnlyProperty : IReadOnlyPropertyBase
 {
-    /// <summary>
-    ///     Gets the entity type that this property belongs to.
-    /// </summary>
-    IReadOnlyEntityType DeclaringEntityType { get; }
-
     /// <summary>
     ///     Gets a value indicating whether this property can contain <see langword="null" />.
     /// </summary>
@@ -43,18 +39,21 @@ public interface IReadOnlyProperty : IReadOnlyPropertyBase
     bool IsConcurrencyToken { get; }
 
     /// <summary>
+    ///     Gets a value indicating whether this property is automatically loaded when the entity is queried from the database.
+    ///     When set to <see langword="false" />, the property value will not be read from the database and the property will be
+    ///     excluded from <c>UPDATE</c> statements unless explicitly loaded or modified.
+    /// </summary>
+    virtual bool IsAutoLoaded
+        => true;
+
+    /// <summary>
     ///     Returns the <see cref="CoreTypeMapping" /> for the given property from a finalized model.
     /// </summary>
     /// <returns>The type mapping.</returns>
     CoreTypeMapping GetTypeMapping()
     {
         var mapping = FindTypeMapping();
-        if (mapping == null)
-        {
-            throw new InvalidOperationException(CoreStrings.ModelNotFinalized(nameof(GetTypeMapping)));
-        }
-
-        return mapping;
+        return mapping ?? throw new InvalidOperationException(CoreStrings.ModelNotFinalized(nameof(GetTypeMapping)));
     }
 
     /// <summary>
@@ -67,7 +66,10 @@ public interface IReadOnlyProperty : IReadOnlyPropertyBase
     ///     Gets the maximum length of data that is allowed in this property. For example, if the property is a <see cref="string" />
     ///     then this is the maximum number of characters.
     /// </summary>
-    /// <returns>The maximum length, or <see langword="null" /> if none is defined.</returns>
+    /// <returns>
+    ///     The maximum length, <c>-1</c> if the property has no maximum length, or <see langword="null" /> if the maximum length hasn't been
+    ///     set.
+    /// </returns>
     int? GetMaxLength();
 
     /// <summary>
@@ -85,13 +87,13 @@ public interface IReadOnlyProperty : IReadOnlyPropertyBase
     int? GetScale();
 
     /// <summary>
-    ///     Gets a value indicating whether or not the property can persist Unicode characters.
+    ///     Gets a value indicating whether the property can persist Unicode characters.
     /// </summary>
     /// <returns>The Unicode setting, or <see langword="null" /> if none is defined.</returns>
     bool? IsUnicode();
 
     /// <summary>
-    ///     Gets a value indicating whether or not this property can be modified before the entity is
+    ///     Gets a value indicating whether this property can be modified before the entity is
     ///     saved to the database.
     /// </summary>
     /// <remarks>
@@ -109,7 +111,7 @@ public interface IReadOnlyProperty : IReadOnlyPropertyBase
     PropertySaveBehavior GetBeforeSaveBehavior();
 
     /// <summary>
-    ///     Gets a value indicating whether or not this property can be modified after the entity is
+    ///     Gets a value indicating whether this property can be modified after the entity is
     ///     saved to the database.
     /// </summary>
     /// <remarks>
@@ -129,7 +131,7 @@ public interface IReadOnlyProperty : IReadOnlyPropertyBase
     ///     Gets the factory that has been set to generate values for this property, if any.
     /// </summary>
     /// <returns>The factory, or <see langword="null" /> if no factory has been set.</returns>
-    Func<IProperty, IEntityType, ValueGenerator>? GetValueGeneratorFactory();
+    Func<IProperty, ITypeBase, ValueGenerator>? GetValueGeneratorFactory();
 
     /// <summary>
     ///     Gets the custom <see cref="ValueConverter" /> set for this property.
@@ -154,6 +156,30 @@ public interface IReadOnlyProperty : IReadOnlyPropertyBase
     /// </summary>
     /// <returns>The comparer, or <see langword="null" /> if none has been set.</returns>
     ValueComparer? GetKeyValueComparer();
+
+    /// <summary>
+    ///     Gets the <see cref="ValueComparer" /> to use for the provider values for this property.
+    /// </summary>
+    /// <returns>The comparer, or <see langword="null" /> if none has been set.</returns>
+    ValueComparer? GetProviderValueComparer();
+
+    /// <summary>
+    ///     Gets the <see cref="JsonValueReaderWriter" /> for this property, or <see langword="null" /> if none is set.
+    /// </summary>
+    /// <returns>The reader/writer, or <see langword="null" /> if none has been set.</returns>
+    JsonValueReaderWriter? GetJsonValueReaderWriter();
+
+    /// <summary>
+    ///     Gets the configuration for elements of the primitive collection represented by this property.
+    /// </summary>
+    /// <returns>The configuration for the elements.</returns>
+    IReadOnlyElementType? GetElementType();
+
+    /// <summary>
+    ///     A property is a primitive collection if it has an element type that matches the element type of the CLR type.
+    /// </summary>
+    /// <returns><see langword="true" /> if the property represents a primitive collection.</returns>
+    bool IsPrimitiveCollection { get; }
 
     /// <summary>
     ///     Finds the first principal property that the given property is constrained by
@@ -182,21 +208,31 @@ public interface IReadOnlyProperty : IReadOnlyPropertyBase
     /// </summary>
     /// <returns>The list of all associated principal properties including the given property.</returns>
     IReadOnlyList<IReadOnlyProperty> GetPrincipals()
+        => GetPrincipals<IReadOnlyProperty>();
+
+    /// <summary>
+    ///     Finds the list of principal properties including the given property that the given property is constrained by
+    ///     if the given property is part of a foreign key.
+    /// </summary>
+    /// <returns>The list of all associated principal properties including the given property.</returns>
+    IReadOnlyList<T> GetPrincipals<T>()
+        where T : IReadOnlyProperty
     {
-        var principals = new List<IReadOnlyProperty> { this };
-        AddPrincipals(this, principals);
+        var principals = new List<T> { (T)this };
+        AddPrincipals((T)this, principals);
         return principals;
     }
 
-    private static void AddPrincipals(IReadOnlyProperty property, List<IReadOnlyProperty> visited)
+    private static void AddPrincipals<T>(T property, List<T> visited)
+        where T : IReadOnlyProperty
     {
         foreach (var foreignKey in property.GetContainingForeignKeys())
         {
             for (var propertyIndex = 0; propertyIndex < foreignKey.Properties.Count; propertyIndex++)
             {
-                if (property == foreignKey.Properties[propertyIndex])
+                if (ReferenceEquals(property, foreignKey.Properties[propertyIndex]))
                 {
-                    var principal = foreignKey.PrincipalKey.Properties[propertyIndex];
+                    var principal = (T)foreignKey.PrincipalKey.Properties[propertyIndex];
                     if (!visited.Contains(principal))
                     {
                         visited.Add(principal);
@@ -286,113 +322,136 @@ public interface IReadOnlyProperty : IReadOnlyPropertyBase
         var builder = new StringBuilder();
         var indentString = new string(' ', indent);
 
-        builder.Append(indentString);
-
-        var singleLine = (options & MetadataDebugStringOptions.SingleLine) != 0;
-        if (singleLine)
+        try
         {
-            builder.Append($"Property: {DeclaringEntityType.DisplayName()}.");
+            builder.Append(indentString);
+
+            var singleLine = (options & MetadataDebugStringOptions.SingleLine) != 0;
+            if (singleLine)
+            {
+                builder.Append($"Property: {DeclaringType.DisplayName()}.");
+            }
+
+            builder.Append(Name).Append(" (");
+
+            var field = GetFieldName();
+            if (field == null)
+            {
+                builder.Append("no field, ");
+            }
+            else if (!field.EndsWith(">k__BackingField", StringComparison.Ordinal))
+            {
+                builder.Append(field).Append(", ");
+            }
+
+            builder.Append(ClrType.ShortDisplayName()).Append(')');
+
+            if (IsShadowProperty())
+            {
+                builder.Append(" Shadow");
+            }
+
+            if (IsIndexerProperty())
+            {
+                builder.Append(" Indexer");
+            }
+
+            if (!IsNullable)
+            {
+                builder.Append(" Required");
+            }
+
+            if (IsPrimaryKey())
+            {
+                builder.Append(" PK");
+            }
+
+            if (IsForeignKey())
+            {
+                builder.Append(" FK");
+            }
+
+            if (IsKey()
+                && !IsPrimaryKey())
+            {
+                builder.Append(" AlternateKey");
+            }
+
+            if (IsIndex())
+            {
+                builder.Append(" Index");
+            }
+
+            if (IsConcurrencyToken)
+            {
+                builder.Append(" Concurrency");
+            }
+
+            if (!IsAutoLoaded)
+            {
+                builder.Append(" NoAutoLoad");
+            }
+
+            if (Sentinel != null && !Equals(Sentinel, ClrType.GetDefaultValue()))
+            {
+                builder.Append(" Sentinel:").Append(Sentinel);
+            }
+
+            if (GetBeforeSaveBehavior() != PropertySaveBehavior.Save)
+            {
+                builder.Append(" BeforeSave:").Append(GetBeforeSaveBehavior());
+            }
+
+            if (GetAfterSaveBehavior() != PropertySaveBehavior.Save)
+            {
+                builder.Append(" AfterSave:").Append(GetAfterSaveBehavior());
+            }
+
+            if (ValueGenerated != ValueGenerated.Never)
+            {
+                builder.Append(" ValueGenerated.").Append(ValueGenerated);
+            }
+
+            if (GetMaxLength() != null)
+            {
+                builder.Append(" MaxLength(").Append(GetMaxLength()).Append(')');
+            }
+
+            if (IsUnicode() == false)
+            {
+                builder.Append(" ANSI");
+            }
+
+            if (GetPropertyAccessMode() != PropertyAccessMode.PreferField)
+            {
+                builder.Append(" PropertyAccessMode.").Append(GetPropertyAccessMode());
+            }
+
+            var elementType = GetElementType();
+            if (elementType != null)
+            {
+                builder.Append(" Element type: ").Append(elementType.ToDebugString());
+            }
+
+            if ((options & MetadataDebugStringOptions.IncludePropertyIndexes) != 0
+                && (this is RuntimeAnnotatableBase || this is AnnotatableBase { IsReadOnly: true }))
+            {
+                var indexes = ((IProperty)this).GetPropertyIndexes();
+                builder.Append(' ').Append(indexes.Index);
+                builder.Append(' ').Append(indexes.OriginalValueIndex);
+                builder.Append(' ').Append(indexes.RelationshipIndex);
+                builder.Append(' ').Append(indexes.ShadowIndex);
+                builder.Append(' ').Append(indexes.StoreGenerationIndex);
+            }
+
+            if (!singleLine && (options & MetadataDebugStringOptions.IncludeAnnotations) != 0)
+            {
+                builder.Append(AnnotationsToDebugString(indent + 2));
+            }
         }
-
-        builder.Append(Name).Append(" (");
-
-        var field = GetFieldName();
-        if (field == null)
+        catch (Exception exception)
         {
-            builder.Append("no field, ");
-        }
-        else if (!field.EndsWith(">k__BackingField", StringComparison.Ordinal))
-        {
-            builder.Append(field).Append(", ");
-        }
-
-        builder.Append(ClrType.ShortDisplayName()).Append(')');
-
-        if (IsShadowProperty())
-        {
-            builder.Append(" Shadow");
-        }
-
-        if (IsIndexerProperty())
-        {
-            builder.Append(" Indexer");
-        }
-
-        if (!IsNullable)
-        {
-            builder.Append(" Required");
-        }
-
-        if (IsPrimaryKey())
-        {
-            builder.Append(" PK");
-        }
-
-        if (IsForeignKey())
-        {
-            builder.Append(" FK");
-        }
-
-        if (IsKey()
-            && !IsPrimaryKey())
-        {
-            builder.Append(" AlternateKey");
-        }
-
-        if (IsIndex())
-        {
-            builder.Append(" Index");
-        }
-
-        if (IsConcurrencyToken)
-        {
-            builder.Append(" Concurrency");
-        }
-
-        if (GetBeforeSaveBehavior() != PropertySaveBehavior.Save)
-        {
-            builder.Append(" BeforeSave:").Append(GetBeforeSaveBehavior());
-        }
-
-        if (GetAfterSaveBehavior() != PropertySaveBehavior.Save)
-        {
-            builder.Append(" AfterSave:").Append(GetAfterSaveBehavior());
-        }
-
-        if (ValueGenerated != ValueGenerated.Never)
-        {
-            builder.Append(" ValueGenerated.").Append(ValueGenerated);
-        }
-
-        if (GetMaxLength() != null)
-        {
-            builder.Append(" MaxLength(").Append(GetMaxLength()).Append(')');
-        }
-
-        if (IsUnicode() == false)
-        {
-            builder.Append(" Ansi");
-        }
-
-        if (GetPropertyAccessMode() != PropertyAccessMode.PreferField)
-        {
-            builder.Append(" PropertyAccessMode.").Append(GetPropertyAccessMode());
-        }
-
-        if ((options & MetadataDebugStringOptions.IncludePropertyIndexes) != 0
-            && ((AnnotatableBase)this).IsReadOnly)
-        {
-            var indexes = ((IProperty)this).GetPropertyIndexes();
-            builder.Append(' ').Append(indexes.Index);
-            builder.Append(' ').Append(indexes.OriginalValueIndex);
-            builder.Append(' ').Append(indexes.RelationshipIndex);
-            builder.Append(' ').Append(indexes.ShadowIndex);
-            builder.Append(' ').Append(indexes.StoreGenerationIndex);
-        }
-
-        if (!singleLine && (options & MetadataDebugStringOptions.IncludeAnnotations) != 0)
-        {
-            builder.Append(AnnotationsToDebugString(indent + 2));
+            builder.AppendLine().AppendLine(CoreStrings.DebugViewError(exception.Message));
         }
 
         return builder.ToString();

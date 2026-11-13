@@ -2,10 +2,13 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Data;
+using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore.Scaffolding.Metadata;
 using Microsoft.EntityFrameworkCore.Sqlite.Internal;
+using Microsoft.EntityFrameworkCore.Sqlite.Migrations.Internal;
 using static SQLitePCL.raw;
 
 namespace Microsoft.EntityFrameworkCore.Sqlite.Scaffolding.Internal;
@@ -18,6 +21,132 @@ namespace Microsoft.EntityFrameworkCore.Sqlite.Scaffolding.Internal;
 /// </summary>
 public class SqliteDatabaseModelFactory : DatabaseModelFactory
 {
+    private static readonly HashSet<Type?> _defaultClrTypes =
+    [
+        typeof(long),
+        typeof(string),
+        typeof(byte[]),
+        typeof(double)
+    ];
+
+    private static readonly HashSet<string> _boolTypes =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
+        "BIT",
+        "BOOL",
+        "BOOLEAN",
+        "LOGICAL",
+        "YESNO"
+    ];
+
+    private static readonly HashSet<string> _uintTypes =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
+        "MEDIUMUINT",
+        "UINT",
+        "UINT32",
+        "UNSIGNEDINTEGER32"
+    ];
+
+    private static readonly HashSet<string> _ulongTypes =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
+        "BIGUINT",
+        "UINT64",
+        "ULONG",
+        "UNSIGNEDINTEGER",
+        "UNSIGNEDINTEGER64"
+    ];
+
+    private static readonly HashSet<string> _byteTypes =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
+        "BYTE",
+        "TINYINT",
+        "UINT8",
+        "UNSIGNEDINTEGER8"
+    ];
+
+    private static readonly HashSet<string> _shortTypes =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
+        "INT16",
+        "INTEGER16",
+        "SHORT",
+        "SMALLINT"
+    ];
+
+    private static readonly HashSet<string> _longTypes =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
+        "BIGINT",
+        "INT64",
+        "INTEGER64",
+        "LONG"
+    ];
+
+    private static readonly HashSet<string> _sbyteTypes =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
+        "INT8",
+        "INTEGER8",
+        "SBYTE",
+        "TINYSINT"
+    ];
+
+    private static readonly HashSet<string> _floatTypes = [with(StringComparer.OrdinalIgnoreCase), "SINGLE"];
+
+    private static readonly HashSet<string> _halfTypes = [with(StringComparer.OrdinalIgnoreCase), "HALF"];
+
+    private static readonly HashSet<string> _decimalTypes = [with(StringComparer.OrdinalIgnoreCase), "DECIMAL"];
+
+    private static readonly HashSet<string> _ushortTypes =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
+        "SMALLUINT",
+        "UINT16",
+        "UNSIGNEDINTEGER16",
+        "USHORT"
+    ];
+
+    private static readonly HashSet<string> _timeOnlyTypes = [with(StringComparer.OrdinalIgnoreCase), "TIMEONLY"];
+
+    private static readonly Dictionary<string, Type> _typesByName = new Dictionary<string, Type>
+        {
+            { "CURRENCY", typeof(decimal) },
+            { "DATE", typeof(DateTime) },
+            { "DATEONLY", typeof(DateOnly) },
+            { "DATETIME", typeof(DateTime) },
+            { "DATETIME2", typeof(DateTime) },
+            { "DATETIMEOFFSET", typeof(DateTimeOffset) },
+            { "GUID", typeof(Guid) },
+            { "JSON", typeof(string) },
+            { "MONEY", typeof(decimal) },
+            { "NUMBER", typeof(decimal) },
+            { "NUMERIC", typeof(decimal) },
+            { "SMALLDATE", typeof(DateTime) },
+            { "SMALLMONEY", typeof(decimal) },
+            { "STRING", typeof(string) },
+            { "TIME", typeof(TimeSpan) },
+            { "TIMESPAN", typeof(TimeSpan) },
+            { "TIMESTAMP", typeof(DateTime) },
+            { "UNIQUEIDENTIFIER", typeof(Guid) },
+            { "UUID", typeof(Guid) },
+            { "XML", typeof(string) }
+        }
+        .Concat(_boolTypes.Select(t => KeyValuePair.Create(t, typeof(bool))))
+        .Concat(_byteTypes.Select(t => KeyValuePair.Create(t, typeof(byte))))
+        .Concat(_shortTypes.Select(t => KeyValuePair.Create(t, typeof(short))))
+        .Concat(_sbyteTypes.Select(t => KeyValuePair.Create(t, typeof(sbyte))))
+        .Concat(_floatTypes.Select(t => KeyValuePair.Create(t, typeof(float))))
+        .Concat(_decimalTypes.Select(t => KeyValuePair.Create(t, typeof(decimal))))
+        .Concat(_timeOnlyTypes.Select(t => KeyValuePair.Create(t, typeof(TimeOnly))))
+        .Concat(_halfTypes.Select(t => KeyValuePair.Create(t, typeof(Half))))
+        .Concat(_ushortTypes.Select(t => KeyValuePair.Create(t, typeof(ushort))))
+        .Concat(_uintTypes.Select(t => KeyValuePair.Create(t, typeof(uint))))
+        .Concat(_ulongTypes.Select(t => KeyValuePair.Create(t, typeof(ulong))))
+        .ToDictionary(i => i.Key, i => i.Value, StringComparer.OrdinalIgnoreCase);
+
     private readonly IDiagnosticsLogger<DbLoggerCategory.Scaffolding> _logger;
     private readonly IRelationalTypeMappingSource _typeMappingSource;
 
@@ -85,7 +214,7 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
             }
 
             var nullableKeyColumns = databaseModel.Tables
-                .SelectMany(t => t.PrimaryKey?.Columns ?? Array.Empty<DatabaseColumn>())
+                .SelectMany(t => t.PrimaryKey?.Columns ?? [])
                 .Concat(databaseModel.Tables.SelectMany(t => t.ForeignKeys).SelectMany(fk => fk.PrincipalColumns))
                 .Where(c => c.IsNullable)
                 .Distinct();
@@ -109,11 +238,12 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
     private static bool HasGeometryColumns(DbConnection connection)
     {
         using var command = connection.CreateCommand();
-        command.CommandText = new StringBuilder()
-            .AppendLine("SELECT COUNT(*)")
-            .AppendLine("FROM \"sqlite_master\"")
-            .AppendLine("WHERE \"name\" = 'geometry_columns' AND \"type\" = 'table';")
-            .ToString();
+        command.CommandText =
+            """
+SELECT COUNT(*)
+FROM "sqlite_master"
+WHERE "name" = 'geometry_columns' AND "type" = 'table'
+""";
 
         return (long)command.ExecuteScalar()! != 0L;
     }
@@ -136,21 +266,22 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
 
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = new StringBuilder()
-                .AppendLine("SELECT \"name\", \"type\"")
-                .AppendLine("FROM \"sqlite_master\"")
-                .Append("WHERE \"type\" IN ('table', 'view') AND instr(\"name\", 'sqlite_') <> 1 AND \"name\" NOT IN ('")
-                .Append(HistoryRepository.DefaultTableName)
-                .Append("', 'ElementaryGeometries', 'geometry_columns', 'geometry_columns_auth', ")
-                .Append("'geometry_columns_field_infos', 'geometry_columns_statistics', 'geometry_columns_time', ")
-                .Append("'spatial_ref_sys', 'spatial_ref_sys_aux', 'SpatialIndex', 'spatialite_history', ")
-                .Append("'sql_statements_log', 'vector_layers', 'vector_layers_auth', 'vector_layers_statistics', ")
-                .Append("'vector_layers_field_infos', 'views_geometry_columns', 'views_geometry_columns_auth', ")
-                .Append("'views_geometry_columns_field_infos', 'views_geometry_columns_statistics', ")
-                .Append("'virts_geometry_columns', 'virts_geometry_columns_auth', ")
-                .Append("'geom_cols_ref_sys', 'spatial_ref_sys_all', ")
-                .AppendLine("'virts_geometry_columns_field_infos', 'virts_geometry_columns_statistics');")
-                .ToString();
+            command.CommandText =
+                $"""
+SELECT "name", "type"
+FROM "sqlite_master"
+WHERE "type" IN ('table', 'view') AND instr("name", 'sqlite_') <> 1 AND "name" NOT IN (
+'{HistoryRepository.DefaultTableName}', '{SqliteHistoryRepository.DefaultLockTableName}',
+'ElementaryGeometries', 'geometry_columns', 'geometry_columns_auth',
+'geometry_columns_field_infos', 'geometry_columns_statistics', 'geometry_columns_time',
+'spatial_ref_sys', 'spatial_ref_sys_aux', 'SpatialIndex', 'spatialite_history',
+'sql_statements_log', 'vector_layers', 'vector_layers_auth', 'vector_layers_statistics',
+'vector_layers_field_infos', 'views_geometry_columns', 'views_geometry_columns_auth',
+'views_geometry_columns_field_infos', 'views_geometry_columns_statistics',
+'virts_geometry_columns', 'virts_geometry_columns_auth',
+'geom_cols_ref_sys', 'spatial_ref_sys_all',
+'virts_geometry_columns_field_infos', 'virts_geometry_columns_statistics')
+""";
 
             using var reader = command.ExecuteReader();
             while (reader.Read())
@@ -202,12 +333,13 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
     private void GetColumns(DbConnection connection, DatabaseTable table)
     {
         using var command = connection.CreateCommand();
-        command.CommandText = new StringBuilder()
-            .AppendLine("SELECT \"name\", \"type\", \"notnull\", \"dflt_value\", \"hidden\"")
-            .AppendLine("FROM pragma_table_xinfo(@table)")
-            .AppendLine("WHERE \"hidden\" IN (0, 2, 3)")
-            .AppendLine("ORDER BY \"cid\";")
-            .ToString();
+        command.CommandText =
+            """
+SELECT "name", "type", "notnull", "dflt_value", "hidden"
+FROM pragma_table_xinfo(@table)
+WHERE "hidden" IN (0, 2, 3)
+ORDER BY "cid"
+""";
 
         var parameter = command.CreateParameter();
         parameter.ParameterName = "@table";
@@ -220,16 +352,15 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
             var columnName = reader.GetString(0);
             var dataType = reader.GetString(1);
             var notNull = reader.GetBoolean(2);
-            var defaultValue = !reader.IsDBNull(3)
-                ? FilterClrDefaults(dataType, notNull, reader.GetString(3))
-                : null;
+            var defaultValueSql = !reader.IsDBNull(3) ? reader.GetString(3) : null;
             var hidden = reader.GetInt64(4);
 
-            _logger.ColumnFound(table.Name, columnName, dataType, notNull, defaultValue);
+            _logger.ColumnFound(table.Name, columnName, dataType, notNull, defaultValueSql);
 
+            string? collation = null;
             var autoIncrement = 0;
             if (connection is SqliteConnection sqliteConnection
-                && !(table is DatabaseView))
+                && table is not DatabaseView)
             {
                 var db = sqliteConnection.Handle;
                 var rc = sqlite3_table_column_metadata(
@@ -237,10 +368,10 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
                     connection.Database,
                     table.Name,
                     columnName,
-                    out var _,
-                    out var _,
-                    out var _,
-                    out var _,
+                    out _,
+                    out collation,
+                    out _,
+                    out _,
                     out autoIncrement);
                 SqliteException.ThrowExceptionForRC(rc, db);
             }
@@ -252,46 +383,516 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
                     Name = columnName,
                     StoreType = dataType,
                     IsNullable = !notNull,
-                    DefaultValueSql = defaultValue,
+                    DefaultValueSql = defaultValueSql,
                     ValueGenerated = autoIncrement != 0
                         ? ValueGenerated.OnAdd
                         : default(ValueGenerated?),
-                    ComputedColumnSql = hidden != 2L && hidden != 3L
+                    ComputedColumnSql = hidden is not 2L and not 3L
                         ? null
                         : string.Empty,
                     IsStored = hidden != 3L
                         ? default(bool?)
-                        : true
+                        : true,
+                    Collation = string.Equals(collation, "BINARY", StringComparison.OrdinalIgnoreCase)
+                        ? null
+                        : collation
                 });
+        }
+
+        InferClrTypes(connection, table);
+
+        ParseClrDefaults(table);
+    }
+
+    private void ParseClrDefaults(DatabaseTable table)
+    {
+        foreach (var column in table.Columns)
+        {
+            var defaultValueSql = column.DefaultValueSql;
+            defaultValueSql = defaultValueSql?.Trim();
+            if (string.IsNullOrEmpty(defaultValueSql))
+            {
+                continue;
+            }
+
+            var typeHint = (Type?)column["ClrType"];
+            var type = typeHint is null
+                ? _typeMappingSource.FindMapping(column.StoreType!)?.ClrType
+                : _typeMappingSource.FindMapping(typeHint, column.StoreType)?.ClrType;
+            if (type == null)
+            {
+                continue;
+            }
+
+            Unwrap();
+
+            if (defaultValueSql.Equals("NULL", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (type == typeof(bool)
+                && int.TryParse(defaultValueSql, out var intValue))
+            {
+                column.DefaultValue = intValue != 0;
+            }
+            else if (type.IsInteger()
+                     || type == typeof(float)
+                     || type == typeof(double))
+            {
+                try
+                {
+                    column.DefaultValue = Convert.ChangeType(defaultValueSql, type, CultureInfo.InvariantCulture);
+                }
+                catch
+                {
+                    // Ignored
+                }
+            }
+            else if (type == typeof(Half)
+                     && double.TryParse(defaultValueSql, NumberStyles.Float, CultureInfo.InvariantCulture, out var halfValue))
+            {
+                column.DefaultValue = (Half)halfValue;
+            }
+            else if (defaultValueSql.StartsWith('\'')
+                     && defaultValueSql.EndsWith('\'')
+                     // Not a single string literal, e.g. 'a' || 'b'
+                     && !defaultValueSql[1..^1].Replace("''", "").Contains('\''))
+            {
+                defaultValueSql = defaultValueSql[1..^1].Replace("''", "'");
+
+                if (type == typeof(string))
+                {
+                    column.DefaultValue = defaultValueSql;
+                }
+                else if (type == typeof(Guid)
+                         && Guid.TryParse(defaultValueSql, out var guid))
+                {
+                    column.DefaultValue = guid;
+                }
+                else if (type == typeof(DateTime)
+                         && DateTime.TryParse(defaultValueSql, CultureInfo.InvariantCulture, out var dateTime))
+                {
+                    column.DefaultValue = dateTime;
+                }
+                else if (type == typeof(DateOnly)
+                         && DateOnly.TryParse(defaultValueSql, CultureInfo.InvariantCulture, out var dateOnly))
+                {
+                    column.DefaultValue = dateOnly;
+                }
+                else if (type == typeof(TimeOnly)
+                         && TimeOnly.TryParse(defaultValueSql, CultureInfo.InvariantCulture, out var timeOnly))
+                {
+                    column.DefaultValue = timeOnly;
+                }
+                else if (type == typeof(DateTimeOffset)
+                         && DateTimeOffset.TryParse(defaultValueSql, CultureInfo.InvariantCulture, out var dateTimeOffset))
+                {
+                    column.DefaultValue = dateTimeOffset;
+                }
+                else if (type == typeof(decimal)
+                         && decimal.TryParse(defaultValueSql, CultureInfo.InvariantCulture, out var decimalValue))
+                {
+                    column.DefaultValue = decimalValue;
+                }
+            }
+
+            void Unwrap()
+            {
+                while (defaultValueSql.StartsWith('(') && defaultValueSql.EndsWith(')'))
+                {
+                    defaultValueSql = defaultValueSql[1..^1].Trim();
+                }
+            }
         }
     }
 
-    private string? FilterClrDefaults(string dataType, bool notNull, string defaultValue)
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    protected virtual void InferClrTypes(DbConnection connection, DatabaseTable table)
     {
-        if (string.Equals(defaultValue, "null", StringComparison.OrdinalIgnoreCase))
+        var command = connection.CreateCommand();
+        var commandText = new StringBuilder();
+        commandText.Append("SELECT");
+
+        var i = 0;
+        var dictionary = new Dictionary<DatabaseColumn, (int offset, Type? defaultClrType)>();
+        foreach (var column in table.Columns)
         {
-            return null;
+            if (string.Equals(column.StoreType, "BLOB", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(column.StoreType, "REAL", StringComparison.OrdinalIgnoreCase))
+            {
+                // Trust the column type (for perf)
+                continue;
+            }
+
+            var defaultClrType = _typeMappingSource.FindMapping(column.StoreType!)?.ClrType;
+            if (!_defaultClrTypes.Contains(defaultClrType))
+            {
+                // Handled by a plugin
+                continue;
+            }
+
+            if (i != 0)
+            {
+                commandText.Append(",");
+            }
+
+            var columnIdentifier = DelimitIdentifier(column.Name);
+            commandText
+                .Append(" typeof(max(")
+                .Append(columnIdentifier)
+                .Append(")), min(")
+                .Append(columnIdentifier)
+                .Append("), max(")
+                .Append(columnIdentifier)
+                .Append(")");
+
+            dictionary.Add(column, (i, defaultClrType));
+            i += 3;
         }
 
-        if (notNull
-            && defaultValue == "0"
-            && _typeMappingSource.FindMapping(dataType)?.ClrType.IsNumeric() == true)
+        if (dictionary.Count == 0)
         {
-            return null;
+            return;
         }
 
-        return defaultValue;
+        commandText
+            .Append(" FROM (SELECT * FROM ")
+            .Append(DelimitIdentifier(table.Name))
+            .Append(" LIMIT 65537)");
+
+        command.CommandText = commandText.ToString();
+
+        _logger.InferringTypes(table.Name);
+
+        using var reader = command.ExecuteReader();
+        var read = reader.Read();
+        Check.DebugAssert(read, "No results");
+
+        foreach (var (column, (offset, defaultClrTpe)) in dictionary)
+        {
+            var valueType = reader.GetString(offset + 0);
+
+            var index = column.StoreType!.IndexOf("(", StringComparison.OrdinalIgnoreCase);
+            var baseColumnType = index == -1
+                ? column.StoreType
+                : column.StoreType[..index];
+
+            if (string.Equals(valueType, "INTEGER", StringComparison.OrdinalIgnoreCase))
+            {
+                var min = reader.GetInt64(offset + 1);
+                var max = reader.GetInt64(offset + 2);
+
+                if (_boolTypes.Contains(baseColumnType))
+                {
+                    if (min >= 0L
+                        && max <= 1L)
+                    {
+                        column["ClrType"] = typeof(bool);
+
+                        continue;
+                    }
+
+                    _logger.OutOfRangeWarning(column.Name, table.Name, "bool");
+                }
+
+                if (_byteTypes.Contains(baseColumnType))
+                {
+                    if (min >= byte.MinValue
+                        && max <= byte.MaxValue)
+                    {
+                        column["ClrType"] = typeof(byte);
+
+                        continue;
+                    }
+
+                    _logger.OutOfRangeWarning(column.Name, table.Name, "byte");
+                }
+
+                if (_shortTypes.Contains(baseColumnType))
+                {
+                    if (min >= short.MinValue
+                        && max <= short.MaxValue)
+                    {
+                        column["ClrType"] = typeof(short);
+
+                        continue;
+                    }
+
+                    _logger.OutOfRangeWarning(column.Name, table.Name, "short");
+                }
+
+                if (_longTypes.Contains(baseColumnType))
+                {
+                    if (defaultClrTpe != typeof(long))
+                    {
+                        column["ClrType"] = typeof(long);
+                    }
+
+                    continue;
+                }
+
+                if (_sbyteTypes.Contains(baseColumnType))
+                {
+                    if (min >= sbyte.MinValue
+                        && max <= sbyte.MaxValue)
+                    {
+                        column["ClrType"] = typeof(sbyte);
+
+                        continue;
+                    }
+
+                    _logger.OutOfRangeWarning(column.Name, table.Name, "sbyte");
+                }
+
+                if (_ushortTypes.Contains(baseColumnType))
+                {
+                    if (min >= ushort.MinValue
+                        && max <= ushort.MaxValue)
+                    {
+                        column["ClrType"] = typeof(ushort);
+
+                        continue;
+                    }
+
+                    _logger.OutOfRangeWarning(column.Name, table.Name, "ushort");
+                }
+
+                if (_uintTypes.Contains(baseColumnType))
+                {
+                    if (min >= uint.MinValue
+                        && max <= uint.MaxValue)
+                    {
+                        column["ClrType"] = typeof(uint);
+
+                        continue;
+                    }
+
+                    _logger.OutOfRangeWarning(column.Name, table.Name, "uint");
+                }
+
+                if (_ulongTypes.Contains(baseColumnType))
+                {
+                    column["ClrType"] = typeof(ulong);
+
+                    continue;
+                }
+
+                if (min < int.MinValue
+                    || max > int.MaxValue)
+                {
+                    if (defaultClrTpe != typeof(long))
+                    {
+                        column["ClrType"] = typeof(long);
+                    }
+
+                    continue;
+                }
+
+                column["ClrType"] = typeof(int);
+
+                continue;
+            }
+
+            if (string.Equals(valueType, "TEXT", StringComparison.OrdinalIgnoreCase))
+            {
+                var min = reader.GetString(offset + 1);
+                var max = reader.GetString(offset + 2);
+
+                if (Regex.IsMatch(max, @"^\d{4}-\d{2}-\d{2}$", default, TimeSpan.FromMilliseconds(1000.0)))
+                {
+                    column["ClrType"] = typeof(DateOnly);
+
+                    continue;
+                }
+
+                if (Regex.IsMatch(max, @"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,7})?$", default, TimeSpan.FromMilliseconds(1000.0)))
+                {
+                    column["ClrType"] = typeof(DateTime);
+
+                    continue;
+                }
+
+                if (Regex.IsMatch(
+                        max, @"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,7})?[-+]\d{2}:\d{2}$", default,
+                        TimeSpan.FromMilliseconds(1000.0)))
+                {
+                    column["ClrType"] = typeof(DateTimeOffset);
+
+                    continue;
+                }
+
+                if (Regex.IsMatch(max, @"^-?\d+\.\d{1,28}$", default, TimeSpan.FromMilliseconds(1000.0)))
+                {
+                    column["ClrType"] = typeof(decimal);
+
+                    continue;
+                }
+
+                if (Regex.IsMatch(
+                        max, @"^(\d|[A-F]){8}-(\d|[A-F]){4}-(\d|[A-F]){4}-(\d|[A-F]){4}-(\d|[A-F]){12}$", default,
+                        TimeSpan.FromMilliseconds(1000.0)))
+                {
+                    column["ClrType"] = typeof(Guid);
+
+                    continue;
+                }
+
+                if (Regex.IsMatch(max, @"^-?(\d+\.)?\d{2}:\d{2}:\d{2}(\.\d{1,7})?$", default, TimeSpan.FromMilliseconds(1000.0)))
+                {
+                    if (_timeOnlyTypes.Contains(baseColumnType))
+                    {
+                        if (TimeSpan.TryParse(min, out var minTimeSpan)
+                            && TimeSpan.TryParse(max, out var maxTimeSpan)
+                            && minTimeSpan >= TimeOnly.MinValue.ToTimeSpan()
+                            && maxTimeSpan <= TimeOnly.MaxValue.ToTimeSpan())
+                        {
+                            column["ClrType"] = typeof(TimeOnly);
+
+                            continue;
+                        }
+
+                        _logger.OutOfRangeWarning(column.Name, table.Name, "TimeOnly");
+                    }
+
+                    column["ClrType"] = typeof(TimeSpan);
+
+                    continue;
+                }
+
+                if (DateOnly.TryParse(max, out _))
+                {
+                    _logger.FormatWarning(column.Name, table.Name, "DateOnly");
+                }
+                else if (DateTime.TryParse(max, out _))
+                {
+                    _logger.FormatWarning(column.Name, table.Name, "DateTime");
+                }
+                else if (DateTimeOffset.TryParse(max, out _))
+                {
+                    _logger.FormatWarning(column.Name, table.Name, "DateTimeOffset");
+                }
+                else if (decimal.TryParse(max, out _))
+                {
+                    _logger.FormatWarning(column.Name, table.Name, "decimal");
+                }
+                else if (Guid.TryParse(max, out _))
+                {
+                    _logger.FormatWarning(column.Name, table.Name, "Guid");
+                }
+                else if (TimeSpan.TryParse(max, out _))
+                {
+                    _logger.FormatWarning(
+                        column.Name,
+                        table.Name,
+                        _timeOnlyTypes.Contains(baseColumnType)
+                            ? "TimeOnly"
+                            : "TimeSpan");
+                }
+
+                if (defaultClrTpe != typeof(string))
+                {
+                    column["ClrType"] = typeof(string);
+                }
+
+                continue;
+            }
+
+            if (string.Equals(valueType, "BLOB", StringComparison.OrdinalIgnoreCase))
+            {
+                if (defaultClrTpe != typeof(byte[]))
+                {
+                    column["ClrType"] = typeof(byte[]);
+                }
+
+                continue;
+            }
+
+            if (string.Equals(valueType, "REAL", StringComparison.OrdinalIgnoreCase))
+            {
+                var min = reader.GetDouble(offset + 1);
+                var max = reader.GetDouble(offset + 2);
+
+                if (_floatTypes.Contains(baseColumnType))
+                {
+                    if (min >= float.MinValue
+                        && max <= float.MaxValue)
+                    {
+                        column["ClrType"] = typeof(float);
+
+                        continue;
+                    }
+
+                    _logger.OutOfRangeWarning(column.Name, table.Name, "float");
+                }
+
+                if (_decimalTypes.Contains(baseColumnType))
+                {
+                    column["ClrType"] = typeof(decimal);
+
+                    continue;
+                }
+
+                if (_halfTypes.Contains(baseColumnType))
+                {
+                    if (min >= (double)Half.MinValue
+                        && max <= (double)Half.MaxValue)
+                    {
+                        column["ClrType"] = typeof(Half);
+
+                        continue;
+                    }
+
+                    _logger.OutOfRangeWarning(column.Name, table.Name, "Half");
+                }
+
+                if (defaultClrTpe != typeof(double))
+                {
+                    column["ClrType"] = typeof(double);
+                }
+
+                continue;
+            }
+
+            Check.DebugAssert(
+                string.Equals(valueType, "NULL", StringComparison.OrdinalIgnoreCase),
+                "Unexpected type: " + valueType);
+
+            if (_typesByName.TryGetValue(baseColumnType, out var type))
+            {
+                Check.DebugAssert(defaultClrTpe != type, "Unnecessary mapping for " + baseColumnType);
+
+                column["ClrType"] = type;
+
+                continue;
+            }
+
+            if (baseColumnType.Contains("INT", StringComparison.OrdinalIgnoreCase)
+                && !_longTypes.Contains(baseColumnType))
+            {
+                column["ClrType"] = typeof(int);
+            }
+        }
+
+        static string DelimitIdentifier(string name)
+            => @$"""{name.Replace(@"""", @"""""")}""";
     }
 
     private void GetPrimaryKey(DbConnection connection, DatabaseTable table)
     {
         using var command = connection.CreateCommand();
-        command.CommandText = new StringBuilder()
-            .AppendLine("SELECT \"name\"")
-            .AppendLine("FROM pragma_index_list(@table)")
-            .AppendLine("WHERE \"origin\" = 'pk'")
-            .AppendLine("ORDER BY \"seq\";")
-            .ToString();
+        command.CommandText =
+            """
+SELECT "name"
+FROM pragma_index_list(@table)
+WHERE "origin" = 'pk'
+ORDER BY "seq"
+""";
 
         var parameter = command.CreateParameter();
         parameter.ParameterName = "@table";
@@ -307,16 +908,18 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
 
         var primaryKey = new DatabasePrimaryKey
         {
-            Table = table, Name = name.StartsWith("sqlite_", StringComparison.Ordinal) ? string.Empty : name
+            Table = table,
+            Name = name.StartsWith("sqlite_", StringComparison.Ordinal) ? string.Empty : name
         };
 
         _logger.PrimaryKeyFound(name, table.Name);
 
-        command.CommandText = new StringBuilder()
-            .AppendLine("SELECT \"name\"")
-            .AppendLine("FROM pragma_index_info(@index)")
-            .AppendLine("ORDER BY \"seqno\";")
-            .ToString();
+        command.CommandText =
+            """
+SELECT "name"
+FROM pragma_index_info(@index)
+ORDER BY "seqno"
+""";
 
         parameter.ParameterName = "@index";
         parameter.Value = name;
@@ -340,11 +943,12 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
         DatabaseTable table)
     {
         using var command = connection.CreateCommand();
-        command.CommandText = new StringBuilder()
-            .AppendLine("SELECT \"name\"")
-            .AppendLine("FROM pragma_table_info(@table)")
-            .AppendLine("WHERE \"pk\" = 1;")
-            .ToString();
+        command.CommandText =
+            """
+SELECT "name"
+FROM pragma_table_info(@table)
+WHERE "pk" = 1
+""";
 
         var parameter = command.CreateParameter();
         parameter.ParameterName = "@table";
@@ -375,12 +979,13 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
     private void GetUniqueConstraints(DbConnection connection, DatabaseTable table)
     {
         using var command1 = connection.CreateCommand();
-        command1.CommandText = new StringBuilder()
-            .AppendLine("SELECT \"name\"")
-            .AppendLine("FROM pragma_index_list(@table)")
-            .AppendLine("WHERE \"origin\" = 'u'")
-            .AppendLine("ORDER BY \"seq\";")
-            .ToString();
+        command1.CommandText =
+            """
+SELECT "name"
+FROM pragma_index_list(@table)
+WHERE "origin" = 'u'
+ORDER BY "seq"
+""";
 
         var parameter1 = command1.CreateParameter();
         parameter1.ParameterName = "@table";
@@ -393,18 +998,20 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
             var constraintName = reader1.GetString(0);
             var uniqueConstraint = new DatabaseUniqueConstraint
             {
-                Table = table, Name = constraintName.StartsWith("sqlite_", StringComparison.Ordinal) ? string.Empty : constraintName
+                Table = table,
+                Name = constraintName.StartsWith("sqlite_", StringComparison.Ordinal) ? string.Empty : constraintName
             };
 
             _logger.UniqueConstraintFound(constraintName, table.Name);
 
             using (var command2 = connection.CreateCommand())
             {
-                command2.CommandText = new StringBuilder()
-                    .AppendLine("SELECT \"name\"")
-                    .AppendLine("FROM pragma_index_info(@index)")
-                    .AppendLine("ORDER BY \"seqno\";")
-                    .ToString();
+                command2.CommandText =
+                    """
+SELECT "name"
+FROM pragma_index_info(@index)
+ORDER BY "seqno"
+""";
 
                 var parameter2 = command2.CreateParameter();
                 parameter2.ParameterName = "@index";
@@ -416,8 +1023,7 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
                 {
                     var columnName = reader2.GetString(0);
                     var column = table.Columns.FirstOrDefault(c => c.Name == columnName)
-                        ?? table.Columns.FirstOrDefault(
-                            c => c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                        ?? table.Columns.FirstOrDefault(c => c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase));
                     Check.DebugAssert(column != null, "column is null.");
 
                     uniqueConstraint.Columns.Add(column);
@@ -431,12 +1037,13 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
     private void GetIndexes(DbConnection connection, DatabaseTable table)
     {
         using var command1 = connection.CreateCommand();
-        command1.CommandText = new StringBuilder()
-            .AppendLine("SELECT \"name\", \"unique\"")
-            .AppendLine("FROM pragma_index_list(@table)")
-            .AppendLine("WHERE \"origin\" = 'c' AND instr(\"name\", 'sqlite_') <> 1")
-            .AppendLine("ORDER BY \"seq\";")
-            .ToString();
+        command1.CommandText =
+            """
+SELECT "name", "unique"
+FROM pragma_index_list(@table)
+WHERE "origin" = 'c' AND instr("name", 'sqlite_') <> 1
+ORDER BY "seq"
+""";
 
         var parameter1 = command1.CreateParameter();
         parameter1.ParameterName = "@table";
@@ -455,14 +1062,16 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
 
             _logger.IndexFound(index.Name, table.Name, index.IsUnique);
 
+            var isExpressionIndex = false;
             using (var command2 = connection.CreateCommand())
             {
-                command2.CommandText = new StringBuilder()
-                    .AppendLine("SELECT \"name\", \"desc\"")
-                    .AppendLine("FROM pragma_index_xinfo(@index)")
-                    .AppendLine("WHERE key = 1")
-                    .AppendLine("ORDER BY \"seqno\";")
-                    .ToString();
+                command2.CommandText =
+                    """
+SELECT "name", "desc"
+FROM pragma_index_xinfo(@index)
+WHERE key = 1
+ORDER BY "seqno"
+""";
 
                 var parameter2 = command2.CreateParameter();
                 parameter2.ParameterName = "@index";
@@ -472,6 +1081,13 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
                 using var reader2 = command2.ExecuteReader();
                 while (reader2.Read())
                 {
+                    if (reader2.IsDBNull(0))
+                    {
+                        // The key is an expression rather than a column, which can't be represented in the model
+                        isExpressionIndex = true;
+                        break;
+                    }
+
                     var name = reader2.GetString(0);
                     var column = table.Columns.FirstOrDefault(c => c.Name == name)
                         ?? table.Columns.FirstOrDefault(c => c.Name.Equals(name, StringComparison.Ordinal));
@@ -482,6 +1098,12 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
                 }
             }
 
+            if (isExpressionIndex)
+            {
+                _logger.ExpressionIndexSkippedWarning(index.Name, table.Name);
+                continue;
+            }
+
             table.Indexes.Add(index);
         }
     }
@@ -489,11 +1111,12 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
     private void GetForeignKeys(DbConnection connection, DatabaseTable table, IList<DatabaseTable> tables)
     {
         using var command1 = connection.CreateCommand();
-        command1.CommandText = new StringBuilder()
-            .AppendLine("SELECT DISTINCT \"id\", \"table\", \"on_delete\"")
-            .AppendLine("FROM pragma_foreign_key_list(@table)")
-            .AppendLine("ORDER BY \"id\";")
-            .ToString();
+        command1.CommandText =
+            """
+SELECT DISTINCT "id", "table", "on_delete"
+FROM pragma_foreign_key_list(@table)
+ORDER BY "id"
+""";
 
         var parameter1 = command1.CreateParameter();
         parameter1.ParameterName = "@table";
@@ -507,8 +1130,7 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
             var principalTableName = reader1.GetString(1);
             var onDelete = reader1.GetString(2);
             var principalTable = tables.FirstOrDefault(t => t.Name == principalTableName)
-                ?? tables.FirstOrDefault(
-                    t => t.Name.Equals(principalTableName, StringComparison.OrdinalIgnoreCase));
+                ?? tables.FirstOrDefault(t => t.Name.Equals(principalTableName, StringComparison.OrdinalIgnoreCase));
 
             _logger.ForeignKeyFound(table.Name, id, principalTableName, onDelete);
 
@@ -527,12 +1149,13 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
             };
 
             using var command2 = connection.CreateCommand();
-            command2.CommandText = new StringBuilder()
-                .AppendLine("SELECT \"seq\", \"from\", \"to\"")
-                .AppendLine("FROM pragma_foreign_key_list(@table)")
-                .AppendLine("WHERE \"id\" = @id")
-                .AppendLine("ORDER BY \"seq\";")
-                .ToString();
+            command2.CommandText =
+                """
+SELECT "seq", "from", "to"
+FROM pragma_foreign_key_list(@table)
+WHERE "id" = @id
+ORDER BY "seq"
+""";
 
             var parameter2 = command2.CreateParameter();
             parameter2.ParameterName = "@table";
@@ -552,8 +1175,7 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
                 {
                     var columnName = reader2.GetString(1);
                     var column = table.Columns.FirstOrDefault(c => c.Name == columnName)
-                        ?? table.Columns.FirstOrDefault(
-                            c => c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                        ?? table.Columns.FirstOrDefault(c => c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase));
                     Check.DebugAssert(column != null, "column is null.");
 
                     var principalColumnName = reader2.IsDBNull(2) ? null : reader2.GetString(2);
@@ -562,8 +1184,8 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
                     {
                         principalColumn =
                             foreignKey.PrincipalTable.Columns.FirstOrDefault(c => c.Name == principalColumnName)
-                            ?? foreignKey.PrincipalTable.Columns.FirstOrDefault(
-                                c => c.Name.Equals(principalColumnName, StringComparison.OrdinalIgnoreCase));
+                            ?? foreignKey.PrincipalTable.Columns.FirstOrDefault(c => c.Name.Equals(
+                                principalColumnName, StringComparison.OrdinalIgnoreCase));
                     }
                     else if (principalTable?.PrimaryKey != null)
                     {
@@ -592,27 +1214,13 @@ public class SqliteDatabaseModelFactory : DatabaseModelFactory
     }
 
     private static ReferentialAction? ConvertToReferentialAction(string value)
-    {
-        switch (value)
+        => value switch
         {
-            case "RESTRICT":
-                return ReferentialAction.Restrict;
-
-            case "CASCADE":
-                return ReferentialAction.Cascade;
-
-            case "SET NULL":
-                return ReferentialAction.SetNull;
-
-            case "SET DEFAULT":
-                return ReferentialAction.SetDefault;
-
-            case "NO ACTION":
-                return ReferentialAction.NoAction;
-
-            default:
-                Check.DebugAssert(value == "NONE", "Unexpected value: " + value);
-                return null;
-        }
-    }
+            "RESTRICT" => ReferentialAction.Restrict,
+            "CASCADE" => ReferentialAction.Cascade,
+            "SET NULL" => ReferentialAction.SetNull,
+            "SET DEFAULT" => ReferentialAction.SetDefault,
+            "NO ACTION" => ReferentialAction.NoAction,
+            _ => null
+        };
 }

@@ -15,6 +15,6 @@ public class OrderDetail
     [Column(TypeName = "decimal(18,2)")]
     public decimal UnitPrice { get; set; }
 
-    public virtual Album Album { get; set; }
-    public virtual Order Order { get; set; }
+    public virtual Album Album { get; set; } = null!;
+    public virtual Order Order { get; set; } = null!;
 }

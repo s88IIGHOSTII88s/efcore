@@ -24,10 +24,8 @@ public class UpdateEntryEventData : DbContextEventData
         EventDefinitionBase eventDefinition,
         Func<EventDefinitionBase, EventData, string> messageGenerator,
         IUpdateEntry entityEntry)
-        : base(eventDefinition, messageGenerator, ((InternalEntityEntry)entityEntry).StateManager.Context)
-    {
-        EntityEntry = entityEntry;
-    }
+        : base(eventDefinition, messageGenerator, ((InternalEntityEntry)entityEntry).Context)
+        => EntityEntry = entityEntry;
 
     /// <summary>
     ///     The entry for the entity instance on which the property value has changed.

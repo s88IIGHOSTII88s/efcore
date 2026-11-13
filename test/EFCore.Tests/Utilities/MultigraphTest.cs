@@ -28,7 +28,7 @@ public class MultigraphTest
 
     private class A
     {
-        public static readonly PropertyInfo PProperty = typeof(A).GetProperty("P");
+        public static readonly PropertyInfo PProperty = typeof(A).GetProperty("P")!;
 
         public int P { get; set; }
         public int P2 { get; set; }
@@ -36,7 +36,7 @@ public class MultigraphTest
 
     private class B
     {
-        public static readonly PropertyInfo PProperty = typeof(B).GetProperty("P");
+        public static readonly PropertyInfo PProperty = typeof(B).GetProperty("P")!;
 
         public int P { get; set; }
         public int P2 { get; set; }
@@ -44,7 +44,7 @@ public class MultigraphTest
 
     private class C
     {
-        public static readonly PropertyInfo PProperty = typeof(C).GetProperty("P");
+        public static readonly PropertyInfo PProperty = typeof(C).GetProperty("P")!;
 
         public int P { get; set; }
         public int P2 { get; set; }
@@ -52,7 +52,7 @@ public class MultigraphTest
 
     private class D
     {
-        public static readonly PropertyInfo PProperty = typeof(D).GetProperty("P");
+        public static readonly PropertyInfo PProperty = typeof(D).GetProperty("P")!;
 
         public int P { get; set; }
         public int P2 { get; set; }
@@ -60,7 +60,7 @@ public class MultigraphTest
 
     private class E
     {
-        public static readonly PropertyInfo PProperty = typeof(E).GetProperty("P");
+        public static readonly PropertyInfo PProperty = typeof(E).GetProperty("P")!;
 
         public int P { get; set; }
         public int P2 { get; set; }
@@ -87,7 +87,7 @@ public class MultigraphTest
 
     #endregion
 
-    [ConditionalFact]
+    [Fact]
     public void AddVertex_adds_a_vertex()
     {
         var vertexOne = new Vertex { Id = 1 };
@@ -99,10 +99,10 @@ public class MultigraphTest
         graph.AddVertex(vertexTwo);
 
         Assert.Equal(2, graph.Vertices.Count());
-        Assert.Equal(2, graph.Vertices.Intersect(new[] { vertexOne, vertexTwo }).Count());
+        Assert.Equal(2, graph.Vertices.Intersect([vertexOne, vertexTwo]).Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void AddVertices_add_vertices()
     {
         var vertexOne = new Vertex { Id = 1 };
@@ -111,14 +111,14 @@ public class MultigraphTest
 
         var graph = new Multigraph<Vertex, Edge>();
 
-        graph.AddVertices(new[] { vertexOne, vertexTwo });
-        graph.AddVertices(new[] { vertexTwo, vertexThree });
+        graph.AddVertices([vertexOne, vertexTwo]);
+        graph.AddVertices([vertexTwo, vertexThree]);
 
         Assert.Equal(3, graph.Vertices.Count());
-        Assert.Equal(3, graph.Vertices.Intersect(new[] { vertexOne, vertexTwo, vertexThree }).Count());
+        Assert.Equal(3, graph.Vertices.Intersect([vertexOne, vertexTwo, vertexThree]).Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void AddEdge_adds_an_edge()
     {
         var vertexOne = new Vertex { Id = 1 };
@@ -128,16 +128,16 @@ public class MultigraphTest
         var edgeTwo = new Edge { Id = 2 };
 
         var graph = new Multigraph<Vertex, Edge>();
-        graph.AddVertices(new[] { vertexOne, vertexTwo });
+        graph.AddVertices([vertexOne, vertexTwo]);
         graph.AddEdge(vertexOne, vertexTwo, edgeOne);
         graph.AddEdge(vertexOne, vertexTwo, edgeTwo);
 
         Assert.Empty(graph.GetEdges(vertexTwo, vertexOne));
         Assert.Equal(2, graph.GetEdges(vertexOne, vertexTwo).Count());
-        Assert.Equal(2, graph.GetEdges(vertexOne, vertexTwo).Intersect(new[] { edgeOne, edgeTwo }).Count());
+        Assert.Equal(2, graph.GetEdges(vertexOne, vertexTwo).Intersect([edgeOne, edgeTwo]).Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void AddEdge_updates_incoming_and_outgoing_neighbors()
     {
         var vertexOne = new Vertex { Id = 1 };
@@ -149,19 +149,19 @@ public class MultigraphTest
         var edgeThree = new Edge { Id = 3 };
 
         var graph = new Multigraph<Vertex, Edge>();
-        graph.AddVertices(new[] { vertexOne, vertexTwo, vertexThree });
+        graph.AddVertices([vertexOne, vertexTwo, vertexThree]);
         graph.AddEdge(vertexOne, vertexTwo, edgeOne);
         graph.AddEdge(vertexOne, vertexThree, edgeTwo);
         graph.AddEdge(vertexTwo, vertexThree, edgeThree);
 
         Assert.Equal(2, graph.GetOutgoingNeighbors(vertexOne).Count());
-        Assert.Equal(2, graph.GetOutgoingNeighbors(vertexOne).Intersect(new[] { vertexTwo, vertexThree }).Count());
+        Assert.Equal(2, graph.GetOutgoingNeighbors(vertexOne).Intersect([vertexTwo, vertexThree]).Count());
 
         Assert.Equal(2, graph.GetIncomingNeighbors(vertexThree).Count());
-        Assert.Equal(2, graph.GetIncomingNeighbors(vertexThree).Intersect(new[] { vertexOne, vertexTwo }).Count());
+        Assert.Equal(2, graph.GetIncomingNeighbors(vertexThree).Intersect([vertexOne, vertexTwo]).Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TopologicalSort_on_graph_with_no_edges_returns_all_vertices()
     {
         var vertexOne = new Vertex { Id = 1 };
@@ -169,14 +169,14 @@ public class MultigraphTest
         var vertexThree = new Vertex { Id = 3 };
 
         var graph = new Multigraph<Vertex, Edge>();
-        graph.AddVertices(new[] { vertexOne, vertexTwo, vertexThree });
+        graph.AddVertices([vertexOne, vertexTwo, vertexThree]);
 
         var result = graph.TopologicalSort();
         Assert.Equal(3, result.Count());
-        Assert.Equal(3, result.Intersect(new[] { vertexOne, vertexTwo, vertexThree }).Count());
+        Assert.Equal(3, result.Intersect([vertexOne, vertexTwo, vertexThree]).Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TopologicalSort_on_simple_graph_returns_all_vertices_in_order()
     {
         var vertexOne = new Vertex { Id = 1 };
@@ -187,7 +187,7 @@ public class MultigraphTest
         var edgeTwo = new Edge { Id = 2 };
 
         var graph = new Multigraph<Vertex, Edge>();
-        graph.AddVertices(new[] { vertexOne, vertexTwo, vertexThree });
+        graph.AddVertices([vertexOne, vertexTwo, vertexThree]);
 
         // 2-> {1}
         graph.AddEdge(vertexTwo, vertexOne, edgeOne);
@@ -195,11 +195,11 @@ public class MultigraphTest
         graph.AddEdge(vertexOne, vertexThree, edgeTwo);
 
         Assert.Equal(
-            new[] { vertexTwo, vertexOne, vertexThree },
+            [vertexTwo, vertexOne, vertexThree],
             graph.TopologicalSort().ToArray());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TopologicalSort_on_tree_graph_returns_all_vertices_in_order()
     {
         var vertexOne = new Vertex { Id = 1 };
@@ -211,7 +211,7 @@ public class MultigraphTest
         var edgeThree = new Edge { Id = 3 };
 
         var graph = new Multigraph<Vertex, Edge>();
-        graph.AddVertices(new[] { vertexOne, vertexTwo, vertexThree });
+        graph.AddVertices([vertexOne, vertexTwo, vertexThree]);
 
         // 1 -> {2, 3}
         graph.AddEdge(vertexOne, vertexTwo, edgeOne);
@@ -220,11 +220,11 @@ public class MultigraphTest
         graph.AddEdge(vertexThree, vertexTwo, edgeThree);
 
         Assert.Equal(
-            new[] { vertexOne, vertexThree, vertexTwo },
+            [vertexOne, vertexThree, vertexTwo],
             graph.TopologicalSort().ToArray());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TopologicalSort_on_self_ref_can_break_cycle()
     {
         var vertexOne = new Vertex { Id = 1 };
@@ -238,15 +238,14 @@ public class MultigraphTest
         graph.AddEdge(vertexOne, vertexOne, edgeOne);
 
         Assert.Equal(
-            new[] { vertexOne },
-            graph.TopologicalSort(
-                (from, to, edges) =>
-                    (from == vertexOne)
-                    && (to == vertexOne)
-                    && (edges.Intersect(new[] { edgeOne }).Count() == 1)).ToArray());
+            [vertexOne],
+            graph.TopologicalSort((from, to, edges) =>
+                (from == vertexOne)
+                && (to == vertexOne)
+                && (edges.Intersect([edgeOne]).Count() == 1)).ToArray());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TopologicalSort_can_break_simple_cycle()
     {
         var vertexOne = new Vertex { Id = 1 };
@@ -258,7 +257,7 @@ public class MultigraphTest
         var edgeThree = new Edge { Id = 3 };
 
         var graph = new Multigraph<Vertex, Edge>();
-        graph.AddVertices(new[] { vertexOne, vertexTwo, vertexThree });
+        graph.AddVertices([vertexOne, vertexTwo, vertexThree]);
 
         // 1 -> {2}
         graph.AddEdge(vertexOne, vertexTwo, edgeOne);
@@ -268,15 +267,14 @@ public class MultigraphTest
         graph.AddEdge(vertexThree, vertexOne, edgeThree);
 
         Assert.Equal(
-            new[] { vertexOne, vertexTwo, vertexThree },
-            graph.TopologicalSort(
-                (from, to, edges) =>
-                    (from == vertexThree)
-                    && (to == vertexOne)
-                    && (edges.Single() == edgeThree)).ToArray());
+            [vertexOne, vertexTwo, vertexThree],
+            graph.TopologicalSort((from, to, edges) =>
+                (from == vertexThree)
+                && (to == vertexOne)
+                && (edges.Single() == edgeThree)).ToArray());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TopologicalSort_can_break_two_cycles()
     {
         var vertexOne = new Vertex { Id = 1 };
@@ -293,7 +291,7 @@ public class MultigraphTest
         var edgeSix = new Edge { Id = 6 };
 
         var graph = new Multigraph<Vertex, Edge>();
-        graph.AddVertices(new[] { vertexOne, vertexTwo, vertexThree, vertexFour, vertexFive });
+        graph.AddVertices([vertexOne, vertexTwo, vertexThree, vertexFour, vertexFive]);
 
         // 1 -> {2, 4}
         graph.AddEdge(vertexOne, vertexTwo, edgeOne);
@@ -308,16 +306,15 @@ public class MultigraphTest
         graph.AddEdge(vertexFive, vertexOne, edgeSix);
 
         Assert.Equal(
-            new[] { vertexTwo, vertexThree, vertexOne, vertexFour, vertexFive },
-            graph.TopologicalSort(
-                (from, to, edges) =>
-                {
-                    var edge = edges.Single();
-                    return (edge == edgeOne) || (edge == edgeSix);
-                }).ToArray());
+            [vertexTwo, vertexThree, vertexOne, vertexFour, vertexFive],
+            graph.TopologicalSort((from, to, edges) =>
+            {
+                var edge = edges.Single();
+                return (edge == edgeOne) || (edge == edgeSix);
+            }).ToArray());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TopologicalSort_throws_with_default_message_when_cycle_cannot_be_broken()
     {
         var vertexOne = new Vertex { Id = 1 };
@@ -329,7 +326,7 @@ public class MultigraphTest
         var edgeThree = new Edge { Id = 3 };
 
         var graph = new Multigraph<Vertex, Edge>();
-        graph.AddVertices(new[] { vertexOne, vertexTwo, vertexThree });
+        graph.AddVertices([vertexOne, vertexTwo, vertexThree]);
 
         // 1 -> {2}
         graph.AddEdge(vertexOne, vertexTwo, edgeOne);
@@ -345,7 +342,7 @@ public class MultigraphTest
             Assert.Throws<InvalidOperationException>(() => graph.TopologicalSort()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TopologicalSort_throws_with_formatted_message_when_cycle_cannot_be_broken()
     {
         const string message = "Formatted cycle";
@@ -359,7 +356,7 @@ public class MultigraphTest
         var edgeThree = new Edge { Id = 3 };
 
         var graph = new Multigraph<Vertex, Edge>();
-        graph.AddVertices(new[] { vertexOne, vertexTwo, vertexThree });
+        graph.AddVertices([vertexOne, vertexTwo, vertexThree]);
 
         // 1 -> {2}
         graph.AddEdge(vertexOne, vertexTwo, edgeOne);
@@ -368,7 +365,7 @@ public class MultigraphTest
         // 3 -> {1}
         graph.AddEdge(vertexThree, vertexOne, edgeThree);
 
-        Dictionary<Vertex, Tuple<Vertex, Vertex, IEnumerable<Edge>>> cycleData = null;
+        Dictionary<Vertex, Tuple<Vertex, Vertex, IEnumerable<Edge>>> cycleData = null!;
 
         string formatter(IEnumerable<Tuple<Vertex, Vertex, IEnumerable<Edge>>> data)
         {
@@ -383,16 +380,64 @@ public class MultigraphTest
         Assert.Equal(3, cycleData.Count());
 
         Assert.Equal(vertexTwo, cycleData[vertexOne].Item2);
-        Assert.Equal(new[] { edgeOne }, cycleData[vertexOne].Item3);
+        Assert.Equal([edgeOne], cycleData[vertexOne].Item3);
 
         Assert.Equal(vertexThree, cycleData[vertexTwo].Item2);
-        Assert.Equal(new[] { edgeTwo }, cycleData[vertexTwo].Item3);
+        Assert.Equal([edgeTwo], cycleData[vertexTwo].Item3);
 
         Assert.Equal(vertexOne, cycleData[vertexThree].Item2);
-        Assert.Equal(new[] { edgeThree }, cycleData[vertexThree].Item3);
+        Assert.Equal([edgeThree], cycleData[vertexThree].Item3);
     }
 
-    [ConditionalFact]
+    [Fact]
+    public void TopologicalSort_with_secondary_sort()
+    {
+        var vertexOne = new Vertex { Id = 1 };
+        var vertexTwo = new Vertex { Id = 2 };
+        var vertexThree = new Vertex { Id = 3 };
+        var vertexFour = new Vertex { Id = 4 };
+
+        var edgeOne = new Edge { Id = 1 };
+        var edgeTwo = new Edge { Id = 2 };
+
+        var graph = new Multigraph<Vertex, Edge>((v1, v2) => Comparer<int>.Default.Compare(v1.Id, v2.Id));
+        graph.AddVertices([vertexFour, vertexThree, vertexTwo, vertexOne]);
+
+        // 1 -> {3}
+        graph.AddEdge(vertexOne, vertexThree, edgeOne);
+        // 2 -> {4}
+        graph.AddEdge(vertexTwo, vertexFour, edgeTwo);
+
+        Assert.Equal(
+            [vertexOne, vertexTwo, vertexThree, vertexFour],
+            graph.TopologicalSort().ToArray());
+    }
+
+    [Fact]
+    public void TopologicalSort_without_secondary_sort()
+    {
+        var vertexOne = new Vertex { Id = 1 };
+        var vertexTwo = new Vertex { Id = 2 };
+        var vertexThree = new Vertex { Id = 3 };
+        var vertexFour = new Vertex { Id = 4 };
+
+        var edgeOne = new Edge { Id = 1 };
+        var edgeTwo = new Edge { Id = 2 };
+
+        var graph = new Multigraph<Vertex, Edge>();
+        graph.AddVertices([vertexFour, vertexThree, vertexTwo, vertexOne]);
+
+        // 1 -> {3}
+        graph.AddEdge(vertexOne, vertexThree, edgeOne);
+        // 2 -> {4}
+        graph.AddEdge(vertexTwo, vertexFour, edgeTwo);
+
+        Assert.Equal(
+            [vertexTwo, vertexOne, vertexFour, vertexThree],
+            graph.TopologicalSort().ToArray());
+    }
+
+    [Fact]
     public void BatchingTopologicalSort_throws_with_formatted_message_when_cycle_cannot_be_broken()
     {
         const string message = "Formatted cycle";
@@ -406,7 +451,7 @@ public class MultigraphTest
         var edgeThree = new Edge { Id = 3 };
 
         var graph = new Multigraph<Vertex, Edge>();
-        graph.AddVertices(new[] { vertexOne, vertexTwo, vertexThree });
+        graph.AddVertices([vertexOne, vertexTwo, vertexThree]);
 
         // 1 -> {2}
         graph.AddEdge(vertexOne, vertexTwo, edgeOne);
@@ -415,7 +460,7 @@ public class MultigraphTest
         // 3 -> {1}
         graph.AddEdge(vertexThree, vertexOne, edgeThree);
 
-        Dictionary<Vertex, Tuple<Vertex, Vertex, IEnumerable<Edge>>> cycleData = null;
+        Dictionary<Vertex, Tuple<Vertex, Vertex, IEnumerable<Edge>>> cycleData = null!;
 
         string formatter(IEnumerable<Tuple<Vertex, Vertex, IEnumerable<Edge>>> data)
         {
@@ -430,16 +475,16 @@ public class MultigraphTest
         Assert.Equal(3, cycleData.Count());
 
         Assert.Equal(vertexTwo, cycleData[vertexOne].Item2);
-        Assert.Equal(new[] { edgeOne }, cycleData[vertexOne].Item3);
+        Assert.Equal([edgeOne], cycleData[vertexOne].Item3);
 
         Assert.Equal(vertexThree, cycleData[vertexTwo].Item2);
-        Assert.Equal(new[] { edgeTwo }, cycleData[vertexTwo].Item3);
+        Assert.Equal([edgeTwo], cycleData[vertexTwo].Item3);
 
         Assert.Equal(vertexOne, cycleData[vertexThree].Item2);
-        Assert.Equal(new[] { edgeThree }, cycleData[vertexThree].Item3);
+        Assert.Equal([edgeThree], cycleData[vertexThree].Item3);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void BatchingTopologicalSort_throws_with_formatted_message_with_no_tail_when_cycle_cannot_be_broken()
     {
         const string message = "Formatted cycle";
@@ -455,7 +500,7 @@ public class MultigraphTest
         var edgeFour = new Edge { Id = 4 };
 
         var graph = new Multigraph<Vertex, Edge>();
-        graph.AddVertices(new[] { vertexOne, vertexTwo, vertexThree, vertexFour });
+        graph.AddVertices([vertexOne, vertexTwo, vertexThree, vertexFour]);
 
         // 2 -> {1}
         graph.AddEdge(vertexTwo, vertexOne, edgeOne);
@@ -466,7 +511,7 @@ public class MultigraphTest
         // 3 -> {4}
         graph.AddEdge(vertexThree, vertexFour, edgeFour);
 
-        Dictionary<Vertex, Tuple<Vertex, Vertex, IEnumerable<Edge>>> cycleData = null;
+        Dictionary<Vertex, Tuple<Vertex, Vertex, IEnumerable<Edge>>> cycleData = null!;
 
         string formatter(IEnumerable<Tuple<Vertex, Vertex, IEnumerable<Edge>>> data)
         {
@@ -481,13 +526,13 @@ public class MultigraphTest
         Assert.Equal(2, cycleData.Count);
 
         Assert.Equal(vertexFour, cycleData[vertexThree].Item2);
-        Assert.Equal(new[] { edgeFour }, cycleData[vertexThree].Item3);
+        Assert.Equal([edgeFour], cycleData[vertexThree].Item3);
 
         Assert.Equal(vertexThree, cycleData[vertexFour].Item2);
-        Assert.Equal(new[] { edgeThree }, cycleData[vertexFour].Item3);
+        Assert.Equal([edgeThree], cycleData[vertexFour].Item3);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void BatchingTopologicalSort_sorts_simple()
     {
         var model = CreateModel();
@@ -502,8 +547,8 @@ public class MultigraphTest
         entityTypeC.SetPrimaryKey(entityTypeC.AddProperty("Id", typeof(int)));
 
         // B -> A -> C
-        entityTypeC.AddForeignKey(entityTypeC.AddProperty(C.PProperty), entityTypeA.FindPrimaryKey(), entityTypeA);
-        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeB.FindPrimaryKey(), entityTypeB);
+        entityTypeC.AddForeignKey(entityTypeC.AddProperty(C.PProperty), entityTypeA.FindPrimaryKey()!, entityTypeA);
+        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeB.FindPrimaryKey()!, entityTypeB);
 
         var graph = new EntityTypeGraph();
         graph.Populate(entityTypeA, entityTypeB, entityTypeC);
@@ -513,7 +558,7 @@ public class MultigraphTest
             graph.BatchingTopologicalSort().SelectMany(e => e).Select(e => e.Name).ToArray());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void BatchingTopologicalSort_sorts_reverse()
     {
         var model = CreateModel();
@@ -528,8 +573,8 @@ public class MultigraphTest
         entityTypeC.SetPrimaryKey(entityTypeC.AddProperty("Id", typeof(int)));
 
         // C -> B -> A
-        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeB.FindPrimaryKey(), entityTypeB);
-        entityTypeB.AddForeignKey(entityTypeB.AddProperty(B.PProperty), entityTypeC.FindPrimaryKey(), entityTypeC);
+        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeB.FindPrimaryKey()!, entityTypeB);
+        entityTypeB.AddForeignKey(entityTypeB.AddProperty(B.PProperty), entityTypeC.FindPrimaryKey()!, entityTypeC);
 
         var graph = new EntityTypeGraph();
         graph.Populate(entityTypeA, entityTypeB, entityTypeC);
@@ -539,7 +584,7 @@ public class MultigraphTest
             graph.BatchingTopologicalSort().SelectMany(e => e).Select(e => e.Name).ToArray());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void BatchingTopologicalSort_sorts_preserves_graph()
     {
         var model = CreateModel();
@@ -554,8 +599,8 @@ public class MultigraphTest
         entityTypeC.SetPrimaryKey(entityTypeC.AddProperty("Id", typeof(int)));
 
         // B -> A -> C
-        entityTypeC.AddForeignKey(entityTypeC.AddProperty(C.PProperty), entityTypeA.FindPrimaryKey(), entityTypeA);
-        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeB.FindPrimaryKey(), entityTypeB);
+        entityTypeC.AddForeignKey(entityTypeC.AddProperty(C.PProperty), entityTypeA.FindPrimaryKey()!, entityTypeA);
+        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeB.FindPrimaryKey()!, entityTypeB);
 
         var graph = new EntityTypeGraph();
         graph.Populate(entityTypeA, entityTypeB, entityTypeC);
@@ -565,15 +610,15 @@ public class MultigraphTest
             graph.BatchingTopologicalSort().SelectMany(e => e).Select(e => e.Name).ToArray());
 
         Assert.Equal(
-            new[] { entityTypeA, entityTypeB, entityTypeC },
+            [entityTypeA, entityTypeB, entityTypeC],
             graph.Vertices);
 
         Assert.Equal(
-            new[] { entityTypeC },
+            [entityTypeC],
             graph.GetOutgoingNeighbors(entityTypeA));
 
         Assert.Equal(
-            new[] { entityTypeA },
+            [entityTypeA],
             graph.GetOutgoingNeighbors(entityTypeB));
 
         Assert.Equal(
@@ -581,7 +626,7 @@ public class MultigraphTest
             graph.BatchingTopologicalSort().SelectMany(e => e).Select(e => e.Name).ToArray());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void BatchingTopologicalSort_sorts_tree()
     {
         var model = CreateModel();
@@ -596,9 +641,9 @@ public class MultigraphTest
         entityTypeC.SetPrimaryKey(entityTypeC.AddProperty("Id", typeof(int)));
 
         // A -> B, A -> C, C -> B
-        entityTypeB.AddForeignKey(entityTypeB.AddProperty(B.PProperty), entityTypeA.FindPrimaryKey(), entityTypeA);
-        entityTypeC.AddForeignKey(entityTypeC.AddProperty(C.PProperty), entityTypeA.FindPrimaryKey(), entityTypeA);
-        entityTypeB.AddForeignKey(entityTypeB.AddProperty("P2", typeof(int)), entityTypeC.FindPrimaryKey(), entityTypeC);
+        entityTypeB.AddForeignKey(entityTypeB.AddProperty(B.PProperty), entityTypeA.FindPrimaryKey()!, entityTypeA);
+        entityTypeC.AddForeignKey(entityTypeC.AddProperty(C.PProperty), entityTypeA.FindPrimaryKey()!, entityTypeA);
+        entityTypeB.AddForeignKey(entityTypeB.AddProperty("P2", typeof(int)), entityTypeC.FindPrimaryKey()!, entityTypeC);
 
         var graph = new EntityTypeGraph();
         graph.Populate(entityTypeA, entityTypeB, entityTypeC);
@@ -608,7 +653,7 @@ public class MultigraphTest
             graph.BatchingTopologicalSort().SelectMany(e => e).Select(e => e.Name).ToArray());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void BatchingTopologicalSort_sorts_no_edges()
     {
         var model = CreateModel();
@@ -631,7 +676,7 @@ public class MultigraphTest
             graph.BatchingTopologicalSort().SelectMany(e => e).Select(e => e.Name).ToArray());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void BatchingTopologicalSort_sorts_self_ref()
     {
         var model = CreateModel();
@@ -641,7 +686,7 @@ public class MultigraphTest
         entityTypeA.SetPrimaryKey(property);
 
         // A -> A
-        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeA.FindPrimaryKey(), entityTypeA);
+        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeA.FindPrimaryKey()!, entityTypeA);
 
         var graph = new EntityTypeGraph();
         graph.Populate(entityTypeA);
@@ -651,7 +696,7 @@ public class MultigraphTest
             Assert.Throws<InvalidOperationException>(() => graph.BatchingTopologicalSort()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void BatchingTopologicalSort_sorts_circular_direct()
     {
         var model = CreateModel();
@@ -666,8 +711,8 @@ public class MultigraphTest
         entityTypeC.SetPrimaryKey(entityTypeC.AddProperty("Id", typeof(int)));
 
         // C, A -> B -> A
-        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeB.FindPrimaryKey(), entityTypeB);
-        entityTypeB.AddForeignKey(entityTypeB.AddProperty(B.PProperty), entityTypeA.FindPrimaryKey(), entityTypeA);
+        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeB.FindPrimaryKey()!, entityTypeB);
+        entityTypeB.AddForeignKey(entityTypeB.AddProperty(B.PProperty), entityTypeA.FindPrimaryKey()!, entityTypeA);
 
         var graph = new EntityTypeGraph();
         graph.Populate(entityTypeC, entityTypeA, entityTypeB);
@@ -678,7 +723,7 @@ public class MultigraphTest
             Assert.Throws<InvalidOperationException>(() => graph.BatchingTopologicalSort()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void BatchingTopologicalSort_sorts_circular_transitive()
     {
         var model = CreateModel();
@@ -693,9 +738,9 @@ public class MultigraphTest
         entityTypeC.SetPrimaryKey(entityTypeC.AddProperty("Id", typeof(int)));
 
         // A -> C -> B -> A
-        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeB.FindPrimaryKey(), entityTypeB);
-        entityTypeB.AddForeignKey(entityTypeB.AddProperty(B.PProperty), entityTypeC.FindPrimaryKey(), entityTypeC);
-        entityTypeC.AddForeignKey(entityTypeC.AddProperty(C.PProperty), entityTypeA.FindPrimaryKey(), entityTypeA);
+        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeB.FindPrimaryKey()!, entityTypeB);
+        entityTypeB.AddForeignKey(entityTypeB.AddProperty(B.PProperty), entityTypeC.FindPrimaryKey()!, entityTypeC);
+        entityTypeC.AddForeignKey(entityTypeC.AddProperty(C.PProperty), entityTypeA.FindPrimaryKey()!, entityTypeA);
 
         var graph = new EntityTypeGraph();
         graph.Populate(entityTypeA, entityTypeB, entityTypeC);
@@ -715,7 +760,7 @@ public class MultigraphTest
             Assert.Throws<InvalidOperationException>(() => graph.BatchingTopologicalSort()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void BatchingTopologicalSort_sorts_two_cycles()
     {
         var model = CreateModel();
@@ -736,14 +781,14 @@ public class MultigraphTest
         entityTypeE.SetPrimaryKey(entityTypeE.AddProperty("Id", typeof(int)));
 
         // A -> C -> B -> A
-        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeB.FindPrimaryKey(), entityTypeB);
-        entityTypeB.AddForeignKey(entityTypeB.AddProperty(B.PProperty), entityTypeC.FindPrimaryKey(), entityTypeC);
-        entityTypeC.AddForeignKey(entityTypeC.AddProperty(C.PProperty), entityTypeA.FindPrimaryKey(), entityTypeA);
+        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeB.FindPrimaryKey()!, entityTypeB);
+        entityTypeB.AddForeignKey(entityTypeB.AddProperty(B.PProperty), entityTypeC.FindPrimaryKey()!, entityTypeC);
+        entityTypeC.AddForeignKey(entityTypeC.AddProperty(C.PProperty), entityTypeA.FindPrimaryKey()!, entityTypeA);
 
         // A -> E -> D -> A
-        entityTypeA.AddForeignKey(entityTypeA.AddProperty("P2", typeof(int)), entityTypeD.FindPrimaryKey(), entityTypeD);
-        entityTypeD.AddForeignKey(entityTypeD.AddProperty("P2", typeof(int)), entityTypeE.FindPrimaryKey(), entityTypeE);
-        entityTypeE.AddForeignKey(entityTypeE.AddProperty("P2", typeof(int)), entityTypeA.FindPrimaryKey(), entityTypeA);
+        entityTypeA.AddForeignKey(entityTypeA.AddProperty("P2", typeof(int)), entityTypeD.FindPrimaryKey()!, entityTypeD);
+        entityTypeD.AddForeignKey(entityTypeD.AddProperty("P2", typeof(int)), entityTypeE.FindPrimaryKey()!, entityTypeE);
+        entityTypeE.AddForeignKey(entityTypeE.AddProperty("P2", typeof(int)), entityTypeA.FindPrimaryKey()!, entityTypeA);
 
         var graph = new EntityTypeGraph();
         graph.Populate(entityTypeA, entityTypeB, entityTypeC, entityTypeD, entityTypeE);
@@ -763,7 +808,7 @@ public class MultigraphTest
             Assert.Throws<InvalidOperationException>(() => graph.BatchingTopologicalSort()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void BatchingTopologicalSort_sorts_leafy_cycle()
     {
         var model = CreateModel();
@@ -778,9 +823,9 @@ public class MultigraphTest
         entityTypeC.SetPrimaryKey(entityTypeC.AddProperty("Id", typeof(int)));
 
         // C -> B -> C -> A
-        entityTypeB.AddForeignKey(entityTypeB.AddProperty(B.PProperty), entityTypeC.FindPrimaryKey(), entityTypeC);
-        entityTypeC.AddForeignKey(entityTypeC.AddProperty(C.PProperty), entityTypeB.FindPrimaryKey(), entityTypeB);
-        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeC.FindPrimaryKey(), entityTypeC);
+        entityTypeB.AddForeignKey(entityTypeB.AddProperty(B.PProperty), entityTypeC.FindPrimaryKey()!, entityTypeC);
+        entityTypeC.AddForeignKey(entityTypeC.AddProperty(C.PProperty), entityTypeB.FindPrimaryKey()!, entityTypeB);
+        entityTypeA.AddForeignKey(entityTypeA.AddProperty(A.PProperty), entityTypeC.FindPrimaryKey()!, entityTypeC);
 
         var graph = new EntityTypeGraph();
         graph.Populate(entityTypeA, entityTypeB, entityTypeC);
@@ -789,6 +834,81 @@ public class MultigraphTest
             CoreStrings.CircularDependency(
                 nameof(C) + " ->" + Environment.NewLine + nameof(B) + " ->" + Environment.NewLine + nameof(C)),
             Assert.Throws<InvalidOperationException>(() => graph.BatchingTopologicalSort()).Message);
+    }
+
+    [Fact]
+    public void BatchingTopologicalSort_with_secondary_sort()
+    {
+        var vertexOne = new Vertex { Id = 1 };
+        var vertexTwo = new Vertex { Id = 2 };
+        var vertexThree = new Vertex { Id = 3 };
+        var vertexFour = new Vertex { Id = 4 };
+
+        var edgeOne = new Edge { Id = 1 };
+        var edgeTwo = new Edge { Id = 2 };
+
+        var graph = new Multigraph<Vertex, Edge>((v1, v2) => Comparer<int>.Default.Compare(v1.Id, v2.Id));
+        graph.AddVertices([vertexFour, vertexThree, vertexTwo, vertexOne]);
+
+        // 1 -> {3}
+        graph.AddEdge(vertexOne, vertexThree, edgeOne);
+        // 2 -> {4}
+        graph.AddEdge(vertexTwo, vertexFour, edgeTwo);
+
+        Assert.Equal(
+            [vertexOne, vertexTwo, vertexThree, vertexFour],
+            graph.BatchingTopologicalSort().Single().ToArray());
+    }
+
+    [Fact]
+    public void BatchingTopologicalSort_without_secondary_sort()
+    {
+        var vertexOne = new Vertex { Id = 1 };
+        var vertexTwo = new Vertex { Id = 2 };
+        var vertexThree = new Vertex { Id = 3 };
+        var vertexFour = new Vertex { Id = 4 };
+
+        var edgeOne = new Edge { Id = 1 };
+        var edgeTwo = new Edge { Id = 2 };
+
+        var graph = new Multigraph<Vertex, Edge>();
+        graph.AddVertices([vertexFour, vertexThree, vertexTwo, vertexOne]);
+
+        // 1 -> {3}
+        graph.AddEdge(vertexOne, vertexThree, edgeOne);
+        // 2 -> {4}
+        graph.AddEdge(vertexTwo, vertexFour, edgeTwo);
+
+        Assert.Equal(
+            [vertexTwo, vertexOne, vertexFour, vertexThree],
+            graph.BatchingTopologicalSort().Single().ToArray());
+    }
+
+    [Fact]
+    public void BatchingTopologicalSort_with_batching_boundary_edge()
+    {
+        var vertexOne = new Vertex { Id = 1 };
+        var vertexTwo = new Vertex { Id = 2 };
+        var vertexThree = new Vertex { Id = 3 };
+        var vertexFour = new Vertex { Id = 4 };
+
+        var edgeOne = new Edge { Id = 1 };
+        var edgeTwo = new Edge { Id = 2 };
+
+        var graph = new Multigraph<Vertex, Edge>((v1, v2) => Comparer<int>.Default.Compare(v1.Id, v2.Id));
+        graph.AddVertices([vertexFour, vertexThree, vertexTwo, vertexOne]);
+
+        // 1 -> {3}
+        graph.AddEdge(vertexOne, vertexThree, edgeOne, requiresBatchingBoundary: true);
+        // 2 -> {4}
+        graph.AddEdge(vertexTwo, vertexFour, edgeTwo);
+
+        var batches = graph.BatchingTopologicalSort();
+
+        Assert.Collection(
+            batches,
+            b => Assert.Equal([vertexOne, vertexTwo], b.ToArray()),
+            b => Assert.Equal([vertexThree, vertexFour], b.ToArray()));
     }
 
     private static IMutableModel CreateModel()

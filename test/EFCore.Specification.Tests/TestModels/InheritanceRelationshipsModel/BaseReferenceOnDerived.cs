@@ -7,8 +7,8 @@ public class BaseReferenceOnDerived
 {
     public int Id { get; set; }
 
-    public string Name { get; set; }
+    public string? Name { get; set; }
 
     public int? BaseParentId { get; set; }
-    public DerivedInheritanceRelationshipEntity BaseParent { get; set; }
+    public DerivedInheritanceRelationshipEntity? BaseParent { get; set; }
 }

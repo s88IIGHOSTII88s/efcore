@@ -13,10 +13,11 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal;
 /// </summary>
 public class ModelConfiguration
 {
-    private readonly Dictionary<Type, PropertyConfiguration> _properties = new();
-    private readonly Dictionary<Type, PropertyConfiguration> _typeMappings = new();
-    private readonly HashSet<Type> _ignoredTypes = new();
-    private readonly Dictionary<Type, TypeConfigurationType?> _configurationTypes = new();
+    private readonly Dictionary<Type, PropertyConfiguration> _properties = [];
+    private readonly Dictionary<Type, PropertyConfiguration> _typeMappings = [];
+    private readonly Dictionary<Type, ComplexPropertyConfiguration> _complexProperties = [];
+    private readonly HashSet<Type> _ignoredTypes = [];
+    private readonly Dictionary<Type, TypeConfigurationType?> _configurationTypes = [];
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -25,7 +26,10 @@ public class ModelConfiguration
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual bool IsEmpty()
-        => _properties.Count == 0 && _ignoredTypes.Count == 0 && _typeMappings.Count == 0;
+        => _properties.Count == 0
+            && _ignoredTypes.Count == 0
+            && _typeMappings.Count == 0
+            && _complexProperties.Count == 0;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -37,8 +41,8 @@ public class ModelConfiguration
     {
         Type? configuredType = null;
         var stringType = GetConfigurationType(typeof(string), null, ref configuredType);
-        if (stringType != null
-            && stringType != TypeConfigurationType.Property)
+        if (stringType is not null
+            and not TypeConfigurationType.Property)
         {
             throw new InvalidOperationException(
                 CoreStrings.UnconfigurableType(
@@ -50,8 +54,8 @@ public class ModelConfiguration
 
         configuredType = null;
         var intType = GetConfigurationType(typeof(int?), null, ref configuredType);
-        if (intType != null
-            && intType != TypeConfigurationType.Property)
+        if (intType is not null
+            and not TypeConfigurationType.Property)
         {
             throw new InvalidOperationException(
                 CoreStrings.UnconfigurableType(
@@ -63,18 +67,15 @@ public class ModelConfiguration
 
         configuredType = null;
         var propertyBagType = GetConfigurationType(Model.DefaultPropertyBagType, null, ref configuredType);
-        if (propertyBagType != null
-            && !propertyBagType.Value.IsEntityType())
-        {
-            throw new InvalidOperationException(
-                CoreStrings.UnconfigurableType(
-                    Model.DefaultPropertyBagType.DisplayName(fullName: false),
-                    propertyBagType,
-                    TypeConfigurationType.SharedTypeEntityType,
-                    configuredType!.DisplayName(fullName: false)));
-        }
-
-        return this;
+        return propertyBagType != null
+            && !propertyBagType.Value.IsEntityType()
+                ? throw new InvalidOperationException(
+                    CoreStrings.UnconfigurableType(
+                        Model.DefaultPropertyBagType.DisplayName(fullName: false),
+                        propertyBagType,
+                        TypeConfigurationType.SharedTypeEntityType,
+                        configuredType!.DisplayName(fullName: false)))
+                : this;
     }
 
     /// <summary>
@@ -83,14 +84,15 @@ public class ModelConfiguration
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual TypeConfigurationType? GetConfigurationType(Type type)
+    public virtual TypeConfigurationType? GetConfigurationType(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type)
     {
         Type? configuredType = null;
         return GetConfigurationType(type, null, ref configuredType);
     }
 
     private TypeConfigurationType? GetConfigurationType(
-        Type type,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type,
         TypeConfigurationType? previousConfiguration,
         ref Type? previousType,
         bool getBaseTypes = true)
@@ -141,11 +143,16 @@ public class ModelConfiguration
             configurationType = TypeConfigurationType.Ignored;
             configuredType = type;
         }
-
-        if (_properties.ContainsKey(type))
+        else if (_properties.ContainsKey(type))
         {
             EnsureCompatible(TypeConfigurationType.Property, type, configurationType, configuredType);
             configurationType = TypeConfigurationType.Property;
+            configuredType = type;
+        }
+        else if (_complexProperties.ContainsKey(type))
+        {
+            EnsureCompatible(TypeConfigurationType.ComplexType, type, configurationType, configuredType);
+            configurationType = TypeConfigurationType.ComplexType;
             configuredType = type;
         }
 
@@ -221,6 +228,26 @@ public class ModelConfiguration
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    public virtual void ConfigureComplexProperty(IMutableComplexProperty property)
+    {
+        var types = property.ClrType.GetBaseTypesAndInterfacesInclusive();
+        for (var i = types.Count - 1; i >= 0; i--)
+        {
+            var type = types[i];
+
+            if (_complexProperties.TryGetValue(type, out var configuration))
+            {
+                configuration.Apply(property);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
     public virtual PropertyConfiguration GetOrAddProperty(Type type)
     {
         var property = FindProperty(type);
@@ -242,9 +269,7 @@ public class ModelConfiguration
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual PropertyConfiguration? FindProperty(Type type)
-        => _properties.TryGetValue(type, out var property)
-            ? property
-            : null;
+        => _properties.GetValueOrDefault(type);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -291,9 +316,45 @@ public class ModelConfiguration
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual PropertyConfiguration? FindTypeMapping(Type type)
-        => _typeMappings.TryGetValue(type, out var property)
-            ? property
-            : null;
+        => _typeMappings.GetValueOrDefault(type);
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual ComplexPropertyConfiguration GetOrAddComplexProperty(Type type)
+    {
+        var property = FindComplexProperty(type);
+        if (property == null)
+        {
+            RemoveIgnored(type);
+
+            property = new ComplexPropertyConfiguration(type);
+            _complexProperties.Add(type, property);
+        }
+
+        return property;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual ComplexPropertyConfiguration? FindComplexProperty(Type type)
+        => _complexProperties.GetValueOrDefault(type);
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual bool RemoveComplexProperty(Type type)
+        => _complexProperties.Remove(type);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -304,6 +365,7 @@ public class ModelConfiguration
     public virtual void AddIgnored(Type type)
     {
         RemoveProperty(type);
+        RemoveComplexProperty(type);
         _ignoredTypes.Add(type);
     }
 

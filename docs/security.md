@@ -5,10 +5,6 @@ The document serves two purposes:
 * **Designing, reviewing, and verifying Entity Framework** to ensure it meets the agreed upon security principles.
 * **Helping developers write secure applications** by raising awareness of the security concerns that EF handles and guidance that should be followed when using EF.
 
-***
-**NOTE:** THIS DOCUMENT CAPTURES THE SECURITY DESIGN FOR EF CORE. SINCE EF CORE IS STILL PRE-RELEASE, NOT ALL GUARANTEES LISTED HERE MAY BE IMPLEMENTED AND/OR VERIFIED YET.
-***
-
 ## User Input
 
 ### Security Note: Validate user input
@@ -205,7 +201,7 @@ public void MoveClients(string oldOwner, string newOwner)
 	
 ### Security Note: Migration APIs not designed for untrusted input
 
-The migrations APIs are designed to accept trusted values that are compiled into your application as part of migration code files. Most of the values are appropriately escaped, but if you are accepting untrusted input you should ensure appropriate validation is performed. There are some APIs (such as the `Sql(string)` method and the `defaultValueSql` parameter) that are pass-thru in nature and do not perform and validation or escaping. 
+The migrations APIs are designed to accept trusted values that are compiled into your application as part of migration code files. Most of the values are appropriately escaped, but if you are accepting untrusted input you should ensure appropriate validation is performed. There are some APIs (such as the `Sql(string)` method and the `defaultValueSql` parameter) that are pass-thru in nature and do not perform any validation or escaping. 
 
 **Guidance:** The migrations APIs are not designed to accept input from an untrusted source. If input from an untrusted source (e.g. the end user of an application) is passed to the migrations APIs then it should be validated to protect against SQL injection attacks.
 

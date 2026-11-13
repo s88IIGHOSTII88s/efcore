@@ -15,7 +15,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Builders;
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-conventions">Model building conventions</see> for more information and examples.
 /// </remarks>
-public interface IConventionPropertyBuilder : IConventionPropertyBaseBuilder
+public interface IConventionPropertyBuilder : IConventionPropertyBaseBuilder<IConventionPropertyBuilder>
 {
     /// <summary>
     ///     Gets the property being configured.
@@ -105,42 +105,52 @@ public interface IConventionPropertyBuilder : IConventionPropertyBaseBuilder
     bool CanSetIsConcurrencyToken(bool? concurrencyToken, bool fromDataAnnotation = false);
 
     /// <summary>
-    ///     Sets the backing field to use for this property.
+    ///     Configures whether this property is automatically loaded when the entity is queried from the database.
     /// </summary>
-    /// <param name="fieldName">The field name.</param>
+    /// <param name="autoLoaded">
+    ///     A value indicating whether this property is automatically loaded.
+    ///     <see langword="null" /> to reset to default.
+    /// </param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns>
     ///     The same builder instance if the configuration was applied,
     ///     <see langword="null" /> otherwise.
     /// </returns>
-    new IConventionPropertyBuilder? HasField(string? fieldName, bool fromDataAnnotation = false);
+    IConventionPropertyBuilder? IsAutoLoaded(bool? autoLoaded, bool fromDataAnnotation = false);
 
     /// <summary>
-    ///     Sets the backing field to use for this property.
+    ///     Returns a value indicating whether the property can be configured as auto-loaded
+    ///     from the current configuration source.
     /// </summary>
-    /// <param name="fieldInfo">The field.</param>
+    /// <param name="autoLoaded">A value indicating whether this property is auto-loaded.</param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>
-    ///     The same builder instance if the configuration was applied,
-    ///     <see langword="null" /> otherwise.
-    /// </returns>
-    new IConventionPropertyBuilder? HasField(FieldInfo? fieldInfo, bool fromDataAnnotation = false);
+    /// <returns><see langword="true" /> if the auto-loaded can be configured for this property.</returns>
+    bool CanSetIsAutoLoaded(bool? autoLoaded, bool fromDataAnnotation = false);
 
     /// <summary>
-    ///     Sets the <see cref="PropertyAccessMode" /> to use for this property.
+    ///     Configures the value that will be used to determine if the property has been set or not. If the property is set to the
+    ///     sentinel value, then it is considered not set. By default, the sentinel value is the CLR default value for the type of
+    ///     the property.
     /// </summary>
-    /// <param name="propertyAccessMode">The <see cref="PropertyAccessMode" /> to use for this property.</param>
+    /// <param name="sentinel">The sentinel value.</param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
-    /// <returns>
-    ///     The same builder instance if the configuration was applied,
-    ///     <see langword="null" /> otherwise.
-    /// </returns>
-    new IConventionPropertyBuilder? UsePropertyAccessMode(PropertyAccessMode? propertyAccessMode, bool fromDataAnnotation = false);
+    /// <returns>The same builder instance if the configuration was applied, <see langword="null" /> otherwise.</returns>
+    IConventionPropertyBuilder? HasSentinel(object? sentinel, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Returns a value indicating whether the sentinel can be set for this property from the current configuration source.
+    /// </summary>
+    /// <param name="sentinel">The sentinel value.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns><see langword="true" /> if the sentinel can be set for this property.</returns>
+    bool CanSetSentinel(object? sentinel, bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Configures the maximum length of data that can be stored in this property.
     /// </summary>
-    /// <param name="maxLength">The maximum length of data allowed in the property.</param>
+    /// <param name="maxLength">
+    ///     The maximum length of data allowed in the property. A value of <c>-1</c> indicates that the property has no maximum length.
+    /// </param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns>
     ///     The same builder instance if the configuration was applied,
@@ -282,7 +292,10 @@ public interface IConventionPropertyBuilder : IConventionPropertyBaseBuilder
     ///     The same builder instance if the configuration was applied,
     ///     <see langword="null" /> otherwise.
     /// </returns>
-    IConventionPropertyBuilder? HasValueGenerator(Type? valueGeneratorType, bool fromDataAnnotation = false);
+    IConventionPropertyBuilder? HasValueGenerator(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
+        Type? valueGeneratorType,
+        bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Configures the <see cref="ValueGenerator" /> that will generate values for this property.
@@ -294,7 +307,7 @@ public interface IConventionPropertyBuilder : IConventionPropertyBaseBuilder
     ///     <see langword="null" /> otherwise.
     /// </returns>
     IConventionPropertyBuilder? HasValueGenerator(
-        Func<IProperty, IEntityType, ValueGenerator>? factory,
+        Func<IProperty, ITypeBase, ValueGenerator>? factory,
         bool fromDataAnnotation = false);
 
     /// <summary>
@@ -307,7 +320,10 @@ public interface IConventionPropertyBuilder : IConventionPropertyBaseBuilder
     ///     The same builder instance if the configuration was applied,
     ///     <see langword="null" /> otherwise.
     /// </returns>
-    IConventionPropertyBuilder? HasValueGeneratorFactory(Type? valueGeneratorFactoryType, bool fromDataAnnotation = false);
+    IConventionPropertyBuilder? HasValueGeneratorFactory(
+        [DynamicallyAccessedMembers(ValueGeneratorFactory.DynamicallyAccessedMemberTypes)]
+        Type? valueGeneratorFactoryType,
+        bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Returns a value indicating whether the <see cref="ValueGenerator" /> can be configured for this property
@@ -323,7 +339,7 @@ public interface IConventionPropertyBuilder : IConventionPropertyBaseBuilder
     ///     <see langword="true" /> if the <see cref="ValueGenerator" /> can be configured for this property.
     /// </returns>
     bool CanSetValueGenerator(
-        Func<IProperty, IEntityType, ValueGenerator>? factory,
+        Func<IProperty, ITypeBase, ValueGenerator>? factory,
         bool fromDataAnnotation = false);
 
     /// <summary>
@@ -340,6 +356,7 @@ public interface IConventionPropertyBuilder : IConventionPropertyBaseBuilder
     ///     <see langword="true" /> if the <see cref="ValueGenerator" /> can be configured for this property.
     /// </returns>
     bool CanSetValueGeneratorFactory(
+        [DynamicallyAccessedMembers(ValueGeneratorFactory.DynamicallyAccessedMemberTypes)]
         Type? valueGeneratorFactoryType,
         bool fromDataAnnotation = false);
 
@@ -402,7 +419,10 @@ public interface IConventionPropertyBuilder : IConventionPropertyBaseBuilder
     ///     The same builder instance if the configuration was applied,
     ///     <see langword="null" /> otherwise.
     /// </returns>
-    IConventionPropertyBuilder? HasConverter(Type? converterType, bool fromDataAnnotation = false);
+    IConventionPropertyBuilder? HasConverter(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
+        Type? converterType,
+        bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Returns a value indicating whether the <see cref="ValueConverter" /> can be configured for this property
@@ -416,7 +436,10 @@ public interface IConventionPropertyBuilder : IConventionPropertyBaseBuilder
     /// <returns>
     ///     <see langword="true" /> if the <see cref="ValueConverter" /> can be configured for this property.
     /// </returns>
-    bool CanSetConverter(Type? converterType, bool fromDataAnnotation = false);
+    bool CanSetConverter(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
+        Type? converterType,
+        bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Configures the <see cref="CoreTypeMapping" /> for this property.
@@ -472,7 +495,10 @@ public interface IConventionPropertyBuilder : IConventionPropertyBaseBuilder
     /// <returns>
     ///     The same builder instance if the configuration was applied, <see langword="null" /> otherwise.
     /// </returns>
-    IConventionPropertyBuilder? HasValueComparer(Type? comparerType, bool fromDataAnnotation = false);
+    IConventionPropertyBuilder? HasValueComparer(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
+        Type? comparerType,
+        bool fromDataAnnotation = false);
 
     /// <summary>
     ///     Returns a value indicating whether the given <see cref="ValueComparer" />
@@ -486,5 +512,62 @@ public interface IConventionPropertyBuilder : IConventionPropertyBaseBuilder
     /// <returns>
     ///     <see langword="true" /> if the given <see cref="ValueComparer" /> can be configured for this property.
     /// </returns>
-    bool CanSetValueComparer(Type? comparerType, bool fromDataAnnotation = false);
+    bool CanSetValueComparer(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
+        Type? comparerType,
+        bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Configures the <see cref="ValueComparer" /> to use for the provider values for this property.
+    /// </summary>
+    /// <param name="comparer">The comparer, or <see langword="null" /> to remove any previously set comparer.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The same builder instance if the configuration was applied, <see langword="null" /> otherwise.
+    /// </returns>
+    IConventionPropertyBuilder? HasProviderValueComparer(ValueComparer? comparer, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Returns a value indicating whether the given <see cref="ValueComparer" />
+    ///     can be configured for this property from the current configuration source.
+    /// </summary>
+    /// <param name="comparer">The comparer, or <see langword="null" /> to remove any previously set comparer.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     <see langword="true" /> if the given <see cref="ValueComparer" /> can be configured for this property.
+    /// </returns>
+    bool CanSetProviderValueComparer(ValueComparer? comparer, bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Configures the <see cref="ValueComparer" /> to use for the provider values for this property.
+    /// </summary>
+    /// <param name="comparerType">
+    ///     A type that derives from <see cref="ValueComparer" />,
+    ///     or <see langword="null" /> to remove any previously set comparer.
+    /// </param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The same builder instance if the configuration was applied, <see langword="null" /> otherwise.
+    /// </returns>
+    IConventionPropertyBuilder? HasProviderValueComparer(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
+        Type? comparerType,
+        bool fromDataAnnotation = false);
+
+    /// <summary>
+    ///     Returns a value indicating whether the given <see cref="ValueComparer" />
+    ///     can be configured for this property from the current configuration source.
+    /// </summary>
+    /// <param name="comparerType">
+    ///     A type that derives from <see cref="ValueComparer" />,
+    ///     or <see langword="null" /> to remove any previously set comparer.
+    /// </param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     <see langword="true" /> if the given <see cref="ValueComparer" /> can be configured for this property.
+    /// </returns>
+    bool CanSetProviderValueComparer(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
+        Type? comparerType,
+        bool fromDataAnnotation = false);
 }

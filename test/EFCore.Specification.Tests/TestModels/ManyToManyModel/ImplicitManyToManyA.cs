@@ -11,7 +11,7 @@ public class ImplicitManyToManyA
     [DatabaseGenerated(DatabaseGeneratedOption.None)]
     public virtual int Id { get; set; }
 
-    public virtual string Name { get; set; }
+    public virtual string? Name { get; set; }
 
     public virtual ICollection<ImplicitManyToManyB> Bs { get; } = new ObservableCollection<ImplicitManyToManyB>();
 }

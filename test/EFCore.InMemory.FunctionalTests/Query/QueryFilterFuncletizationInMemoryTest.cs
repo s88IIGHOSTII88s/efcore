@@ -3,16 +3,9 @@
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public class QueryFilterFuncletizationInMemoryTest
-    : QueryFilterFuncletizationTestBase<QueryFilterFuncletizationInMemoryTest.QueryFilterFuncletizationInMemoryFixture>
+public class QueryFilterFuncletizationInMemoryTest(QueryFilterFuncletizationInMemoryTest.QueryFilterFuncletizationInMemoryFixture fixture)
+    : QueryFilterFuncletizationTestBase<QueryFilterFuncletizationInMemoryTest.QueryFilterFuncletizationInMemoryFixture>(fixture)
 {
-    public QueryFilterFuncletizationInMemoryTest(
-        QueryFilterFuncletizationInMemoryFixture fixture,
-        ITestOutputHelper testOutputHelper)
-        : base(fixture)
-    {
-    }
-
     public class QueryFilterFuncletizationInMemoryFixture : QueryFilterFuncletizationFixtureBase
     {
         protected override ITestStoreFactory TestStoreFactory

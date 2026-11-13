@@ -1,14 +1,17 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <Description>Azure Cosmos provider for Entity Framework Core.</Description>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>$(DefaultNetCoreTargetFramework)</TargetFramework>
     <MinClientVersion>3.6</MinClientVersion>
     <AssemblyName>Microsoft.EntityFrameworkCore.Cosmos</AssemblyName>
     <RootNamespace>Microsoft.EntityFrameworkCore.Cosmos</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageTags>$(PackageTags);CosmosDb;SQL API</PackageTags>
     <ImplicitUsings>true</ImplicitUsings>
+    <NoWarn>$(NoWarn);EF9100</NoWarn> <!-- Precompiled query is experimental -->
+    <NoWarn>$(NoWarn);EF9101</NoWarn> <!-- Metrics is experimental -->
+    <NoWarn>$(NoWarn);EF9102</NoWarn> <!-- Paging is experimental -->
   </PropertyGroup>
 
   <ItemGroup>
@@ -40,12 +43,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EFCore\EFCore.csproj" PrivateAssets="contentfiles;build" />
-    <ProjectReference Condition="'$(BuildingByReSharper)' != 'true'" Include="..\EFCore.Analyzers\EFCore.Analyzers.csproj" ReferenceOutputAssembly="False" OutputItemType="Analyzer" />
+    <ProjectReference Include="..\EFCore\EFCore.csproj" PackageVersion="[$(Version), $(NextMajorVersion))" />
+    <ProjectReference Include="..\EFCore.Analyzers\EFCore.Analyzers.csproj" ReferenceOutputAssembly="False" OutputItemType="Analyzer" PackageVersion="[$(Version), $(NextMajorVersion))" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.26.1" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" />
+    <!-- Microsoft.Azure.Cosmos requires explicit reference to Newtonsoft.Json >= 10.0.2 -->
+    <PackageReference Include="Newtonsoft.Json" />
   </ItemGroup>
 
   <ItemGroup>
@@ -58,7 +63,7 @@
 
   <ItemGroup>
     <None Update="Properties\CosmosStrings.Designer.tt">
-      <CustomToolNamespace></CustomToolNamespace>
+      <CustomToolNamespace>Microsoft.EntityFrameworkCore.Cosmos.Internal</CustomToolNamespace>
       <Generator>TextTemplatingFileGenerator</Generator>
       <LastGenOutput>CosmosStrings.Designer.cs</LastGenOutput>
     </None>
@@ -66,12 +71,6 @@
 
   <ItemGroup>
     <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Update="Properties\CosmosStrings.resx">
-      <CustomToolNamespace>Microsoft.EntityFrameworkCore.Cosmos.Internal</CustomToolNamespace>
-    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

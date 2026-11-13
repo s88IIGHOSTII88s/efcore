@@ -9,7 +9,11 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-conventions">Model building conventions</see> for more information and examples.
 /// </remarks>
-public class TableNameFromDbSetConvention : IEntityTypeAddedConvention, IEntityTypeBaseTypeChangedConvention, IModelFinalizingConvention
+public class TableNameFromDbSetConvention :
+    IEntityTypeAddedConvention,
+    IEntityTypeBaseTypeChangedConvention,
+    IEntityTypeAnnotationChangedConvention,
+    IModelFinalizingConvention
 {
     private readonly IDictionary<Type, string> _sets;
 
@@ -32,7 +36,7 @@ public class TableNameFromDbSetConvention : IEntityTypeAddedConvention, IEntityT
             }
             else
             {
-                ambiguousTypes ??= new List<Type>();
+                ambiguousTypes ??= [];
 
                 ambiguousTypes.Add(set.Type);
             }
@@ -60,13 +64,7 @@ public class TableNameFromDbSetConvention : IEntityTypeAddedConvention, IEntityT
     /// </summary>
     protected virtual RelationalConventionSetBuilderDependencies RelationalDependencies { get; }
 
-    /// <summary>
-    ///     Called after the base type of an entity type changes.
-    /// </summary>
-    /// <param name="entityTypeBuilder">The builder for the entity type.</param>
-    /// <param name="newBaseType">The new base entity type.</param>
-    /// <param name="oldBaseType">The old base entity type.</param>
-    /// <param name="context">Additional information associated with convention execution.</param>
+    /// <inheritdoc />
     public virtual void ProcessEntityTypeBaseTypeChanged(
         IConventionEntityTypeBuilder entityTypeBuilder,
         IConventionEntityType? newBaseType,
@@ -76,7 +74,9 @@ public class TableNameFromDbSetConvention : IEntityTypeAddedConvention, IEntityT
         var entityType = entityTypeBuilder.Metadata;
 
         if (oldBaseType == null
-            && newBaseType != null)
+            && newBaseType != null
+            && (entityType.GetMappingStrategy() ?? RelationalAnnotationNames.TphMappingStrategy)
+            == RelationalAnnotationNames.TphMappingStrategy)
         {
             entityTypeBuilder.HasNoAnnotation(RelationalAnnotationNames.TableName);
         }
@@ -85,25 +85,47 @@ public class TableNameFromDbSetConvention : IEntityTypeAddedConvention, IEntityT
                  && !entityType.HasSharedClrType
                  && _sets.TryGetValue(entityType.ClrType, out var setName))
         {
-            entityTypeBuilder.ToTable(setName);
+            entityTypeBuilder.ToTable(Uniquifier.Truncate(setName, entityType.Model.GetMaxIdentifierLength()));
         }
     }
 
-    /// <summary>
-    ///     Called after an entity type is added to the model.
-    /// </summary>
-    /// <param name="entityTypeBuilder">The builder for the entity type.</param>
-    /// <param name="context">Additional information associated with convention execution.</param>
+    /// <inheritdoc />
     public virtual void ProcessEntityTypeAdded(
         IConventionEntityTypeBuilder entityTypeBuilder,
         IConventionContext<IConventionEntityTypeBuilder> context)
     {
         var entityType = entityTypeBuilder.Metadata;
-        if (entityType.BaseType == null
-            && !entityType.HasSharedClrType
+        if (!entityType.HasSharedClrType
+            && (entityType.BaseType == null
+                || (entityType.GetMappingStrategy() ?? RelationalAnnotationNames.TphMappingStrategy)
+                != RelationalAnnotationNames.TphMappingStrategy)
             && _sets.TryGetValue(entityType.ClrType, out var setName))
         {
-            entityTypeBuilder.ToTable(setName);
+            entityTypeBuilder.ToTable(Uniquifier.Truncate(setName, entityType.Model.GetMaxIdentifierLength()));
+        }
+    }
+
+    /// <inheritdoc />
+    public virtual void ProcessEntityTypeAnnotationChanged(
+        IConventionEntityTypeBuilder entityTypeBuilder,
+        string name,
+        IConventionAnnotation? annotation,
+        IConventionAnnotation? oldAnnotation,
+        IConventionContext<IConventionAnnotation> context)
+    {
+        if (name == RelationalAnnotationNames.MappingStrategy
+            && annotation != null
+            && (entityTypeBuilder.Metadata.GetMappingStrategy() ?? RelationalAnnotationNames.TphMappingStrategy)
+            != RelationalAnnotationNames.TphMappingStrategy)
+        {
+            foreach (var derivedEntityType in entityTypeBuilder.Metadata.GetDerivedTypesInclusive())
+            {
+                if (!derivedEntityType.HasSharedClrType
+                    && _sets.TryGetValue(derivedEntityType.ClrType, out var setName))
+                {
+                    derivedEntityType.Builder.ToTable(Uniquifier.Truncate(setName, derivedEntityType.Model.GetMaxIdentifierLength()));
+                }
+            }
         }
     }
 
@@ -115,11 +137,29 @@ public class TableNameFromDbSetConvention : IEntityTypeAddedConvention, IEntityT
         foreach (var entityType in modelBuilder.Metadata.GetEntityTypes())
         {
             if (entityType.GetTableName() != null
-                && entityType.GetViewNameConfigurationSource() != null
                 && _sets.ContainsKey(entityType.ClrType))
             {
-                // Undo the convention change if the entity type is mapped to a view
-                entityType.Builder.HasNoAnnotation(RelationalAnnotationNames.TableName);
+                if (entityType.GetViewNameConfigurationSource() != null)
+                {
+                    // Undo the convention change if the entity type is mapped to a view
+                    entityType.Builder.HasNoAnnotation(RelationalAnnotationNames.TableName);
+                }
+
+                var mappingStrategy = entityType.GetMappingStrategy();
+
+                if (mappingStrategy == RelationalAnnotationNames.TpcMappingStrategy
+                    && entityType.IsAbstract())
+                {
+                    // Undo the convention change if the entity type is mapped using TPC
+                    entityType.Builder.HasNoAnnotation(RelationalAnnotationNames.TableName);
+                }
+
+                if (mappingStrategy == RelationalAnnotationNames.TphMappingStrategy
+                    && entityType.BaseType != null)
+                {
+                    // Undo the convention change if the hierarchy ultimately ends up TPH
+                    entityType.Builder.HasNoAnnotation(RelationalAnnotationNames.TableName);
+                }
             }
         }
     }

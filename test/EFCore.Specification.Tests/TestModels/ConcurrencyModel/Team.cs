@@ -7,12 +7,35 @@ namespace Microsoft.EntityFrameworkCore.TestModels.ConcurrencyModel;
 
 public class Team
 {
-    private readonly ILazyLoader _loader;
+    public class TeamProxy(
+        ILazyLoader loader,
+        int id,
+        string name,
+        string constructor,
+        string tire,
+        string principal,
+        int constructorsChampionships,
+        int driversChampionships,
+        int races,
+        int victories,
+        int poles,
+        int fastestLaps,
+        int? gearboxId) : Team(
+            loader, id, name, constructor, tire, principal, constructorsChampionships, driversChampionships, races, victories, poles,
+            fastestLaps, gearboxId),
+        IF1Proxy
+    {
+        public bool CreatedCalled { get; set; }
+        public bool InitializingCalled { get; set; }
+        public bool InitializedCalled { get; set; }
+    }
+
+    private readonly ILazyLoader _loader = null!;
     private readonly ObservableCollection<Driver> _drivers = new ObservableCollectionListSource<Driver>();
-    private readonly ObservableCollection<Sponsor> _sponsors = new();
-    private Engine _engine;
-    private Chassis _chassis;
-    private Gearbox _gearbox;
+    private readonly ObservableCollection<Sponsor> _sponsors = [];
+    private Engine? _engine;
+    private Chassis? _chassis;
+    private Gearbox? _gearbox;
 
     public Team()
     {
@@ -46,13 +69,15 @@ public class Team
         Poles = poles;
         FastestLaps = fastestLaps;
         GearboxId = gearboxId;
+
+        Assert.IsType<TeamProxy>(this);
     }
 
     public int Id { get; set; }
-    public string Name { get; set; }
-    public string Constructor { get; set; }
-    public string Tire { get; set; }
-    public string Principal { get; set; }
+    public string Name { get; set; } = null!;
+    public string? Constructor { get; set; }
+    public string? Tire { get; set; }
+    public string? Principal { get; set; }
     public int ConstructorsChampionships { get; set; }
     public int DriversChampionships { get; set; }
     public int Races { get; set; }
@@ -62,13 +87,13 @@ public class Team
 
     public virtual Engine Engine
     {
-        get => _loader.Load(this, ref _engine);
+        get => _loader.Load(this, ref _engine)!;
         set => _engine = value;
     }
 
     public virtual Chassis Chassis
     {
-        get => _loader.Load(this, ref _chassis);
+        get => _loader.Load(this, ref _chassis)!;
         set => _chassis = value;
     }
 
@@ -88,7 +113,7 @@ public class Team
 
     public virtual Gearbox Gearbox
     {
-        get => _loader.Load(this, ref _gearbox);
+        get => _loader.Load(this, ref _gearbox)!;
         set => _gearbox = value;
     }
 

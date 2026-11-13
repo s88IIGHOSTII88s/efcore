@@ -19,7 +19,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    [return: NotNullIfNotNull("sqlExpression")]
+    [return: NotNullIfNotNull(nameof(sqlExpression))]
     SqlExpression? ApplyTypeMapping(SqlExpression? sqlExpression, CoreTypeMapping? typeMapping);
 
     /// <summary>
@@ -28,7 +28,16 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    [return: NotNullIfNotNull("sqlExpression")]
+    [return: NotNullIfNotNull(nameof(sqlExpression))]
+    SqlExpression? SetTypeMapping(SqlExpression? sqlExpression, CoreTypeMapping typeMapping);
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [return: NotNullIfNotNull(nameof(sqlExpression))]
     SqlExpression? ApplyDefaultTypeMapping(SqlExpression? sqlExpression);
 
     /// <summary>
@@ -37,11 +46,20 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression MakeBinary(
+    (SqlExpression, SqlExpression) ApplyTypeMappingsOnItemAndArray(SqlExpression item, SqlExpression array);
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    SqlExpression? MakeBinary(
         ExpressionType operatorType,
         SqlExpression left,
         SqlExpression right,
-        CoreTypeMapping? typeMapping);
+        CoreTypeMapping? typeMapping,
+        SqlExpression? existingExpression = null);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -49,7 +67,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression Equal(SqlExpression left, SqlExpression right);
+    SqlExpression Equal(SqlExpression left, SqlExpression right);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -57,7 +75,14 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression NotEqual(SqlExpression left, SqlExpression right);
+    SqlExpression NotEqual(SqlExpression left, SqlExpression right);
+
+    /// <summary>
+    ///     Creates a new <see cref="ExistsExpression" /> which represents an EXISTS operation in a SQL tree.
+    /// </summary>
+    /// <param name="subquery">A subquery to check existence of.</param>
+    /// <returns>An expression representing an EXISTS operation in a SQL tree.</returns>
+    SqlExpression Exists(SelectExpression subquery);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -65,7 +90,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression GreaterThan(SqlExpression left, SqlExpression right);
+    SqlExpression GreaterThan(SqlExpression left, SqlExpression right);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -73,7 +98,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression GreaterThanOrEqual(SqlExpression left, SqlExpression right);
+    SqlExpression GreaterThanOrEqual(SqlExpression left, SqlExpression right);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -81,7 +106,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression LessThan(SqlExpression left, SqlExpression right);
+    SqlExpression LessThan(SqlExpression left, SqlExpression right);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -89,7 +114,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression LessThanOrEqual(SqlExpression left, SqlExpression right);
+    SqlExpression LessThanOrEqual(SqlExpression left, SqlExpression right);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -97,7 +122,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression AndAlso(SqlExpression left, SqlExpression right);
+    SqlExpression AndAlso(SqlExpression left, SqlExpression right);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -105,7 +130,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression OrElse(SqlExpression left, SqlExpression right);
+    SqlExpression OrElse(SqlExpression left, SqlExpression right);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -113,10 +138,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression Add(
-        SqlExpression left,
-        SqlExpression right,
-        CoreTypeMapping? typeMapping = null);
+    SqlExpression Add(SqlExpression left, SqlExpression right, CoreTypeMapping? typeMapping = null);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -124,10 +146,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression Subtract(
-        SqlExpression left,
-        SqlExpression right,
-        CoreTypeMapping? typeMapping = null);
+    SqlExpression Subtract(SqlExpression left, SqlExpression right, CoreTypeMapping? typeMapping = null);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -135,10 +154,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression Multiply(
-        SqlExpression left,
-        SqlExpression right,
-        CoreTypeMapping? typeMapping = null);
+    SqlExpression Multiply(SqlExpression left, SqlExpression right, CoreTypeMapping? typeMapping = null);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -146,10 +162,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression Divide(
-        SqlExpression left,
-        SqlExpression right,
-        CoreTypeMapping? typeMapping = null);
+    SqlExpression Divide(SqlExpression left, SqlExpression right, CoreTypeMapping? typeMapping = null);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -157,10 +170,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression Modulo(
-        SqlExpression left,
-        SqlExpression right,
-        CoreTypeMapping? typeMapping = null);
+    SqlExpression Modulo(SqlExpression left, SqlExpression right, CoreTypeMapping? typeMapping = null);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -168,10 +178,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression And(
-        SqlExpression left,
-        SqlExpression right,
-        CoreTypeMapping? typeMapping = null);
+    SqlExpression And(SqlExpression left, SqlExpression right, CoreTypeMapping? typeMapping = null);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -179,10 +186,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression Or(
-        SqlExpression left,
-        SqlExpression right,
-        CoreTypeMapping? typeMapping = null);
+    SqlExpression Or(SqlExpression left, SqlExpression right, CoreTypeMapping? typeMapping = null);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -190,7 +194,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression IsNull(SqlExpression operand);
+    SqlExpression CoalesceUndefined(SqlExpression left, SqlExpression right, CoreTypeMapping? typeMapping = null);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -198,7 +202,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlBinaryExpression IsNotNull(SqlExpression operand);
+    SqlExpression IsNull(SqlExpression operand);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -206,10 +210,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlUnaryExpression Convert(
-        SqlExpression operand,
-        Type type,
-        CoreTypeMapping? typeMapping = null);
+    SqlExpression IsNotNull(SqlExpression operand);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -217,7 +218,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlUnaryExpression Not(SqlExpression operand);
+    SqlExpression ArrayIndex(SqlExpression left, SqlExpression right, Type type, CoreTypeMapping? typeMapping = null);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -225,7 +226,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlUnaryExpression Negate(SqlExpression operand);
+    SqlExpression Convert(SqlExpression operand, Type type, CoreTypeMapping? typeMapping = null);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -233,9 +234,33 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlFunctionExpression Function(
+    SqlExpression Not(SqlExpression operand);
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    SqlExpression Negate(SqlExpression operand);
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    SqlExpression Function(string functionName, IEnumerable<Expression> arguments, Type returnType, CoreTypeMapping? typeMapping = null);
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    SqlExpression ScoringFunction(
         string functionName,
-        IEnumerable<SqlExpression> arguments,
+        IEnumerable<Expression> arguments,
         Type returnType,
         CoreTypeMapping? typeMapping = null);
 
@@ -245,10 +270,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlConditionalExpression Condition(
-        SqlExpression test,
-        SqlExpression ifTrue,
-        SqlExpression ifFalse);
+    SqlExpression Condition(SqlExpression test, SqlExpression ifTrue, SqlExpression ifFalse);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -256,7 +278,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    InExpression In(SqlExpression item, SqlExpression values, bool negated);
+    SqlExpression In(SqlExpression item, SqlParameterExpression valuesParameter);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -264,7 +286,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SqlConstantExpression Constant(object? value, CoreTypeMapping? typeMapping = null);
+    SqlExpression In(SqlExpression item, IReadOnlyList<SqlExpression> values);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -272,7 +294,7 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SelectExpression Select(IEntityType entityType);
+    SqlExpression Constant(object value, CoreTypeMapping? typeMapping = null);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -280,5 +302,27 @@ public interface ISqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    SelectExpression Select(IEntityType entityType, string sql, Expression argument);
+    SqlExpression Constant(object? value, Type type, CoreTypeMapping? typeMapping = null);
+
+    /// <summary>
+    ///     Creates a new <see cref="CaseExpression" /> which represent a CASE statement in a SQL tree.
+    /// </summary>
+    /// <param name="operand">An expression to compare with <see cref="CaseWhenClause.Test" /> in <paramref name="whenClauses" />.</param>
+    /// <param name="whenClauses">A list of <see cref="CaseWhenClause" /> to compare or evaluate and get result from.</param>
+    /// <param name="elseResult">A value to return if no <paramref name="whenClauses" /> matches, if any.</param>
+    /// <param name="existingExpression">An optional expression that can be re-used if it matches the new expression.</param>
+    /// <returns>An expression representing a CASE statement in a SQL tree.</returns>
+    SqlExpression Case(
+        SqlExpression? operand,
+        IReadOnlyList<CaseWhenClause> whenClauses,
+        SqlExpression? elseResult,
+        SqlExpression? existingExpression = null);
+
+    /// <summary>
+    ///     Creates a new <see cref="CaseExpression" /> which represent a CASE statement in a SQL tree.
+    /// </summary>
+    /// <param name="whenClauses">A list of <see cref="CaseWhenClause" /> to evaluate condition and get result from.</param>
+    /// <param name="elseResult">A value to return if no <paramref name="whenClauses" /> matches, if any.</param>
+    /// <returns>An expression representing a CASE statement in a SQL tree.</returns>
+    SqlExpression Case(IReadOnlyList<CaseWhenClause> whenClauses, SqlExpression? elseResult);
 }

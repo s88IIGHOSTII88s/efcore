@@ -1,0 +1,1034 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+namespace Microsoft.EntityFrameworkCore.Query;
+
+public class AdHocQueryFiltersQuerySqlServerTest(NonSharedFixture fixture) : AdHocQueryFiltersQueryRelationalTestBase(fixture)
+{
+    protected override ITestStoreFactory NonSharedTestStoreFactory
+        => SqlServerTestStoreFactory.Instance;
+
+    #region 8576
+
+    public override async Task Named_query_filters()
+    {
+        await base.Named_query_filters();
+
+        AssertSql(
+            """
+SELECT [e].[Id], [e].[IsDeleted], [e].[IsDraft], [e].[Name]
+FROM [Entities] AS [e]
+WHERE [e].[Name] LIKE N'Name%' AND [e].[IsDeleted] = CAST(0 AS bit) AND [e].[IsDraft] = CAST(0 AS bit)
+""");
+    }
+
+    public override async Task Named_query_filters_anonymous()
+    {
+        await base.Named_query_filters_anonymous();
+
+        AssertSql(
+            """
+@ef_filter___ids1='1'
+@ef_filter___ids2='7'
+
+SELECT [e].[Id], [e].[IsDeleted], [e].[IsDraft], [e].[Name]
+FROM [Entities] AS [e]
+WHERE [e].[Id] NOT IN (@ef_filter___ids1, @ef_filter___ids2)
+""");
+    }
+
+    public override async Task Named_query_filters_ignore_some()
+    {
+        await base.Named_query_filters_ignore_some();
+
+        AssertSql(
+            """
+SELECT [e].[Id], [e].[IsDeleted], [e].[IsDraft], [e].[Name]
+FROM [Entities] AS [e]
+WHERE [e].[IsDraft] = CAST(0 AS bit)
+""");
+    }
+
+    public override async Task Named_query_filters_ignore_all()
+    {
+        await base.Named_query_filters_ignore_all();
+
+        AssertSql(
+            """
+SELECT [e].[Id], [e].[IsDeleted], [e].[IsDraft], [e].[Name]
+FROM [Entities] AS [e]
+""");
+    }
+
+    public override async Task Named_query_filters_anonymous_ignore()
+    {
+        await base.Named_query_filters_anonymous_ignore();
+
+        AssertSql(
+            """
+SELECT [e].[Id], [e].[IsDeleted], [e].[IsDraft], [e].[Name]
+FROM [Entities] AS [e]
+""");
+    }
+
+    public override async Task Named_query_filters_overwriting()
+    {
+        await base.Named_query_filters_overwriting();
+
+        AssertSql(
+            """
+SELECT [e].[Id], [e].[IsDeleted], [e].[IsDraft], [e].[Name]
+FROM [Entities] AS [e]
+WHERE [e].[IsDeleted] = CAST(0 AS bit)
+""");
+    }
+
+    public override async Task Named_query_filters_removing()
+    {
+        await base.Named_query_filters_removing();
+
+        AssertSql(
+            """
+SELECT [e].[Id], [e].[IsDeleted], [e].[IsDraft], [e].[Name]
+FROM [Entities] AS [e]
+""");
+    }
+
+    #endregion
+
+    #region 11803
+
+    [Fact]
+    public virtual async Task Query_filter_with_db_set_should_not_block_other_filters()
+    {
+        var contextFactory = await InitializeNonSharedTest<Context11803>(seed: c => c.SeedAsync());
+        using var context = contextFactory.CreateDbContext();
+        var query = context.Factions.ToList();
+
+        Assert.Empty(query);
+
+        AssertSql(
+            """
+SELECT [f].[Id], [f].[Name]
+FROM [Factions] AS [f]
+WHERE EXISTS (
+    SELECT 1
+    FROM [Leaders] AS [l]
+    WHERE [l].[Name] LIKE N'Bran%' AND [l].[Name] = N'Crach an Craite')
+""");
+    }
+
+    [Fact]
+    public virtual async Task Keyless_type_used_inside_defining_query()
+    {
+        var contextFactory = await InitializeNonSharedTest<Context11803>(seed: c => c.SeedAsync());
+        using var context = contextFactory.CreateDbContext();
+        var query = context.LeadersQuery.ToList();
+
+        Assert.Single(query);
+
+        AssertSql(
+            """
+SELECT [t].[Name]
+FROM (
+    SELECT [l].[Name]
+    FROM [Leaders] AS [l]
+    WHERE ([l].[Name] LIKE N'Bran' + N'%' AND (LEFT([l].[Name], LEN(N'Bran')) = N'Bran')) AND (([l].[Name] <> N'Foo') OR [l].[Name] IS NULL)
+) AS [t]
+WHERE ([t].[Name] <> N'Bar') OR [t].[Name] IS NULL
+""");
+    }
+
+    protected class Context11803(DbContextOptions options) : DbContext(options)
+    {
+        public DbSet<Faction11803> Factions { get; set; } = null!;
+        public DbSet<Leader11803> Leaders { get; set; } = null!;
+        public DbSet<LeaderQuery11803> LeadersQuery { get; set; } = null!;
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Leader11803>().HasQueryFilter(l => l.Name!.StartsWith("Bran")); // this one is ignored
+            modelBuilder.Entity<Faction11803>().HasQueryFilter(f => Leaders.Any(l => l.Name == "Crach an Craite"));
+
+            modelBuilder
+                .Entity<LeaderQuery11803>()
+                .HasNoKey()
+                .ToSqlQuery(
+                    """
+SELECT [t].[Name]
+FROM (
+    SELECT [l].[Name]
+    FROM [Leaders] AS [l]
+    WHERE ([l].[Name] LIKE N'Bran' + N'%' AND (LEFT([l].[Name], LEN(N'Bran')) = N'Bran')) AND (([l].[Name] <> N'Foo') OR [l].[Name] IS NULL)
+) AS [t]
+WHERE ([t].[Name] <> N'Bar') OR [t].[Name] IS NULL
+""");
+        }
+
+        public Task SeedAsync()
+        {
+            var f1 = new Faction11803 { Name = "Skeliege" };
+            var f2 = new Faction11803 { Name = "Monsters" };
+            var f3 = new Faction11803 { Name = "Nilfgaard" };
+            var f4 = new Faction11803 { Name = "Northern Realms" };
+            var f5 = new Faction11803 { Name = "Scioia'tael" };
+
+            var l11 = new Leader11803 { Faction = f1, Name = "Bran Tuirseach" };
+            var l12 = new Leader11803 { Faction = f1, Name = "Crach an Craite" };
+            var l13 = new Leader11803 { Faction = f1, Name = "Eist Tuirseach" };
+            var l14 = new Leader11803 { Faction = f1, Name = "Harald the Cripple" };
+
+            Factions.AddRange(f1, f2, f3, f4, f5);
+            Leaders.AddRange(l11, l12, l13, l14);
+
+            return SaveChangesAsync();
+        }
+
+        public class Faction11803
+        {
+            public int Id { get; set; }
+            public string? Name { get; set; }
+
+            public List<Leader11803> Leaders { get; set; } = null!;
+        }
+
+        public class Leader11803
+        {
+            public int Id { get; set; }
+            public string? Name { get; set; }
+            public Faction11803? Faction { get; set; }
+        }
+
+        public class LeaderQuery11803
+        {
+            public string? Name { get; set; }
+        }
+    }
+
+    #endregion
+
+    public override async Task Query_filter_with_contains_evaluates_correctly()
+    {
+        await base.Query_filter_with_contains_evaluates_correctly();
+
+        AssertSql(
+            """
+@ef_filter___ids1='1'
+@ef_filter___ids2='7'
+
+SELECT [e].[Id], [e].[Name]
+FROM [Entities] AS [e]
+WHERE [e].[Id] NOT IN (@ef_filter___ids1, @ef_filter___ids2)
+""");
+    }
+
+    public override async Task MultiContext_query_filter_test()
+    {
+        await base.MultiContext_query_filter_test();
+
+        AssertSql(
+            """
+@ef_filter__Tenant='0'
+
+SELECT [b].[Id], [b].[SomeValue]
+FROM [Blogs] AS [b]
+WHERE [b].[SomeValue] = @ef_filter__Tenant
+""",
+            //
+            """
+@ef_filter__Tenant='1'
+
+SELECT [b].[Id], [b].[SomeValue]
+FROM [Blogs] AS [b]
+WHERE [b].[SomeValue] = @ef_filter__Tenant
+""",
+            //
+            """
+@ef_filter__Tenant='2'
+
+SELECT COUNT(*)
+FROM [Blogs] AS [b]
+WHERE [b].[SomeValue] = @ef_filter__Tenant
+""");
+    }
+
+    public override async Task Weak_entities_with_query_filter_subquery_flattening()
+    {
+        await base.Weak_entities_with_query_filter_subquery_flattening();
+
+        AssertSql(
+            """
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [Definitions] AS [d]
+        WHERE [d].[ChangeInfo_RemovedPoint_Timestamp] IS NULL) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+""");
+    }
+
+    public override async Task Query_filter_with_pk_fk_optimization()
+    {
+        await base.Query_filter_with_pk_fk_optimization();
+
+        AssertSql(
+            """
+SELECT TOP(2) [e].[Id], CASE
+    WHEN [r0].[Id] IS NULL THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END, [r0].[Id], [r0].[Public], [e].[RefEntityId]
+FROM [Entities] AS [e]
+LEFT JOIN (
+    SELECT [r].[Id], [r].[Public]
+    FROM [RefEntities] AS [r]
+    WHERE [r].[Public] = CAST(1 AS bit)
+) AS [r0] ON [e].[RefEntityId] = [r0].[Id]
+WHERE [e].[Id] = 1
+""");
+    }
+
+    public override async Task Self_reference_in_query_filter_works()
+    {
+        await base.Self_reference_in_query_filter_works();
+
+        AssertSql(
+            """
+SELECT [e].[Id], [e].[Name]
+FROM [EntitiesWithQueryFilterSelfReference] AS [e]
+WHERE EXISTS (
+    SELECT 1
+    FROM [EntitiesWithQueryFilterSelfReference] AS [e0]) AND ([e].[Name] <> N'Foo' OR [e].[Name] IS NULL)
+""",
+            //
+            """
+SELECT [e].[Id], [e].[Name]
+FROM [EntitiesReferencingEntityWithQueryFilterSelfReference] AS [e]
+WHERE EXISTS (
+    SELECT 1
+    FROM [EntitiesWithQueryFilterSelfReference] AS [e0]
+    WHERE EXISTS (
+        SELECT 1
+        FROM [EntitiesWithQueryFilterSelfReference] AS [e1])) AND ([e].[Name] <> N'Foo' OR [e].[Name] IS NULL)
+""");
+    }
+
+    public override async Task Invoke_inside_query_filter_gets_correctly_evaluated_during_translation()
+    {
+        await base.Invoke_inside_query_filter_gets_correctly_evaluated_during_translation();
+
+        AssertSql(
+            """
+@ef_filter__p='1'
+
+SELECT [e].[Id], [e].[Name], [e].[TenantId]
+FROM [Entities] AS [e]
+WHERE ([e].[Name] <> N'Foo' OR [e].[Name] IS NULL) AND [e].[TenantId] = @ef_filter__p
+""",
+            //
+            """
+@ef_filter__p='2'
+
+SELECT [e].[Id], [e].[Name], [e].[TenantId]
+FROM [Entities] AS [e]
+WHERE ([e].[Name] <> N'Foo' OR [e].[Name] IS NULL) AND [e].[TenantId] = @ef_filter__p
+""");
+    }
+
+    public override async Task Query_filter_with_null_constant()
+    {
+        await base.Query_filter_with_null_constant();
+
+        AssertSql(
+            """
+SELECT [p].[Id], [p].[UserDeleteId]
+FROM [People] AS [p]
+LEFT JOIN [User18759] AS [u] ON [p].[UserDeleteId] = [u].[Id]
+WHERE [u].[Id] IS NOT NULL
+""");
+    }
+
+    public override async Task Group_by_multiple_aggregate_joining_different_tables(bool async)
+    {
+        await base.Group_by_multiple_aggregate_joining_different_tables(async);
+
+        AssertSql(
+            """
+SELECT (
+    SELECT COUNT(*)
+    FROM (
+        SELECT DISTINCT [c].[Value1]
+        FROM (
+            SELECT [p2].[Child1Id], 1 AS [Key]
+            FROM [Parents] AS [p2]
+        ) AS [p1]
+        LEFT JOIN [Child1] AS [c] ON [p1].[Child1Id] = [c].[Id]
+        WHERE [p0].[Key] = [p1].[Key]
+    ) AS [s]) AS [Test1], (
+    SELECT COUNT(*)
+    FROM (
+        SELECT DISTINCT [c0].[Value2]
+        FROM (
+            SELECT [p4].[Child2Id], 1 AS [Key]
+            FROM [Parents] AS [p4]
+        ) AS [p3]
+        LEFT JOIN [Child2] AS [c0] ON [p3].[Child2Id] = [c0].[Id]
+        WHERE [p0].[Key] = [p3].[Key]
+    ) AS [s0]) AS [Test2]
+FROM (
+    SELECT 1 AS [Key]
+    FROM [Parents] AS [p]
+) AS [p0]
+GROUP BY [p0].[Key]
+""");
+    }
+
+    public override async Task Group_by_multiple_aggregate_joining_different_tables_with_query_filter(bool async)
+    {
+        await base.Group_by_multiple_aggregate_joining_different_tables_with_query_filter(async);
+
+        AssertSql(
+            """
+SELECT (
+    SELECT COUNT(*)
+    FROM (
+        SELECT DISTINCT [c0].[Value1]
+        FROM (
+            SELECT [p2].[ChildFilter1Id], 1 AS [Key]
+            FROM [Parents] AS [p2]
+        ) AS [p1]
+        LEFT JOIN (
+            SELECT [c].[Id], [c].[Value1]
+            FROM [ChildFilter1] AS [c]
+            WHERE [c].[Filter1] = N'Filter1'
+        ) AS [c0] ON [p1].[ChildFilter1Id] = [c0].[Id]
+        WHERE [p0].[Key] = [p1].[Key]
+    ) AS [s]) AS [Test1], (
+    SELECT COUNT(*)
+    FROM (
+        SELECT DISTINCT [c2].[Value2]
+        FROM (
+            SELECT [p4].[ChildFilter2Id], 1 AS [Key]
+            FROM [Parents] AS [p4]
+        ) AS [p3]
+        LEFT JOIN (
+            SELECT [c1].[Id], [c1].[Value2]
+            FROM [ChildFilter2] AS [c1]
+            WHERE [c1].[Filter2] = N'Filter2'
+        ) AS [c2] ON [p3].[ChildFilter2Id] = [c2].[Id]
+        WHERE [p0].[Key] = [p3].[Key]
+    ) AS [s0]) AS [Test2]
+FROM (
+    SELECT 1 AS [Key]
+    FROM [Parents] AS [p]
+) AS [p0]
+GROUP BY [p0].[Key]
+""");
+    }
+
+    public override async Task IsDeleted_query_filter_with_conversion_to_int_works(bool async)
+    {
+        await base.IsDeleted_query_filter_with_conversion_to_int_works(async);
+
+        AssertSql(
+            """
+SELECT [s].[SupplierId], [s].[IsDeleted], [s].[LocationId], [s].[Name], [l0].[LocationId], [l0].[Address], [l0].[IsDeleted]
+FROM [Suppliers] AS [s]
+LEFT JOIN (
+    SELECT [l].[LocationId], [l].[Address], [l].[IsDeleted]
+    FROM [Locations] AS [l]
+    WHERE [l].[IsDeleted] = 0
+) AS [l0] ON [s].[LocationId] = [l0].[LocationId]
+WHERE [s].[IsDeleted] = 0
+ORDER BY [s].[Name]
+""");
+    }
+
+    public override async Task Query_filter_with_primary_constructor_parameter()
+    {
+        await base.Query_filter_with_primary_constructor_parameter();
+
+        AssertSql(
+            """
+@ef_filter__tenantId='00000001-0000-0000-0000-000000000001'
+
+SELECT [e].[Id], [e].[Name], [e].[TenantId]
+FROM [Entity38132] AS [e]
+WHERE [e].[TenantId] = @ef_filter__tenantId
+""");
+    }
+
+    public override async Task Query_filter_with_context_accessor_with_constant(bool async)
+    {
+        await base.Query_filter_with_context_accessor_with_constant(async);
+
+        AssertSql(
+            """
+@ef_filter__p3='False'
+
+SELECT [f].[Id], [f].[Bar]
+FROM [FooBar35111] AS [f]
+WHERE CASE
+    WHEN @ef_filter__p3 = CAST(1 AS bit) THEN CAST(0 AS bit)
+    ELSE CAST(0 AS bit)
+END = CAST(1 AS bit)
+""");
+    }
+
+    public override async Task Named_query_filters_caching()
+    {
+        await base.Named_query_filters_caching();
+
+        AssertSql(
+            """
+SELECT [e].[Id], [e].[IsDeleted], [e].[IsDraft], [e].[Name]
+FROM [Entities] AS [e]
+WHERE [e].[IsDraft] = CAST(0 AS bit)
+""",
+            //
+            """
+SELECT [e].[Id], [e].[IsDeleted], [e].[IsDraft], [e].[Name]
+FROM [Entities] AS [e]
+WHERE [e].[IsDraft] = CAST(0 AS bit)
+""",
+            //
+            """
+SELECT [e].[Id], [e].[IsDeleted], [e].[IsDraft], [e].[Name]
+FROM [Entities] AS [e]
+WHERE [e].[IsDraft] = CAST(0 AS bit)
+""");
+    }
+
+    public override async Task Named_query_filters_combined()
+    {
+        await base.Named_query_filters_combined();
+
+        AssertSql();
+    }
+
+    public override async Task Query_filter_with_EF_Constant_over_context_property()
+    {
+        await base.Query_filter_with_EF_Constant_over_context_property();
+
+        AssertSql(
+            """
+SELECT [e].[Id]
+FROM [Entity38151] AS [e]
+WHERE [e].[TenantId] = 1
+ORDER BY [e].[Id]
+""");
+    }
+
+    public override async Task Query_filter_with_EF_Parameter_over_context_property()
+    {
+        await base.Query_filter_with_EF_Parameter_over_context_property();
+
+        AssertSql(
+            """
+@ef_filter__TenantId='1'
+
+SELECT [e].[Id]
+FROM [Entity38151] AS [e]
+WHERE [e].[TenantId] = @ef_filter__TenantId
+ORDER BY [e].[Id]
+""");
+    }
+
+    public override async Task Query_filter_with_EF_Constant_literal_throws()
+    {
+        await base.Query_filter_with_EF_Constant_literal_throws();
+
+        AssertSql();
+    }
+
+    public override async Task Query_filter_with_EF_Parameter_literal_throws()
+    {
+        await base.Query_filter_with_EF_Parameter_literal_throws();
+
+        AssertSql();
+    }
+
+    public override async Task Query_filter_with_inline_collection_of_navigation_column(bool async)
+    {
+        await base.Query_filter_with_inline_collection_of_navigation_column(async);
+
+        AssertSql(
+            """
+SELECT [c].[Label]
+FROM [Children] AS [c]
+INNER JOIN (
+    SELECT [p].[Id], [p].[ServiceId]
+    FROM [Parents] AS [p]
+    WHERE [p].[ServiceId] = 10
+) AS [p0] ON [c].[ParentId] = [p0].[Id]
+WHERE EXISTS (
+    SELECT 1
+    FROM (VALUES ([p0].[ServiceId])) AS [v]([Value])
+    WHERE [v].[Value] = 10)
+""");
+    }
+
+    public override async Task GroupBy_aggregate_over_required_navigation_with_query_filter(bool async)
+    {
+        await base.GroupBy_aggregate_over_required_navigation_with_query_filter(async);
+
+        AssertSql(
+            """
+SELECT [d].[GroupId] AS [Key], COUNT(*) AS [Count], MAX([p0].[Value]) AS [MaxValue]
+FROM [Dependents] AS [d]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Value]
+    FROM [Principals] AS [p]
+    WHERE [p].[Filtered] = CAST(0 AS bit)
+) AS [p0] ON [d].[PrincipalId] = [p0].[Id]
+GROUP BY [d].[GroupId]
+""",
+            //
+            """
+SELECT [d].[GroupId] AS [Key], COUNT(*) AS [Count], MAX([p].[Value]) AS [MaxValue]
+FROM [Dependents] AS [d]
+INNER JOIN [Principals] AS [p] ON [d].[PrincipalId] = [p].[Id]
+GROUP BY [d].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregates_of_every_kind_over_required_navigation_with_query_filter(bool async)
+    {
+        await base.GroupBy_aggregates_of_every_kind_over_required_navigation_with_query_filter(async);
+
+        AssertSql(
+            """
+SELECT [d].[GroupId] AS [Key], COUNT(*) AS [Count], ISNULL(SUM([p0].[Value]), 0) AS [Sum], AVG(CAST([p0].[Value] AS float)) AS [Average], MIN([p0].[Value]) AS [Min], COUNT(CASE
+    WHEN [p0].[Id] IS NOT NULL AND [p0].[Value] > 15 THEN 1
+END) AS [Large], CASE
+    WHEN COUNT_BIG(CASE
+        WHEN [p0].[Id] IS NOT NULL AND [p0].[Value] > 15 THEN 1
+    END) > CAST(0 AS bigint) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END AS [AnyLarge]
+FROM [Dependents] AS [d]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Value]
+    FROM [Principals] AS [p]
+    WHERE [p].[Filtered] = CAST(0 AS bit)
+) AS [p0] ON [d].[PrincipalId] = [p0].[Id]
+GROUP BY [d].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_All_over_required_navigation_with_query_filter(bool async)
+    {
+        await base.GroupBy_All_over_required_navigation_with_query_filter(async);
+
+        AssertSql(
+            """
+SELECT [d].[GroupId] AS [Key], ~CAST(COUNT_BIG(CASE
+    WHEN [p0].[Id] IS NOT NULL THEN CASE
+        WHEN [p0].[Value] > 15 THEN NULL
+        ELSE 1
+    END
+END) ^ CAST(0 AS bigint) AS bit) AS [AllLarge]
+FROM [Dependents] AS [d]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Value]
+    FROM [Principals] AS [p]
+    WHERE [p].[Filtered] = CAST(0 AS bit)
+) AS [p0] ON [d].[PrincipalId] = [p0].[Id]
+GROUP BY [d].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregate_over_required_navigation_keeps_the_principals_own_filter_exact(bool async)
+    {
+        await base.GroupBy_aggregate_over_required_navigation_keeps_the_principals_own_filter_exact(async);
+
+        AssertSql(
+            """
+SELECT [c].[GroupId] AS [Key], COUNT(*) AS [Count], MAX([s].[Value]) AS [MaxValue]
+FROM [CategorizedDependent38965] AS [c]
+LEFT JOIN (
+    SELECT [c0].[Id], [c0].[Value]
+    FROM [CategorizedPrincipal38965] AS [c0]
+    INNER JOIN (
+        SELECT [c1].[Id], [c1].[DeletedOn]
+        FROM [Category38965] AS [c1]
+        WHERE [c1].[DeletedOn] IS NULL
+    ) AS [c2] ON [c0].[CategoryId] = [c2].[Id]
+    WHERE [c2].[DeletedOn] IS NULL
+) AS [s] ON [c].[PrincipalId] = [s].[Id]
+GROUP BY [c].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregates_over_filtered_and_unfiltered_required_navigations(bool async)
+    {
+        await base.GroupBy_aggregates_over_filtered_and_unfiltered_required_navigations(async);
+
+        AssertSql(
+            """
+SELECT [d].[GroupId] AS [Key], COUNT(*) AS [Count], MAX([p0].[Value]) AS [MaxValue], MAX([u].[Value]) AS [MaxUnfiltered]
+FROM [Dependents] AS [d]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Value]
+    FROM [Principals] AS [p]
+    WHERE [p].[Filtered] = CAST(0 AS bit)
+) AS [p0] ON [d].[PrincipalId] = [p0].[Id]
+INNER JOIN [Unfiltered38965] AS [u] ON [d].[UnfilteredId] = [u].[Id]
+GROUP BY [d].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregate_over_optional_navigation_with_query_filter(bool async)
+    {
+        await base.GroupBy_aggregate_over_optional_navigation_with_query_filter(async);
+
+        AssertSql(
+            """
+SELECT [d].[GroupId] AS [Key], COUNT(*) AS [Count], MAX([p0].[Value]) AS [MaxOptional]
+FROM [Dependents] AS [d]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Value]
+    FROM [Principals] AS [p]
+    WHERE [p].[Filtered] = CAST(0 AS bit)
+) AS [p0] ON [d].[OptionalPrincipalId] = [p0].[Id]
+GROUP BY [d].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_key_over_filtered_required_navigation_removes_the_rows(bool async)
+    {
+        await base.GroupBy_key_over_filtered_required_navigation_removes_the_rows(async);
+
+        AssertSql(
+            """
+SELECT [p0].[Value] AS [Key], COUNT(*) AS [Count], MAX([p0].[Value]) AS [MaxValue]
+FROM [Dependents] AS [d]
+INNER JOIN (
+    SELECT [p].[Id], [p].[Value]
+    FROM [Principals] AS [p]
+    WHERE [p].[Filtered] = CAST(0 AS bit)
+) AS [p0] ON [d].[PrincipalId] = [p0].[Id]
+GROUP BY [p0].[Value]
+""");
+    }
+
+    public override async Task GroupBy_aggregate_over_chain_with_query_filter_on_the_far_principal(bool async)
+    {
+        await base.GroupBy_aggregate_over_chain_with_query_filter_on_the_far_principal(async);
+
+        AssertSql(
+            """
+SELECT [c].[GroupId] AS [Key], COUNT(*) AS [Count], MAX([c2].[Value]) AS [MaxValue]
+FROM [ChainDependent38965] AS [c]
+INNER JOIN [ChainMiddle38965] AS [c0] ON [c].[MiddleId] = [c0].[Id]
+LEFT JOIN (
+    SELECT [c1].[Id], [c1].[Value]
+    FROM [ChainLeaf38965] AS [c1]
+    WHERE [c1].[Filtered] = CAST(0 AS bit)
+) AS [c2] ON [c0].[LeafId] = [c2].[Id]
+GROUP BY [c].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregate_over_self_referencing_navigation_with_query_filter(bool async)
+    {
+        await base.GroupBy_aggregate_over_self_referencing_navigation_with_query_filter(async);
+
+        AssertSql(
+            """
+SELECT [e].[DepartmentId] AS [Key], COUNT(*) AS [Count], MAX([e1].[Salary]) AS [MaxManagerSalary]
+FROM [Employee38965] AS [e]
+LEFT JOIN (
+    SELECT [e0].[Id], [e0].[Salary]
+    FROM [Employee38965] AS [e0]
+    WHERE [e0].[Deleted] = CAST(0 AS bit)
+) AS [e1] ON [e].[ManagerId] = [e1].[Id]
+WHERE [e].[Deleted] = CAST(0 AS bit)
+GROUP BY [e].[DepartmentId]
+""");
+    }
+
+    public override async Task GroupBy_aggregate_over_required_navigation_to_TPH_principal_with_query_filter(bool async)
+    {
+        await base.GroupBy_aggregate_over_required_navigation_to_TPH_principal_with_query_filter(async);
+
+        AssertSql(
+            """
+SELECT [i].[GroupId] AS [Key], COUNT(*) AS [Count], MAX([i1].[Value]) AS [MaxValue]
+FROM [InheritanceDependent38965] AS [i]
+LEFT JOIN (
+    SELECT [i0].[Id], [i0].[Value]
+    FROM [InheritancePrincipal38965] AS [i0]
+    WHERE [i0].[Filtered] = CAST(0 AS bit)
+) AS [i1] ON [i].[PrincipalId] = [i1].[Id]
+GROUP BY [i].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregate_over_required_navigation_to_TPT_principal_with_query_filter(bool async)
+    {
+        await base.GroupBy_aggregate_over_required_navigation_to_TPT_principal_with_query_filter(async);
+
+        AssertSql(
+            """
+SELECT [i].[GroupId] AS [Key], COUNT(*) AS [Count], MAX([s].[Value]) AS [MaxValue]
+FROM [InheritanceDependent38965] AS [i]
+LEFT JOIN (
+    SELECT [i0].[Id], [i0].[Value]
+    FROM [InheritancePrincipal38965] AS [i0]
+    WHERE [i0].[Filtered] = CAST(0 AS bit)
+) AS [s] ON [i].[PrincipalId] = [s].[Id]
+GROUP BY [i].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregate_over_required_navigation_to_TPC_principal_with_query_filter(bool async)
+    {
+        await base.GroupBy_aggregate_over_required_navigation_to_TPC_principal_with_query_filter(async);
+
+        AssertSql(
+            """
+SELECT [i].[GroupId] AS [Key], COUNT(*) AS [Count], MAX([u0].[Value]) AS [MaxValue]
+FROM [InheritanceDependent38965] AS [i]
+LEFT JOIN (
+    SELECT [u].[Id], [u].[Value]
+    FROM (
+        SELECT [i0].[Id], [i0].[Filtered], [i0].[Value]
+        FROM [InheritancePrincipal38965] AS [i0]
+        UNION ALL
+        SELECT [i1].[Id], [i1].[Filtered], [i1].[Value]
+        FROM [InheritanceDerivedPrincipal38965] AS [i1]
+    ) AS [u]
+    WHERE [u].[Filtered] = CAST(0 AS bit)
+) AS [u0] ON [i].[PrincipalId] = [u0].[Id]
+GROUP BY [i].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregates_sharing_one_filtered_navigation(bool async)
+    {
+        await base.GroupBy_aggregates_sharing_one_filtered_navigation(async);
+
+        AssertSql(
+            """
+SELECT [d].[GroupId] AS [Key], MAX([p0].[Value]) AS [MaxValue], MIN([p0].[Value]) AS [MinValue]
+FROM [Dependents] AS [d]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Value]
+    FROM [Principals] AS [p]
+    WHERE [p].[Filtered] = CAST(0 AS bit)
+) AS [p0] ON [d].[PrincipalId] = [p0].[Id]
+GROUP BY [d].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregate_over_filtered_navigation_after_Take(bool async)
+    {
+        await base.GroupBy_aggregate_over_filtered_navigation_after_Take(async);
+
+        AssertSql(
+            """
+@p='2'
+
+SELECT [d0].[GroupId] AS [Key], COUNT(*) AS [Count], MAX([p0].[Value]) AS [MaxValue]
+FROM (
+    SELECT TOP(@p) [d].[GroupId], [d].[PrincipalId]
+    FROM [Dependents] AS [d]
+    ORDER BY [d].[GroupId]
+) AS [d0]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Value]
+    FROM [Principals] AS [p]
+    WHERE [p].[Filtered] = CAST(0 AS bit)
+) AS [p0] ON [d0].[PrincipalId] = [p0].[Id]
+GROUP BY [d0].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregate_over_required_navigation_with_null_observing_selector(bool async)
+    {
+        await base.GroupBy_aggregate_over_required_navigation_with_null_observing_selector(async);
+
+        AssertSql(
+            """
+SELECT [d].[GroupId] AS [Key], ISNULL(SUM(CASE
+    WHEN [p0].[Id] IS NOT NULL THEN ISNULL([p0].[Value], 5)
+END), 0) AS [SumOrFive], COUNT(CASE
+    WHEN [p0].[Id] IS NOT NULL AND ISNULL([p0].[Value], 0) = 0 THEN 1
+END) AS [CountOfZero], CASE
+    WHEN COUNT_BIG(CASE
+        WHEN [p0].[Id] IS NOT NULL AND ISNULL([p0].[Value], 0) = 0 THEN 1
+    END) > CAST(0 AS bigint) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END AS [AnyZero]
+FROM [Dependents] AS [d]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Value]
+    FROM [Principals] AS [p]
+    WHERE [p].[Filtered] = CAST(0 AS bit)
+) AS [p0] ON [d].[PrincipalId] = [p0].[Id]
+GROUP BY [d].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregate_reaching_the_principal_through_EF_Property(bool async)
+    {
+        await base.GroupBy_aggregate_reaching_the_principal_through_EF_Property(async);
+
+        AssertSql(
+            """
+SELECT [d].[GroupId] AS [Key], MAX([p0].[Value]) AS [MaxValue], ISNULL(SUM(CASE
+    WHEN [p0].[Id] IS NOT NULL THEN ISNULL([p0].[Value], 5)
+END), 0) AS [SumOrFive]
+FROM [Dependents] AS [d]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Value]
+    FROM [Principals] AS [p]
+    WHERE [p].[Filtered] = CAST(0 AS bit)
+) AS [p0] ON [d].[PrincipalId] = [p0].[Id]
+GROUP BY [d].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregate_over_chain_with_two_filtered_principals(bool async)
+    {
+        await base.GroupBy_aggregate_over_chain_with_two_filtered_principals(async);
+
+        AssertSql(
+            """
+SELECT [c].[GroupId] AS [Key], ISNULL(SUM(CASE
+    WHEN [c1].[Id] IS NOT NULL AND [c3].[Id] IS NOT NULL THEN ISNULL([c3].[Value], 5)
+END), 0) AS [SumOrFive], ~CAST(COUNT_BIG(CASE
+    WHEN [c1].[Id] IS NOT NULL AND [c3].[Id] IS NOT NULL THEN CASE
+        WHEN [c3].[Value] > 100 THEN NULL
+        ELSE 1
+    END
+END) ^ CAST(0 AS bigint) AS bit) AS [AllBig]
+FROM [ChainDependent38965] AS [c]
+LEFT JOIN (
+    SELECT [c0].[Id], [c0].[LeafId]
+    FROM [ChainMiddle38965] AS [c0]
+    WHERE [c0].[Filtered] = CAST(0 AS bit)
+) AS [c1] ON [c].[MiddleId] = [c1].[Id]
+LEFT JOIN (
+    SELECT [c2].[Id], [c2].[Value]
+    FROM [ChainLeaf38965] AS [c2]
+    WHERE [c2].[Filtered] = CAST(0 AS bit)
+) AS [c3] ON [c1].[LeafId] = [c3].[Id]
+GROUP BY [c].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregate_over_filtered_principal_lifted_by_an_unfiltered_sibling(bool async)
+    {
+        await base.GroupBy_aggregate_over_filtered_principal_lifted_by_an_unfiltered_sibling(async);
+
+        AssertSql(
+            """
+SELECT [d].[GroupId] AS [Key], COUNT(*) AS [Count], MAX([u].[Value]) AS [MaxUnfiltered], ISNULL(SUM(CASE
+    WHEN [p0].[Id] IS NOT NULL THEN ISNULL([p0].[Value], 5)
+END), 0) AS [SumOrFive]
+FROM [Dependents] AS [d]
+INNER JOIN [Unfiltered38965] AS [u] ON [d].[UnfilteredId] = [u].[Id]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Value]
+    FROM [Principals] AS [p]
+    WHERE [p].[Filtered] = CAST(0 AS bit)
+) AS [p0] ON [d].[PrincipalId] = [p0].[Id]
+GROUP BY [d].[GroupId]
+""");
+    }
+
+    public override async Task GroupBy_aggregate_over_filtered_principal_behind_an_optional_navigation(bool async)
+    {
+        await base.GroupBy_aggregate_over_filtered_principal_behind_an_optional_navigation(async);
+
+        AssertSql(
+            """
+SELECT [o].[GroupId] AS [Key], ISNULL(SUM(ISNULL([c1].[Value], 5)), 0) AS [SumOrFive]
+FROM [OptionalChainDependent38965] AS [o]
+LEFT JOIN [ChainMiddle38965] AS [c] ON [o].[MiddleId] = [c].[Id]
+LEFT JOIN (
+    SELECT [c0].[Id], [c0].[Value]
+    FROM [ChainLeaf38965] AS [c0]
+    WHERE [c0].[Filtered] = CAST(0 AS bit)
+) AS [c1] ON [c].[LeafId] = [c1].[Id]
+GROUP BY [o].[GroupId]
+""");
+    }
+
+    public override async Task Repeated_single_result_subquery_read_through_required_navigation_with_query_filter(bool async)
+    {
+        await base.Repeated_single_result_subquery_read_through_required_navigation_with_query_filter(async);
+
+        AssertSql(
+            """
+SELECT (
+    SELECT TOP(1) [d0].[GroupId]
+    FROM [Dependents] AS [d0]
+    WHERE [d0].[GroupId] <= [d].[GroupId]
+    ORDER BY [d0].[GroupId] DESC) AS [GroupId], (
+    SELECT TOP(1) [p0].[Value]
+    FROM [Dependents] AS [d1]
+    INNER JOIN (
+        SELECT [p].[Id], [p].[Value]
+        FROM [Principals] AS [p]
+        WHERE [p].[Filtered] = CAST(0 AS bit)
+    ) AS [p0] ON [d1].[PrincipalId] = [p0].[Id]
+    WHERE [d1].[GroupId] <= [d].[GroupId]
+    ORDER BY [d1].[GroupId] DESC) AS [Value]
+FROM [Dependents] AS [d]
+ORDER BY [d].[GroupId]
+""");
+    }
+
+    public override async Task Single_result_subquery_null_check_preserves_filtered_projection(bool async)
+    {
+        await base.Single_result_subquery_null_check_preserves_filtered_projection(async);
+
+        AssertSql(
+            """
+SELECT (
+    SELECT TOP(1) [d0].[GroupId]
+    FROM [Dependents] AS [d0]
+    WHERE [d0].[GroupId] = [d].[GroupId]
+    ORDER BY [d0].[Id]) AS [GroupId], CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [Dependents] AS [d1]
+        INNER JOIN (
+            SELECT [p0].[Id]
+            FROM [Principals] AS [p0]
+            WHERE [p0].[Filtered] = CAST(0 AS bit)
+        ) AS [p] ON [d1].[PrincipalId] = [p].[Id]
+        WHERE [d1].[GroupId] = [d].[GroupId]) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END AS [HasPrincipal]
+FROM [Dependents] AS [d]
+ORDER BY [d].[GroupId]
+""");
+    }
+
+    public override async Task Repeated_single_result_subquery_with_non_deterministic_query_filter(bool async)
+    {
+        await base.Repeated_single_result_subquery_with_non_deterministic_query_filter(async);
+
+        AssertSql(
+            """
+SELECT (
+    SELECT TOP(1) [c].[Value]
+    FROM [Child] AS [c]
+    WHERE RAND() >= 0.0E0 AND [p].[Id] = [c].[ParentId]
+    ORDER BY [c].[Id]) AS [Value], (
+    SELECT TOP(1) [c0].[Other]
+    FROM [Child] AS [c0]
+    WHERE RAND() >= 0.0E0 AND [p].[Id] = [c0].[ParentId]
+    ORDER BY [c0].[Id]) AS [Other]
+FROM [Parents] AS [p]
+""");
+    }
+
+    [Fact]
+    public virtual void Check_all_tests_overridden()
+        => TestHelpers.AssertAllMethodsOverridden(GetType());
+}

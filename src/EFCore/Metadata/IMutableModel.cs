@@ -44,6 +44,12 @@ public interface IMutableModel : IReadOnlyModel, IMutableAnnotatable
     void SetPropertyAccessMode(PropertyAccessMode? propertyAccessMode);
 
     /// <summary>
+    ///     Sets the name to use for discriminator properties embedded in JSON documents. The default is "$type".
+    /// </summary>
+    /// <param name="name">The property name, or <see langword="null" /> to clear the name set.</param>
+    void SetEmbeddedDiscriminatorName(string? name);
+
+    /// <summary>
     ///     Sets the default change tracking strategy to use for entities in the model. This strategy indicates how the
     ///     context detects changes to properties for an instance of an entity type.
     /// </summary>
@@ -66,7 +72,7 @@ public interface IMutableModel : IReadOnlyModel, IMutableAnnotatable
     /// </summary>
     /// <param name="type">The CLR class that is used to represent instances of the entity type.</param>
     /// <returns>The new entity type.</returns>
-    IMutableEntityType AddEntityType(Type type);
+    IMutableEntityType AddEntityType([DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type type);
 
     /// <summary>
     ///     Adds a shared type entity type to the model.
@@ -78,7 +84,7 @@ public interface IMutableModel : IReadOnlyModel, IMutableAnnotatable
     /// <param name="name">The name of the entity to be added.</param>
     /// <param name="type">The CLR class that is used to represent instances of the entity type.</param>
     /// <returns>The new entity type.</returns>
-    IMutableEntityType AddEntityType(string name, Type type);
+    IMutableEntityType AddEntityType(string name, [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type type);
 
     /// <summary>
     ///     Adds an owned entity type with a defining navigation to the model.
@@ -100,7 +106,7 @@ public interface IMutableModel : IReadOnlyModel, IMutableAnnotatable
     /// <param name="definingEntityType">The defining entity type.</param>
     /// <returns>The new entity type.</returns>
     IMutableEntityType AddEntityType(
-        Type type,
+        [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type type,
         string definingNavigationName,
         IMutableEntityType definingEntityType);
 
@@ -120,7 +126,7 @@ public interface IMutableModel : IReadOnlyModel, IMutableAnnotatable
     /// </summary>
     /// <param name="type">The CLR class that is used to represent instances of the entity type.</param>
     /// <returns>The new entity type.</returns>
-    IMutableEntityType AddOwnedEntityType(Type type);
+    IMutableEntityType AddOwnedEntityType([DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type type);
 
     /// <summary>
     ///     Adds an owned shared type entity type to the model.
@@ -132,7 +138,7 @@ public interface IMutableModel : IReadOnlyModel, IMutableAnnotatable
     /// <param name="name">The name of the entity to be added.</param>
     /// <param name="type">The CLR class that is used to represent instances of the entity type.</param>
     /// <returns>The new entity type.</returns>
-    IMutableEntityType AddOwnedEntityType(string name, Type type);
+    IMutableEntityType AddOwnedEntityType(string name, [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type type);
 
     /// <summary>
     ///     Gets the entity with the given name. Returns <see langword="null" /> if no entity type with the given name is found
@@ -292,7 +298,7 @@ public interface IMutableModel : IReadOnlyModel, IMutableAnnotatable
     ///     <see langword="true" /> if a matching entity type should be configured as owned when discovered,
     ///     <see langword="false" /> otherwise.
     /// </returns>
-    bool IsOwned(Type type);
+    bool IsOwned([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type);
 
     /// <summary>
     ///     Marks the given entity type name as ignored, preventing conventions from adding a matching entity type to the model.

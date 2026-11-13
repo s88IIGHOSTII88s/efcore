@@ -20,14 +20,14 @@ public class SqliteMemberTranslatorProvider : RelationalMemberTranslatorProvider
     public SqliteMemberTranslatorProvider(RelationalMemberTranslatorProviderDependencies dependencies)
         : base(dependencies)
     {
-        var sqlExpressionFactory = dependencies.SqlExpressionFactory;
+        var sqlExpressionFactory = (SqliteSqlExpressionFactory)dependencies.SqlExpressionFactory;
 
         AddTranslators(
-            new IMemberTranslator[]
-            {
-                new SqliteDateTimeMemberTranslator(sqlExpressionFactory),
-                new SqliteStringLengthTranslator(sqlExpressionFactory),
-                new SqliteDateOnlyMemberTranslator(sqlExpressionFactory)
-            });
+        [
+            new SqliteDateTimeMemberTranslator(sqlExpressionFactory),
+            new SqliteStringLengthTranslator(sqlExpressionFactory),
+            new SqliteDateOnlyMemberTranslator(sqlExpressionFactory),
+            new SqliteTimeOnlyMemberTranslator(sqlExpressionFactory)
+        ]);
     }
 }

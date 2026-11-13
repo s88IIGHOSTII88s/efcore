@@ -12,7 +12,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 public class NonNullableReferencePropertyConventionTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Non_nullability_does_not_override_configuration_from_explicit_source()
     {
         var entityTypeBuilder = CreateInternalEntityTypeBuilder<A>();
@@ -26,7 +26,7 @@ public class NonNullableReferencePropertyConventionTest
         Assert.True(propertyBuilder.Metadata.IsNullable);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Non_nullability_does_not_override_configuration_from_data_annotation_source()
     {
         var entityTypeBuilder = CreateInternalEntityTypeBuilder<A>();
@@ -40,7 +40,7 @@ public class NonNullableReferencePropertyConventionTest
         Assert.True(propertyBuilder.Metadata.IsNullable);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Non_nullability_sets_is_nullable_with_conventional_builder()
     {
         var modelBuilder = CreateModelBuilder();
@@ -49,27 +49,24 @@ public class NonNullableReferencePropertyConventionTest
         Assert.False(entityTypeBuilder.Property(e => e.NonNullable).Metadata.IsNullable);
     }
 
-    [ConditionalTheory]
-    [InlineData(typeof(A), nameof(A.NonNullable), false)]
-    [InlineData(typeof(A), nameof(A.Nullable), true)]
-    [InlineData(typeof(A), nameof(A.NonNullablePropertyMaybeNull), true)]
-    [InlineData(typeof(A), nameof(A.NonNullablePropertyAllowNull), false)]
-    [InlineData(typeof(A), nameof(A.NullablePropertyNotNull), true)]
-    [InlineData(typeof(A), nameof(A.NullablePropertyDisallowNull), true)]
-    [InlineData(typeof(A), nameof(A.NonNullableFieldMaybeNull), true)]
-    [InlineData(typeof(A), nameof(A.NonNullableFieldAllowNull), false)]
-    [InlineData(typeof(A), nameof(A.NullableFieldNotNull), true)]
-    [InlineData(typeof(A), nameof(A.NullableFieldDisallowNull), true)]
-    [InlineData(typeof(A), nameof(A.RequiredAndNullable), false)]
-    [InlineData(typeof(A), nameof(A.NullObliviousNonNullable), true)]
-    [InlineData(typeof(A), nameof(A.NullObliviousNullable), true)]
-    [InlineData(typeof(B), nameof(B.NonNullableValueType), false)]
-    [InlineData(typeof(B), nameof(B.NullableValueType), true)]
-    [InlineData(typeof(B), nameof(B.NonNullableRefType), false)]
-    [InlineData(typeof(B), nameof(B.NullableRefType), true)]
-    [InlineData(typeof(DerivedClass), nameof(DerivedClass.NonNullable), false)]
-    [InlineData(typeof(DerivedClass), nameof(DerivedClass.Nullable), true)]
-    [InlineData(typeof(BaseClass), nameof(DerivedClass.Nullable), true)]
+    [Theory, InlineData(typeof(A), nameof(A.NonNullable), false), InlineData(typeof(A), nameof(A.Nullable), true),
+     InlineData(typeof(A), nameof(A.NonNullablePropertyMaybeNull), true),
+     InlineData(typeof(A), nameof(A.NonNullablePropertyAllowNull), false), InlineData(typeof(A), nameof(A.NullablePropertyNotNull), true),
+     InlineData(typeof(A), nameof(A.NullablePropertyDisallowNull), true), InlineData(typeof(A), nameof(A.NonNullableFieldMaybeNull), true),
+     InlineData(typeof(A), nameof(A.NonNullableFieldAllowNull), false), InlineData(typeof(A), nameof(A.NullableFieldNotNull), true),
+     InlineData(typeof(A), nameof(A.NullableFieldDisallowNull), true), InlineData(typeof(A), nameof(A.RequiredAndNullable), false),
+     InlineData(typeof(A), nameof(A.NullObliviousNonNullable), true), InlineData(typeof(A), nameof(A.NullObliviousNullable), true),
+     InlineData(typeof(B), nameof(B.NonNullableValueType), false), InlineData(typeof(B), nameof(B.NullableValueType), true),
+     InlineData(typeof(B), nameof(B.NonNullableRefType), false), InlineData(typeof(B), nameof(B.NullableRefType), true),
+     InlineData(typeof(DerivedClass), nameof(DerivedClass.NonNullable), false),
+     InlineData(typeof(DerivedClass), nameof(DerivedClass.Nullable), true),
+     InlineData(typeof(BaseClass), nameof(DerivedClass.Nullable), true),
+     InlineData(typeof(GenericClass<string>), nameof(GenericClass<>.Defaultable), true),
+     InlineData(typeof(GenericClass<string>), nameof(GenericClass<>.NonDefaultable), true),
+     InlineData(typeof(GenericClass<int>), nameof(GenericClass<>.Defaultable), false),
+     InlineData(typeof(GenericClass<int>), nameof(GenericClass<>.NonDefaultable), false)]
+    // The following should be detected as non-nullable; see #35669,
+    // https://github.com/dotnet/runtime/issues/117068#issuecomment-3364824243
     public void Reference_nullability_sets_is_nullable_correctly(Type type, string propertyName, bool expectedNullable)
     {
         var modelBuilder = CreateModelBuilder();
@@ -78,7 +75,7 @@ public class NonNullableReferencePropertyConventionTest
         Assert.Equal(expectedNullable, entityTypeBuilder.Property(propertyName).Metadata.IsNullable);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Dictionary_indexer_is_not_configured_as_non_nullable()
     {
         var modelBuilder = CreateModelBuilder();
@@ -87,10 +84,29 @@ public class NonNullableReferencePropertyConventionTest
         Assert.True(entityTypeBuilder.Property("b").Metadata.IsNullable);
     }
 
+    [Fact]
+    public void Primitive_collection_with_non_nullable_element()
+    {
+        var modelBuilder = CreateModelBuilder();
+        var entityTypeBuilder = modelBuilder.Entity<A>();
+
+        Assert.False(
+            entityTypeBuilder.PrimitiveCollection(a => a.PrimitiveCollectionWithNonNullableElement).ElementType().Metadata.IsNullable);
+    }
+
+    [Fact]
+    public void Primitive_collection_with_nullable_element()
+    {
+        var modelBuilder = CreateModelBuilder();
+        var entityTypeBuilder = modelBuilder.Entity<A>();
+
+        Assert.True(entityTypeBuilder.PrimitiveCollection(a => a.PrimitiveCollectionWithNullableElement).ElementType().Metadata.IsNullable);
+    }
+
     private void RunConvention(InternalPropertyBuilder propertyBuilder)
     {
         var context = new ConventionContext<IConventionPropertyBuilder>(
-            propertyBuilder.Metadata.DeclaringEntityType.Model.ConventionDispatcher);
+            propertyBuilder.Metadata.DeclaringType.Model.ConventionDispatcher);
 
         new NonNullableReferencePropertyConvention(CreateDependencies())
             .ProcessPropertyAdded(propertyBuilder, context);
@@ -116,7 +132,9 @@ public class NonNullableReferencePropertyConventionTest
         // ReSharper disable once UnusedMember.Local
         public int Id { get; set; }
 
-        public string NonNullable => "";
+        public string NonNullable
+            => "";
+
         public string? Nullable { get; set; }
 
         [MaybeNull]
@@ -144,6 +162,9 @@ public class NonNullableReferencePropertyConventionTest
         [Required]
         public string? RequiredAndNullable { get; set; }
 
+        public List<string> PrimitiveCollectionWithNonNullableElement { get; set; } = [];
+        public List<string?> PrimitiveCollectionWithNullableElement { get; set; } = [];
+
 #nullable disable
 #pragma warning disable CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' context.
         public string NullObliviousNonNullable { get; set; }
@@ -170,6 +191,12 @@ public class NonNullableReferencePropertyConventionTest
     public class BaseClass
     {
         public string? Nullable { get; set; }
+    }
+
+    public class GenericClass<T>
+    {
+        public required T NonDefaultable { get; set; }
+        public required T? Defaultable { get; set; }
     }
     // ReSharper restore PropertyCanBeMadeInitOnly.Local
 

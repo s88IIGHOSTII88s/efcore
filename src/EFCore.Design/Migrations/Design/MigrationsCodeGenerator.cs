@@ -1,6 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+
 namespace Microsoft.EntityFrameworkCore.Migrations.Design;
 
 /// <summary>
@@ -17,9 +19,7 @@ public abstract class MigrationsCodeGenerator : IMigrationsCodeGenerator
     /// </summary>
     /// <param name="dependencies">The dependencies.</param>
     protected MigrationsCodeGenerator(MigrationsCodeGeneratorDependencies dependencies)
-    {
-        Dependencies = dependencies;
-    }
+        => Dependencies = dependencies;
 
     /// <summary>
     ///     Gets the file extension code files should use.
@@ -76,12 +76,14 @@ public abstract class MigrationsCodeGenerator : IMigrationsCodeGenerator
     /// <param name="contextType">The model snapshot's <see cref="DbContext" /> type.</param>
     /// <param name="modelSnapshotName">The model snapshot's name.</param>
     /// <param name="model">The model.</param>
+    /// <param name="latestMigrationId">The ID of the latest migration that has been applied to the model.</param>
     /// <returns>The model snapshot code.</returns>
     public abstract string GenerateSnapshot(
         string? modelSnapshotNamespace,
         Type contextType,
         string modelSnapshotName,
-        IModel model);
+        IModel model,
+        string? latestMigrationId = null);
 
     /// <summary>
     ///     Gets the namespaces required for a list of <see cref="MigrationOperation" /> objects.
@@ -170,10 +172,17 @@ public abstract class MigrationsCodeGenerator : IMigrationsCodeGenerator
     /// <param name="model">The model.</param>
     /// <returns>The namespaces.</returns>
     protected virtual IEnumerable<string> GetNamespaces(IModel model)
-        => model.GetEntityTypes().SelectMany(
-                e => e.GetDeclaredProperties()
-                    .SelectMany(p => (FindValueConverter(p)?.ProviderClrType ?? p.ClrType).GetNamespaces()))
+        => model.GetEntityTypes().SelectMany(e => GetNamespaces(e)
+                .Concat(
+                    e.GetDeclaredComplexProperties().Any()
+                        ? Model.DefaultPropertyBagType.GetNamespaces()
+                        : []))
             .Concat(GetAnnotationNamespaces(GetAnnotatables(model)));
+
+    private IEnumerable<string> GetNamespaces(ITypeBase typeBase)
+        => typeBase.GetDeclaredProperties()
+            .SelectMany(p => (FindValueConverter(p)?.ProviderClrType ?? p.ClrType).GetNamespaces())
+            .Concat(typeBase.GetDeclaredComplexProperties().SelectMany(p => GetNamespaces(p.ComplexType)));
 
     private static IEnumerable<IAnnotatable> GetAnnotatables(IModel model)
     {
@@ -186,11 +195,34 @@ public abstract class MigrationsCodeGenerator : IMigrationsCodeGenerator
             foreach (var property in entityType.GetDeclaredProperties())
             {
                 yield return property;
+
+                foreach (var @override in property.GetOverrides())
+                {
+                    yield return @override;
+                }
+            }
+
+            foreach (var property in entityType.GetDeclaredComplexProperties())
+            {
+                foreach (var annotatable in GetAnnotatables(property))
+                {
+                    yield return annotatable;
+                }
             }
 
             foreach (var key in entityType.GetDeclaredKeys())
             {
                 yield return key;
+            }
+
+            foreach (var navigation in entityType.GetDeclaredNavigations())
+            {
+                yield return navigation;
+            }
+
+            foreach (var navigation in entityType.GetDeclaredSkipNavigations())
+            {
+                yield return navigation;
             }
 
             foreach (var foreignKey in entityType.GetDeclaredForeignKeys())
@@ -202,19 +234,56 @@ public abstract class MigrationsCodeGenerator : IMigrationsCodeGenerator
             {
                 yield return index;
             }
+
+            foreach (var checkConstraint in entityType.GetDeclaredCheckConstraints())
+            {
+                yield return checkConstraint;
+            }
+
+            foreach (var trigger in entityType.GetDeclaredTriggers())
+            {
+                yield return trigger;
+            }
+
+            foreach (var fragment in entityType.GetMappingFragments())
+            {
+                yield return fragment;
+            }
+        }
+
+        foreach (var sequence in model.GetSequences())
+        {
+            yield return sequence;
+        }
+    }
+
+    private static IEnumerable<IAnnotatable> GetAnnotatables(IComplexProperty complexProperty)
+    {
+        yield return complexProperty;
+        yield return complexProperty.ComplexType;
+
+        foreach (var property in complexProperty.ComplexType.GetDeclaredProperties())
+        {
+            yield return property;
+        }
+
+        foreach (var property in complexProperty.ComplexType.GetDeclaredComplexProperties())
+        {
+            foreach (var annotatable in GetAnnotatables(property))
+            {
+                yield return annotatable;
+            }
         }
     }
 
     private IEnumerable<string> GetAnnotationNamespaces(IEnumerable<IAnnotatable> items)
-        => items.SelectMany(
-            i => Dependencies.AnnotationCodeGenerator.FilterIgnoredAnnotations(i.GetAnnotations())
-                .Where(a => a.Value != null)
-                .Select(a => new { Annotatable = i, Annotation = a })
-                .SelectMany(a => GetProviderType(a.Annotatable, a.Annotation.Value!.GetType()).GetNamespaces()));
+        => items.SelectMany(i => Dependencies.AnnotationCodeGenerator.FilterIgnoredAnnotations(i.GetAnnotations())
+            .Where(a => a.Value != null)
+            .Select(a => new { Annotatable = i, Annotation = a })
+            .SelectMany(a => GetProviderType(a.Annotatable, a.Annotation.Value!.GetType()).GetNamespaces()));
 
     private ValueConverter? FindValueConverter(IProperty property)
-        => (property.FindTypeMapping()
-            ?? Dependencies.RelationalTypeMappingSource.FindMapping(property))?.Converter;
+        => property.GetTypeMapping().Converter;
 
     private Type GetProviderType(IAnnotatable annotatable, Type valueType)
         => annotatable is IProperty property

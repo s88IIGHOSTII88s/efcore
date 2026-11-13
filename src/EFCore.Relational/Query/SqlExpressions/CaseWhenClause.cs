@@ -5,7 +5,7 @@ namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 
 /// <summary>
 ///     <para>
-///         An expression that represents a WHEN...THEN... construct in a SQL tree.
+///         An object that represents a WHEN...THEN... construct in a SQL tree.
 ///     </para>
 ///     <para>
 ///         This type is typically used by database providers (and other extensions). It is generally
@@ -39,8 +39,8 @@ public class CaseWhenClause
     public override bool Equals(object? obj)
         => obj != null
             && (ReferenceEquals(this, obj)
-                || obj is CaseWhenClause caseWhenClause
-                && Equals(caseWhenClause));
+                || (obj is CaseWhenClause caseWhenClause
+                    && Equals(caseWhenClause)));
 
     private bool Equals(CaseWhenClause caseWhenClause)
         => Test.Equals(caseWhenClause.Test)

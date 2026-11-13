@@ -6,5 +6,5 @@ namespace Microsoft.EntityFrameworkCore.TestModels.InheritanceRelationshipsModel
 public class OwnedEntity
 {
     public int Id { get; set; }
-    public string Name { get; set; }
+    public string? Name { get; set; }
 }

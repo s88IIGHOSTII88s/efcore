@@ -1,23 +1,16 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable InconsistentNaming
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public abstract class IncludeOneToOneTestBase<TFixture> : IClassFixture<TFixture>
+public abstract class IncludeOneToOneTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : IncludeOneToOneTestBase<TFixture>.OneToOneQueryFixtureBase, new()
 {
-    protected IncludeOneToOneTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
+    public TFixture Fixture { get; } = fixture;
 
-    public TFixture Fixture { get; }
-
-    [ConditionalFact]
+    [Fact]
     public virtual void Include_address()
     {
         using var context = CreateContext();
@@ -31,7 +24,21 @@ public abstract class IncludeOneToOneTestBase<TFixture> : IClassFixture<TFixture
         Assert.Equal(4 + 3, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
+    public virtual void Include_address_EF_Property()
+    {
+        using var context = CreateContext();
+        var people
+            = context.Set<Person>()
+                .Include(p => EF.Property<Person>(p, "Address"))
+                .ToList();
+
+        Assert.Equal(4, people.Count);
+        Assert.Equal(3, people.Count(p => p.Address != null));
+        Assert.Equal(4 + 3, context.ChangeTracker.Entries().Count());
+    }
+
+    [Fact]
     public virtual void Include_address_shadow()
     {
         using var context = CreateContext();
@@ -45,7 +52,7 @@ public abstract class IncludeOneToOneTestBase<TFixture> : IClassFixture<TFixture
         Assert.Equal(3 + 3, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Include_address_no_tracking()
     {
         using var context = CreateContext();
@@ -60,7 +67,22 @@ public abstract class IncludeOneToOneTestBase<TFixture> : IClassFixture<TFixture
         Assert.Empty(context.ChangeTracker.Entries());
     }
 
-    [ConditionalFact]
+    [Fact]
+    public virtual void Include_address_no_tracking_EF_Property()
+    {
+        using var context = CreateContext();
+        var people
+            = context.Set<Person>()
+                .Include(p => EF.Property<Person>(p, "Address"))
+                .AsNoTracking()
+                .ToList();
+
+        Assert.Equal(4, people.Count);
+        Assert.Equal(3, people.Count(p => p.Address != null));
+        Assert.Empty(context.ChangeTracker.Entries());
+    }
+
+    [Fact]
     public virtual void Include_person()
     {
         using var context = CreateContext();
@@ -74,7 +96,21 @@ public abstract class IncludeOneToOneTestBase<TFixture> : IClassFixture<TFixture
         Assert.Equal(3 + 3, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
+    public virtual void Include_person_EF_Property()
+    {
+        using var context = CreateContext();
+        var addresses
+            = context.Set<Address>()
+                .Include(a => EF.Property<Address>(a, "Resident"))
+                .ToList();
+
+        Assert.Equal(3, addresses.Count);
+        Assert.True(addresses.All(p => p.Resident != null));
+        Assert.Equal(3 + 3, context.ChangeTracker.Entries().Count());
+    }
+
+    [Fact]
     public virtual void Include_person_shadow()
     {
         using var context = CreateContext();
@@ -88,7 +124,7 @@ public abstract class IncludeOneToOneTestBase<TFixture> : IClassFixture<TFixture
         Assert.Equal(3 + 3, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Include_person_no_tracking()
     {
         using var context = CreateContext();
@@ -103,7 +139,22 @@ public abstract class IncludeOneToOneTestBase<TFixture> : IClassFixture<TFixture
         Assert.Empty(context.ChangeTracker.Entries());
     }
 
-    [ConditionalFact]
+    [Fact]
+    public virtual void Include_person_no_tracking_EF_Property()
+    {
+        using var context = CreateContext();
+        var addresses
+            = context.Set<Address>()
+                .Include(a => EF.Property<Address>(a, "Resident"))
+                .AsNoTracking()
+                .ToList();
+
+        Assert.Equal(3, addresses.Count);
+        Assert.True(addresses.All(p => p.Resident != null));
+        Assert.Empty(context.ChangeTracker.Entries());
+    }
+
+    [Fact]
     public virtual void Include_address_when_person_already_tracked()
     {
         using var context = CreateContext();
@@ -122,7 +173,7 @@ public abstract class IncludeOneToOneTestBase<TFixture> : IClassFixture<TFixture
         Assert.Equal(4 + 3, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Include_person_when_address_already_tracked()
     {
         using var context = CreateContext();
@@ -146,24 +197,23 @@ public abstract class IncludeOneToOneTestBase<TFixture> : IClassFixture<TFixture
 
     public abstract class OneToOneQueryFixtureBase : SharedStoreFixtureBase<PoolableDbContext>
     {
-        protected override string StoreName { get; } = "OneToOneQueryTest";
+        protected override string StoreName
+            => "OneToOneQueryTest";
 
         protected override void OnModelCreating(ModelBuilder modelBuilder, DbContext context)
         {
             modelBuilder
-                .Entity<Address>(
-                    e => e.HasOne(a => a.Resident).WithOne(p => p.Address)
-                        .HasPrincipalKey<Person>(person => person.Id));
+                .Entity<Address>(e => e.HasOne(a => a.Resident).WithOne(p => p.Address)
+                    .HasPrincipalKey<Person>(person => person.Id));
 
             modelBuilder.Entity<Address2>().Property<int>("PersonId");
 
             modelBuilder
-                .Entity<Person2>(
-                    e => e.HasOne(p => p.Address).WithOne(a => a.Resident)
-                        .HasForeignKey<Address2>("PersonId"));
+                .Entity<Person2>(e => e.HasOne(p => p.Address).WithOne(a => a.Resident)
+                    .HasForeignKey<Address2>("PersonId"));
         }
 
-        protected override void Seed(PoolableDbContext context)
+        protected override Task SeedAsync(PoolableDbContext context)
         {
             var address1 = new Address { Street = "3 Dragons Way", City = "Meereen" };
             var address2 = new Address { Street = "42 Castle Black", City = "The Wall" };
@@ -203,39 +253,39 @@ public abstract class IncludeOneToOneTestBase<TFixture> : IClassFixture<TFixture
 
             context.Set<Address2>().AddRange(address21, address22, address23);
 
-            context.SaveChanges();
+            return context.SaveChangesAsync();
         }
     }
 
     protected class Person
     {
         public int Id { get; set; }
-        public string Name { get; set; }
-        public Address Address { get; set; }
+        public string Name { get; set; } = null!;
+        public Address? Address { get; set; }
     }
 
     protected class Address
     {
         public int Id { get; set; }
-        public string Street { get; set; }
-        public string City { get; set; }
-        public Person Resident { get; set; }
+        public string Street { get; set; } = null!;
+        public string City { get; set; } = null!;
+        public Person Resident { get; set; } = null!;
     }
 
     protected class Person2
     {
         public int Id { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
         // ReSharper disable once MemberHidesStaticFromOuterClass
-        public Address2 Address { get; set; }
+        public Address2 Address { get; set; } = null!;
     }
 
     protected class Address2
     {
-        public string Id { get; set; }
-        public string Street { get; set; }
-        public string City { get; set; }
-        public Person2 Resident { get; set; }
+        public string Id { get; set; } = null!;
+        public string Street { get; set; } = null!;
+        public string City { get; set; } = null!;
+        public Person2 Resident { get; set; } = null!;
     }
 }

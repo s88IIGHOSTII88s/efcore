@@ -1,21 +1,13 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class EntityFrameworkServiceCollectionExtensionsTestBase
+public abstract class EntityFrameworkServiceCollectionExtensionsTestBase(TestHelpers testHelpers)
 {
-    private readonly TestHelpers _testHelpers;
-
-    protected EntityFrameworkServiceCollectionExtensionsTestBase(TestHelpers testHelpers)
-    {
-        _testHelpers = testHelpers;
-    }
-
-    [ConditionalFact]
+    [Fact]
     public void Calling_AddEntityFramework_explicitly_does_not_change_services()
     {
         var services1 = AddServices(new ServiceCollection());
@@ -26,13 +18,13 @@ public abstract class EntityFrameworkServiceCollectionExtensionsTestBase
         AssertServicesSame(services1, services2);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Repeated_calls_to_add_do_not_modify_collection()
         => AssertServicesSame(
             AddServices(new ServiceCollection()),
             AddServices(AddServices(new ServiceCollection())));
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Required_services_are_registered_with_expected_lifetimes()
         => LifetimeTest(EntityFrameworkServicesBuilder.CoreServices);
 
@@ -78,5 +70,5 @@ public abstract class EntityFrameworkServiceCollectionExtensionsTestBase
     }
 
     private IServiceCollection AddServices(IServiceCollection serviceCollection)
-        => _testHelpers.AddProviderServices(serviceCollection);
+        => testHelpers.AddProviderServices(serviceCollection);
 }

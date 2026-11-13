@@ -11,12 +11,11 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
-public class Navigation : PropertyBase, IMutableNavigation, IConventionNavigation, INavigation
+public class Navigation : PropertyBase, IMutableNavigation, IConventionNavigation, IRuntimeNavigation
 {
     private InternalNavigationBuilder? _builder;
 
     // Warning: Never access these fields directly as access needs to be thread-safe
-    private IClrCollectionAccessor? _collectionAccessor;
     private bool _collectionAccessorInitialized;
 
     /// <summary>
@@ -43,11 +42,21 @@ public class Navigation : PropertyBase, IMutableNavigation, IConventionNavigatio
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)]
     public override Type ClrType
         => this.GetIdentifyingMemberInfo()?.GetMemberType()
             ?? (((IReadOnlyNavigation)this).IsCollection
                 ? typeof(IEnumerable<>).MakeGenericType(TargetEntityType.ClrType)
                 : TargetEntityType.ClrType);
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual object? Sentinel
+        => null;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -66,7 +75,7 @@ public class Navigation : PropertyBase, IMutableNavigation, IConventionNavigatio
     public virtual InternalNavigationBuilder Builder
     {
         [DebuggerStepThrough]
-        get => _builder ?? throw new InvalidOperationException(CoreStrings.ObjectRemovedFromModel);
+        get => _builder ?? throw new InvalidOperationException(CoreStrings.ObjectRemovedFromModel(Name));
     }
 
     /// <summary>
@@ -75,8 +84,9 @@ public class Navigation : PropertyBase, IMutableNavigation, IConventionNavigatio
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual bool IsInModel
-        => _builder is not null;
+    public override bool IsInModel
+        => _builder is not null
+            && ForeignKey.IsInModel;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -141,6 +151,15 @@ public class Navigation : PropertyBase, IMutableNavigation, IConventionNavigatio
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    public override bool IsCollection
+        => !IsOnDependent && !ForeignKey.IsUnique;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
     public override ConfigurationSource GetConfigurationSource()
         => (ConfigurationSource)(IsOnDependent
             ? ForeignKey.GetDependentToPrincipalConfigurationSource()
@@ -172,7 +191,7 @@ public class Navigation : PropertyBase, IMutableNavigation, IConventionNavigatio
     /// </summary>
     public override PropertyAccessMode GetPropertyAccessMode()
         => (PropertyAccessMode)(this[CoreAnnotationNames.PropertyAccessMode]
-            ?? ((IReadOnlyTypeBase)DeclaringType).GetNavigationAccessMode());
+            ?? DeclaringEntityType.GetNavigationAccessMode());
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -190,51 +209,35 @@ public class Navigation : PropertyBase, IMutableNavigation, IConventionNavigatio
     {
         if (!navigationProperty.DeclaringType!.IsAssignableFrom(sourceType.ClrType))
         {
-            if (shouldThrow)
-            {
-                throw new InvalidOperationException(
-                    CoreStrings.NoClrNavigation(navigationName, sourceType.DisplayName()));
-            }
-
-            return false;
+            return shouldThrow
+                ? throw new InvalidOperationException(
+                    CoreStrings.NoClrNavigation(navigationName, sourceType.DisplayName()))
+                : false;
         }
 
         var targetClrType = targetType.ClrType;
         var navigationTargetClrType = navigationProperty.GetMemberType().TryGetSequenceType();
         shouldBeCollection ??= navigationTargetClrType != null && navigationProperty.GetMemberType() != targetClrType;
-        if (shouldBeCollection.Value
-            && navigationTargetClrType?.IsAssignableFrom(targetClrType) != true)
-        {
-            if (shouldThrow)
-            {
-                throw new InvalidOperationException(
-                    CoreStrings.NavigationCollectionWrongClrType(
-                        navigationName,
-                        sourceType.DisplayName(),
-                        navigationProperty.GetMemberType().ShortDisplayName(),
-                        targetClrType.ShortDisplayName()));
-            }
-
-            return false;
-        }
-
-        if (!shouldBeCollection.Value
-            && !navigationProperty.GetMemberType().IsAssignableFrom(targetClrType))
-        {
-            if (shouldThrow)
-            {
-                throw new InvalidOperationException(
-                    CoreStrings.NavigationSingleWrongClrType(
-                        navigationName,
-                        sourceType.DisplayName(),
-                        navigationProperty.GetMemberType().ShortDisplayName(),
-                        targetClrType.ShortDisplayName()));
-            }
-
-            return false;
-        }
-
-        return true;
+        return shouldBeCollection.Value
+            && navigationTargetClrType?.IsAssignableFrom(targetClrType) != true
+                ? shouldThrow
+                    ? throw new InvalidOperationException(
+                        CoreStrings.NavigationCollectionWrongClrType(
+                            navigationName,
+                            sourceType.DisplayName(),
+                            navigationProperty.GetMemberType().ShortDisplayName(),
+                            targetClrType.ShortDisplayName()))
+                    : false
+                : shouldBeCollection.Value
+                || navigationProperty.GetMemberType().IsAssignableFrom(targetClrType)
+                || (shouldThrow
+                    ? throw new InvalidOperationException(
+                        CoreStrings.NavigationSingleWrongClrType(
+                            navigationName,
+                            sourceType.DisplayName(),
+                            navigationProperty.GetMemberType().ShortDisplayName(),
+                            targetClrType.ShortDisplayName()))
+                    : false);
     }
 
     /// <summary>
@@ -290,14 +293,10 @@ public class Navigation : PropertyBase, IMutableNavigation, IConventionNavigatio
     /// </summary>
     public virtual IClrCollectionAccessor? CollectionAccessor
         => NonCapturingLazyInitializer.EnsureInitialized(
-            ref _collectionAccessor,
+            ref field,
             ref _collectionAccessorInitialized,
             this,
-            static navigation =>
-            {
-                navigation.EnsureReadOnly();
-                return new ClrCollectionAccessorFactory().Create(navigation);
-            });
+            static navigation => ClrCollectionAccessorFactory.Instance.Create(navigation));
 
     /// <summary>
     ///     Runs the conventions when an annotation was set or removed.
@@ -385,6 +384,6 @@ public class Navigation : PropertyBase, IMutableNavigation, IConventionNavigatio
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    IClrCollectionAccessor? INavigationBase.GetCollectionAccessor()
+    IClrCollectionAccessor? IPropertyBase.GetCollectionAccessor()
         => CollectionAccessor;
 }

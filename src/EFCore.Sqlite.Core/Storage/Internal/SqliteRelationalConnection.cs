@@ -76,7 +76,8 @@ public class SqliteRelationalConnection : RelationalConnection, ISqliteRelationa
     {
         var connectionStringBuilder = new SqliteConnectionStringBuilder(GetValidatedConnectionString())
         {
-            Mode = SqliteOpenMode.ReadOnly, Pooling = false
+            Mode = SqliteOpenMode.ReadOnly,
+            Pooling = false
         };
 
         var contextOptions = new DbContextOptionsBuilder().UseSqlite(connectionStringBuilder.ToString()).Options;
@@ -99,66 +100,97 @@ public class SqliteRelationalConnection : RelationalConnection, ISqliteRelationa
             }
 
             sqliteConnection.CreateFunction<string, string, bool?>(
-                "regexp",
-                (pattern, input) =>
-                {
-                    if (input == null
-                        || pattern == null)
-                    {
-                        return null;
-                    }
-
-                    return Regex.IsMatch(input, pattern);
-                },
+                name: "regexp",
+                static (pattern, input)
+                    => input == null
+                    || pattern == null
+                        ? null
+                        : Regex.IsMatch(input, pattern, RegexOptions.NonBacktracking, TimeSpan.FromMilliseconds(1000)),
                 isDeterministic: true);
 
-            sqliteConnection.CreateFunction<object, object, object?>(
-                "ef_mod",
-                (dividend, divisor) =>
-                {
-                    if (dividend == null
-                        || divisor == null)
-                    {
-                        return null;
-                    }
-
-                    if (dividend is string s)
-                    {
-                        return decimal.Parse(s, CultureInfo.InvariantCulture)
-                            % Convert.ToDecimal(divisor, CultureInfo.InvariantCulture);
-                    }
-
-                    return Convert.ToDouble(dividend, CultureInfo.InvariantCulture)
-                        % Convert.ToDouble(divisor, CultureInfo.InvariantCulture);
-                },
+            sqliteConnection.CreateFunction(
+                name: "ef_mod",
+                static (decimal? dividend, decimal? divisor) => divisor == 0m ? null : dividend % divisor,
                 isDeterministic: true);
 
             sqliteConnection.CreateFunction(
                 name: "ef_add",
-                (decimal? left, decimal? right) => left + right,
+                static (decimal? left, decimal? right) => left + right,
                 isDeterministic: true);
 
             sqliteConnection.CreateFunction(
                 name: "ef_divide",
-                (decimal? dividend, decimal? divisor) => dividend / divisor,
+                static (decimal? dividend, decimal? divisor) => divisor == 0m ? null : dividend / divisor,
                 isDeterministic: true);
 
             sqliteConnection.CreateFunction(
                 name: "ef_compare",
-                (decimal? left, decimal? right) => left.HasValue && right.HasValue
+                static (decimal? left, decimal? right) => left.HasValue && right.HasValue
                     ? decimal.Compare(left.Value, right.Value)
                     : default(int?),
                 isDeterministic: true);
 
             sqliteConnection.CreateFunction(
                 name: "ef_multiply",
-                (decimal? left, decimal? right) => left * right,
+                static (decimal? left, decimal? right) => left * right,
                 isDeterministic: true);
 
             sqliteConnection.CreateFunction(
                 name: "ef_negate",
-                (decimal? m) => -m,
+                static (decimal? m) => -m,
                 isDeterministic: true);
+
+            sqliteConnection.CreateAggregate(
+                name: "ef_avg",
+                seed: (0m, 0ul),
+                static ((decimal sum, ulong count) acc, decimal? value) => value is null
+                    ? acc
+                    : (acc.sum + value.Value, acc.count + 1),
+                static ((decimal sum, ulong count) acc) => acc.count == 0
+                    ? default(decimal?)
+                    : acc.sum / acc.count,
+                isDeterministic: true);
+
+            sqliteConnection.CreateAggregate(
+                name: "ef_max",
+                seed: null,
+                static (decimal? max, decimal? value) => max is null
+                    ? value
+                    : value is null
+                        ? max
+                        : decimal.Max(max.Value, value.Value),
+                isDeterministic: true);
+
+            sqliteConnection.CreateAggregate(
+                name: "ef_min",
+                seed: null,
+                static (decimal? min, decimal? value) => min is null
+                    ? value
+                    : value is null
+                        ? min
+                        : decimal.Min(min.Value, value.Value),
+                isDeterministic: true);
+
+            sqliteConnection.CreateAggregate(
+                name: "ef_sum",
+                seed: null,
+                static (decimal? sum, decimal? value) => value is null
+                    ? sum
+                    : sum is null
+                        ? value
+                        : sum.Value + value.Value,
+                isDeterministic: true);
+
+            sqliteConnection.CreateCollation(
+                name: "EF_DECIMAL",
+                static (x, y) => (decimal.TryParse(x, NumberStyles.Number | NumberStyles.AllowExponent, CultureInfo.InvariantCulture, out var xValue),
+                        decimal.TryParse(y, NumberStyles.Number | NumberStyles.AllowExponent, CultureInfo.InvariantCulture, out var yValue)) switch
+                    {
+                        (true, true) => decimal.Compare(xValue, yValue),
+                        (true, _) => -1,
+                        (_, true) => 1,
+                        _ => string.CompareOrdinal(x, y)
+                    });
         }
         else
         {

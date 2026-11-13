@@ -1,13 +1,15 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.IO;
 using System.Reflection;
+using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Design.Internal;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Tools.Properties;
+#if NET
+using System.Runtime.Loader;
+#endif
 
 namespace Microsoft.EntityFrameworkCore.Tools;
 
@@ -18,50 +20,69 @@ internal class ReflectionOperationExecutor : OperationExecutorBase
     private const string ReportHandlerTypeName = "Microsoft.EntityFrameworkCore.Design.OperationReportHandler";
     private const string ResultHandlerTypeName = "Microsoft.EntityFrameworkCore.Design.OperationResultHandler";
     private readonly Type _resultHandlerType;
+    private string? _efcoreVersion;
+#if NET
+    private AssemblyLoadContext? _assemblyLoadContext;
+#endif
 
     public ReflectionOperationExecutor(
         string assembly,
         string? startupAssembly,
+        string? designAssembly,
+        string? project,
         string? projectDir,
         string? dataDirectory,
         string? rootNamespace,
         string? language,
         bool nullable,
-        string[] remainingArguments)
-        : base(assembly, startupAssembly, projectDir, rootNamespace, language, nullable, remainingArguments)
+        string[] remainingArguments,
+        IOperationReportHandler reportHandler)
+        : base(
+            assembly, startupAssembly, designAssembly, project, projectDir, rootNamespace, language, nullable, remainingArguments,
+            reportHandler)
     {
+        var reporter = new OperationReporter(reportHandler);
         var configurationFile = (startupAssembly ?? assembly) + ".config";
         if (File.Exists(configurationFile))
         {
-            Reporter.WriteVerbose(Resources.UsingConfigurationFile(configurationFile));
+            reporter.WriteVerbose(Resources.UsingConfigurationFile(configurationFile));
             AppDomain.CurrentDomain.SetData("APP_CONFIG_FILE", configurationFile);
         }
 
         if (dataDirectory != null)
         {
-            Reporter.WriteVerbose(Resources.UsingDataDir(dataDirectory));
+            reporter.WriteVerbose(Resources.UsingDataDir(dataDirectory));
             AppDomain.CurrentDomain.SetData("DataDirectory", dataDirectory);
         }
 
         AppDomain.CurrentDomain.AssemblyResolve += ResolveAssembly;
 
-        _commandsAssembly = Assembly.Load(new AssemblyName { Name = DesignAssemblyName });
+#if NET
+        _commandsAssembly = DesignAssemblyPath != null
+            ? AssemblyLoadContext.LoadFromAssemblyPath(DesignAssemblyPath)
+            : AssemblyLoadContext.LoadFromAssemblyName(new AssemblyName(DesignAssemblyName));
+#else
+        _commandsAssembly = DesignAssemblyPath != null
+            ? Assembly.LoadFrom(DesignAssemblyPath)
+            : Assembly.Load(DesignAssemblyName);
+#endif
         var reportHandlerType = _commandsAssembly.GetType(ReportHandlerTypeName, throwOnError: true, ignoreCase: false)!;
 
-        var reportHandler = Activator.CreateInstance(
+        var designReportHandler = Activator.CreateInstance(
             reportHandlerType,
-            (Action<string>)Reporter.WriteError,
-            (Action<string>)Reporter.WriteWarning,
-            (Action<string>)Reporter.WriteInformation,
-            (Action<string>)Reporter.WriteVerbose)!;
+            (Action<string>)reportHandler.OnError,
+            (Action<string>)reportHandler.OnWarning,
+            (Action<string>)reportHandler.OnInformation,
+            (Action<string>)reportHandler.OnVerbose)!;
 
         _executor = Activator.CreateInstance(
             _commandsAssembly.GetType(ExecutorTypeName, throwOnError: true, ignoreCase: false)!,
-            reportHandler,
+            designReportHandler,
             new Dictionary<string, object?>
             {
                 { "targetName", AssemblyFileName },
                 { "startupTargetName", StartupAssemblyFileName },
+                { "project", Project },
                 { "projectDir", ProjectDirectory },
                 { "rootNamespace", RootNamespace },
                 { "language", Language },
@@ -71,6 +92,53 @@ internal class ReflectionOperationExecutor : OperationExecutorBase
             })!;
 
         _resultHandlerType = _commandsAssembly.GetType(ResultHandlerTypeName, throwOnError: true, ignoreCase: false)!;
+    }
+
+#if NET
+    protected AssemblyLoadContext AssemblyLoadContext
+    {
+        get
+        {
+            if (_assemblyLoadContext != null)
+            {
+                return _assemblyLoadContext;
+            }
+
+            AssemblyLoadContext.Default.Resolving += (context, name) =>
+            {
+                var assemblyPath = Path.Join(AppBasePath, name.Name + ".dll");
+                return File.Exists(assemblyPath) ? context.LoadFromAssemblyPath(assemblyPath) : null;
+            };
+            _assemblyLoadContext = AssemblyLoadContext.Default;
+
+            return AssemblyLoadContext.Default;
+        }
+    }
+#endif
+
+    public override string? EFCoreVersion
+    {
+        get
+        {
+            if (_efcoreVersion != null)
+            {
+                return _efcoreVersion;
+            }
+
+            Assembly? assembly = null;
+#if NET
+            assembly = DesignAssemblyPath != null
+                ? AssemblyLoadContext.LoadFromAssemblyPath(DesignAssemblyPath)
+                : AssemblyLoadContext.LoadFromAssemblyName(new AssemblyName(DesignAssemblyName));
+#else
+            assembly = DesignAssemblyPath != null
+                ? Assembly.LoadFrom(DesignAssemblyPath)
+                : Assembly.Load(DesignAssemblyName);
+#endif
+            _efcoreVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                ?.InformationalVersion;
+            return _efcoreVersion;
+        }
     }
 
     protected override object CreateResultHandler()

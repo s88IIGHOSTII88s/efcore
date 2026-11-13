@@ -8,17 +8,13 @@ using Microsoft.EntityFrameworkCore.Scaffolding.Internal;
 using Microsoft.EntityFrameworkCore.Scaffolding.Metadata;
 using Microsoft.EntityFrameworkCore.SqlServer.Design.Internal;
 using Microsoft.EntityFrameworkCore.SqlServer.Scaffolding.Internal;
-using Microsoft.EntityFrameworkCore.TextTemplating;
-using Microsoft.EntityFrameworkCore.TextTemplating.Internal;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.EntityFrameworkCore.Design;
 
 public class DesignTimeServicesTest
 {
-    [ConditionalTheory]
-    [InlineData(true)]
-    [InlineData(false)]
+    [Theory, InlineData(true), InlineData(false)]
     public void Services_are_registered_using_correct_priority(bool useContext)
     {
         using var context = new MyContext(
@@ -85,8 +81,6 @@ public class UserMigrationsIdGenerator : IMigrationsIdGenerator
             typeof(CSharpSnapshotGeneratorDependencies),
             serviceProvider.GetRequiredService<CSharpSnapshotGeneratorDependencies>().GetType());
         Assert.Equal(typeof(CandidateNamingService), serviceProvider.GetRequiredService<ICandidateNamingService>().GetType());
-        Assert.Equal(typeof(CSharpDbContextGenerator), serviceProvider.GetRequiredService<ICSharpDbContextGenerator>().GetType());
-        Assert.Equal(typeof(CSharpEntityTypeGenerator), serviceProvider.GetRequiredService<ICSharpEntityTypeGenerator>().GetType());
         Assert.Equal(typeof(CSharpHelper), serviceProvider.GetRequiredService<ICSharpHelper>().GetType());
         Assert.Equal(
             typeof(CSharpMigrationOperationGenerator),
@@ -96,7 +90,6 @@ public class UserMigrationsIdGenerator : IMigrationsIdGenerator
         Assert.Equal(typeof(CSharpMigrationsGenerator), serviceProvider.GetRequiredService<IMigrationsCodeGenerator>().GetType());
         Assert.Equal(
             typeof(MigrationsCodeGeneratorSelector), serviceProvider.GetRequiredService<IMigrationsCodeGeneratorSelector>().GetType());
-        Assert.Equal(typeof(TextTemplatingService), serviceProvider.GetRequiredService<ITextTemplating>().GetType());
         Assert.Collection(
             serviceProvider.GetServices<IModelCodeGenerator>(),
             s => Assert.Equal(typeof(TextTemplatingModelGenerator), s.GetType()),
@@ -114,7 +107,7 @@ public class UserMigrationsIdGenerator : IMigrationsIdGenerator
         Assert.Equal(typeof(HumanizerPluralizer), serviceProvider.GetRequiredService<IPluralizer>().GetType());
         Assert.Equal(
             typeof(RelationalScaffoldingModelFactory), serviceProvider.GetRequiredService<IScaffoldingModelFactory>().GetType());
-        Assert.Equal(typeof(ScaffoldingTypeMapper), serviceProvider.GetRequiredService<IScaffoldingTypeMapper>().GetType());
+        Assert.Equal(typeof(SqlServerScaffoldingTypeMapper), serviceProvider.GetRequiredService<IScaffoldingTypeMapper>().GetType());
         Assert.Equal(
             typeof(MigrationsCodeGeneratorDependencies),
             serviceProvider.GetRequiredService<MigrationsCodeGeneratorDependencies>().GetType());
@@ -197,6 +190,15 @@ public class UserMigrationsIdGenerator : IMigrationsIdGenerator
 
     public class ExtensionHistoryRepository : IHistoryRepository
     {
+        public virtual LockReleaseBehavior LockReleaseBehavior
+            => LockReleaseBehavior.Explicit;
+
+        public void Create()
+            => throw new NotImplementedException();
+
+        public Task CreateAsync(CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+
         public bool Exists()
             => throw new NotImplementedException();
 
@@ -219,6 +221,12 @@ public class UserMigrationsIdGenerator : IMigrationsIdGenerator
             => throw new NotImplementedException();
 
         public string GetCreateScript()
+            => throw new NotImplementedException();
+
+        public IMigrationsDatabaseLock AcquireDatabaseLock()
+            => throw new NotImplementedException();
+
+        public Task<IMigrationsDatabaseLock> AcquireDatabaseLockAsync(CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
 
         public string GetDeleteScript(string migrationId)
@@ -239,7 +247,7 @@ public class UserMigrationsIdGenerator : IMigrationsIdGenerator
         public MethodCallCodeFragment GenerateProviderOptions()
             => throw new NotImplementedException();
 
-        public MethodCallCodeFragment GenerateUseProvider(string connectionString, MethodCallCodeFragment providerOptions)
+        public MethodCallCodeFragment GenerateUseProvider(string connectionString, MethodCallCodeFragment? providerOptions)
             => throw new NotImplementedException();
     }
 
@@ -257,6 +265,9 @@ public class UserMigrationsIdGenerator : IMigrationsIdGenerator
 
     public class ContextHistoryRepository : IHistoryRepository
     {
+        public virtual LockReleaseBehavior LockReleaseBehavior
+            => LockReleaseBehavior.Explicit;
+
         public bool Exists()
             => throw new NotImplementedException();
 
@@ -281,6 +292,18 @@ public class UserMigrationsIdGenerator : IMigrationsIdGenerator
         public string GetCreateScript()
             => throw new NotImplementedException();
 
+        public void Create()
+            => throw new NotImplementedException();
+
+        public Task CreateAsync(CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+
+        public IMigrationsDatabaseLock AcquireDatabaseLock()
+            => throw new NotImplementedException();
+
+        public Task<IMigrationsDatabaseLock> AcquireDatabaseLockAsync(CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+
         public string GetDeleteScript(string migrationId)
             => throw new NotImplementedException();
 
@@ -291,18 +314,107 @@ public class UserMigrationsIdGenerator : IMigrationsIdGenerator
             => throw new NotImplementedException();
     }
 
-    public class MyContext : DbContext
+    [Fact]
+    public void Abstract_design_time_services_are_ignored()
     {
-        public MyContext(DbContextOptions<MyContext> options)
-            : base(options)
-        {
-        }
+        var serviceProvider = CreateDesignServiceProvider(
+            @"
+using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.DependencyInjection;
+
+#pragma warning disable EF1001
+
+public abstract class DesignTimeServicesBase : IDesignTimeServices
+{
+    public void ConfigureDesignTimeServices(IServiceCollection serviceCollection)
+    {
+        DoSomething();
     }
+
+    protected abstract void DoSomething();
+}
+
+public class ActualDesignTimeServices : DesignTimeServicesBase
+{
+    protected override void DoSomething()
+    {
+        // Actual implementation
+    }
+}
+").CreateScope().ServiceProvider;
+
+        // Should not throw an exception when creating the service provider
+        // The abstract base class should be ignored and only concrete implementations should be used
+        Assert.NotNull(serviceProvider);
+    }
+
+    [Fact]
+    public void Interface_design_time_services_are_ignored()
+    {
+        var serviceProvider = CreateDesignServiceProvider(
+            @"
+using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.DependencyInjection;
+
+#pragma warning disable EF1001
+
+public interface IDesignTimeServicesInterface : IDesignTimeServices
+{
+}
+
+public class ConcreteDesignTimeServices : IDesignTimeServicesInterface
+{
+    public void ConfigureDesignTimeServices(IServiceCollection serviceCollection)
+    {
+        // Concrete implementation
+    }
+}
+").CreateScope().ServiceProvider;
+
+        // Should not throw an exception when creating the service provider
+        // Interfaces implementing IDesignTimeServices should be ignored
+        Assert.NotNull(serviceProvider);
+    }
+
+    [Fact]
+    public void Prefers_concrete_class_over_abstract()
+    {
+        // This test verifies that when both abstract and concrete classes are present,
+        // the concrete class is used (since we're using FirstOrDefault which finds the first non-abstract)
+        var serviceProvider = CreateDesignServiceProvider(
+            @"
+using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.DependencyInjection;
+
+#pragma warning disable EF1001
+
+public abstract class AbstractDesignTimeServices : IDesignTimeServices
+{
+    public void ConfigureDesignTimeServices(IServiceCollection serviceCollection)
+    {
+        throw new System.NotImplementedException(""Should not be called"");
+    }
+}
+
+public class ConcreteDesignTimeServices : IDesignTimeServices
+{
+    public void ConfigureDesignTimeServices(IServiceCollection serviceCollection)
+    {
+        // This should be the one used
+    }
+}
+").CreateScope().ServiceProvider;
+
+        // Should not throw an exception and should use the concrete implementation
+        Assert.NotNull(serviceProvider);
+    }
+
+    public class MyContext(DbContextOptions<MyContext> options) : DbContext(options);
 
     private ServiceProvider CreateDesignServiceProvider(
         string assemblyCode,
-        string startupAssemblyCode = null,
-        DbContext context = null)
+        string? startupAssemblyCode = null,
+        DbContext? context = null)
     {
         var assembly = Compile(assemblyCode);
         var startupAssembly = startupAssemblyCode == null
@@ -310,7 +422,7 @@ public class UserMigrationsIdGenerator : IMigrationsIdGenerator
             : Compile(startupAssemblyCode);
 
         var reporter = new TestOperationReporter();
-        var servicesBuilder = new DesignTimeServicesBuilder(assembly, startupAssembly, reporter, new string[0]);
+        var servicesBuilder = new DesignTimeServicesBuilder(assembly, startupAssembly, reporter, []);
 
         return (context == null
                 ? servicesBuilder

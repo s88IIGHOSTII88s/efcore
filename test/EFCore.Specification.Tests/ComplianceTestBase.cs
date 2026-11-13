@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 // ReSharper disable InconsistentNaming
@@ -8,15 +8,14 @@ namespace Microsoft.EntityFrameworkCore;
 public abstract class ComplianceTestBase
 {
     protected abstract Assembly TargetAssembly { get; }
-    protected virtual ICollection<Type> IgnoredTestBases { get; } = new List<Type>();
+    protected virtual ICollection<Type> IgnoredTestBases { get; } = [];
 
-    [ConditionalFact]
+    [Fact]
     public virtual void All_test_bases_must_be_implemented()
     {
-        var concreteTests = TargetAssembly.GetTypes().Where(
-                c => c.BaseType != typeof(object)
-                    && !c.IsAbstract
-                    && (c.IsPublic || c.IsNestedPublic))
+        var concreteTests = TargetAssembly.GetTypes().Where(c => c.BaseType != typeof(object)
+                && !c.IsAbstract
+                && (c.IsPublic || c.IsNestedPublic))
             .ToList();
         var nonImplementedBases
             = (from baseType in GetBaseTestClasses()
@@ -66,13 +65,13 @@ public abstract class ComplianceTestBase
 
     private static IEnumerable<Type> GetBaseTypes(Type type)
     {
-        type = type.BaseType;
+        type = type.BaseType!;
 
         while (type != null)
         {
             yield return type;
 
-            type = type.BaseType;
+            type = type.BaseType!;
         }
     }
 }

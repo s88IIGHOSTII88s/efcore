@@ -1,6 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Data;
+
 namespace Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 /// <summary>
@@ -20,25 +22,21 @@ public class RelationalConverterMappingHints : ConverterMappingHints
     /// <param name="scale">The suggested scale of the mapped data type.</param>
     /// <param name="unicode">Whether or not the mapped data type should support Unicode.</param>
     /// <param name="fixedLength">Whether or not the mapped data type is fixed length.</param>
-    /// <param name="valueGeneratorFactory">An optional factory for creating a specific <see cref="ValueGenerator" />.</param>
+    /// <param name="dbType">The suggested <see cref="DbType" />.</param>
     public RelationalConverterMappingHints(
         int? size = null,
         int? precision = null,
         int? scale = null,
         bool? unicode = null,
         bool? fixedLength = null,
-        Func<IProperty, IEntityType, ValueGenerator>? valueGeneratorFactory = null)
-        : base(size, precision, scale, unicode, valueGeneratorFactory)
+        DbType? dbType = null)
+        : base(size, precision, scale, unicode)
     {
         IsFixedLength = fixedLength;
+        DbType = dbType;
     }
 
-    /// <summary>
-    ///     Adds hints from the given object to this one. Hints that are already specified are
-    ///     not overridden.
-    /// </summary>
-    /// <param name="hints">The hints to add.</param>
-    /// <returns>The combined hints.</returns>
+    /// <inheritdoc />
     public override ConverterMappingHints With(ConverterMappingHints? hints)
         => hints == null
             ? this
@@ -48,10 +46,27 @@ public class RelationalConverterMappingHints : ConverterMappingHints
                 hints.Scale ?? Scale,
                 hints.IsUnicode ?? IsUnicode,
                 (hints as RelationalConverterMappingHints)?.IsFixedLength ?? IsFixedLength,
-                hints.ValueGeneratorFactory ?? ValueGeneratorFactory);
+                (hints as RelationalConverterMappingHints)?.DbType ?? DbType);
+
+    /// <inheritdoc />
+    public override ConverterMappingHints OverrideWith(ConverterMappingHints? hints)
+        => hints == null
+            ? this
+            : new RelationalConverterMappingHints(
+                Size ?? hints.Size,
+                Precision ?? hints.Precision,
+                Scale ?? hints.Scale,
+                IsUnicode ?? hints.IsUnicode,
+                IsFixedLength ?? (hints as RelationalConverterMappingHints)?.IsFixedLength,
+                DbType ?? (hints as RelationalConverterMappingHints)?.DbType);
 
     /// <summary>
     ///     Whether or not the mapped data type is fixed length.
     /// </summary>
     public virtual bool? IsFixedLength { get; }
+
+    /// <summary>
+    ///     The suggested <see cref="DbType" />
+    /// </summary>
+    public virtual DbType? DbType { get; }
 }

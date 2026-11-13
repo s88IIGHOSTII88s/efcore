@@ -1,163 +1,135 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections;
 using System.Data;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 
 // ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public class BadDataSqliteTest : IClassFixture<BadDataSqliteTest.BadDataSqliteFixture>
+public class BadDataSqliteTest(BadDataSqliteTest.BadDataSqliteFixture fixture) : IClassFixture<BadDataSqliteTest.BadDataSqliteFixture>
 {
-    public BadDataSqliteTest(BadDataSqliteFixture fixture)
-    {
-        Fixture = fixture;
-    }
+    public BadDataSqliteFixture Fixture { get; } = fixture;
 
-    public BadDataSqliteFixture Fixture { get; }
-
-    [ConditionalFact]
+    [Fact]
     public void Bad_data_error_handling_invalid_cast_key()
     {
         using var context = CreateContext("bad int");
         Assert.Equal(
             CoreStrings.ErrorMaterializingPropertyInvalidCast("Product", "ProductID", typeof(int), typeof(string)),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    context.Set<Product>().Where(p => p.ProductID != 1).ToList()).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                context.Set<Product>().Where(p => p.ProductID != 1).ToList()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Bad_data_error_handling_null_key()
     {
         using var context = CreateContext(null, true);
         Assert.Equal(
             RelationalStrings.ErrorMaterializingPropertyNullReference("Product", "ProductID", typeof(int)),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    context.Set<Product>().Where(p => p.ProductID != 2).ToList()).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                context.Set<Product>().Where(p => p.ProductID != 2).ToList()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Bad_data_error_handling_invalid_cast()
     {
         using var context = CreateContext(1, true, 1);
         Assert.Equal(
             CoreStrings.ErrorMaterializingPropertyInvalidCast("Product", "ProductName", typeof(string), typeof(int)),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    context.Set<Product>().Where(p => p.ProductID != 3).ToList()).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                context.Set<Product>().Where(p => p.ProductID != 3).ToList()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Bad_data_error_handling_invalid_cast_projection()
     {
         using var context = CreateContext(1);
         Assert.Equal(
             RelationalStrings.ErrorMaterializingValueInvalidCast(typeof(string), typeof(int)),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    context.Set<Product>().Where(p => p.ProductID != 4)
-                        .Select(p => p.ProductName)
-                        .ToList()).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                context.Set<Product>().Where(p => p.ProductID != 4)
+                    .Select(p => p.ProductName)
+                    .ToList()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Bad_data_error_handling_invalid_cast_no_tracking()
     {
         using var context = CreateContext("bad int");
         Assert.Equal(
             CoreStrings.ErrorMaterializingPropertyInvalidCast("Product", "ProductID", typeof(int), typeof(string)),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    context.Set<Product>()
-                        .Where(p => p.ProductID != 5)
-                        .AsNoTracking()
-                        .ToList()).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                context.Set<Product>()
+                    .Where(p => p.ProductID != 5)
+                    .AsNoTracking()
+                    .ToList()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Bad_data_error_handling_null()
     {
         using var context = CreateContext(1, null);
         Assert.Equal(
             RelationalStrings.ErrorMaterializingPropertyNullReference("Product", "Discontinued", typeof(bool)),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    context.Set<Product>().Where(p => p.ProductID != 6).ToList()).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                context.Set<Product>().Where(p => p.ProductID != 6).ToList()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Bad_data_error_handling_null_projection()
     {
-        using var context = CreateContext(new object[] { null });
+        using var context = CreateContext([null]);
         Assert.Equal(
             RelationalStrings.ErrorMaterializingValueNullReference(typeof(bool)),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    context.Set<Product>()
-                        .Where(p => p.ProductID != 7)
-                        .Select(p => p.Discontinued)
-                        .ToList()).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                context.Set<Product>()
+                    .Where(p => p.ProductID != 7)
+                    .Select(p => p.Discontinued)
+                    .ToList()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Bad_data_error_handling_null_no_tracking()
     {
         using var context = CreateContext(null, true);
         Assert.Equal(
             RelationalStrings.ErrorMaterializingPropertyNullReference("Product", "ProductID", typeof(int)),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    context.Set<Product>()
-                        .Where(p => p.ProductID != 8)
-                        .AsNoTracking()
-                        .ToList()).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                context.Set<Product>()
+                    .Where(p => p.ProductID != 8)
+                    .AsNoTracking()
+                    .ToList()).Message);
     }
 
     // ReSharper disable once ClassNeverInstantiated.Local
-    private class BadDataCommandBuilderFactory : RelationalCommandBuilderFactory
+    private class BadDataCommandBuilderFactory(
+        RelationalCommandBuilderDependencies dependencies) : RelationalCommandBuilderFactory(dependencies)
     {
-        public BadDataCommandBuilderFactory(
-            RelationalCommandBuilderDependencies dependencies)
-            : base(dependencies)
-        {
-        }
-
-        public object[] Values { private get; set; }
+        public object?[] Values { private get; set; } = null!;
 
         public override IRelationalCommandBuilder Create()
             => new BadDataRelationalCommandBuilder(Dependencies, Values);
 
-        private class BadDataRelationalCommandBuilder : RelationalCommandBuilder
+        private class BadDataRelationalCommandBuilder(
+            RelationalCommandBuilderDependencies dependencies,
+            object?[] values) : RelationalCommandBuilder(dependencies)
         {
-            private readonly object[] _values;
-
-            public BadDataRelationalCommandBuilder(
-                RelationalCommandBuilderDependencies dependencies,
-                object[] values)
-                : base(dependencies)
-            {
-                _values = values;
-            }
+            private readonly object?[] _values = values;
 
             public override IRelationalCommand Build()
-                => new BadDataRelationalCommand(Dependencies, ToString(), Parameters, _values);
+                => new BadDataRelationalCommand(Dependencies, ToString(), ToString(), Parameters, _values);
 
-            private class BadDataRelationalCommand : RelationalCommand
+            private class BadDataRelationalCommand(
+                RelationalCommandBuilderDependencies dependencies,
+                string commandText,
+                string logCommandText,
+                IReadOnlyList<IRelationalParameter> parameters,
+                object?[] values) : RelationalCommand(dependencies, commandText, logCommandText, parameters)
             {
-                private object[] _values;
-
-                public BadDataRelationalCommand(
-                    RelationalCommandBuilderDependencies dependencies,
-                    string commandText,
-                    IReadOnlyList<IRelationalParameter> parameters,
-                    object[] values)
-                    : base(dependencies, commandText, parameters)
-                {
-                    _values = values;
-                }
+                private object?[] _values = values;
 
                 public override RelationalDataReader ExecuteReader(
                     RelationalCommandParameterObject parameterObject)
@@ -180,18 +152,11 @@ public class BadDataSqliteTest : IClassFixture<BadDataSqliteTest.BadDataSqliteFi
                     _values = ((BadDataRelationalCommand)commandTemplate)._values;
                 }
 
-                private class BadDataRelationalDataReader : RelationalDataReader
-                {
-                }
+                private class BadDataRelationalDataReader : RelationalDataReader;
 
-                private class BadDataDataReader : DbDataReader
+                private class BadDataDataReader(object?[] values) : DbDataReader
                 {
-                    private readonly object[] _values;
-
-                    public BadDataDataReader(object[] values)
-                    {
-                        _values = values;
-                    }
+                    private readonly object?[] _values = values;
 
                     public override bool Read()
                         => true;
@@ -212,7 +177,7 @@ public class BadDataSqliteTest : IClassFixture<BadDataSqliteTest.BadDataSqliteFi
                         => (string)GetValue(ordinal);
 
                     public override object GetValue(int ordinal)
-                        => _values[ordinal];
+                        => _values[ordinal]!;
 
                     #region NotImplemented members
 
@@ -252,13 +217,13 @@ public class BadDataSqliteTest : IClassFixture<BadDataSqliteTest.BadDataSqliteFi
                     public override byte GetByte(int ordinal)
                         => throw new NotImplementedException();
 
-                    public override long GetBytes(int ordinal, long dataOffset, byte[] buffer, int bufferOffset, int length)
+                    public override long GetBytes(int ordinal, long dataOffset, byte[]? buffer, int bufferOffset, int length)
                         => throw new NotImplementedException();
 
                     public override char GetChar(int ordinal)
                         => throw new NotImplementedException();
 
-                    public override long GetChars(int ordinal, long dataOffset, char[] buffer, int bufferOffset, int length)
+                    public override long GetChars(int ordinal, long dataOffset, char[]? buffer, int bufferOffset, int length)
                         => throw new NotImplementedException();
 
                     public override Guid GetGuid(int ordinal)
@@ -294,7 +259,7 @@ public class BadDataSqliteTest : IClassFixture<BadDataSqliteTest.BadDataSqliteFi
         }
     }
 
-    private NorthwindContext CreateContext(params object[] values)
+    private NorthwindContext CreateContext(params object?[] values)
     {
         var context = Fixture.CreateContext();
 
@@ -334,13 +299,17 @@ public class BadDataSqliteTest : IClassFixture<BadDataSqliteTest.BadDataSqliteFi
         public IDbContextTransaction CurrentTransaction
             => throw new NotImplementedException();
 
-        public SemaphoreSlim Semaphore { get; }
+        public SemaphoreSlim Semaphore { get; } = null!;
 
-        public string ConnectionString { get; set; }
-        public DbConnection DbConnection { get; set; }
+        public string? ConnectionString { get; set; }
+        [System.Diagnostics.CodeAnalysis.AllowNull]
+        public DbConnection DbConnection { get; set; } = new SqliteConnection();
+
+        public void SetDbConnection(DbConnection? value, bool contextOwnsConnection)
+            => throw new NotImplementedException();
 
         public DbContext Context
-            => null;
+            => null!;
 
         public Guid ConnectionId { get; }
         public int? CommandTimeout { get; set; }
@@ -365,19 +334,19 @@ public class BadDataSqliteTest : IClassFixture<BadDataSqliteTest.BadDataSqliteFi
             CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
 
-        public IDbContextTransaction UseTransaction(DbTransaction transaction)
+        public IDbContextTransaction? UseTransaction(DbTransaction? transaction)
             => throw new NotImplementedException();
 
-        public IDbContextTransaction UseTransaction(DbTransaction transaction, Guid transactionId)
+        public IDbContextTransaction? UseTransaction(DbTransaction? transaction, Guid transactionId)
             => throw new NotImplementedException();
 
-        public Task<IDbContextTransaction> UseTransactionAsync(
-            DbTransaction transaction,
+        public Task<IDbContextTransaction?> UseTransactionAsync(
+            DbTransaction? transaction,
             CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
 
-        public Task<IDbContextTransaction> UseTransactionAsync(
-            DbTransaction transaction,
+        public Task<IDbContextTransaction?> UseTransactionAsync(
+            DbTransaction? transaction,
             Guid transactionId,
             CancellationToken cancellationToken = default)
             => throw new NotImplementedException();

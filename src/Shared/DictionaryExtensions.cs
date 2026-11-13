@@ -1,12 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-
-#nullable enable
 
 namespace Microsoft.EntityFrameworkCore.Utilities;
 
@@ -30,22 +25,22 @@ internal static class DictionaryExtensions
     public static TValue? Find<TKey, TValue>(
         this IReadOnlyDictionary<TKey, TValue> source,
         TKey key)
-        => !source.TryGetValue(key, out var value) ? default : value;
+        => source.GetValueOrDefault(key);
 
     public static bool TryGetAndRemove<TKey, TValue, TReturn>(
         this IDictionary<TKey, TValue> source,
         TKey key,
-        [NotNullWhen(true)] out TReturn annotationValue)
+        [NotNullWhen(true)] out TReturn? value)
     {
-        if (source.TryGetValue(key, out var value)
-            && value != null)
+        if (source.TryGetValue(key, out var item)
+            && item != null)
         {
             source.Remove(key);
-            annotationValue = (TReturn)(object)value;
+            value = (TReturn)(object)item;
             return true;
         }
 
-        annotationValue = default!;
+        value = default;
         return false;
     }
 
@@ -66,7 +61,7 @@ internal static class DictionaryExtensions
         {
             if (found)
             {
-                pairsRemainder ??= new List<KeyValuePair<TKey, TValue>>();
+                pairsRemainder ??= [];
 
                 pairsRemainder.Add(pair);
                 continue;

@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.EntityFrameworkCore.ValueGeneration.Internal;
@@ -7,7 +7,7 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking;
 
 public class TemporaryValuesTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Set_temporary_values_for_normal_properties()
     {
         using (var context = new DefaultValuesContext())
@@ -63,7 +63,7 @@ public class TemporaryValuesTest
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Set_temporary_values_for_indexer_properties()
     {
         using (var context = new DefaultValuesContext())
@@ -97,10 +97,6 @@ public class TemporaryValuesTest
             Assert.Equal(77, context.Entry(entity1).Property<int>("ValueProperty").CurrentValue);
             Assert.Equal(77, context.Entry(entity2).Property<int?>("NullableValueProperty").CurrentValue);
             Assert.Equal("Seventy Seven", context.Entry(entity3).Property<string>("ReferenceValueProperty").CurrentValue);
-
-            Assert.False(context.Entry(entity1).Property<int>("ValueProperty").IsTemporary);
-            Assert.False(context.Entry(entity2).Property<int?>("NullableValueProperty").IsTemporary);
-            Assert.False(context.Entry(entity3).Property<string>("ReferenceValueProperty").IsTemporary);
 
             entity1["ValueProperty"] = 78;
             entity2["NullableValueProperty"] = 78;
@@ -136,7 +132,7 @@ public class TemporaryValuesTest
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Set_temporary_values_for_indexer_properties_types_as_object()
     {
         using (var context = new DefaultValuesContext())
@@ -213,7 +209,7 @@ public class TemporaryValuesTest
 
         public int ValueProperty { get; set; }
         public int? NullableValueProperty { get; set; }
-        public string ReferenceValueProperty { get; set; }
+        public string ReferenceValueProperty { get; set; } = null!;
     }
 
     private class EntityWithIndexerValueProperty
@@ -224,7 +220,7 @@ public class TemporaryValuesTest
 
         public int this[string name]
         {
-            get => _values.TryGetValue(name, out var value) ? value : default;
+            get => _values.TryGetValue(name, out var value) ? value : default!;
             set => _values[name] = value;
         }
     }
@@ -237,7 +233,7 @@ public class TemporaryValuesTest
 
         public int? this[string name]
         {
-            get => _values.TryGetValue(name, out var value) ? value : default;
+            get => _values.TryGetValue(name, out var value) ? value : default!;
             set => _values[name] = value;
         }
     }
@@ -250,7 +246,7 @@ public class TemporaryValuesTest
 
         public string this[string name]
         {
-            get => _values.TryGetValue(name, out var value) ? value : default;
+            get => _values.TryGetValue(name, out var value) ? value : default!;
             set => _values[name] = value;
         }
     }
@@ -263,7 +259,7 @@ public class TemporaryValuesTest
 
         public object this[string name]
         {
-            get => _values.TryGetValue(name, out var value) ? value : default;
+            get => _values.TryGetValue(name, out var value) ? value : default!;
             set => _values[name] = value;
         }
     }
@@ -277,61 +273,56 @@ public class TemporaryValuesTest
 
         protected internal override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<EntityWithNonIndexers>(
-                b =>
-                {
-                    b.Property(e => e.ValueProperty)
-                        .ValueGeneratedOnAdd()
-                        .HasValueGenerator<TemporaryIntValueGenerator>();
+            modelBuilder.Entity<EntityWithNonIndexers>(b =>
+            {
+                b.Property(e => e.ValueProperty)
+                    .ValueGeneratedOnAdd()
+                    .HasValueGenerator<TemporaryIntValueGenerator>();
 
-                    b.Property(e => e.NullableValueProperty)
-                        .ValueGeneratedOnAdd()
-                        .HasValueGenerator<TemporaryIntValueGenerator>();
+                b.Property(e => e.NullableValueProperty)
+                    .ValueGeneratedOnAdd()
+                    .HasValueGenerator<TemporaryIntValueGenerator>();
 
-                    b.Property(e => e.ReferenceValueProperty)
-                        .ValueGeneratedOnAdd()
-                        .HasValueGenerator<TemporaryStringValueGenerator>();
-                });
+                b.Property(e => e.ReferenceValueProperty)
+                    .ValueGeneratedOnAdd()
+                    .HasValueGenerator<TemporaryStringValueGenerator>();
+            });
 
-            modelBuilder.Entity<EntityWithIndexersAsObject>(
-                b =>
-                {
-                    b.IndexerProperty<int>("ValueProperty")
-                        .ValueGeneratedOnAdd()
-                        .HasValueGenerator<TemporaryIntValueGenerator>();
+            modelBuilder.Entity<EntityWithIndexersAsObject>(b =>
+            {
+                b.IndexerProperty<int>("ValueProperty")
+                    .ValueGeneratedOnAdd()
+                    .HasValueGenerator<TemporaryIntValueGenerator>();
 
-                    b.IndexerProperty<int?>("NullableValueProperty")
-                        .ValueGeneratedOnAdd()
-                        .HasValueGenerator<TemporaryIntValueGenerator>();
+                b.IndexerProperty<int?>("NullableValueProperty")
+                    .ValueGeneratedOnAdd()
+                    .HasValueGenerator<TemporaryIntValueGenerator>();
 
-                    b.IndexerProperty<string>("ReferenceValueProperty")
-                        .ValueGeneratedOnAdd()
-                        .HasValueGenerator<TemporaryStringValueGenerator>();
-                });
+                b.IndexerProperty<string>("ReferenceValueProperty")
+                    .ValueGeneratedOnAdd()
+                    .HasValueGenerator<TemporaryStringValueGenerator>();
+            });
 
-            modelBuilder.Entity<EntityWithIndexerValueProperty>(
-                b =>
-                {
-                    b.IndexerProperty<int>("ValueProperty")
-                        .ValueGeneratedOnAdd()
-                        .HasValueGenerator<TemporaryIntValueGenerator>();
-                });
+            modelBuilder.Entity<EntityWithIndexerValueProperty>(b =>
+            {
+                b.IndexerProperty<int>("ValueProperty")
+                    .ValueGeneratedOnAdd()
+                    .HasValueGenerator<TemporaryIntValueGenerator>();
+            });
 
-            modelBuilder.Entity<EntityWithIndexerNullableValueProperty>(
-                b =>
-                {
-                    b.IndexerProperty<int?>("NullableValueProperty")
-                        .ValueGeneratedOnAdd()
-                        .HasValueGenerator<TemporaryIntValueGenerator>();
-                });
+            modelBuilder.Entity<EntityWithIndexerNullableValueProperty>(b =>
+            {
+                b.IndexerProperty<int?>("NullableValueProperty")
+                    .ValueGeneratedOnAdd()
+                    .HasValueGenerator<TemporaryIntValueGenerator>();
+            });
 
-            modelBuilder.Entity<EntityWithIndexerReferenceProperty>(
-                b =>
-                {
-                    b.IndexerProperty<string>("ReferenceValueProperty")
-                        .ValueGeneratedOnAdd()
-                        .HasValueGenerator<TemporaryStringValueGenerator>();
-                });
+            modelBuilder.Entity<EntityWithIndexerReferenceProperty>(b =>
+            {
+                b.IndexerProperty<string>("ReferenceValueProperty")
+                    .ValueGeneratedOnAdd()
+                    .HasValueGenerator<TemporaryStringValueGenerator>();
+            });
         }
 
         private class TemporaryStringValueGenerator : ValueGenerator<string>

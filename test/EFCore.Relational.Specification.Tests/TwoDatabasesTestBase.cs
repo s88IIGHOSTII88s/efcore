@@ -5,16 +5,11 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class TwoDatabasesTestBase
+public abstract class TwoDatabasesTestBase(FixtureBase fixture)
 {
-    protected FixtureBase Fixture { get; }
+    protected FixtureBase Fixture { get; } = fixture;
 
-    protected TwoDatabasesTestBase(FixtureBase fixture)
-    {
-        Fixture = fixture;
-    }
-
-    [ConditionalFact]
+    [Fact]
     public virtual void Can_query_from_one_connection_string_and_save_changes_to_another()
     {
         using var context1 = CreateBackingContext("TwoDatabasesOne");
@@ -45,7 +40,7 @@ public abstract class TwoDatabasesTestBase
         Assert.Equal(new[] { "Modified One", "Modified Two" }, context2.Foos.Select(e => e.Bar).ToList());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Can_query_from_one_connection_and_save_changes_to_another()
     {
         using var context1 = CreateBackingContext("TwoDatabasesOneB");
@@ -73,8 +68,8 @@ public abstract class TwoDatabasesTestBase
         Assert.Equal(new[] { "Modified One", "Modified Two" }, context2.Foos.Select(e => e.Bar).ToList());
     }
 
-    [ConditionalFact]
-    public virtual void Can_set_connection_string_in_interceptor()
+    [Theory, InlineData(true, false), InlineData(true, true)]
+    public virtual void Can_set_connection_string_in_interceptor(bool withConnectionString, bool withNullConnectionString)
     {
         using var context1 = CreateBackingContext("TwoDatabasesIntercept");
 
@@ -83,10 +78,10 @@ public abstract class TwoDatabasesTestBase
         context1.Database.EnsureCreatedResiliently();
 
         using (var context = new TwoDatabasesContext(
-                   CreateTestOptions(new DbContextOptionsBuilder(), withConnectionString: true)
+                   CreateTestOptions(new DbContextOptionsBuilder(), withConnectionString)
                        .AddInterceptors(
                            new ConnectionStringConnectionInterceptor(
-                               connectionString1, DummyConnectionString))
+                               connectionString1!, withConnectionString ? DummyConnectionString : ""))
                        .Options))
         {
             var data = context.Foos.ToList();
@@ -99,23 +94,18 @@ public abstract class TwoDatabasesTestBase
         Assert.Equal(new[] { "Modified One", "Modified Two" }, context1.Foos.Select(e => e.Bar).ToList());
     }
 
-    protected class ConnectionStringConnectionInterceptor : DbConnectionInterceptor
+    protected class ConnectionStringConnectionInterceptor(string goodConnectionString, string dummyConnectionString)
+        : DbConnectionInterceptor
     {
-        private readonly string _goodConnectionString;
-        private readonly string _dummyConnectionString;
-
-        public ConnectionStringConnectionInterceptor(string goodConnectionString, string dummyConnectionString)
-        {
-            _goodConnectionString = goodConnectionString;
-            _dummyConnectionString = dummyConnectionString;
-        }
+        private readonly string _goodConnectionString = goodConnectionString;
+        private readonly string _dummyConnectionString = dummyConnectionString;
 
         public override InterceptionResult ConnectionOpening(
             DbConnection connection,
             ConnectionEventData eventData,
             InterceptionResult result)
         {
-            Assert.Equal(_dummyConnectionString, eventData.Context.Database.GetConnectionString());
+            Assert.Equal(_dummyConnectionString, eventData.Context!.Database.GetConnectionString());
             eventData.Context.Database.SetConnectionString(_goodConnectionString);
 
             return result;
@@ -123,26 +113,22 @@ public abstract class TwoDatabasesTestBase
 
         public override void ConnectionClosed(DbConnection connection, ConnectionEndEventData eventData)
         {
-            Assert.Equal(_goodConnectionString, eventData.Context.Database.GetConnectionString());
+            Assert.Equal(_goodConnectionString, eventData.Context!.Database.GetConnectionString());
             eventData.Context.Database.SetConnectionString(_dummyConnectionString);
         }
     }
 
     protected abstract DbContextOptionsBuilder CreateTestOptions(
         DbContextOptionsBuilder optionsBuilder,
-        bool withConnectionString = false);
+        bool withConnectionString = false,
+        bool withNullConnectionString = false);
 
     protected abstract TwoDatabasesWithDataContext CreateBackingContext(string databaseName);
 
     protected abstract string DummyConnectionString { get; }
 
-    protected class TwoDatabasesContext : DbContext
+    protected class TwoDatabasesContext(DbContextOptions options) : DbContext(options)
     {
-        public TwoDatabasesContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<Foo>();
 
@@ -150,13 +136,8 @@ public abstract class TwoDatabasesTestBase
             => Set<Foo>().OrderBy(e => e.Id);
     }
 
-    protected class TwoDatabasesWithDataContext : TwoDatabasesContext
+    protected class TwoDatabasesWithDataContext(DbContextOptions options) : TwoDatabasesContext(options)
     {
-        public TwoDatabasesWithDataContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -174,6 +155,6 @@ public abstract class TwoDatabasesTestBase
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id { get; set; }
 
-        public string Bar { get; set; }
+        public string? Bar { get; set; }
     }
 }

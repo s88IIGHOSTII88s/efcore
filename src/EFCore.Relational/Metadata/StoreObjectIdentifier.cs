@@ -21,27 +21,42 @@ public readonly struct StoreObjectIdentifier : IComparable<StoreObjectIdentifier
     /// <summary>
     ///     Creates an id for the store object that the given entity type is mapped to.
     /// </summary>
-    /// <param name="entityType">The entity type.</param>
+    /// <param name="typeBase">The entity type.</param>
     /// <param name="type">The store object type.</param>
     /// <returns>The store object id.</returns>
-    public static StoreObjectIdentifier? Create(IReadOnlyEntityType entityType, StoreObjectType type)
+    public static StoreObjectIdentifier? Create(IReadOnlyTypeBase typeBase, StoreObjectType type)
     {
-        Check.NotNull(entityType, nameof(entityType));
+        Check.NotNull(typeBase);
 
         switch (type)
         {
             case StoreObjectType.Table:
-                var tableName = entityType.GetTableName();
-                return tableName == null ? null : Table(tableName, entityType.GetSchema());
+                var tableName = typeBase.GetTableName();
+                return tableName == null ? null : Table(tableName, typeBase.GetSchema());
             case StoreObjectType.View:
-                var viewName = entityType.GetViewName();
-                return viewName == null ? null : View(viewName, entityType.GetViewSchema());
+                var viewName = typeBase.GetViewName();
+                return viewName == null ? null : View(viewName, typeBase.GetViewSchema());
             case StoreObjectType.SqlQuery:
-                var query = entityType.GetSqlQuery();
-                return query == null ? null : SqlQuery(entityType);
+                var query = typeBase.GetSqlQuery();
+                return query == null ? null : SqlQuery(typeBase.ContainingEntityType);
             case StoreObjectType.Function:
-                var functionName = entityType.GetFunctionName();
+                var functionName = typeBase.GetFunctionName();
                 return functionName == null ? null : DbFunction(functionName);
+            case StoreObjectType.InsertStoredProcedure:
+                var insertStoredProcedure = typeBase.GetInsertStoredProcedure();
+                return insertStoredProcedure == null || insertStoredProcedure.Name == null
+                    ? null
+                    : InsertStoredProcedure(insertStoredProcedure.Name, insertStoredProcedure.Schema);
+            case StoreObjectType.DeleteStoredProcedure:
+                var deleteStoredProcedure = typeBase.GetDeleteStoredProcedure();
+                return deleteStoredProcedure == null || deleteStoredProcedure.Name == null
+                    ? null
+                    : DeleteStoredProcedure(deleteStoredProcedure.Name, deleteStoredProcedure.Schema);
+            case StoreObjectType.UpdateStoredProcedure:
+                var updateStoredProcedure = typeBase.GetUpdateStoredProcedure();
+                return updateStoredProcedure == null || updateStoredProcedure.Name == null
+                    ? null
+                    : UpdateStoredProcedure(updateStoredProcedure.Name, updateStoredProcedure.Schema);
             default:
                 return null;
         }
@@ -55,7 +70,7 @@ public readonly struct StoreObjectIdentifier : IComparable<StoreObjectIdentifier
     /// <returns>The table id.</returns>
     public static StoreObjectIdentifier Table(string name, string? schema = null)
     {
-        Check.NotNull(name, nameof(name));
+        Check.NotNull(name);
 
         return new StoreObjectIdentifier(StoreObjectType.Table, name, schema);
     }
@@ -68,7 +83,7 @@ public readonly struct StoreObjectIdentifier : IComparable<StoreObjectIdentifier
     /// <returns>The view id.</returns>
     public static StoreObjectIdentifier View(string name, string? schema = null)
     {
-        Check.NotNull(name, nameof(name));
+        Check.NotNull(name);
 
         return new StoreObjectIdentifier(StoreObjectType.View, name, schema);
     }
@@ -80,7 +95,7 @@ public readonly struct StoreObjectIdentifier : IComparable<StoreObjectIdentifier
     /// <returns>The SQL query id.</returns>
     public static StoreObjectIdentifier SqlQuery(IReadOnlyEntityType entityType)
     {
-        Check.NotNull(entityType, nameof(entityType));
+        Check.NotNull(entityType);
 
         return new StoreObjectIdentifier(StoreObjectType.SqlQuery, entityType.GetDefaultSqlQueryName());
     }
@@ -92,7 +107,7 @@ public readonly struct StoreObjectIdentifier : IComparable<StoreObjectIdentifier
     /// <returns>The SQL query id.</returns>
     public static StoreObjectIdentifier SqlQuery(string name)
     {
-        Check.NotNull(name, nameof(name));
+        Check.NotNull(name);
 
         return new StoreObjectIdentifier(StoreObjectType.SqlQuery, name);
     }
@@ -104,9 +119,48 @@ public readonly struct StoreObjectIdentifier : IComparable<StoreObjectIdentifier
     /// <returns>The function id.</returns>
     public static StoreObjectIdentifier DbFunction(string modelName)
     {
-        Check.NotNull(modelName, nameof(modelName));
+        Check.NotNull(modelName);
 
         return new StoreObjectIdentifier(StoreObjectType.Function, modelName);
+    }
+
+    /// <summary>
+    ///     Creates an insert stored procedure id.
+    /// </summary>
+    /// <param name="name">The stored procedure name.</param>
+    /// <param name="schema">The stored procedure schema.</param>
+    /// <returns>The stored procedure id.</returns>
+    public static StoreObjectIdentifier InsertStoredProcedure(string name, string? schema = null)
+    {
+        Check.NotNull(name);
+
+        return new StoreObjectIdentifier(StoreObjectType.InsertStoredProcedure, name, schema);
+    }
+
+    /// <summary>
+    ///     Creates a delete stored procedure id.
+    /// </summary>
+    /// <param name="name">The stored procedure name.</param>
+    /// <param name="schema">The stored procedure schema.</param>
+    /// <returns>The stored procedure id.</returns>
+    public static StoreObjectIdentifier DeleteStoredProcedure(string name, string? schema = null)
+    {
+        Check.NotNull(name);
+
+        return new StoreObjectIdentifier(StoreObjectType.DeleteStoredProcedure, name, schema);
+    }
+
+    /// <summary>
+    ///     Creates an update stored procedure id.
+    /// </summary>
+    /// <param name="name">The stored procedure name.</param>
+    /// <param name="schema">The stored procedure  schema.</param>
+    /// <returns>The stored procedure id.</returns>
+    public static StoreObjectIdentifier UpdateStoredProcedure(string name, string? schema = null)
+    {
+        Check.NotNull(name);
+
+        return new StoreObjectIdentifier(StoreObjectType.UpdateStoredProcedure, name, schema);
     }
 
     /// <summary>
@@ -134,12 +188,7 @@ public readonly struct StoreObjectIdentifier : IComparable<StoreObjectIdentifier
         }
 
         result = StringComparer.Ordinal.Compare(Name, other.Name);
-        if (result != 0)
-        {
-            return result;
-        }
-
-        return StringComparer.Ordinal.Compare(Schema, other.Schema);
+        return result != 0 ? result : StringComparer.Ordinal.Compare(Schema, other.Schema);
     }
 
     /// <summary>

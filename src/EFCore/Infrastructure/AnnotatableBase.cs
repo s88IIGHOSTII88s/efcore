@@ -21,7 +21,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure;
 /// </remarks>
 public class AnnotatableBase : IAnnotatable
 {
-    private SortedDictionary<string, Annotation>? _annotations;
+    private Dictionary<string, Annotation>? _annotations;
     private ConcurrentDictionary<string, Annotation>? _runtimeAnnotations;
 
     /// <summary>
@@ -52,7 +52,7 @@ public class AnnotatableBase : IAnnotatable
     ///     Gets all annotations on the current object.
     /// </summary>
     public virtual IEnumerable<Annotation> GetAnnotations()
-        => _annotations?.Values ?? Enumerable.Empty<Annotation>();
+        => _annotations?.Values.OrderBy(a => a.Name, StringComparer.Ordinal) ?? Enumerable.Empty<Annotation>();
 
     /// <summary>
     ///     Adds an annotation to this object. Throws if an annotation with the specified name already exists.
@@ -62,7 +62,7 @@ public class AnnotatableBase : IAnnotatable
     /// <returns>The newly added annotation.</returns>
     public virtual Annotation AddAnnotation(string name, object? value)
     {
-        Check.NotEmpty(name, nameof(name));
+        Check.NotEmpty(name);
 
         var annotation = CreateAnnotation(name, value);
 
@@ -148,7 +148,7 @@ public class AnnotatableBase : IAnnotatable
     {
         EnsureMutable();
 
-        _annotations ??= new SortedDictionary<string, Annotation>(StringComparer.Ordinal);
+        _annotations ??= [with(StringComparer.Ordinal)];
         _annotations[name] = annotation;
 
         return OnAnnotationSet(name, annotation, oldAnnotation);
@@ -176,13 +176,9 @@ public class AnnotatableBase : IAnnotatable
     /// </returns>
     public virtual Annotation? FindAnnotation(string name)
     {
-        Check.NotEmpty(name, nameof(name));
+        Check.NotEmpty(name);
 
-        return _annotations == null
-            ? null
-            : _annotations.TryGetValue(name, out var annotation)
-                ? annotation
-                : null;
+        return _annotations?.GetValueOrDefault(name);
     }
 
     /// <summary>
@@ -201,15 +197,10 @@ public class AnnotatableBase : IAnnotatable
     /// </summary>
     internal static IAnnotation GetAnnotation(IReadOnlyAnnotatable annotatable, string annotationName)
     {
-        Check.NotEmpty(annotationName, nameof(annotationName));
+        Check.NotEmpty(annotationName);
 
         var annotation = annotatable.FindAnnotation(annotationName);
-        if (annotation == null)
-        {
-            throw new InvalidOperationException(CoreStrings.AnnotationNotFound(annotationName, annotatable.ToString()));
-        }
-
-        return annotation;
+        return annotation ?? throw new InvalidOperationException(CoreStrings.AnnotationNotFound(annotationName, annotatable.ToString()));
     }
 
     /// <summary>
@@ -219,7 +210,7 @@ public class AnnotatableBase : IAnnotatable
     /// <returns>The annotation that was removed.</returns>
     public virtual Annotation? RemoveAnnotation(string name)
     {
-        Check.NotNull(name, nameof(name));
+        Check.NotNull(name);
         EnsureMutable();
 
         var annotation = FindAnnotation(name);
@@ -254,7 +245,7 @@ public class AnnotatableBase : IAnnotatable
 
         set
         {
-            Check.NotEmpty(name, nameof(name));
+            Check.NotEmpty(name);
 
             if (value == null)
             {
@@ -280,9 +271,7 @@ public class AnnotatableBase : IAnnotatable
     ///     Gets all runtime annotations on the current object.
     /// </summary>
     public virtual IEnumerable<Annotation> GetRuntimeAnnotations()
-        => _runtimeAnnotations == null
-            ? Enumerable.Empty<Annotation>()
-            : _runtimeAnnotations.OrderBy(p => p.Key).Select(p => p.Value);
+        => _runtimeAnnotations?.OrderBy(p => p.Key).Select(p => p.Value) ?? [];
 
     /// <summary>
     ///     Adds a runtime annotation to this object. Throws if an annotation with the specified name already exists.
@@ -292,7 +281,7 @@ public class AnnotatableBase : IAnnotatable
     /// <returns>The newly added annotation.</returns>
     public virtual Annotation AddRuntimeAnnotation(string name, object? value)
     {
-        Check.NotEmpty(name, nameof(name));
+        Check.NotEmpty(name);
 
         var annotation = CreateRuntimeAnnotation(name, value);
 
@@ -389,13 +378,9 @@ public class AnnotatableBase : IAnnotatable
     /// </returns>
     public virtual Annotation? FindRuntimeAnnotation(string name)
     {
-        Check.NotEmpty(name, nameof(name));
+        Check.NotEmpty(name);
 
-        return _runtimeAnnotations == null
-            ? null
-            : _runtimeAnnotations.TryGetValue(name, out var annotation)
-                ? annotation
-                : null;
+        return _runtimeAnnotations?.GetValueOrDefault(name);
     }
 
     /// <summary>
@@ -405,7 +390,7 @@ public class AnnotatableBase : IAnnotatable
     /// <returns>The annotation that was removed.</returns>
     public virtual Annotation? RemoveRuntimeAnnotation(string name)
     {
-        Check.NotNull(name, nameof(name));
+        Check.NotNull(name);
         EnsureReadOnly();
 
         if (_runtimeAnnotations == null)

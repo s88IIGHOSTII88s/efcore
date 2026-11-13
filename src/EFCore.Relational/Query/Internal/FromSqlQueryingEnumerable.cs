@@ -12,10 +12,47 @@ namespace Microsoft.EntityFrameworkCore.Query.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
+public static class FromSqlQueryingEnumerable
+{
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public static FromSqlQueryingEnumerable<T> Create<T>(
+        RelationalQueryContext relationalQueryContext,
+        RelationalCommandResolver relationalCommandResolver,
+        IReadOnlyList<ReaderColumn?>? readerColumns,
+        IReadOnlyList<string> columnNames,
+        Func<QueryContext, DbDataReader, int[], T> shaper,
+        Type contextType,
+        bool standAloneStateManager,
+        bool detailedErrorsEnabled,
+        bool threadSafetyChecksEnabled)
+        => new(
+            relationalQueryContext,
+            relationalCommandResolver,
+            readerColumns,
+            columnNames,
+            shaper,
+            contextType,
+            standAloneStateManager,
+            detailedErrorsEnabled,
+            threadSafetyChecksEnabled);
+}
+
+/// <summary>
+///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+///     any release. You should only use it directly in your code with extreme caution and knowing that
+///     doing so can result in application failures when updating to a new Entity Framework Core release.
+/// </summary>
 public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>, IRelationalQueryingEnumerable
 {
     private readonly RelationalQueryContext _relationalQueryContext;
-    private readonly RelationalCommandCache _relationalCommandCache;
+    private readonly RelationalCommandResolver _relationalCommandResolver;
+    private readonly IReadOnlyList<ReaderColumn?>? _readerColumns;
     private readonly IReadOnlyList<string> _columnNames;
     private readonly Func<QueryContext, DbDataReader, int[], T> _shaper;
     private readonly Type _contextType;
@@ -32,7 +69,8 @@ public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>,
     /// </summary>
     public FromSqlQueryingEnumerable(
         RelationalQueryContext relationalQueryContext,
-        RelationalCommandCache relationalCommandCache,
+        RelationalCommandResolver relationalCommandResolver,
+        IReadOnlyList<ReaderColumn?>? readerColumns,
         IReadOnlyList<string> columnNames,
         Func<QueryContext, DbDataReader, int[], T> shaper,
         Type contextType,
@@ -41,7 +79,8 @@ public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>,
         bool threadSafetyChecksEnabled)
     {
         _relationalQueryContext = relationalQueryContext;
-        _relationalCommandCache = relationalCommandCache;
+        _relationalCommandResolver = relationalCommandResolver;
+        _readerColumns = readerColumns;
         _columnNames = columnNames;
         _shaper = shaper;
         _contextType = contextType;
@@ -59,7 +98,10 @@ public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>,
     /// </summary>
     public virtual IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        _relationalQueryContext.CancellationToken = cancellationToken;
+        if (cancellationToken != default)
+        {
+            _relationalQueryContext.CancellationToken = cancellationToken;
+        }
 
         return new AsyncEnumerator(this);
     }
@@ -89,12 +131,11 @@ public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>,
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual DbCommand CreateDbCommand()
-        => _relationalCommandCache
-            .GetRelationalCommandTemplate(_relationalQueryContext.ParameterValues)
+        => _relationalCommandResolver(_relationalQueryContext.Parameters)
             .CreateDbCommand(
                 new RelationalCommandParameterObject(
                     _relationalQueryContext.Connection,
-                    _relationalQueryContext.ParameterValues,
+                    _relationalQueryContext.Parameters,
                     null,
                     null,
                     null,
@@ -131,7 +172,12 @@ public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>,
             var columnName = columnNames[i];
             if (!readerColumns.TryGetValue(columnName, out var ordinal))
             {
-                throw new InvalidOperationException(RelationalStrings.FromSqlMissingColumn(columnName));
+                if (columnNames.Count != 1)
+                {
+                    throw new InvalidOperationException(RelationalStrings.FromSqlMissingColumn(columnName));
+                }
+
+                ordinal = 0;
             }
 
             indexMap[i] = ordinal;
@@ -143,7 +189,8 @@ public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>,
     private sealed class Enumerator : IEnumerator<T>
     {
         private readonly RelationalQueryContext _relationalQueryContext;
-        private readonly RelationalCommandCache _relationalCommandCache;
+        private readonly RelationalCommandResolver _relationalCommandResolver;
+        private readonly IReadOnlyList<ReaderColumn?>? _readerColumns;
         private readonly IReadOnlyList<string> _columnNames;
         private readonly Func<QueryContext, DbDataReader, int[], T> _shaper;
         private readonly Type _contextType;
@@ -160,7 +207,8 @@ public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>,
         public Enumerator(FromSqlQueryingEnumerable<T> queryingEnumerable)
         {
             _relationalQueryContext = queryingEnumerable._relationalQueryContext;
-            _relationalCommandCache = queryingEnumerable._relationalCommandCache;
+            _relationalCommandResolver = queryingEnumerable._relationalCommandResolver;
+            _readerColumns = queryingEnumerable._readerColumns;
             _columnNames = queryingEnumerable._columnNames;
             _shaper = queryingEnumerable._shaper;
             _contextType = queryingEnumerable._contextType;
@@ -184,27 +232,20 @@ public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>,
         {
             try
             {
-                _concurrencyDetector?.EnterCriticalSection();
+                using var _ = _concurrencyDetector?.EnterCriticalSection();
 
-                try
+                if (_dataReader == null)
                 {
-                    if (_dataReader == null)
-                    {
-                        _relationalQueryContext.ExecutionStrategy.Execute(this, (_, enumerator) => InitializeReader(enumerator), null);
-                    }
-
-                    var hasNext = _dataReader!.Read();
-
-                    Current = hasNext
-                        ? _shaper(_relationalQueryContext, _dataReader.DbDataReader, _indexMap!)
-                        : default!;
-
-                    return hasNext;
+                    _relationalQueryContext.ExecutionStrategy.Execute(this, (_, enumerator) => InitializeReader(enumerator), null);
                 }
-                finally
-                {
-                    _concurrencyDetector?.ExitCriticalSection();
-                }
+
+                var hasNext = _dataReader!.Read();
+
+                Current = hasNext
+                    ? _shaper(_relationalQueryContext, _dataReader.DbDataReader, _indexMap!)
+                    : default!;
+
+                return hasNext;
             }
             catch (Exception exception)
             {
@@ -223,16 +264,16 @@ public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>,
 
         private static bool InitializeReader(Enumerator enumerator)
         {
-            EntityFrameworkEventSource.Log.QueryExecuting();
+            EntityFrameworkMetricsData.ReportQueryExecuting();
 
             var relationalCommand = enumerator._relationalCommand =
-                enumerator._relationalCommandCache.RentAndPopulateRelationalCommand(enumerator._relationalQueryContext);
+                enumerator._relationalCommandResolver.RentAndPopulateRelationalCommand(enumerator._relationalQueryContext);
 
             enumerator._dataReader = relationalCommand.ExecuteReader(
                 new RelationalCommandParameterObject(
                     enumerator._relationalQueryContext.Connection,
-                    enumerator._relationalQueryContext.ParameterValues,
-                    enumerator._relationalCommandCache.ReaderColumns,
+                    enumerator._relationalQueryContext.Parameters,
+                    enumerator._readerColumns,
                     enumerator._relationalQueryContext.Context,
                     enumerator._relationalQueryContext.CommandLogger,
                     enumerator._detailedErrorsEnabled, CommandSource.FromSqlQuery));
@@ -261,7 +302,8 @@ public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>,
     private sealed class AsyncEnumerator : IAsyncEnumerator<T>
     {
         private readonly RelationalQueryContext _relationalQueryContext;
-        private readonly RelationalCommandCache _relationalCommandCache;
+        private readonly RelationalCommandResolver _relationalCommandResolver;
+        private readonly IReadOnlyList<ReaderColumn?>? _readerColumns;
         private readonly IReadOnlyList<string> _columnNames;
         private readonly Func<QueryContext, DbDataReader, int[], T> _shaper;
         private readonly Type _contextType;
@@ -278,7 +320,8 @@ public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>,
         public AsyncEnumerator(FromSqlQueryingEnumerable<T> queryingEnumerable)
         {
             _relationalQueryContext = queryingEnumerable._relationalQueryContext;
-            _relationalCommandCache = queryingEnumerable._relationalCommandCache;
+            _relationalCommandResolver = queryingEnumerable._relationalCommandResolver;
+            _readerColumns = queryingEnumerable._readerColumns;
             _columnNames = queryingEnumerable._columnNames;
             _shaper = queryingEnumerable._shaper;
             _contextType = queryingEnumerable._contextType;
@@ -299,32 +342,25 @@ public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>,
         {
             try
             {
-                _concurrencyDetector?.EnterCriticalSection();
+                using var _ = _concurrencyDetector?.EnterCriticalSection();
 
-                try
+                if (_dataReader == null)
                 {
-                    if (_dataReader == null)
-                    {
-                        await _relationalQueryContext.ExecutionStrategy.ExecuteAsync(
-                                this,
-                                (_, enumerator, cancellationToken) => InitializeReaderAsync(enumerator, cancellationToken),
-                                null,
-                                _relationalQueryContext.CancellationToken)
-                            .ConfigureAwait(false);
-                    }
-
-                    var hasNext = await _dataReader!.ReadAsync(_relationalQueryContext.CancellationToken).ConfigureAwait(false);
-
-                    Current = hasNext
-                        ? _shaper(_relationalQueryContext, _dataReader.DbDataReader, _indexMap!)
-                        : default!;
-
-                    return hasNext;
+                    await _relationalQueryContext.ExecutionStrategy.ExecuteAsync(
+                            this,
+                            (_, enumerator, cancellationToken) => InitializeReaderAsync(enumerator, cancellationToken),
+                            null,
+                            _relationalQueryContext.CancellationToken)
+                        .ConfigureAwait(false);
                 }
-                finally
-                {
-                    _concurrencyDetector?.ExitCriticalSection();
-                }
+
+                var hasNext = await _dataReader!.ReadAsync(_relationalQueryContext.CancellationToken).ConfigureAwait(false);
+
+                Current = hasNext
+                    ? _shaper(_relationalQueryContext, _dataReader.DbDataReader, _indexMap!)
+                    : default!;
+
+                return hasNext;
             }
             catch (Exception exception)
             {
@@ -343,16 +379,16 @@ public class FromSqlQueryingEnumerable<T> : IEnumerable<T>, IAsyncEnumerable<T>,
 
         private static async Task<bool> InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
         {
-            EntityFrameworkEventSource.Log.QueryExecuting();
+            EntityFrameworkMetricsData.ReportQueryExecuting();
 
             var relationalCommand = enumerator._relationalCommand =
-                enumerator._relationalCommandCache.RentAndPopulateRelationalCommand(enumerator._relationalQueryContext);
+                enumerator._relationalCommandResolver.RentAndPopulateRelationalCommand(enumerator._relationalQueryContext);
 
             enumerator._dataReader = await relationalCommand.ExecuteReaderAsync(
                     new RelationalCommandParameterObject(
                         enumerator._relationalQueryContext.Connection,
-                        enumerator._relationalQueryContext.ParameterValues,
-                        enumerator._relationalCommandCache.ReaderColumns,
+                        enumerator._relationalQueryContext.Parameters,
+                        enumerator._readerColumns,
                         enumerator._relationalQueryContext.Context,
                         enumerator._relationalQueryContext.CommandLogger,
                         enumerator._detailedErrorsEnabled, CommandSource.FromSqlQuery),

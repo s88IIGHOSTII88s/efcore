@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Internal;
 namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 /// <summary>
-///     Convention that converts accesses of <see cref="DbSet{TEntity}" /> inside query filters into <see cref="QueryRootExpression" />.
+///     Convention that converts accesses of <see cref="DbSet{TEntity}" /> inside query filters into <see cref="EntityQueryRootExpression" />.
 ///     This makes them consistent with how DbSet accesses in the actual queries are represented, which allows for easier processing in the
 ///     query pipeline.
 /// </summary>
@@ -31,7 +31,8 @@ public class QueryFilterRewritingConvention : IModelFinalizingConvention
     protected virtual ProviderConventionSetBuilderDependencies Dependencies { get; }
 
     /// <summary>
-    ///     Visitor used to rewrite <see cref="DbSet{TEntity}" /> accesses encountered in query filters to <see cref="QueryRootExpression" />.
+    ///     Visitor used to rewrite <see cref="DbSet{TEntity}" /> accesses encountered in query filters
+    ///     to <see cref="EntityQueryRootExpression" />.
     /// </summary>
     protected virtual DbSetAccessRewritingExpressionVisitor DbSetAccessRewriter { get; set; }
 
@@ -42,16 +43,29 @@ public class QueryFilterRewritingConvention : IModelFinalizingConvention
     {
         foreach (var entityType in modelBuilder.Metadata.GetEntityTypes())
         {
-            var queryFilter = entityType.GetQueryFilter();
-            if (queryFilter != null)
+            var queryFilters = entityType.GetDeclaredQueryFilters();
+            foreach (var queryFilter in queryFilters)
             {
-                entityType.SetQueryFilter((LambdaExpression)DbSetAccessRewriter.Rewrite(modelBuilder.Metadata, queryFilter));
+                if (queryFilter.Expression == null)
+                {
+                    continue;
+                }
+
+                var expression = (LambdaExpression)DbSetAccessRewriter.Rewrite(modelBuilder.Metadata, queryFilter.Expression);
+                if (queryFilter.IsAnonymous)
+                {
+                    entityType.SetQueryFilter(expression);
+                }
+                else
+                {
+                    entityType.SetQueryFilter(queryFilter.Key, expression);
+                }
             }
         }
     }
 
     /// <summary>
-    ///     A visitor that rewrites DbSet accesses encountered in an expression to <see cref="QueryRootExpression" />.
+    ///     A visitor that rewrites DbSet accesses encountered in an expression to <see cref="EntityQueryRootExpression" />.
     /// </summary>
     protected class DbSetAccessRewritingExpressionVisitor : ExpressionVisitor
     {
@@ -63,12 +77,10 @@ public class QueryFilterRewritingConvention : IModelFinalizingConvention
         /// </summary>
         /// <param name="contextType">The clr type of derived DbContext.</param>
         public DbSetAccessRewritingExpressionVisitor(Type contextType)
-        {
-            _contextType = contextType;
-        }
+            => _contextType = contextType;
 
         /// <summary>
-        ///     Rewrites DbSet accesses encountered in the expression to <see cref="QueryRootExpression" />.
+        ///     Rewrites DbSet accesses encountered in the expression to <see cref="EntityQueryRootExpression" />.
         /// </summary>
         /// <param name="model">The model to look for entity types.</param>
         /// <param name="expression">The query expression to rewrite.</param>
@@ -82,7 +94,7 @@ public class QueryFilterRewritingConvention : IModelFinalizingConvention
         /// <inheritdoc />
         protected override Expression VisitMember(MemberExpression memberExpression)
         {
-            Check.NotNull(memberExpression, nameof(memberExpression));
+            Check.NotNull(memberExpression);
 
             if (memberExpression.Expression != null
                 && (memberExpression.Expression.Type.IsAssignableFrom(_contextType)
@@ -92,7 +104,7 @@ public class QueryFilterRewritingConvention : IModelFinalizingConvention
                 && _model != null)
             {
                 var entityClrType = memberExpression.Type.GetGenericArguments()[0];
-                return new QueryRootExpression(FindEntityType(entityClrType)!);
+                return new EntityQueryRootExpression(FindEntityType(entityClrType)!);
             }
 
             return base.VisitMember(memberExpression);
@@ -101,7 +113,7 @@ public class QueryFilterRewritingConvention : IModelFinalizingConvention
         /// <inheritdoc />
         protected override Expression VisitMethodCall(MethodCallExpression methodCallExpression)
         {
-            Check.NotNull(methodCallExpression, nameof(methodCallExpression));
+            Check.NotNull(methodCallExpression);
 
             if (methodCallExpression.Method.Name == nameof(DbContext.Set)
                 && methodCallExpression.Object != null
@@ -157,7 +169,7 @@ public class QueryFilterRewritingConvention : IModelFinalizingConvention
                     throw new InvalidOperationException(message);
                 }
 
-                return new QueryRootExpression(entityType);
+                return new EntityQueryRootExpression(entityType);
             }
 
             return base.VisitMethodCall(methodCallExpression);

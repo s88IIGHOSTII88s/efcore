@@ -3,36 +3,31 @@
 
 namespace Microsoft.EntityFrameworkCore.TestUtilities.QueryTestGeneration;
 
-public class ProceduralQueryExpressionGenerator
+public class ProceduralQueryExpressionGenerator(DbContext context)
 {
-    private readonly List<ExpressionMutator> _mutators;
+    private readonly List<ExpressionMutator> _mutators =
+    [
+        new AppendSelectConstantExpressionMutator(context),
+        new AppendSelectIdentityExpressionMutator(context),
+        new AppendSelectPropertyExpressionMutator(context),
+        new AppendOrderByIdentityExpressionMutator(context),
+        new AppendOrderByPropertyExpressionMutator(context),
+        new AppendThenByIdentityExpressionMutator(context),
+        new AppendTakeExpressionMutator(context),
+        new StringConcatWithSelfExpressionMutator(context),
+        new InjectCoalesceExpressionMutator(context),
+        new InjectStringFunctionExpressionMutator(context),
+        new InjectJoinWithSelfExpressionMutator(context),
+        new InjectOrderByPropertyExpressionMutator(context),
+        new InjectThenByPropertyExpressionMutator(context),
+        new AppendCorrelatedCollectionExpressionMutator(context),
+        new AppendIncludeToExistingExpressionMutator(context),
+        new InjectIncludeExpressionMutator(context),
+        new InjectWhereExpressionMutator(context)
+    ];
 
     // used to hard code the seed used for test generation
     public static readonly int? Seed = null;
-
-    public ProceduralQueryExpressionGenerator(DbContext context)
-    {
-        _mutators = new List<ExpressionMutator>
-        {
-            new AppendSelectConstantExpressionMutator(context),
-            new AppendSelectIdentityExpressionMutator(context),
-            new AppendSelectPropertyExpressionMutator(context),
-            new AppendOrderByIdentityExpressionMutator(context),
-            new AppendOrderByPropertyExpressionMutator(context),
-            new AppendThenByIdentityExpressionMutator(context),
-            new AppendTakeExpressionMutator(context),
-            new StringConcatWithSelfExpressionMutator(context),
-            new InjectCoalesceExpressionMutator(context),
-            new InjectStringFunctionExpressionMutator(context),
-            new InjectJoinWithSelfExpressionMutator(context),
-            new InjectOrderByPropertyExpressionMutator(context),
-            new InjectThenByPropertyExpressionMutator(context),
-            new AppendCorrelatedCollectionExpressionMutator(context),
-            new AppendIncludeToExistingExpressionMutator(context),
-            new InjectIncludeExpressionMutator(context),
-            new InjectWhereExpressionMutator(context)
-        };
-    }
 
     public Expression Generate(Expression expression, Random random)
     {
@@ -51,7 +46,7 @@ public class ProceduralQueryExpressionGenerator
 
 public class ProcedurallyGeneratedQueryExecutor
 {
-    private static readonly Dictionary<string, List<string>> _knownFailingTests = new();
+    private static readonly Dictionary<string, List<string>> _knownFailingTests = [];
 
     static ProcedurallyGeneratedQueryExecutor()
     {
@@ -180,7 +175,9 @@ public class ProcedurallyGeneratedQueryExecutor
         AddExpectedFailure("GroupBy_optional_navigation_member_Aggregate", "Incorrect syntax near '+'."); // 12656
         AddExpectedFailure("GroupBy_Property_Select_Key_Max", "Incorrect syntax near '+'."); // 12656
 
-        AddExpectedFailure("Collection_select_nav_prop_sum", "Nullable object must have a value."); // 12657
+        AddExpectedFailure(
+            "Collection_select_nav_prop_sum",
+            "Cannot read the Value property of a Nullable object that has no value. Check HasValue before reading Value."); // 12657
 
         AddExpectedFailure("Simple_owned_level1_level2_GroupBy_Having_Count", "Incorrect syntax near '+'."); // 12658
 
@@ -292,7 +289,7 @@ public class ProcedurallyGeneratedQueryExecutor
         }
         else
         {
-            _knownFailingTests[testName] = new List<string> { expectedException };
+            _knownFailingTests[testName] = [expectedException];
         }
     }
 
@@ -303,7 +300,7 @@ public class ProcedurallyGeneratedQueryExecutor
         var depth = 2;
 
         IQueryable newQuery = query;
-        Expression newExpression = null;
+        Expression newExpression = null!;
         for (var i = 0; i < depth; i++)
         {
             var expression = newQuery.Expression;
@@ -324,7 +321,7 @@ public class ProcedurallyGeneratedQueryExecutor
         }
 
         // printed just for debugging purposes
-        var queryString = newExpression.Print();
+        var queryString = newExpression!.Print();
 
         try
         {

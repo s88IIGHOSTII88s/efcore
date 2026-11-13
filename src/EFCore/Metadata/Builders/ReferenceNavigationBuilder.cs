@@ -130,7 +130,7 @@ public class ReferenceNavigationBuilder : IInfrastructure<IConventionForeignKeyB
         => new(
             RelatedEntityType,
             DeclaringEntityType,
-            WithManyBuilder(Check.NullButNotEmpty(collection, nameof(collection))).Metadata);
+            WithManyBuilder(Check.NullButNotEmpty(collection)).Metadata);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -157,8 +157,7 @@ public class ReferenceNavigationBuilder : IInfrastructure<IConventionForeignKeyB
         var builder = Builder.HasEntityTypes(
             (EntityType)RelatedEntityType, (EntityType)DeclaringEntityType, ConfigurationSource.Explicit)!;
         var collectionName = collection.Name;
-        if (builder.Metadata.IsUnique
-            && builder.Metadata.PrincipalToDependent != null
+        if (builder.Metadata is { IsUnique: true, PrincipalToDependent: not null }
             && builder.Metadata.GetPrincipalToDependentConfigurationSource() == ConfigurationSource.Explicit
             && collectionName != null)
         {
@@ -198,7 +197,7 @@ public class ReferenceNavigationBuilder : IInfrastructure<IConventionForeignKeyB
     /// </param>
     /// <returns>An object that can be used to configure the relationship.</returns>
     public virtual ReferenceReferenceBuilder WithOne(string? reference = null)
-        => new(DeclaringEntityType, RelatedEntityType, WithOneBuilder(Check.NullButNotEmpty(reference, nameof(reference))).Metadata);
+        => new(DeclaringEntityType, RelatedEntityType, WithOneBuilder(Check.NullButNotEmpty(reference)).Metadata);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -239,8 +238,8 @@ public class ReferenceNavigationBuilder : IInfrastructure<IConventionForeignKeyB
             && ReferenceName == referenceName)
         {
             throw new InvalidOperationException(
-                CoreStrings.ConflictingPropertyOrNavigation(
-                    referenceName, RelatedEntityType.DisplayName(), RelatedEntityType.DisplayName()));
+                CoreStrings.ConflictingPropertyOrNavigationWithKind(
+                    referenceName, RelatedEntityType.DisplayName(), "navigation"));
         }
 
         var pointsToPrincipal = !foreignKey.IsSelfReferencing()
@@ -265,26 +264,21 @@ public class ReferenceNavigationBuilder : IInfrastructure<IConventionForeignKeyB
         }
 
         var referenceProperty = reference.MemberInfo;
-        if (pointsToPrincipal)
-        {
-            builder = referenceProperty == null || ReferenceMember == null
+        builder = pointsToPrincipal
+            ? referenceProperty == null || ReferenceMember == null
                 ? builder.HasNavigations(
                     referenceName, ReferenceName,
                     (EntityType)DeclaringEntityType, (EntityType)RelatedEntityType, ConfigurationSource.Explicit)!
                 : builder.HasNavigations(
                     referenceProperty, ReferenceMember,
-                    (EntityType)DeclaringEntityType, (EntityType)RelatedEntityType, ConfigurationSource.Explicit)!;
-        }
-        else
-        {
-            builder = referenceProperty == null || ReferenceMember == null
+                    (EntityType)DeclaringEntityType, (EntityType)RelatedEntityType, ConfigurationSource.Explicit)!
+            : referenceProperty == null || ReferenceMember == null
                 ? builder.HasNavigations(
                     ReferenceName, referenceName,
                     (EntityType)RelatedEntityType, (EntityType)DeclaringEntityType, ConfigurationSource.Explicit)!
                 : builder.HasNavigations(
                     ReferenceMember, referenceProperty,
                     (EntityType)RelatedEntityType, (EntityType)DeclaringEntityType, ConfigurationSource.Explicit)!;
-        }
 
         return batch.Run(builder)!;
     }

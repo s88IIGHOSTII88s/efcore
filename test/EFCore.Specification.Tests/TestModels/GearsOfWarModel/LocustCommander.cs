@@ -5,12 +5,12 @@ namespace Microsoft.EntityFrameworkCore.TestModels.GearsOfWarModel;
 
 public class LocustCommander : LocustLeader
 {
-    public LocustHorde CommandingFaction { get; set; }
+    public LocustHorde CommandingFaction { get; set; } = null!;
 
-    public string DefeatedByNickname { get; set; }
+    public string? DefeatedByNickname { get; set; }
     public int? DefeatedBySquadId { get; set; }
-    public Gear DefeatedBy { get; set; }
+    public Gear? DefeatedBy { get; set; }
 
-    public LocustHighCommand HighCommand { get; set; }
+    public LocustHighCommand HighCommand { get; set; } = null!;
     public int HighCommandId { get; set; }
 }

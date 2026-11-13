@@ -29,18 +29,24 @@ public interface IReadOnlyNavigationBase : IReadOnlyPropertyBase
     IReadOnlyNavigationBase? Inverse { get; }
 
     /// <summary>
-    ///     Gets a value indicating whether the navigation property is a collection property.
-    /// </summary>
-    bool IsCollection { get; }
-
-    /// <summary>
     ///     Gets a value indicating whether this navigation should be eager loaded by default.
     /// </summary>
     bool IsEagerLoaded
         => (bool?)this[CoreAnnotationNames.EagerLoaded] ?? false;
 
+    /// <summary>
+    ///     Determines whether this navigation should lazy-load if lazy-loading is enabled and a mechanism for lazy-loading
+    ///     has been configured in the model.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-lazy-loading">Lazy loading</see> for more information and examples.
+    ///     </para>
+    /// </remarks>
+    bool LazyLoadingEnabled
+        => (bool?)this[CoreAnnotationNames.LazyLoadingEnabled] ?? true;
+
     /// <inheritdoc />
-    // TODO: Remove when #3864 is implemented
     bool IReadOnlyPropertyBase.IsShadowProperty()
         => this.GetIdentifyingMemberInfo() == null;
 }

@@ -1,36 +1,30 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore;
 
-public class StoreGeneratedFixupSqlServerTest : StoreGeneratedFixupRelationalTestBase<
-    StoreGeneratedFixupSqlServerTest.StoreGeneratedFixupSqlServerFixture>
+public class StoreGeneratedFixupSqlServerTest(StoreGeneratedFixupSqlServerTest.StoreGeneratedFixupSqlServerFixture fixture)
+    : StoreGeneratedFixupRelationalTestBase<
+        StoreGeneratedFixupSqlServerTest.StoreGeneratedFixupSqlServerFixture>(fixture)
 {
-    public StoreGeneratedFixupSqlServerTest(StoreGeneratedFixupSqlServerFixture fixture)
-        : base(fixture)
-    {
-    }
+    [Fact]
+    public Task Temp_values_are_replaced_on_save()
+        => ExecuteWithStrategyInTransactionAsync(async context =>
+        {
+            var entry = context.Add(new TestTemp());
 
-    [ConditionalFact]
-    public void Temp_values_are_replaced_on_save()
-        => ExecuteWithStrategyInTransaction(
-            context =>
-            {
-                var entry = context.Add(new TestTemp());
+            Assert.True(entry.Property(e => e.Id).IsTemporary);
+            Assert.False(entry.Property(e => e.NotId).IsTemporary);
 
-                Assert.True(entry.Property(e => e.Id).IsTemporary);
-                Assert.False(entry.Property(e => e.NotId).IsTemporary);
+            var tempValue = entry.Property(e => e.Id).CurrentValue;
 
-                var tempValue = entry.Property(e => e.Id).CurrentValue;
+            await context.SaveChangesAsync();
 
-                context.SaveChanges();
-
-                Assert.False(entry.Property(e => e.Id).IsTemporary);
-                Assert.NotEqual(tempValue, entry.Property(e => e.Id).CurrentValue);
-            });
+            Assert.False(entry.Property(e => e.Id).IsTemporary);
+            Assert.NotEqual(tempValue, entry.Property(e => e.Id).CurrentValue);
+        });
 
     protected override void MarkIdsTemporary(DbContext context, object dependent, object principal)
     {
@@ -75,117 +69,101 @@ public class StoreGeneratedFixupSqlServerTest : StoreGeneratedFixupRelationalTes
         {
             base.OnModelCreating(modelBuilder, context);
 
-            modelBuilder.Entity<Parent>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<Parent>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<Child>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<Child>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<ParentPN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<ParentPN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<ChildPN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<ChildPN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<ParentDN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<ParentDN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<ChildDN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<ChildDN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<ParentNN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<ParentNN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<ChildNN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<ChildNN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<CategoryDN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<CategoryDN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<ProductDN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<ProductDN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<CategoryPN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<CategoryPN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<ProductPN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<ProductPN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<CategoryNN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<CategoryNN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<ProductNN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<ProductNN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<Category>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<Category>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
-            modelBuilder.Entity<Product>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
-                });
+            modelBuilder.Entity<Product>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd().HasDefaultValueSql("newid()");
+            });
 
             modelBuilder.Entity<Item>(b => b.Property(e => e.Id).ValueGeneratedOnAdd());
 

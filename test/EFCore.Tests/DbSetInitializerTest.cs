@@ -8,7 +8,7 @@ namespace Microsoft.EntityFrameworkCore;
 
 public class DbSetInitializerTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Initializes_all_entity_set_properties_with_setters()
     {
         var setFinder = new FakeSetFinder();
@@ -32,31 +32,31 @@ public class DbSetInitializerTest
     {
         public IReadOnlyList<DbSetProperty> FindSets(Type contextType)
         {
-            var setterFactory = new ClrPropertySetterFactory();
+            var setterFactory = ClrPropertySetterFactory.Instance;
 
-            return new[]
-            {
-                new DbSetProperty("One", typeof(string), setterFactory.Create(typeof(JustAContext).GetAnyProperty("One"))),
-                new DbSetProperty("Two", typeof(object), setterFactory.Create(typeof(JustAContext).GetAnyProperty("Two"))),
-                new DbSetProperty("Three", typeof(string), setterFactory.Create(typeof(JustAContext).GetAnyProperty("Three"))),
+            return
+            [
+                new DbSetProperty("One", typeof(string), setterFactory.Create(typeof(JustAContext).GetAnyProperty("One")!)),
+                new DbSetProperty("Two", typeof(object), setterFactory.Create(typeof(JustAContext).GetAnyProperty("Two")!)),
+                new DbSetProperty("Three", typeof(string), setterFactory.Create(typeof(JustAContext).GetAnyProperty("Three")!)),
                 new DbSetProperty("Four", typeof(string), null)
-            };
+            ];
         }
     }
 
-    private class JustAContext : DbContext
+    private class JustAContext(DbContextOptions options) : DbContext(options)
     {
-        public JustAContext(DbContextOptions options)
-            : base(options)
-        {
-        }
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        public DbSet<string> One { get; set; } = null!;
 
-        public DbSet<string> One { get; set; }
-        private DbSet<object> Two { get; set; }
-        public DbSet<string> Three { get; private set; }
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        private DbSet<object> Two { get; set; } = null!;
+
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        public DbSet<string> Three { get; private set; } = null!;
 
         public DbSet<string> Four
-            => null;
+            => null!;
 
         public DbSet<object> GetTwo()
             => Two;

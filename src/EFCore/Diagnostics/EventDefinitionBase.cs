@@ -16,7 +16,7 @@ public abstract class EventDefinitionBase
     ///     Creates an event definition instance.
     /// </summary>
     /// <param name="loggingOptions">Logging options.</param>
-    /// <param name="eventId">The <see cref="Extensions.Logging.EventId" />.</param>
+    /// <param name="eventId">The <see cref="EventId" />.</param>
     /// <param name="level">The <see cref="LogLevel" /> at which the event will be logged.</param>
     /// <param name="eventIdCode">
     ///     A string representing the code that should be passed to <see cref="DbContextOptionsBuilder.ConfigureWarnings" />.
@@ -31,7 +31,6 @@ public abstract class EventDefinitionBase
         EventIdCode = eventIdCode;
 
         var warningsConfiguration = loggingOptions.WarningsConfiguration;
-
         if (warningsConfiguration != null)
         {
             var levelOverride = warningsConfiguration.GetLevel(eventId);
@@ -86,12 +85,11 @@ public abstract class EventDefinitionBase
 
     internal sealed class MessageExtractingLogger : ILogger
     {
-        private string? _message;
-
+        [field: AllowNull, MaybeNull]
         public string Message
         {
-            get => _message ?? throw new InvalidOperationException();
-            private set => _message = value;
+            get => field ?? throw new InvalidOperationException();
+            private set;
         }
 
         void ILogger.Log<TState>(

@@ -3,14 +3,13 @@
 
 namespace Microsoft.EntityFrameworkCore;
 
-public class AspNetIdentityCustomTypesIntKeyInMemoryTest
-    : AspNetIdentityCustomTypesIntKeyTestBase<AspNetIdentityCustomTypesIntKeyInMemoryTest.AspNetIdentityCustomTypesIntKeyInMemoryFixture
-    >
+public class AspNetIdentityCustomTypesIntKeyInMemoryTest(
+    AspNetIdentityCustomTypesIntKeyInMemoryTest.AspNetIdentityCustomTypesIntKeyInMemoryFixture fixture)
+    : AspNetIdentityCustomTypesIntKeyTestBase<
+        AspNetIdentityCustomTypesIntKeyInMemoryTest.AspNetIdentityCustomTypesIntKeyInMemoryFixture>(fixture)
 {
-    public AspNetIdentityCustomTypesIntKeyInMemoryTest(AspNetIdentityCustomTypesIntKeyInMemoryFixture fixture)
-        : base(fixture)
-    {
-    }
+    protected override bool HasForeignKeyIndexes
+        => false;
 
     protected override void UseTransaction(DatabaseFacade facade, IDbContextTransaction transaction)
     {
@@ -18,9 +17,9 @@ public class AspNetIdentityCustomTypesIntKeyInMemoryTest
 
     protected override async Task ExecuteWithStrategyInTransactionAsync(
         Func<CustomTypesIdentityContextInt, Task> testOperation,
-        Func<CustomTypesIdentityContextInt, Task> nestedTestOperation1 = null,
-        Func<CustomTypesIdentityContextInt, Task> nestedTestOperation2 = null,
-        Func<CustomTypesIdentityContextInt, Task> nestedTestOperation3 = null)
+        Func<CustomTypesIdentityContextInt, Task>? nestedTestOperation1 = null,
+        Func<CustomTypesIdentityContextInt, Task>? nestedTestOperation2 = null,
+        Func<CustomTypesIdentityContextInt, Task>? nestedTestOperation3 = null)
     {
         await base.ExecuteWithStrategyInTransactionAsync(
             testOperation, nestedTestOperation1, nestedTestOperation2, nestedTestOperation3);

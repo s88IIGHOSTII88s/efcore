@@ -55,11 +55,70 @@ public class StoreFunction : TableBase, IStoreFunction
     /// </summary>
     public virtual StoreFunctionParameter[] Parameters { get; }
 
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual void AddDbFunction(IRuntimeDbFunction dbFunction)
+    {
+        dbFunction.StoreFunction = this;
+        for (var i = 0; i < dbFunction.Parameters.Count; i++)
+        {
+            Parameters[i].DbFunctionParameters.Add(dbFunction.Parameters[i]);
+        }
+
+        DbFunctions.Add(dbFunction.ModelName, dbFunction);
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual StoreFunctionParameter? FindParameter(string propertyName)
+        => Parameters.FirstOrDefault(p => p.Name == propertyName);
+
     /// <inheritdoc />
-    public override IColumnBase? FindColumn(IProperty property)
+    public override bool Equals(object? obj)
+        => ReferenceEquals(this, obj)
+            || (obj is StoreFunction other
+                && base.Equals(other)
+                && Parameters.Length == other.Parameters.Length
+                && Parameters.Zip(other.Parameters).All(
+                    p => p.First.Name == p.Second.Name && p.First.StoreType == p.Second.StoreType));
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hashCode = new HashCode();
+        hashCode.Add(base.GetHashCode());
+        foreach (var parameter in Parameters)
+        {
+            hashCode.Add(parameter.StoreType);
+            hashCode.Add(parameter.Name);
+        }
+
+        return hashCode.ToHashCode();
+    }
+
+    /// <inheritdoc />
+    protected override IColumnBase? FindColumn(IProperty property)
         => property.GetFunctionColumnMappings()
-            .FirstOrDefault(cm => cm.TableMapping.Table == this)
-            ?.Column;
+                .FirstOrDefault(cm => cm.TableMapping.Table == this)?.Column
+            ?? property.GetJsonElementMappings()
+                .FirstOrDefault(m => m.TableMapping.Table == this)?.Element.ContainingColumn;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public new virtual FunctionColumn? FindColumn(string name)
+        => (FunctionColumn?)base.FindColumn(name);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -105,6 +164,6 @@ public class StoreFunction : TableBase, IStoreFunction
 
     /// <inheritdoc />
     [DebuggerStepThrough]
-    IFunctionColumn? IStoreFunction.FindColumn(IProperty property)
-        => (IFunctionColumn?)FindColumn(property);
+    IFunctionColumn? IStoreFunction.FindColumn(IPropertyBase propertyBase)
+        => (IFunctionColumn?)FindColumn(propertyBase);
 }

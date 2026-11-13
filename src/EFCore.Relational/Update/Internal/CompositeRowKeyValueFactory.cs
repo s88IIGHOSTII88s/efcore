@@ -23,6 +23,8 @@ public class CompositeRowKeyValueFactory : CompositeRowValueFactory, IRowKeyValu
         : base(key.Columns)
     {
         _constraint = key;
+
+        EqualityComparer = CreateEqualityComparer(key.Columns, null);
     }
 
     /// <summary>
@@ -32,17 +34,12 @@ public class CompositeRowKeyValueFactory : CompositeRowValueFactory, IRowKeyValu
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual object?[] CreateKeyValue(object?[] keyValues)
-    {
-        if (keyValues.Any(v => v == null))
-        {
-            throw new InvalidOperationException(
+        => keyValues.Any(v => v == null)
+            ? throw new InvalidOperationException(
                 RelationalStrings.NullKeyValue(
                     _constraint.Table.SchemaQualifiedName,
-                    FindNullColumnInKeyValues(keyValues).Name));
-        }
-
-        return keyValues;
-    }
+                    FindNullColumnInKeyValues(keyValues).Name))
+            : keyValues;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -51,17 +48,12 @@ public class CompositeRowKeyValueFactory : CompositeRowValueFactory, IRowKeyValu
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual object?[] CreateKeyValue(IDictionary<string, object?> keyValues)
-    {
-        if (!TryCreateDependentKeyValue(keyValues, out var key))
-        {
-            throw new InvalidOperationException(
+        => !TryCreateDependentKeyValue(keyValues, out var key)
+            ? throw new InvalidOperationException(
                 RelationalStrings.NullKeyValue(
                     _constraint.Table.SchemaQualifiedName,
-                    FindNullColumnInKeyValues(key).Name));
-        }
-
-        return key;
-    }
+                    FindNullColumnInKeyValues(key).Name))
+            : key;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -70,17 +62,12 @@ public class CompositeRowKeyValueFactory : CompositeRowValueFactory, IRowKeyValu
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual object?[] CreateKeyValue(IReadOnlyModificationCommand command, bool fromOriginalValues = false)
-    {
-        if (!TryCreateDependentKeyValue(command, fromOriginalValues, out var key))
-        {
-            throw new InvalidOperationException(
+        => !TryCreateDependentKeyValue(command, fromOriginalValues, out var keyValue)
+            ? throw new InvalidOperationException(
                 RelationalStrings.NullKeyValue(
                     _constraint.Table.SchemaQualifiedName,
-                    FindNullColumnInKeyValues(key).Name));
-        }
-
-        return key;
-    }
+                    FindNullColumnInKeyValues(keyValue).Name))
+            : keyValue;
 
     private IColumn FindNullColumnInKeyValues(object?[]? keyValues)
     {
@@ -106,8 +93,8 @@ public class CompositeRowKeyValueFactory : CompositeRowValueFactory, IRowKeyValu
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual object CreateValueIndex(IReadOnlyModificationCommand command, bool fromOriginalValues = false)
-        => new ValueIndex<object?[]>(
+    public virtual object CreateEquatableKeyValue(IReadOnlyModificationCommand command, bool fromOriginalValues = false)
+        => new EquatableKeyValue<object?[]>(
             _constraint,
             CreateKeyValue(command, fromOriginalValues),
             EqualityComparer);

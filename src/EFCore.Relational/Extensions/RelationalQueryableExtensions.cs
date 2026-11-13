@@ -39,14 +39,11 @@ public static class RelationalQueryableExtensions
     /// <param name="source">The query source.</param>
     /// <returns>The query string for debugging.</returns>
     public static DbCommand CreateDbCommand(this IQueryable source)
-    {
-        if (source.Provider.Execute<IEnumerable>(source.Expression) is IRelationalQueryingEnumerable queryingEnumerable)
-        {
-            return queryingEnumerable.CreateDbCommand();
-        }
+        => source.Provider.Execute<IEnumerable>(source.Expression) is IRelationalQueryingEnumerable queryingEnumerable
+            ? queryingEnumerable.CreateDbCommand()
+            : throw new NotSupportedException(RelationalStrings.NoDbCommand);
 
-        throw new NotSupportedException(RelationalStrings.NoDbCommand);
-    }
+    #region FromSql
 
     /// <summary>
     ///     Creates a LINQ query based on a raw SQL query.
@@ -64,14 +61,14 @@ public static class RelationalQueryableExtensions
     ///     <para>
     ///         However, <b>never</b> pass a concatenated or interpolated string (<c>$""</c>) with non-validated user-provided values
     ///         into this method. Doing so may expose your application to SQL injection attacks. To use the interpolated string syntax,
-    ///         consider using <see cref="FromSqlInterpolated{TEntity}" /> to create parameters.
+    ///         consider using <see cref="FromSql{TEntity}" /> to create parameters.
     ///     </para>
     ///     <para>
     ///         This overload also accepts <see cref="DbParameter" /> instances as parameter values. In addition to using positional
     ///         placeholders as above (<c>{0}</c>), you can also use named placeholders directly in the SQL query string.
     ///     </para>
     ///     <para>
-    ///         See <see href="https://aka.ms/efcore-docs-efcore-docs-raw-sql">Executing raw SQL commands with EF Core</see>
+    ///         See <see href="https://aka.ms/efcore-docs-raw-sql">Executing raw SQL commands with EF Core</see>
     ///         for more information and examples.
     ///     </para>
     /// </remarks>
@@ -86,11 +83,11 @@ public static class RelationalQueryableExtensions
     public static IQueryable<TEntity> FromSqlRaw<TEntity>(
         this DbSet<TEntity> source,
         [NotParameterized] string sql,
-        params object[] parameters)
+        params object?[] parameters)
         where TEntity : class
     {
-        Check.NotEmpty(sql, nameof(sql));
-        Check.NotNull(parameters, nameof(parameters));
+        Check.NotEmpty(sql);
+        Check.NotNull(parameters);
 
         var queryableSource = (IQueryable)source;
         return queryableSource.Provider.CreateQuery<TEntity>(
@@ -114,7 +111,7 @@ public static class RelationalQueryableExtensions
     ///         you supply will automatically be converted to a <see cref="DbParameter" />.
     ///     </para>
     ///     <para>
-    ///         See <see href="https://aka.ms/efcore-docs-efcore-docs-raw-sql">Executing raw SQL commands with EF Core</see>
+    ///         See <see href="https://aka.ms/efcore-docs-raw-sql">Executing raw SQL commands with EF Core</see>
     ///         for more information and examples.
     ///     </para>
     /// </remarks>
@@ -124,13 +121,54 @@ public static class RelationalQueryableExtensions
     /// </param>
     /// <param name="sql">The interpolated string representing a SQL query with parameters.</param>
     /// <returns>An <see cref="IQueryable{T}" /> representing the interpolated string SQL query.</returns>
+    [Obsolete("Use FromSql() instead. This method is obsolete and will be removed in a future release.")]
     public static IQueryable<TEntity> FromSqlInterpolated<TEntity>(
         this DbSet<TEntity> source,
         [NotParameterized] FormattableString sql)
         where TEntity : class
     {
-        Check.NotNull(sql, nameof(sql));
-        Check.NotEmpty(sql.Format, nameof(source));
+        Check.NotNull(sql);
+        Check.NotEmpty(sql.Format);
+
+        var queryableSource = (IQueryable)source;
+        return queryableSource.Provider.CreateQuery<TEntity>(
+            GenerateFromSqlQueryRoot(
+                queryableSource,
+                sql.Format,
+                sql.GetArguments()));
+    }
+
+    /// <summary>
+    ///     Creates a LINQ query based on an interpolated string representing a SQL query.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         If the database provider supports composing on the supplied SQL, you can compose on top of the raw SQL query using
+    ///         LINQ operators.
+    ///     </para>
+    ///     <para>
+    ///         As with any API that accepts SQL it is important to parameterize any user input to protect against a SQL injection
+    ///         attack. You can include interpolated parameter place holders in the SQL query string. Any interpolated parameter values
+    ///         you supply will automatically be converted to a <see cref="DbParameter" />.
+    ///     </para>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-raw-sql">Executing raw SQL commands with EF Core</see>
+    ///         for more information and examples.
+    ///     </para>
+    /// </remarks>
+    /// <typeparam name="TEntity">The type of the elements of <paramref name="source" />.</typeparam>
+    /// <param name="source">
+    ///     An <see cref="IQueryable{T}" /> to use as the base of the interpolated string SQL query (typically a <see cref="DbSet{TEntity}" />).
+    /// </param>
+    /// <param name="sql">The interpolated string representing a SQL query with parameters.</param>
+    /// <returns>An <see cref="IQueryable{T}" /> representing the interpolated string SQL query.</returns>
+    public static IQueryable<TEntity> FromSql<TEntity>(
+        this DbSet<TEntity> source,
+        [NotParameterized] FormattableString sql)
+        where TEntity : class
+    {
+        Check.NotNull(sql);
+        Check.NotEmpty(sql.Format);
 
         var queryableSource = (IQueryable)source;
         return queryableSource.Provider.CreateQuery<TEntity>(
@@ -146,21 +184,23 @@ public static class RelationalQueryableExtensions
         object?[] arguments,
         [CallerMemberName] string memberName = null!)
     {
-        var queryRootExpression = (QueryRootExpression)source.Expression;
+        var entityQueryRootExpression = (EntityQueryRootExpression)source.Expression;
 
-        var entityType = queryRootExpression.EntityType;
-        if ((entityType.BaseType != null || entityType.GetDirectlyDerivedTypes().Any())
-            && entityType.FindDiscriminatorProperty() == null)
-        {
-            throw new InvalidOperationException(RelationalStrings.MethodOnNonTphRootNotSupported(memberName, entityType.DisplayName()));
-        }
-
-        return new FromSqlQueryRootExpression(
-            queryRootExpression.QueryProvider!,
-            entityType,
-            sql,
-            Expression.Constant(arguments));
+        var entityType = entityQueryRootExpression.EntityType;
+        return (entityType.BaseType != null || entityType.GetDirectlyDerivedTypes().Any())
+            && entityType.FindDiscriminatorProperty() == null
+                ? throw new InvalidOperationException(
+                    RelationalStrings.MethodOnNonTphRootNotSupported(memberName, entityType.DisplayName()))
+                : new FromSqlQueryRootExpression(
+                    entityQueryRootExpression.QueryProvider!,
+                    entityType,
+                    sql,
+                    Expression.Constant(arguments));
     }
+
+    #endregion
+
+    #region SplitQuery
 
     /// <summary>
     ///     Returns a new query which is configured to load the collections in the query results in a single database query.
@@ -187,11 +227,10 @@ public static class RelationalQueryableExtensions
         where TEntity : class
         => source.Provider is EntityQueryProvider
             ? source.Provider.CreateQuery<TEntity>(
-                Expression.Call(AsSingleQueryMethodInfo.MakeGenericMethod(typeof(TEntity)), source.Expression))
+                Expression.Call(
+                    method: new Func<IQueryable<TEntity>, IQueryable<TEntity>>(AsSingleQuery).Method,
+                    source.Expression))
             : source;
-
-    internal static readonly MethodInfo AsSingleQueryMethodInfo
-        = typeof(RelationalQueryableExtensions).GetTypeInfo().GetDeclaredMethod(nameof(AsSingleQuery))!;
 
     /// <summary>
     ///     Returns a new query which is configured to load the collections in the query results through separate database queries.
@@ -219,9 +258,10 @@ public static class RelationalQueryableExtensions
         where TEntity : class
         => source.Provider is EntityQueryProvider
             ? source.Provider.CreateQuery<TEntity>(
-                Expression.Call(AsSplitQueryMethodInfo.MakeGenericMethod(typeof(TEntity)), source.Expression))
+                Expression.Call(
+                    new Func<IQueryable<TEntity>, IQueryable<TEntity>>(AsSplitQuery).Method,
+                    source.Expression))
             : source;
 
-    internal static readonly MethodInfo AsSplitQueryMethodInfo
-        = typeof(RelationalQueryableExtensions).GetTypeInfo().GetDeclaredMethod(nameof(AsSplitQuery))!;
+    #endregion
 }

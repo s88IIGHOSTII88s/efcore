@@ -11,32 +11,13 @@ namespace Microsoft.EntityFrameworkCore.Update.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
-public class SimpleNullablePrincipalRowForeignKeyValueFactory<TKey, TNonNullableKey> : RowForeignKeyValueFactory<TKey>
-    where TNonNullableKey : struct
+public class SimpleNullablePrincipalRowForeignKeyValueFactory<TKey, TForeignKey>(
+    IForeignKeyConstraint foreignKey,
+    IColumn column,
+    ColumnAccessors columnAccessors)
+    : RowForeignKeyValueFactory<TKey, TForeignKey>(foreignKey, column, columnAccessors)
+    where TKey : notnull
 {
-    private readonly IColumn _column;
-    private readonly ColumnAccessors _columnAccessors;
-
-    /// <summary>
-    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-    ///     any release. You should only use it directly in your code with extreme caution and knowing that
-    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-    /// </summary>
-    public SimpleNullablePrincipalRowForeignKeyValueFactory(
-        IForeignKeyConstraint foreignKey,
-        IColumn column,
-        ColumnAccessors columnAccessors)
-        : base(foreignKey)
-    {
-        _column = column;
-        _columnAccessors = columnAccessors;
-        EqualityComparer = CreateKeyEqualityComparer(column);
-    }
-
-    /// <inheritdoc />
-    public override IEqualityComparer<TKey> EqualityComparer { get; }
-
     /// <inheritdoc />
     public override bool TryCreateDependentKeyValue(object?[] keyValues, [NotNullWhen(true)] out TKey? key)
     {
@@ -46,9 +27,10 @@ public class SimpleNullablePrincipalRowForeignKeyValueFactory<TKey, TNonNullable
 
     /// <inheritdoc />
     public override bool TryCreateDependentKeyValue(
-        IDictionary<string, object?> keyPropertyValues, [NotNullWhen(true)] out TKey? key)
+        IDictionary<string, object?> keyPropertyValues,
+        [NotNullWhen(true)] out TKey? key)
     {
-        if (keyPropertyValues.TryGetValue(_column.Name, out var value))
+        if (keyPropertyValues.TryGetValue(Column.Name, out var value))
         {
             key = (TKey?)value!;
             return true;
@@ -59,11 +41,14 @@ public class SimpleNullablePrincipalRowForeignKeyValueFactory<TKey, TNonNullable
     }
 
     /// <inheritdoc />
-    public override bool TryCreateDependentKeyValue(IReadOnlyModificationCommand command, bool fromOriginalValues, [NotNullWhen(true)] out TKey? key)
+    public override bool TryCreateDependentKeyValue(
+        IReadOnlyModificationCommand command,
+        bool fromOriginalValues,
+        [NotNullWhen(true)] out TKey? key)
     {
         (key, var present) = fromOriginalValues
-            ? ((Func<IReadOnlyModificationCommand, (TKey, bool)>)_columnAccessors.OriginalValueGetter)(command)
-            : ((Func<IReadOnlyModificationCommand, (TKey, bool)>)_columnAccessors.CurrentValueGetter)(command);
+            ? ((Func<IReadOnlyModificationCommand, (TKey, bool)>)ColumnAccessors.OriginalValueGetter)(command)
+            : ((Func<IReadOnlyModificationCommand, (TKey, bool)>)ColumnAccessors.CurrentValueGetter)(command);
         return present;
     }
 }

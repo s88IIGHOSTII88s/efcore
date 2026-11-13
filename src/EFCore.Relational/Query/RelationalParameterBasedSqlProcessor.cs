@@ -8,7 +8,7 @@ namespace Microsoft.EntityFrameworkCore.Query;
 
 /// <summary>
 ///     <para>
-///         A class that processes the <see cref="SelectExpression" />  after parementer values are known.
+///         A class that processes the query expression after parameter values are known.
 ///     </para>
 ///     <para>
 ///         This type is typically used by database providers (and other extensions). It is generally
@@ -18,16 +18,16 @@ namespace Microsoft.EntityFrameworkCore.Query;
 public class RelationalParameterBasedSqlProcessor
 {
     /// <summary>
-    ///     Creates a new instance of the <see cref="QueryTranslationPostprocessor" /> class.
+    ///     Creates a new instance of the <see cref="RelationalParameterBasedSqlProcessor" /> class.
     /// </summary>
     /// <param name="dependencies">Parameter object containing dependencies for this class.</param>
-    /// <param name="useRelationalNulls">A bool value indicating if relational nulls should be used.</param>
+    /// <param name="parameters">Parameter object containing parameters for this class.</param>
     public RelationalParameterBasedSqlProcessor(
         RelationalParameterBasedSqlProcessorDependencies dependencies,
-        bool useRelationalNulls)
+        RelationalParameterBasedSqlProcessorParameters parameters)
     {
         Dependencies = dependencies;
-        UseRelationalNulls = useRelationalNulls;
+        Parameters = parameters;
     }
 
     /// <summary>
@@ -36,56 +36,55 @@ public class RelationalParameterBasedSqlProcessor
     protected virtual RelationalParameterBasedSqlProcessorDependencies Dependencies { get; }
 
     /// <summary>
-    ///     A bool value indicating if relational nulls should be used.
+    ///     Parameter object containing parameters for this class.
     /// </summary>
-    protected virtual bool UseRelationalNulls { get; }
+    protected virtual RelationalParameterBasedSqlProcessorParameters Parameters { get; }
 
     /// <summary>
-    ///     Optimizes the <see cref="SelectExpression" /> for given parameter values.
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    /// <param name="selectExpression">A select expression to optimize.</param>
-    /// <param name="parametersValues">A dictionary of parameter values to use.</param>
-    /// <param name="canCache">A bool value indicating if the select expression can be cached.</param>
-    /// <returns>An optimized select expression.</returns>
-    public virtual SelectExpression Optimize(
-        SelectExpression selectExpression,
-        IReadOnlyDictionary<string, object?> parametersValues,
-        out bool canCache)
+    [EntityFrameworkInternal]
+    public virtual Expression Process(Expression queryExpression, Dictionary<string, object?> parameters, out bool canCache)
     {
-        canCache = true;
-        selectExpression = ProcessSqlNullability(selectExpression, parametersValues, out var sqlNullablityCanCache);
-        canCache &= sqlNullablityCanCache;
+        var parametersFacade = new ParametersCacheDecorator(parameters);
+        var result = Process(queryExpression, parametersFacade);
+        canCache = parametersFacade.CanCache;
 
-        selectExpression = ExpandFromSqlParameter(selectExpression, parametersValues, out var fromSqlParameterCanCache);
-        canCache &= fromSqlParameterCanCache;
-
-        return selectExpression;
+        return result;
     }
 
     /// <summary>
-    ///     Processes the <see cref="SelectExpression" /> based on nullability of nodes to apply null semantics in use and
-    ///     optimize it for given parameter values.
+    ///     Performs final query processing that takes parameter values into account.
     /// </summary>
-    /// <param name="selectExpression">A select expression to optimize.</param>
-    /// <param name="parametersValues">A dictionary of parameter values to use.</param>
-    /// <param name="canCache">A bool value indicating if the select expression can be cached.</param>
-    /// <returns>A processed select expression.</returns>
-    protected virtual SelectExpression ProcessSqlNullability(
-        SelectExpression selectExpression,
-        IReadOnlyDictionary<string, object?> parametersValues,
-        out bool canCache)
-        => new SqlNullabilityProcessor(Dependencies, UseRelationalNulls).Process(selectExpression, parametersValues, out canCache);
+    /// <param name="queryExpression">A query expression to process.</param>
+    /// <param name="parametersDecorator">A decorator allowing access to parameters in a cache-safe way.</param>
+    public virtual Expression Process(Expression queryExpression, ParametersCacheDecorator parametersDecorator)
+    {
+        queryExpression = ProcessSqlNullability(queryExpression, parametersDecorator);
+        queryExpression = ExpandFromSqlParameter(queryExpression, parametersDecorator);
+
+        return queryExpression;
+    }
 
     /// <summary>
-    ///     Expands the parameters to <see cref="FromSqlExpression" /> inside the <see cref="SelectExpression" /> for given parameter values.
+    ///     Processes the query expression based on nullability of nodes to apply null semantics in use and
+    ///     optimize it for given parameter values.
     /// </summary>
-    /// <param name="selectExpression">A select expression to optimize.</param>
-    /// <param name="parametersValues">A dictionary of parameter values to use.</param>
-    /// <param name="canCache">A bool value indicating if the select expression can be cached.</param>
-    /// <returns>A processed select expression.</returns>
-    protected virtual SelectExpression ExpandFromSqlParameter(
-        SelectExpression selectExpression,
-        IReadOnlyDictionary<string, object?> parametersValues,
-        out bool canCache)
-        => new FromSqlParameterExpandingExpressionVisitor(Dependencies).Expand(selectExpression, parametersValues, out canCache);
+    /// <param name="queryExpression">A query expression to optimize.</param>
+    /// <param name="decorator">A decorator allowing access to parameters in a cache-safe way.</param>
+    /// <returns>A processed query expression.</returns>
+    protected virtual Expression ProcessSqlNullability(Expression queryExpression, ParametersCacheDecorator decorator)
+        => new SqlNullabilityProcessor(Dependencies, Parameters).Process(queryExpression, decorator);
+
+    /// <summary>
+    ///     Expands the parameters to <see cref="FromSqlExpression" /> inside the query expression for given parameter values.
+    /// </summary>
+    /// <param name="queryExpression">A query expression to optimize.</param>
+    /// <param name="decorator">A decorator allowing access to parameters in a cache-safe way.</param>
+    /// <returns>A processed query expression.</returns>
+    protected virtual Expression ExpandFromSqlParameter(Expression queryExpression, ParametersCacheDecorator decorator)
+        => new RelationalParameterProcessor(Dependencies).Expand(queryExpression, decorator);
 }

@@ -11,7 +11,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
-public class ServiceProperty : PropertyBase, IMutableServiceProperty, IConventionServiceProperty, IServiceProperty
+public class ServiceProperty : PropertyBase, IMutableServiceProperty, IConventionServiceProperty, IRuntimeServiceProperty
 {
     private ServiceParameterBinding? _parameterBinding;
     private InternalServicePropertyBuilder? _builder;
@@ -28,12 +28,13 @@ public class ServiceProperty : PropertyBase, IMutableServiceProperty, IConventio
         string name,
         PropertyInfo? propertyInfo,
         FieldInfo? fieldInfo,
+        Type serviceType,
         EntityType declaringEntityType,
         ConfigurationSource configurationSource)
         : base(name, propertyInfo, fieldInfo, configurationSource)
     {
         DeclaringEntityType = declaringEntityType;
-        ClrType = (propertyInfo?.PropertyType ?? fieldInfo?.FieldType)!;
+        ClrType = serviceType;
 
         _builder = new InternalServicePropertyBuilder(this, declaringEntityType.Model.Builder);
     }
@@ -64,6 +65,7 @@ public class ServiceProperty : PropertyBase, IMutableServiceProperty, IConventio
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)]
     public override Type ClrType { get; }
 
     /// <summary>
@@ -75,7 +77,7 @@ public class ServiceProperty : PropertyBase, IMutableServiceProperty, IConventio
     public virtual InternalServicePropertyBuilder Builder
     {
         [DebuggerStepThrough]
-        get => _builder ?? throw new InvalidOperationException(CoreStrings.ObjectRemovedFromModel);
+        get => _builder ?? throw new InvalidOperationException(CoreStrings.ObjectRemovedFromModel(Name));
     }
 
     /// <summary>
@@ -84,8 +86,18 @@ public class ServiceProperty : PropertyBase, IMutableServiceProperty, IConventio
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual bool IsInModel
-        => _builder is not null;
+    public override bool IsInModel
+        => _builder is not null
+            && DeclaringEntityType.IsInModel;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public override bool IsCollection
+        => false;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -161,6 +173,12 @@ public class ServiceProperty : PropertyBase, IMutableServiceProperty, IConventio
 
     private void UpdateParameterBindingConfigurationSource(ConfigurationSource configurationSource)
         => _parameterBindingConfigurationSource = configurationSource.Max(_parameterBindingConfigurationSource);
+
+    /// <summary>
+    ///     Gets the sentinel value that indicates that this property is not set.
+    /// </summary>
+    public virtual object? Sentinel
+        => null;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to

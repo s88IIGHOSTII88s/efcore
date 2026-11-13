@@ -1,9 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable once CheckNamespace
+
 namespace Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -28,7 +27,7 @@ public static class RelationalTypeMappingConfigurationBuilderExtensions
         this TypeMappingConfigurationBuilder scalarBuilder,
         string typeName)
     {
-        Check.NotEmpty(typeName, nameof(typeName));
+        Check.NotEmpty(typeName);
 
         scalarBuilder.HasAnnotation(RelationalAnnotationNames.ColumnType, typeName);
 
@@ -49,7 +48,7 @@ public static class RelationalTypeMappingConfigurationBuilderExtensions
     public static TypeMappingConfigurationBuilder<TScalar> HasColumnType<TScalar>(
         this TypeMappingConfigurationBuilder<TScalar> scalarBuilder,
         string typeName)
-        => (TypeMappingConfigurationBuilder<TScalar>)HasColumnType((TypeMappingConfigurationBuilder)scalarBuilder, typeName);
+        => (TypeMappingConfigurationBuilder<TScalar>)((TypeMappingConfigurationBuilder)scalarBuilder).HasColumnType(typeName);
 
     /// <summary>
     ///     Configures the scalar as capable of storing only fixed-length data, such as strings.
@@ -82,5 +81,5 @@ public static class RelationalTypeMappingConfigurationBuilderExtensions
     public static TypeMappingConfigurationBuilder<TScalar> IsFixedLength<TScalar>(
         this TypeMappingConfigurationBuilder<TScalar> scalarBuilder,
         bool fixedLength = true)
-        => (TypeMappingConfigurationBuilder<TScalar>)IsFixedLength((TypeMappingConfigurationBuilder)scalarBuilder, fixedLength);
+        => (TypeMappingConfigurationBuilder<TScalar>)((TypeMappingConfigurationBuilder)scalarBuilder).IsFixedLength(fixedLength);
 }

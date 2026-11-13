@@ -27,9 +27,7 @@ public class SqlServerQueryStringFactory : IRelationalQueryStringFactory
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public SqlServerQueryStringFactory(IRelationalTypeMappingSource typeMapper)
-    {
-        _typeMapper = typeMapper;
-    }
+        => _typeMapper = typeMapper;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -48,24 +46,46 @@ public class SqlServerQueryStringFactory : IRelationalQueryStringFactory
         foreach (DbParameter parameter in command.Parameters)
         {
             var typeName = TypeNameBuilder.CreateTypeName(parameter);
-            var typeMapping = _typeMapper.FindMapping(typeName);
 
             builder
                 .Append("DECLARE ")
                 .Append(parameter.ParameterName)
                 .Append(' ')
-                .Append(typeName)
-                .Append(" = ")
-                .Append(
-                    (parameter.Value == DBNull.Value
-                        || parameter.Value == null)
-                        ? "NULL"
-                        : parameter.Value is SqlBytes sqlBytes
+                .Append(typeName);
+
+            // Table-valued parameters (TVPs) cannot be initialized inline in SQL, and rendering their rows
+            // would be expensive — and counter-productive for IEnumerable<SqlDataRecord> values. Emit only
+            // the DECLARE so the result remains pasteable into SSMS for plan analysis. See #33849.
+            if (parameter is SqlParameter { SqlDbType: SqlDbType.Structured })
+            {
+                builder.AppendLine(";");
+                continue;
+            }
+
+            builder.Append(" = ");
+
+            if (parameter.Value == DBNull.Value || parameter.Value is null)
+            {
+                builder.Append("NULL");
+            }
+            else
+            {
+                var typeMapping = _typeMapper.FindMapping(parameter.Value.GetType(), typeName);
+
+                builder
+                    .Append(
+                        parameter.Value is SqlBytes sqlBytes
                             ? new SqlServerByteArrayTypeMapping(typeName).GenerateSqlLiteral(sqlBytes.Value)
-                            : typeMapping != null
-                                ? typeMapping.GenerateSqlLiteral(parameter.Value)
-                                : parameter.Value.ToString())
-                .AppendLine(";");
+                            : parameter.Value is SqlXml sqlXml
+                                ? new SqlServerStringTypeMapping(
+                                        typeName, unicode: true, sqlDbType: SqlDbType.Xml, storeTypePostfix: StoreTypePostfix.None)
+                                    .GenerateSqlLiteral(sqlXml.Value)
+                                : typeMapping != null
+                                    ? typeMapping.GenerateSqlLiteral(parameter.Value)
+                                    : parameter.Value.ToString());
+            }
+
+            builder.AppendLine(";");
         }
 
         return builder
@@ -116,21 +136,28 @@ internal static class TypeNameBuilder
         return builder;
     }
 
-    private static StringBuilder AppendPrecisionAndScale(this StringBuilder builder, DbParameter parameter)
+    private static StringBuilder AppendScale(this StringBuilder builder, DbParameter parameter)
     {
-        if (parameter.Precision > 0
-            && parameter.Scale > 0)
+        if (parameter.Scale > 0)
         {
             builder
                 .Append('(')
-                .Append(parameter.Precision.ToString(CultureInfo.InvariantCulture))
-                .Append(',')
                 .Append(parameter.Scale.ToString(CultureInfo.InvariantCulture))
                 .Append(')');
         }
 
-        return builder.AppendPrecision(parameter);
+        return builder;
     }
+
+    private static StringBuilder AppendPrecisionAndScale(this StringBuilder builder, DbParameter parameter)
+        => parameter is { Precision: > 0, Scale: > 0 }
+            ? builder
+                .Append('(')
+                .Append(parameter.Precision.ToString(CultureInfo.InvariantCulture))
+                .Append(',')
+                .Append(parameter.Scale.ToString(CultureInfo.InvariantCulture))
+                .Append(')')
+            : builder.AppendPrecision(parameter);
 
     public static string CreateTypeName(DbParameter parameter)
     {
@@ -145,8 +172,8 @@ internal static class TypeNameBuilder
                 SqlDbType.Char => builder.Append("char").AppendSize(parameter),
                 SqlDbType.Date => builder.Append("date"),
                 SqlDbType.DateTime => builder.Append("datetime"),
-                SqlDbType.DateTime2 => builder.Append("datetime2").AppendPrecision(parameter),
-                SqlDbType.DateTimeOffset => builder.Append("datetimeoffset").AppendPrecision(parameter),
+                SqlDbType.DateTime2 => builder.Append("datetime2").AppendScale(parameter),
+                SqlDbType.DateTimeOffset => builder.Append("datetimeoffset").AppendScale(parameter),
                 SqlDbType.Decimal => builder.Append("decimal").AppendPrecisionAndScale(parameter),
                 SqlDbType.Float => builder.Append("float").AppendSize(parameter),
                 SqlDbType.Image => builder.Append("image"),
@@ -159,9 +186,9 @@ internal static class TypeNameBuilder
                 SqlDbType.SmallDateTime => builder.Append("smalldatetime"),
                 SqlDbType.SmallInt => builder.Append("smallint"),
                 SqlDbType.SmallMoney => builder.Append("smallmoney"),
-                SqlDbType.Structured => builder.Append("structured"),
+                SqlDbType.Structured => builder.Append(sqlParameter.TypeName),
                 SqlDbType.Text => builder.Append("text"),
-                SqlDbType.Time => builder.Append("time").AppendPrecision(parameter),
+                SqlDbType.Time => builder.Append("time").AppendScale(parameter),
                 SqlDbType.Timestamp => builder.Append("rowversion"),
                 SqlDbType.TinyInt => builder.Append("tinyint"),
                 SqlDbType.Udt => builder.Append(sqlParameter.UdtTypeName),

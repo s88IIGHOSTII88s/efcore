@@ -6,7 +6,7 @@ namespace Microsoft.EntityFrameworkCore.TestModels.InheritanceRelationshipsModel
 public class ReferencedEntity
 {
     public int Id { get; set; }
-    public string Name { get; set; }
+    public string? Name { get; set; }
 
-    public ICollection<PrincipalEntity> Principals { get; set; }
+    public ICollection<PrincipalEntity> Principals { get; set; } = null!;
 }

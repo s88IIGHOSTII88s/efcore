@@ -6,7 +6,8 @@ namespace Microsoft.EntityFrameworkCore.TestModels.ManyToManyFieldsModel;
 public class EntityRoot
 {
     public int Id;
-    public string Name;
-    public ICollection<EntityThree> ThreeSkipShared;
-    public ICollection<EntityCompositeKey> CompositeKeySkipShared;
+    public string? Name;
+    public ICollection<EntityThree> ThreeSkipShared = null!;
+    public ICollection<EntityCompositeKey> CompositeKeySkipShared = null!;
+    public ICollection<EntityBranch> BranchSkipShared = null!;
 }

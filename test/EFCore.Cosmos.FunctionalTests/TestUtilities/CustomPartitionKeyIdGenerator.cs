@@ -18,7 +18,7 @@ public class CustomPartitionKeyIdGenerator<T> : ValueGenerator<T>
         var builder = new StringBuilder();
         var entityType = entry.Metadata;
 
-        var primaryKey = entityType.FindPrimaryKey();
+        var primaryKey = entityType.FindPrimaryKey()!;
         var discriminator = entityType.GetDiscriminatorValue();
         if (discriminator != null
             && !primaryKey.Properties.Contains(entityType.FindDiscriminatorProperty()))
@@ -27,11 +27,11 @@ public class CustomPartitionKeyIdGenerator<T> : ValueGenerator<T>
             builder.Append("-");
         }
 
-        var partitionKey = entityType.GetPartitionKeyPropertyName();
+        var partitionKeyNames = entityType.GetPartitionKeyPropertyNames();
         foreach (var property in primaryKey.Properties)
         {
-            if (property.Name == partitionKey
-                || property.GetJsonPropertyName() == StoreKeyConvention.IdPropertyJsonName)
+            if (partitionKeyNames.Contains(property.Name)
+                || property.GetJsonPropertyName() == CosmosJsonIdConvention.IdPropertyJsonName)
             {
                 continue;
             }
@@ -44,13 +44,10 @@ public class CustomPartitionKeyIdGenerator<T> : ValueGenerator<T>
                 value = converter.ConvertToProvider(value);
             }
 
-            if (value is int x)
+            // We don't allow the Id to be zero for our custom generator.
+            if (value is 0)
             {
-                // We don't allow the Id to be zero for our custom generator.
-                if (x == 0)
-                {
-                    return default;
-                }
+                return default!;
             }
 
             AppendString(builder, value);
@@ -63,7 +60,7 @@ public class CustomPartitionKeyIdGenerator<T> : ValueGenerator<T>
         return builder.ToString();
     }
 
-    private static void AppendString(StringBuilder builder, object propertyValue)
+    private static void AppendString(StringBuilder builder, object? propertyValue)
     {
         switch (propertyValue)
         {
@@ -73,13 +70,13 @@ public class CustomPartitionKeyIdGenerator<T> : ValueGenerator<T>
             case IEnumerable enumerable:
                 foreach (var item in enumerable)
                 {
-                    builder.Append(item.ToString().Replace("-", "/-"));
+                    builder.Append(item!.ToString()!.Replace("-", "/-"));
                     builder.Append("|");
                 }
 
                 return;
             default:
-                builder.Append(propertyValue == null ? "null" : propertyValue.ToString().Replace("-", "/-"));
+                builder.Append(propertyValue == null ? "null" : propertyValue.ToString()!.Replace("-", "/-"));
                 return;
         }
     }

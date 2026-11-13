@@ -9,11 +9,15 @@ namespace Microsoft.EntityFrameworkCore.Metadata;
 ///     Represents entity type mapping to a SQL query.
 /// </summary>
 /// <remarks>
-///     See <see href="https://aka.ms/efcore-docs-efcore-docs-raw-sql">Executing raw SQL commands with EF Core</see>
+///     See <see href="https://aka.ms/efcore-docs-raw-sql">Executing raw SQL commands with EF Core</see>
 ///     for more information and examples.
 /// </remarks>
-public interface ISqlQueryMapping : ITableMappingBase
+public interface ISqlQueryMapping : ITableMappingBase, IComparable<ISqlQueryMapping>
 {
+    /// <inheritdoc />
+    int IComparable<ISqlQueryMapping>.CompareTo(ISqlQueryMapping? other)
+        => ((ITableMappingBase)this).CompareTo(other);
+
     /// <summary>
     ///     Gets the value indicating whether this is the SQL query mapping
     ///     that should be used when the entity type is queried.
@@ -42,7 +46,7 @@ public interface ISqlQueryMapping : ITableMappingBase
     /// <param name="options">Options for generating the string.</param>
     /// <param name="indent">The number of indent spaces to use before each new line.</param>
     /// <returns>A human-readable representation.</returns>
-    string ToDebugString(MetadataDebugStringOptions options = MetadataDebugStringOptions.ShortDefault, int indent = 0)
+    string ITableMappingBase.ToDebugString(MetadataDebugStringOptions options, int indent)
     {
         var builder = new StringBuilder();
         var indentString = new string(' ', indent);
@@ -55,13 +59,19 @@ public interface ISqlQueryMapping : ITableMappingBase
             builder.Append("SqlQueryMapping: ");
         }
 
-        builder.Append(EntityType.Name).Append(" - ");
+        builder.Append(TypeBase.Name).Append(" - ");
 
         builder.Append(Table.Name);
 
-        if (IncludesDerivedTypes)
+        if (IncludesDerivedTypes != null)
         {
-            builder.Append(" IncludesDerivedTypes");
+            builder.Append(' ');
+            if (!IncludesDerivedTypes.Value)
+            {
+                builder.Append('!');
+            }
+
+            builder.Append("IncludesDerivedTypes");
         }
 
         if (!singleLine && (options & MetadataDebugStringOptions.IncludeAnnotations) != 0)

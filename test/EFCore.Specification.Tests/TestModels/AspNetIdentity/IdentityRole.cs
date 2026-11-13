@@ -12,32 +12,26 @@ public class IdentityRole<TKey>
 
     public IdentityRole(string roleName)
         : this()
-    {
-        Name = roleName;
-    }
+        => Name = roleName;
 
-    public virtual TKey Id { get; set; }
+    public virtual TKey Id { get; set; } = default!;
 
-    public virtual string Name { get; set; }
+    public virtual string? Name { get; set; }
 
-    public virtual string NormalizedName { get; set; }
+    public virtual string? NormalizedName { get; set; }
 
-    public virtual string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString();
+    public virtual string? ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString();
 
     public override string ToString()
-        => Name;
+        => Name!;
 }
 
 public class IdentityRole : IdentityRole<string>
 {
     public IdentityRole()
-    {
-        Id = Guid.NewGuid().ToString();
-    }
+        => Id = Guid.NewGuid().ToString();
 
     public IdentityRole(string roleName)
         : this()
-    {
-        Name = roleName;
-    }
+        => Name = roleName;
 }

@@ -34,8 +34,10 @@ public class SqliteGeometryMemberTranslator : IMemberTranslator
 
     private static readonly MemberInfo GeometryType
         = typeof(Geometry).GetTypeInfo().GetRuntimeProperty(nameof(Geometry.GeometryType))!;
+
     private static readonly MemberInfo OgcGeometryType
         = typeof(Geometry).GetTypeInfo().GetRuntimeProperty(nameof(Geometry.OgcGeometryType))!;
+
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
     /// <summary>
@@ -45,9 +47,7 @@ public class SqliteGeometryMemberTranslator : IMemberTranslator
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public SqliteGeometryMemberTranslator(ISqlExpressionFactory sqlExpressionFactory)
-    {
-        _sqlExpressionFactory = sqlExpressionFactory;
-    }
+        => _sqlExpressionFactory = sqlExpressionFactory;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -67,23 +67,22 @@ public class SqliteGeometryMemberTranslator : IMemberTranslator
             {
                 return returnType == typeof(bool)
                     ? _sqlExpressionFactory.Case(
-                        new[]
-                        {
+                        [
                             new CaseWhenClause(
                                 _sqlExpressionFactory.IsNotNull(instance),
                                 _sqlExpressionFactory.Function(
                                     functionName,
-                                    new[] { instance },
+                                    [instance],
                                     nullable: false,
-                                    argumentsPropagateNullability: new[] { false },
+                                    argumentsPropagateNullability: Statics.FalseArrays[1],
                                     returnType))
-                        },
+                        ],
                         null)
                     : _sqlExpressionFactory.Function(
                         functionName,
-                        new[] { instance },
+                        [instance],
                         nullable: true,
-                        argumentsPropagateNullability: new[] { true },
+                        argumentsPropagateNullability: Statics.TrueArrays[1],
                         returnType);
             }
 
@@ -92,21 +91,19 @@ public class SqliteGeometryMemberTranslator : IMemberTranslator
                 return _sqlExpressionFactory.Case(
                     _sqlExpressionFactory.Function(
                         "rtrim",
-                        new SqlExpression[]
-                        {
+                        [
                             _sqlExpressionFactory.Function(
                                 "GeometryType",
-                                new[] { instance },
+                                [instance],
                                 nullable: true,
-                                argumentsPropagateNullability: new[] { true },
+                                argumentsPropagateNullability: Statics.TrueArrays[1],
                                 returnType),
                             _sqlExpressionFactory.Constant(" ZM")
-                        },
+                        ],
                         nullable: true,
-                        argumentsPropagateNullability: new[] { true },
+                        argumentsPropagateNullability: Statics.TrueArrays[2],
                         returnType),
-                    new[]
-                    {
+                    [
                         new CaseWhenClause(_sqlExpressionFactory.Constant("POINT"), _sqlExpressionFactory.Constant("Point")),
                         new CaseWhenClause(_sqlExpressionFactory.Constant("LINESTRING"), _sqlExpressionFactory.Constant("LineString")),
                         new CaseWhenClause(_sqlExpressionFactory.Constant("POLYGON"), _sqlExpressionFactory.Constant("Polygon")),
@@ -117,7 +114,7 @@ public class SqliteGeometryMemberTranslator : IMemberTranslator
                             _sqlExpressionFactory.Constant("MULTIPOLYGON"), _sqlExpressionFactory.Constant("MultiPolygon")),
                         new CaseWhenClause(
                             _sqlExpressionFactory.Constant("GEOMETRYCOLLECTION"), _sqlExpressionFactory.Constant("GeometryCollection"))
-                    },
+                    ],
                     null);
             }
 
@@ -126,29 +123,31 @@ public class SqliteGeometryMemberTranslator : IMemberTranslator
                 return _sqlExpressionFactory.Case(
                     _sqlExpressionFactory.Function(
                         "rtrim",
-                        new SqlExpression[]
-                        {
+                        [
                             _sqlExpressionFactory.Function(
                                 "GeometryType",
-                                new[] { instance },
+                                [instance],
                                 nullable: true,
-                                argumentsPropagateNullability: new[] { true },
+                                argumentsPropagateNullability: Statics.TrueArrays[1],
                                 typeof(string)),
                             _sqlExpressionFactory.Constant(" ZM")
-                        },
+                        ],
                         nullable: true,
-                        argumentsPropagateNullability: new[] { true },
+                        argumentsPropagateNullability: Statics.TrueArrays[2],
                         typeof(string)),
-                    new[]
-                    {
+                    [
                         new CaseWhenClause(
-                            _sqlExpressionFactory.Constant("POINT"), _sqlExpressionFactory.Constant(NetTopologySuite.Geometries.OgcGeometryType.Point)),
+                            _sqlExpressionFactory.Constant("POINT"),
+                            _sqlExpressionFactory.Constant(NetTopologySuite.Geometries.OgcGeometryType.Point)),
                         new CaseWhenClause(
-                            _sqlExpressionFactory.Constant("LINESTRING"), _sqlExpressionFactory.Constant(NetTopologySuite.Geometries.OgcGeometryType.LineString)),
+                            _sqlExpressionFactory.Constant("LINESTRING"),
+                            _sqlExpressionFactory.Constant(NetTopologySuite.Geometries.OgcGeometryType.LineString)),
                         new CaseWhenClause(
-                            _sqlExpressionFactory.Constant("POLYGON"), _sqlExpressionFactory.Constant(NetTopologySuite.Geometries.OgcGeometryType.Polygon)),
+                            _sqlExpressionFactory.Constant("POLYGON"),
+                            _sqlExpressionFactory.Constant(NetTopologySuite.Geometries.OgcGeometryType.Polygon)),
                         new CaseWhenClause(
-                            _sqlExpressionFactory.Constant("MULTIPOINT"), _sqlExpressionFactory.Constant(NetTopologySuite.Geometries.OgcGeometryType.MultiPoint)),
+                            _sqlExpressionFactory.Constant("MULTIPOINT"),
+                            _sqlExpressionFactory.Constant(NetTopologySuite.Geometries.OgcGeometryType.MultiPoint)),
                         new CaseWhenClause(
                             _sqlExpressionFactory.Constant("MULTILINESTRING"),
                             _sqlExpressionFactory.Constant(NetTopologySuite.Geometries.OgcGeometryType.MultiLineString)),
@@ -158,7 +157,7 @@ public class SqliteGeometryMemberTranslator : IMemberTranslator
                         new CaseWhenClause(
                             _sqlExpressionFactory.Constant("GEOMETRYCOLLECTION"),
                             _sqlExpressionFactory.Constant(NetTopologySuite.Geometries.OgcGeometryType.GeometryCollection))
-                    },
+                    ],
                     null);
             }
         }

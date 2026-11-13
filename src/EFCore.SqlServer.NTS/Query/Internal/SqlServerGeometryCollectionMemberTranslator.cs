@@ -16,6 +16,7 @@ public class SqlServerGeometryCollectionMemberTranslator : IMemberTranslator
 {
     private static readonly MemberInfo Count
         = typeof(GeometryCollection).GetTypeInfo().GetRuntimeProperty(nameof(GeometryCollection.Count))!;
+
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
     /// <summary>
@@ -25,9 +26,7 @@ public class SqlServerGeometryCollectionMemberTranslator : IMemberTranslator
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public SqlServerGeometryCollectionMemberTranslator(ISqlExpressionFactory sqlExpressionFactory)
-    {
-        _sqlExpressionFactory = sqlExpressionFactory;
-    }
+        => _sqlExpressionFactory = sqlExpressionFactory;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -40,19 +39,14 @@ public class SqlServerGeometryCollectionMemberTranslator : IMemberTranslator
         MemberInfo member,
         Type returnType,
         IDiagnosticsLogger<DbLoggerCategory.Query> logger)
-    {
-        if (Equals(member, Count))
-        {
-            return _sqlExpressionFactory.Function(
+        => Equals(member, Count)
+            ? _sqlExpressionFactory.Function(
                 instance!,
                 "STNumGeometries",
-                Enumerable.Empty<SqlExpression>(),
+                [],
                 nullable: true,
                 instancePropagatesNullability: true,
-                argumentsPropagateNullability: Enumerable.Empty<bool>(),
-                returnType);
-        }
-
-        return null;
-    }
+                argumentsPropagateNullability: [],
+                returnType)
+            : null;
 }

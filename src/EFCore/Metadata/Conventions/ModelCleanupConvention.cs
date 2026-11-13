@@ -9,21 +9,36 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-conventions">Model building conventions</see> for more information and examples.
 /// </remarks>
-public class ModelCleanupConvention : IModelFinalizingConvention
+public class ModelCleanupConvention :
+    IForeignKeyRemovedConvention,
+    IModelFinalizingConvention
 {
     /// <summary>
     ///     Creates a new instance of <see cref="ModelCleanupConvention" />.
     /// </summary>
     /// <param name="dependencies">Parameter object containing dependencies for this convention.</param>
     public ModelCleanupConvention(ProviderConventionSetBuilderDependencies dependencies)
-    {
-        Dependencies = dependencies;
-    }
+        => Dependencies = dependencies;
 
     /// <summary>
     ///     Dependencies for this service.
     /// </summary>
     protected virtual ProviderConventionSetBuilderDependencies Dependencies { get; }
+
+    /// <inheritdoc />
+    public virtual void ProcessForeignKeyRemoved(
+        IConventionEntityTypeBuilder entityTypeBuilder,
+        IConventionForeignKey foreignKey,
+        IConventionContext<IConventionForeignKey> context)
+    {
+        var principalKey = foreignKey.PrincipalKey;
+        if (principalKey.IsInModel
+            && !principalKey.IsPrimaryKey()
+            && !principalKey.GetReferencingForeignKeys().Any())
+        {
+            principalKey.DeclaringEntityType.Builder.HasNoKey(principalKey);
+        }
+    }
 
     /// <inheritdoc />
     public virtual void ProcessModelFinalizing(
@@ -78,17 +93,10 @@ public class ModelCleanupConvention : IModelFinalizingConvention
         }
     }
 
-    private sealed class GraphAdapter : Graph<IConventionEntityType>
+    private sealed class GraphAdapter(IConventionModel model) : Graph<IConventionEntityType>
     {
-        private readonly IConventionModel _model;
-
-        public GraphAdapter(IConventionModel model)
-        {
-            _model = model;
-        }
-
         public override IEnumerable<IConventionEntityType> Vertices
-            => _model.GetEntityTypes();
+            => model.GetEntityTypes();
 
         public override IEnumerable<IConventionEntityType> GetOutgoingNeighbors(IConventionEntityType from)
             => from.GetForeignKeys().Where(fk => fk.DependentToPrincipal != null).Select(fk => fk.PrincipalEntityType)

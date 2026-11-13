@@ -3,8 +3,6 @@
 
 using Microsoft.EntityFrameworkCore.SqlServer.Metadata.Internal;
 
-#nullable enable
-
 namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 /// <summary>
@@ -12,7 +10,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 /// </summary>
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-conventions">Model building conventions</see>, and
-///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
 ///     for more information and examples.
 /// </remarks>
 public class SqlServerRuntimeModelConvention : RelationalRuntimeModelConvention
@@ -29,13 +27,7 @@ public class SqlServerRuntimeModelConvention : RelationalRuntimeModelConvention
     {
     }
 
-    /// <summary>
-    ///     Updates the model annotations that will be set on the read-only object.
-    /// </summary>
-    /// <param name="annotations">The annotations to be processed.</param>
-    /// <param name="model">The source model.</param>
-    /// <param name="runtimeModel">The target model that will contain the annotations.</param>
-    /// <param name="runtime">Indicates whether the given annotations are runtime annotations.</param>
+    /// <inheritdoc />
     protected override void ProcessModelAnnotations(
         Dictionary<string, object?> annotations,
         IModel model,
@@ -54,13 +46,7 @@ public class SqlServerRuntimeModelConvention : RelationalRuntimeModelConvention
         }
     }
 
-    /// <summary>
-    ///     Updates the property annotations that will be set on the read-only object.
-    /// </summary>
-    /// <param name="annotations">The annotations to be processed.</param>
-    /// <param name="property">The source property.</param>
-    /// <param name="runtimeProperty">The target property that will contain the annotations.</param>
-    /// <param name="runtime">Indicates whether the given annotations are runtime annotations.</param>
+    /// <inheritdoc />
     protected override void ProcessPropertyAnnotations(
         Dictionary<string, object?> annotations,
         IProperty property,
@@ -82,13 +68,23 @@ public class SqlServerRuntimeModelConvention : RelationalRuntimeModelConvention
         }
     }
 
-    /// <summary>
-    ///     Updates the index annotations that will be set on the read-only object.
-    /// </summary>
-    /// <param name="annotations">The annotations to be processed.</param>
-    /// <param name="index">The source index.</param>
-    /// <param name="runtimeIndex">The target index that will contain the annotations.</param>
-    /// <param name="runtime">Indicates whether the given annotations are runtime annotations.</param>
+    /// <inheritdoc />
+    protected override void ProcessPropertyOverridesAnnotations(
+        Dictionary<string, object?> annotations,
+        IRelationalPropertyOverrides propertyOverrides,
+        RuntimeRelationalPropertyOverrides runtimePropertyOverrides,
+        bool runtime)
+    {
+        base.ProcessPropertyOverridesAnnotations(annotations, propertyOverrides, runtimePropertyOverrides, runtime);
+
+        if (!runtime)
+        {
+            annotations.Remove(SqlServerAnnotationNames.IdentityIncrement);
+            annotations.Remove(SqlServerAnnotationNames.IdentitySeed);
+        }
+    }
+
+    /// <inheritdoc />
     protected override void ProcessIndexAnnotations(
         Dictionary<string, object?> annotations,
         IIndex index,
@@ -103,18 +99,14 @@ public class SqlServerRuntimeModelConvention : RelationalRuntimeModelConvention
             annotations.Remove(SqlServerAnnotationNames.CreatedOnline);
             annotations.Remove(SqlServerAnnotationNames.Include);
             annotations.Remove(SqlServerAnnotationNames.FillFactor);
+            annotations.Remove(SqlServerAnnotationNames.SortInTempDb);
+            annotations.Remove(SqlServerAnnotationNames.DataCompression);
         }
     }
 
-    /// <summary>
-    ///     Updates the key annotations that will be set on the read-only object.
-    /// </summary>
-    /// <param name="annotations">The annotations to be processed.</param>
-    /// <param name="key">The source key.</param>
-    /// <param name="runtimeKey">The target key that will contain the annotations.</param>
-    /// <param name="runtime">Indicates whether the given annotations are runtime annotations.</param>
+    /// <inheritdoc />
     protected override void ProcessKeyAnnotations(
-        IDictionary<string, object?> annotations,
+        Dictionary<string, object?> annotations,
         IKey key,
         RuntimeKey runtimeKey,
         bool runtime)
@@ -124,18 +116,13 @@ public class SqlServerRuntimeModelConvention : RelationalRuntimeModelConvention
         if (!runtime)
         {
             annotations.Remove(SqlServerAnnotationNames.Clustered);
+            annotations.Remove(SqlServerAnnotationNames.FillFactor);
         }
     }
 
-    /// <summary>
-    ///     Updates the entity type annotations that will be set on the read-only object.
-    /// </summary>
-    /// <param name="annotations">The annotations to be processed.</param>
-    /// <param name="entityType">The source entity type.</param>
-    /// <param name="runtimeEntityType">The target entity type that will contain the annotations.</param>
-    /// <param name="runtime">Indicates whether the given annotations are runtime annotations.</param>
+    /// <inheritdoc />
     protected override void ProcessEntityTypeAnnotations(
-        IDictionary<string, object?> annotations,
+        Dictionary<string, object?> annotations,
         IEntityType entityType,
         RuntimeEntityType runtimeEntityType,
         bool runtime)

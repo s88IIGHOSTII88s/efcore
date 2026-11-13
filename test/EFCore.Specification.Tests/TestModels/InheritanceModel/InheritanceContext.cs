@@ -3,24 +3,22 @@
 
 namespace Microsoft.EntityFrameworkCore.TestModels.InheritanceModel;
 
-public class InheritanceContext : PoolableDbContext
+public class InheritanceContext(DbContextOptions options) : PoolableDbContext(options)
 {
-    public InheritanceContext(DbContextOptions options)
-        : base(options)
-    {
-    }
+    public DbSet<Animal> Animals { get; set; } = null!;
+    public DbSet<AnimalQuery> AnimalQueries { get; set; } = null!;
+    public DbSet<Country> Countries { get; set; } = null!;
+    public DbSet<Drink> Drinks { get; set; } = null!;
+    public DbSet<Coke> Coke { get; set; } = null!;
+    public DbSet<Lilt> Lilt { get; set; } = null!;
+    public DbSet<Tea> Tea { get; set; } = null!;
+    public DbSet<Plant> Plants { get; set; } = null!;
 
-    public DbSet<Animal> Animals { get; set; }
-    public DbSet<AnimalQuery> AnimalQueries { get; set; }
-    public DbSet<Country> Countries { get; set; }
-    public DbSet<Drink> Drinks { get; set; }
-    public DbSet<Plant> Plants { get; set; }
-
-    public static void Seed(InheritanceContext context)
+    public static Task SeedAsync(InheritanceContext context, bool useGeneratedKeys)
     {
-        var animals = InheritanceData.CreateAnimals();
+        var animals = InheritanceData.CreateAnimals(useGeneratedKeys);
         var countries = InheritanceData.CreateCountries();
-        var drinks = InheritanceData.CreateDrinks();
+        var drinks = InheritanceData.CreateDrinks(useGeneratedKeys);
         var plants = InheritanceData.CreatePlants();
 
         InheritanceData.WireUp(animals, countries);
@@ -30,6 +28,6 @@ public class InheritanceContext : PoolableDbContext
         context.Drinks.AddRange(drinks);
         context.Plants.AddRange(plants);
 
-        context.SaveChanges();
+        return context.SaveChangesAsync();
     }
 }

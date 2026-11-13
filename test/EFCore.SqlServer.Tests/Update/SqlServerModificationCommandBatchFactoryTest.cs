@@ -1,7 +1,9 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.Diagnostics.Internal;
 using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
+using Microsoft.EntityFrameworkCore.SqlServer.Infrastructure.Internal;
 using Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal;
 using Microsoft.EntityFrameworkCore.SqlServer.Update.Internal;
 using Microsoft.EntityFrameworkCore.Update.Internal;
@@ -11,7 +13,7 @@ namespace Microsoft.EntityFrameworkCore.Update;
 
 public class SqlServerModificationCommandBatchFactoryTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Uses_MaxBatchSize_specified_in_SqlServerOptionsExtension()
     {
         var optionsBuilder = new DbContextOptionsBuilder();
@@ -19,7 +21,8 @@ public class SqlServerModificationCommandBatchFactoryTest
 
         var typeMapper = new SqlServerTypeMappingSource(
             TestServiceFactory.Instance.Create<TypeMappingSourceDependencies>(),
-            TestServiceFactory.Instance.Create<RelationalTypeMappingSourceDependencies>());
+            TestServiceFactory.Instance.Create<RelationalTypeMappingSourceDependencies>(),
+            TestServiceFactory.Instance.Create<SqlServerSingletonOptions>());
 
         var logger = new FakeRelationalCommandDiagnosticsLogger();
 
@@ -28,7 +31,8 @@ public class SqlServerModificationCommandBatchFactoryTest
                 new RelationalCommandBuilderFactory(
                     new RelationalCommandBuilderDependencies(
                         typeMapper,
-                        new SqlServerExceptionDetector())),
+                        new SqlServerExceptionDetector(),
+                        new LoggingOptions())),
                 new SqlServerSqlGenerationHelper(
                     new RelationalSqlGenerationHelperDependencies()),
                 new SqlServerUpdateSqlGenerator(
@@ -36,11 +40,9 @@ public class SqlServerModificationCommandBatchFactoryTest
                         new SqlServerSqlGenerationHelper(
                             new RelationalSqlGenerationHelperDependencies()),
                         typeMapper)),
-                new TypedRelationalValueBufferFactoryFactory(
-                    new RelationalValueBufferFactoryDependencies(
-                        typeMapper, new CoreSingletonOptions())),
                 new CurrentDbContext(new FakeDbContext()),
-                logger),
+                logger,
+                new FakeDiagnosticsLogger<DbLoggerCategory.Update>()),
             optionsBuilder.Options);
 
         var batch = factory.Create();
@@ -49,7 +51,7 @@ public class SqlServerModificationCommandBatchFactoryTest
         Assert.False(batch.TryAddCommand(CreateModificationCommand("T1", null, false)));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void MaxBatchSize_is_optional()
     {
         var optionsBuilder = new DbContextOptionsBuilder();
@@ -57,7 +59,8 @@ public class SqlServerModificationCommandBatchFactoryTest
 
         var typeMapper = new SqlServerTypeMappingSource(
             TestServiceFactory.Instance.Create<TypeMappingSourceDependencies>(),
-            TestServiceFactory.Instance.Create<RelationalTypeMappingSourceDependencies>());
+            TestServiceFactory.Instance.Create<RelationalTypeMappingSourceDependencies>(),
+            TestServiceFactory.Instance.Create<SqlServerSingletonOptions>());
 
         var logger = new FakeRelationalCommandDiagnosticsLogger();
 
@@ -66,7 +69,8 @@ public class SqlServerModificationCommandBatchFactoryTest
                 new RelationalCommandBuilderFactory(
                     new RelationalCommandBuilderDependencies(
                         typeMapper,
-                        new SqlServerExceptionDetector())),
+                        new SqlServerExceptionDetector(),
+                        new LoggingOptions())),
                 new SqlServerSqlGenerationHelper(
                     new RelationalSqlGenerationHelperDependencies()),
                 new SqlServerUpdateSqlGenerator(
@@ -74,11 +78,9 @@ public class SqlServerModificationCommandBatchFactoryTest
                         new SqlServerSqlGenerationHelper(
                             new RelationalSqlGenerationHelperDependencies()),
                         typeMapper)),
-                new TypedRelationalValueBufferFactoryFactory(
-                    new RelationalValueBufferFactoryDependencies(
-                        typeMapper, new CoreSingletonOptions())),
                 new CurrentDbContext(new FakeDbContext()),
-                logger),
+                logger,
+                new FakeDiagnosticsLogger<DbLoggerCategory.Update>()),
             optionsBuilder.Options);
 
         var batch = factory.Create();
@@ -87,20 +89,16 @@ public class SqlServerModificationCommandBatchFactoryTest
         Assert.True(batch.TryAddCommand(CreateModificationCommand("T1", null, false)));
     }
 
-    private class FakeDbContext : DbContext
-    {
-    }
+    private class FakeDbContext : DbContext;
 
-    private static IModificationCommand CreateModificationCommand(
+    private static INonTrackedModificationCommand CreateModificationCommand(
         string name,
-        string schema,
+        string? schema,
         bool sensitiveLoggingEnabled)
     {
-        var modificationCommandParameters = new ModificationCommandParameters(
-            name, schema, sensitiveLoggingEnabled);
-
-        var modificationCommand = new ModificationCommandFactory().CreateModificationCommand(
-            modificationCommandParameters);
+        var modificationCommand = new ModificationCommandFactory().CreateNonTrackedModificationCommand(
+            new NonTrackedModificationCommandParameters(
+                name, schema, sensitiveLoggingEnabled));
 
         return modificationCommand;
     }

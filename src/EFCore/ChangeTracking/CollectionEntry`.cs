@@ -59,7 +59,7 @@ public class CollectionEntry<TEntity, TRelatedEntity> : CollectionEntry
     /// </remarks>
     /// <value> An entry for the entity that owns this member. </value>
     public new virtual EntityEntry<TEntity> EntityEntry
-        => new(InternalEntry);
+        => new(InternalEntityEntry);
 
     /// <summary>
     ///     Gets or sets the value currently assigned to this property. If the current value is set using this property,
@@ -73,12 +73,12 @@ public class CollectionEntry<TEntity, TRelatedEntity> : CollectionEntry
     /// </remarks>
     public new virtual IEnumerable<TRelatedEntity>? CurrentValue
     {
-        get => this.GetInfrastructure().GetCurrentValue<IEnumerable<TRelatedEntity>>(Metadata);
+        get => (IEnumerable<TRelatedEntity>?)InternalEntry.GetCurrentValue(Metadata);
         set => base.CurrentValue = value;
     }
 
     /// <summary>
-    ///     Returns the query that would be used by <see cref="CollectionEntry.Load" /> to load entities referenced by
+    ///     Returns the query that would be used by <see cref="CollectionEntry.Load()" /> to load entities referenced by
     ///     this navigation property.
     /// </summary>
     /// <remarks>
@@ -93,7 +93,7 @@ public class CollectionEntry<TEntity, TRelatedEntity> : CollectionEntry
     /// </remarks>
     public new virtual IQueryable<TRelatedEntity> Query()
     {
-        InternalEntry.GetOrCreateCollection(Metadata, forMaterialization: true);
+        InternalEntityEntry.GetOrCreateCollection(Metadata, forMaterialization: true);
 
         return (IQueryable<TRelatedEntity>)base.Query();
     }

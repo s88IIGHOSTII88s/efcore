@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Specialized;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore.Utilities;
 
 namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
@@ -12,7 +13,10 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
-public class ObservableBackedBindingList<T> : SortableBindingList<T>
+[RequiresUnreferencedCode(
+     "BindingList raises ListChanged events with PropertyDescriptors. PropertyDescriptors require unreferenced code."),
+ RequiresDynamicCode("Requires calling MakeGenericType on the property descriptor's type")]
+public class ObservableBackedBindingList<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T> : SortableBindingList<T>
 {
     private bool _addingNewInstance;
     private T? _addNewInstance;
@@ -28,6 +32,8 @@ public class ObservableBackedBindingList<T> : SortableBindingList<T>
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    [RequiresUnreferencedCode(
+        "BindingList raises ListChanged events with PropertyDescriptors. PropertyDescriptors require unreferenced code.")]
     public ObservableBackedBindingList(ICollection<T> observableCollection)
         : base(observableCollection.ToList())
     {
@@ -196,8 +202,7 @@ public class ObservableBackedBindingList<T> : SortableBindingList<T>
                     Clear();
                 }
 
-                if (e.Action == NotifyCollectionChangedAction.Remove
-                    || e.Action == NotifyCollectionChangedAction.Replace)
+                if (e.Action is NotifyCollectionChangedAction.Remove or NotifyCollectionChangedAction.Replace)
                 {
                     foreach (T entity in e.OldItems!)
                     {
@@ -205,8 +210,7 @@ public class ObservableBackedBindingList<T> : SortableBindingList<T>
                     }
                 }
 
-                if (e.Action == NotifyCollectionChangedAction.Add
-                    || e.Action == NotifyCollectionChangedAction.Replace)
+                if (e.Action is NotifyCollectionChangedAction.Add or NotifyCollectionChangedAction.Replace)
                 {
                     foreach (T entity in e.NewItems!)
                     {

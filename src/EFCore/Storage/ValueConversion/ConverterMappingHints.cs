@@ -21,25 +21,21 @@ public class ConverterMappingHints
     /// <param name="size">The suggested size of the mapped data type.</param>
     /// <param name="precision">The suggested precision of the mapped data type.</param>
     /// <param name="scale">The suggested scale of the mapped data type.</param>
-    /// <param name="unicode">Whether or not the mapped data type should support Unicode.</param>
-    /// <param name="valueGeneratorFactory">An optional factory for creating a specific <see cref="ValueGenerator" />.</param>
+    /// <param name="unicode">Whether the mapped data type should support Unicode.</param>
     public ConverterMappingHints(
         int? size = null,
         int? precision = null,
         int? scale = null,
-        bool? unicode = null,
-        Func<IProperty, IEntityType, ValueGenerator>? valueGeneratorFactory = null)
+        bool? unicode = null)
     {
         Size = size;
         Precision = precision;
         Scale = scale;
         IsUnicode = unicode;
-        ValueGeneratorFactory = valueGeneratorFactory;
     }
 
     /// <summary>
-    ///     Adds hints from the given object to this one. Hints that are already specified are
-    ///     not overridden.
+    ///     Adds hints from the given object to this one. Hints that are already specified are not overridden.
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-value-converters">EF Core value converters</see> for more information and examples.
@@ -49,12 +45,32 @@ public class ConverterMappingHints
     public virtual ConverterMappingHints With(ConverterMappingHints? hints)
         => hints == null
             ? this
-            : new ConverterMappingHints(
-                hints.Size ?? Size,
-                hints.Precision ?? Precision,
-                hints.Scale ?? Scale,
-                hints.IsUnicode ?? IsUnicode,
-                hints.ValueGeneratorFactory ?? ValueGeneratorFactory);
+            : hints.GetType().IsInstanceOfType(this)
+                ? new ConverterMappingHints(
+                    hints.Size ?? Size,
+                    hints.Precision ?? Precision,
+                    hints.Scale ?? Scale,
+                    hints.IsUnicode ?? IsUnicode)
+                : hints.OverrideWith(this);
+
+    /// <summary>
+    ///     Adds hints from the given object to this one. Hints that are already specified are overridden.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-value-converters">EF Core value converters</see> for more information and examples.
+    /// </remarks>
+    /// <param name="hints">The hints to add.</param>
+    /// <returns>The combined hints.</returns>
+    public virtual ConverterMappingHints OverrideWith(ConverterMappingHints? hints)
+        => hints == null
+            ? this
+            : GetType().IsInstanceOfType(hints)
+                ? new ConverterMappingHints(
+                    Size ?? hints.Size,
+                    Precision ?? hints.Precision,
+                    Scale ?? hints.Scale,
+                    IsUnicode ?? hints.IsUnicode)
+                : hints.With(this);
 
     /// <summary>
     ///     The suggested size of the mapped data type.
@@ -72,13 +88,7 @@ public class ConverterMappingHints
     public virtual int? Scale { get; }
 
     /// <summary>
-    ///     Whether or not the mapped data type should support Unicode.
+    ///     Whether the mapped data type should support Unicode.
     /// </summary>
     public virtual bool? IsUnicode { get; }
-
-    /// <summary>
-    ///     An optional factory for creating a specific <see cref="ValueGenerator" /> to use for model
-    ///     values when this converter is being used.
-    /// </summary>
-    public virtual Func<IProperty, IEntityType, ValueGenerator>? ValueGeneratorFactory { get; }
 }

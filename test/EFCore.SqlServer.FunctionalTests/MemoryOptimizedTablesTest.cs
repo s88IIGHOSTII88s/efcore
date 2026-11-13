@@ -1,55 +1,49 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable UnusedAutoPropertyAccessor.Local
 // ReSharper disable CollectionNeverUpdated.Local
 // ReSharper disable UnusedMember.Local
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore;
 
-[SqlServerCondition(SqlServerCondition.SupportsMemoryOptimized)]
-public class MemoryOptimizedTablesTest : IClassFixture<MemoryOptimizedTablesTest.MemoryOptimizedTablesFixture>
+[ConditionalClass(typeof(SqlServerTestEnvironment), nameof(SqlServerTestEnvironment.IsMemoryOptimizedTablesSupported))]
+public class MemoryOptimizedTablesTest(MemoryOptimizedTablesTest.MemoryOptimizedTablesFixture fixture)
+    : IClassFixture<MemoryOptimizedTablesTest.MemoryOptimizedTablesFixture>
 {
-    protected MemoryOptimizedTablesFixture Fixture { get; }
+    protected MemoryOptimizedTablesFixture Fixture { get; } = fixture;
 
-    public MemoryOptimizedTablesTest(MemoryOptimizedTablesFixture fixture)
+    [Fact]
+    public async Task Can_create_memoryOptimized_table()
     {
-        Fixture = fixture;
-    }
-
-    [ConditionalFact]
-    public void Can_create_memoryOptimized_table()
-    {
-        using (CreateTestStore())
+        await using (await CreateTestStoreAsync())
         {
             var bigUn = new BigUn();
             var fastUns = new[] { new FastUn { Name = "First 'un", BigUn = bigUn }, new FastUn { Name = "Second 'un", BigUn = bigUn } };
             using (var context = CreateContext())
             {
-                context.Database.EnsureCreatedResiliently();
+                await context.Database.EnsureCreatedResilientlyAsync();
 
                 // ReSharper disable once CoVariantArrayConversion
                 context.AddRange(fastUns);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
             }
 
             using (var context = CreateContext())
             {
-                Assert.Equal(fastUns.Select(f => f.Name), context.FastUns.OrderBy(f => f.Name).Select(f => f.Name).ToList());
+                Assert.Equal(fastUns.Select(f => f.Name), await context.FastUns.OrderBy(f => f.Name).Select(f => f.Name).ToListAsync());
             }
         }
     }
 
-    protected TestStore TestStore { get; set; }
+    protected TestStore TestStore { get; set; } = null!;
 
-    protected TestStore CreateTestStore()
+    protected Task<TestStore> CreateTestStoreAsync()
     {
         TestStore = SqlServerTestStore.Create(nameof(MemoryOptimizedTablesTest));
-        TestStore.Initialize(null, CreateContext, c => { });
-        return TestStore;
+        return TestStore.InitializeAsync(null, CreateContext, _ => Task.CompletedTask);
     }
 
     private MemoryOptimizedContext CreateContext()
@@ -61,40 +55,34 @@ public class MemoryOptimizedTablesTest : IClassFixture<MemoryOptimizedTablesTest
             => SqlServerTestStoreFactory.Instance;
     }
 
-    private class MemoryOptimizedContext : DbContext
+    private class MemoryOptimizedContext(DbContextOptions options) : DbContext(options)
     {
-        public MemoryOptimizedContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public DbSet<FastUn> FastUns { get; set; }
+        public DbSet<FastUn> FastUns { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder
-                .Entity<FastUn>(
-                    eb =>
-                    {
-                        eb.IsMemoryOptimized();
-                        eb.HasIndex(e => e.Name).IsUnique();
-                        eb.HasOne(e => e.BigUn).WithMany(e => e.FastUns).IsRequired().OnDelete(DeleteBehavior.Restrict);
-                    });
+                .Entity<FastUn>(eb =>
+                {
+                    eb.ToTable(tb => tb.IsMemoryOptimized());
+                    eb.HasIndex(e => e.Name).IsUnique();
+                    eb.HasOne(e => e.BigUn).WithMany(e => e.FastUns).IsRequired().OnDelete(DeleteBehavior.Restrict);
+                });
 
-            modelBuilder.Entity<BigUn>().IsMemoryOptimized();
+            modelBuilder.Entity<BigUn>().ToTable(tb => tb.IsMemoryOptimized());
         }
     }
 
     private class BigUn
     {
         public int Id { get; set; }
-        public ICollection<FastUn> FastUns { get; set; }
+        public ICollection<FastUn> FastUns { get; set; } = null!;
     }
 
     private class FastUn
     {
         public int Id { get; set; }
-        public string Name { get; set; }
-        public BigUn BigUn { get; set; }
+        public string Name { get; set; } = null!;
+        public BigUn BigUn { get; set; } = null!;
     }
 }

@@ -61,6 +61,17 @@ public class InternalEntityEntryNotifier : IInternalEntityEntryNotifier
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    public virtual void FixupResolved(
+        InternalEntityEntry entry,
+        InternalEntityEntry duplicateEntry)
+        => _navigationFixer.FixupResolved(entry, duplicateEntry);
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
     public virtual void TrackedFromQuery(InternalEntityEntry entry)
         => _navigationFixer.TrackedFromQuery(entry);
 
@@ -111,7 +122,7 @@ public class InternalEntityEntryNotifier : IInternalEntityEntryNotifier
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual void PropertyChanged(InternalEntityEntry entry, IPropertyBase property, bool setModified)
+    public virtual void PropertyChanged(IInternalEntry entry, IPropertyBase property, bool setModified)
         => _changeDetector.PropertyChanged(entry, property, setModified);
 
     /// <summary>
@@ -120,6 +131,6 @@ public class InternalEntityEntryNotifier : IInternalEntityEntryNotifier
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual void PropertyChanging(InternalEntityEntry entry, IPropertyBase property)
+    public virtual void PropertyChanging(IInternalEntry entry, IPropertyBase property)
         => _changeDetector.PropertyChanging(entry, property);
 }

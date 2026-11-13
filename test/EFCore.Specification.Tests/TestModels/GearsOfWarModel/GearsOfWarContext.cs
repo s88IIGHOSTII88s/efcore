@@ -3,25 +3,21 @@
 
 namespace Microsoft.EntityFrameworkCore.TestModels.GearsOfWarModel;
 
-public class GearsOfWarContext : PoolableDbContext
+public class GearsOfWarContext(DbContextOptions options) : PoolableDbContext(options)
 {
-    public GearsOfWarContext(DbContextOptions options)
-        : base(options)
-    {
-    }
+    public DbSet<Gear> Gears { get; set; } = null!;
+    public DbSet<Officer> Officers { get; set; } = null!;
+    public DbSet<Squad> Squads { get; set; } = null!;
+    public DbSet<CogTag> Tags { get; set; } = null!;
+    public DbSet<Weapon> Weapons { get; set; } = null!;
+    public DbSet<City> Cities { get; set; } = null!;
+    public DbSet<Mission> Missions { get; set; } = null!;
+    public DbSet<SquadMission> SquadMissions { get; set; } = null!;
+    public DbSet<Faction> Factions { get; set; } = null!;
+    public DbSet<LocustLeader> LocustLeaders { get; set; } = null!;
+    public DbSet<LocustHighCommand> LocustHighCommands { get; set; } = null!;
 
-    public DbSet<Gear> Gears { get; set; }
-    public DbSet<Squad> Squads { get; set; }
-    public DbSet<CogTag> Tags { get; set; }
-    public DbSet<Weapon> Weapons { get; set; }
-    public DbSet<City> Cities { get; set; }
-    public DbSet<Mission> Missions { get; set; }
-    public DbSet<SquadMission> SquadMissions { get; set; }
-    public DbSet<Faction> Factions { get; set; }
-    public DbSet<LocustLeader> LocustLeaders { get; set; }
-    public DbSet<LocustHighCommand> LocustHighCommands { get; set; }
-
-    public static void Seed(GearsOfWarContext context)
+    public static async Task SeedAsync(GearsOfWarContext context)
     {
         var squads = GearsOfWarData.CreateSquads();
         var missions = GearsOfWarData.CreateMissions();
@@ -47,10 +43,10 @@ public class GearsOfWarContext : PoolableDbContext
         context.LocustLeaders.AddRange(locustLeaders);
         context.Factions.AddRange(factions);
         context.LocustHighCommands.AddRange(locustHighCommands);
-        context.SaveChanges();
+        await context.SaveChangesAsync();
 
         GearsOfWarData.WireUp2(locustLeaders, factions);
 
-        context.SaveChanges();
+        await context.SaveChangesAsync();
     }
 }

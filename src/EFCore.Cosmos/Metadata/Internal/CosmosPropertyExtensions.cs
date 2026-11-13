@@ -1,6 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.Cosmos.Extensions.Internal;
+
 namespace Microsoft.EntityFrameworkCore.Cosmos.Metadata.Internal;
 
 /// <summary>
@@ -18,15 +20,9 @@ public static class CosmosPropertyExtensions
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public static bool IsOrdinalKeyProperty(this IReadOnlyProperty property)
-    {
-        Check.DebugAssert(
-            property.DeclaringEntityType.IsOwned(), $"Expected {property.DeclaringEntityType.DisplayName()} to be owned.");
-        Check.DebugAssert(property.GetJsonPropertyName().Length == 0, $"Expected {property.Name} to be non-persisted.");
-
-        return property.FindContainingPrimaryKey() is IReadOnlyKey key
-            && key.Properties.Count > 1
+        => property.ClrType == typeof(int)
             && !property.IsForeignKey()
-            && property.ClrType == typeof(int)
-            && property.ValueGenerated == ValueGenerated.OnAdd;
-    }
+            && (property.ValueGenerated & ValueGenerated.OnAdd) != 0
+            && property.FindContainingPrimaryKey() is { Properties.Count: > 1 }
+            && !property.IsPersisted();
 }

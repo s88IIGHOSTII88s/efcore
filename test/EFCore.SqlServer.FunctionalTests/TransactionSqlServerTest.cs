@@ -8,13 +8,9 @@ using Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal;
 
 namespace Microsoft.EntityFrameworkCore;
 
-public class TransactionSqlServerTest : TransactionTestBase<TransactionSqlServerTest.TransactionSqlServerFixture>
+public class TransactionSqlServerTest(TransactionSqlServerTest.TransactionSqlServerFixture fixture)
+    : TransactionTestBase<TransactionSqlServerTest.TransactionSqlServerFixture>(fixture)
 {
-    public TransactionSqlServerTest(TransactionSqlServerFixture fixture)
-        : base(fixture)
-    {
-    }
-
     // Test relies on savepoints, which are disabled when MARS is enabled
     public override Task SaveChanges_implicitly_creates_savepoint(bool async)
         => new SqlConnectionStringBuilder(TestStore.ConnectionString).MultipleActiveResultSets
@@ -26,14 +22,14 @@ public class TransactionSqlServerTest : TransactionTestBase<TransactionSqlServer
         => Task.CompletedTask;
 
     // Test relies on savepoints, which are disabled when MARS is enabled
-    public override Task SaveChanges_uses_explicit_transaction_with_failure_behavior(bool async, bool autoTransaction)
+    public override Task SaveChanges_uses_explicit_transaction_with_failure_behavior(
+        bool async,
+        AutoTransactionBehavior autoTransactionBehavior)
         => new SqlConnectionStringBuilder(TestStore.ConnectionString).MultipleActiveResultSets
             ? Task.CompletedTask
-            : base.SaveChanges_uses_explicit_transaction_with_failure_behavior(async, autoTransaction);
+            : base.SaveChanges_uses_explicit_transaction_with_failure_behavior(async, autoTransactionBehavior);
 
-    [ConditionalTheory]
-    [InlineData(true)]
-    [InlineData(false)]
+    [Theory, InlineData(true), InlineData(false)]
     public virtual async Task Savepoints_are_disabled_with_MARS(bool async)
     {
         await using var context = CreateContextWithConnectionString(
@@ -44,7 +40,7 @@ public class TransactionSqlServerTest : TransactionTestBase<TransactionSqlServer
         var orderId = 300;
         foreach (var _ in context.Set<TransactionCustomer>())
         {
-            context.Add(new TransactionOrder { Id = orderId++, Name = "Order " + orderId });
+            await context.AddAsync(new TransactionOrder { Id = orderId++, Name = "Order " + orderId });
             if (async)
             {
                 await context.SaveChangesAsync();
@@ -69,11 +65,14 @@ public class TransactionSqlServerTest : TransactionTestBase<TransactionSqlServer
     protected override DbContext CreateContextWithConnectionString()
         => CreateContextWithConnectionString(null);
 
-    protected DbContext CreateContextWithConnectionString(string connectionString)
+    protected DbContext CreateContextWithConnectionString(string? connectionString)
     {
         var options = Fixture.AddOptions(
-                new DbContextOptionsBuilder()
-                    .UseSqlServer(
+                SqlServerTestEnvironment.IsAzureSql
+                    ? new DbContextOptionsBuilder().UseAzureSql(
+                        connectionString ?? TestStore.ConnectionString,
+                        b => b.ApplyConfiguration().ExecutionStrategy(c => new SqlServerExecutionStrategy(c)))
+                    : new DbContextOptionsBuilder().UseSqlServer(
                         connectionString ?? TestStore.ConnectionString,
                         b => b.ApplyConfiguration().ExecutionStrategy(c => new SqlServerExecutionStrategy(c))))
             .ConfigureWarnings(b => b.Log(SqlServerEventId.SavepointsDisabledBecauseOfMARS))
@@ -87,22 +86,22 @@ public class TransactionSqlServerTest : TransactionTestBase<TransactionSqlServer
         protected override ITestStoreFactory TestStoreFactory
             => SqlServerTestStoreFactory.Instance;
 
-        protected override void Seed(PoolableDbContext context)
+        protected override async Task SeedAsync(PoolableDbContext context)
         {
-            base.Seed(context);
+            await base.SeedAsync(context);
 
-            context.Database.ExecuteSqlRaw("ALTER DATABASE [" + StoreName + "] SET ALLOW_SNAPSHOT_ISOLATION ON");
-            context.Database.ExecuteSqlRaw("ALTER DATABASE [" + StoreName + "] SET READ_COMMITTED_SNAPSHOT ON");
+            await context.Database.ExecuteSqlRawAsync("ALTER DATABASE [" + StoreName + "] SET ALLOW_SNAPSHOT_ISOLATION ON");
+            await context.Database.ExecuteSqlRawAsync("ALTER DATABASE [" + StoreName + "] SET READ_COMMITTED_SNAPSHOT ON");
         }
 
-        public override void Reseed()
+        public override async Task ReseedAsync()
         {
             using var context = CreateContext();
-            context.Set<TransactionCustomer>().RemoveRange(context.Set<TransactionCustomer>());
-            context.Set<TransactionOrder>().RemoveRange(context.Set<TransactionOrder>());
+            context.Set<TransactionCustomer>().RemoveRange(await context.Set<TransactionCustomer>().ToListAsync());
+            context.Set<TransactionOrder>().RemoveRange(await context.Set<TransactionOrder>().ToListAsync());
             context.SaveChanges();
 
-            base.Seed(context);
+            await base.SeedAsync(context);
         }
 
         public override DbContextOptionsBuilder AddOptions(DbContextOptionsBuilder builder)

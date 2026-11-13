@@ -43,7 +43,7 @@ public interface IDbCommandInterceptor : IInterceptor
     ///     If <see cref="InterceptionResult{DbCommand}.HasResult" /> is false, the EF will continue as normal.
     ///     If <see cref="InterceptionResult{DbCommand}.HasResult" /> is true, then EF will suppress the operation it
     ///     was about to perform and use <see cref="InterceptionResult{DbCommand}.Result" /> instead.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in.
     /// </returns>
     InterceptionResult<DbCommand> CommandCreating(CommandCorrelatedEventData eventData, InterceptionResult<DbCommand> result)
@@ -63,10 +63,25 @@ public interface IDbCommandInterceptor : IInterceptor
     /// </param>
     /// <returns>
     ///     The result that EF will use.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in.
     /// </returns>
     DbCommand CommandCreated(CommandEndEventData eventData, DbCommand result)
+        => result;
+
+    /// <summary>
+    ///     Called after EF has initialized <see cref="DbCommand.CommandText" /> and other command configuration.
+    /// </summary>
+    /// <param name="eventData">Contextual information about the command and execution.</param>
+    /// <param name="result">
+    ///     The command. This value is typically used as the return value for the implementation of this method.
+    /// </param>
+    /// <returns>
+    ///     The result that EF will use.
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
+    ///     is to return the <paramref name="result" /> value passed in.
+    /// </returns>
+    DbCommand CommandInitialized(CommandEndEventData eventData, DbCommand result)
         => result;
 
     /// <summary>
@@ -84,10 +99,10 @@ public interface IDbCommandInterceptor : IInterceptor
     ///     If <see cref="InterceptionResult{DbDataReader}.HasResult" /> is false, the EF will continue as normal.
     ///     If <see cref="InterceptionResult{DbDataReader}.HasResult" /> is true, then EF will suppress the operation it
     ///     was about to perform and use <see cref="InterceptionResult{DbDataReader}.Result" /> instead.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in.
     /// </returns>
-    InterceptionResult<DbDataReader> ReaderExecuting(DbCommand command,CommandEventData eventData, InterceptionResult<DbDataReader> result)
+    InterceptionResult<DbDataReader> ReaderExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
         => result;
 
     /// <summary>
@@ -105,7 +120,7 @@ public interface IDbCommandInterceptor : IInterceptor
     ///     If <see cref="InterceptionResult{Object}.HasResult" /> is false, the EF will continue as normal.
     ///     If <see cref="InterceptionResult{Object}.HasResult" /> is true, then EF will suppress the operation it
     ///     was about to perform and use <see cref="InterceptionResult{Object}.Result" /> instead.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in.
     /// </returns>
     InterceptionResult<object> ScalarExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<object> result)
@@ -126,7 +141,7 @@ public interface IDbCommandInterceptor : IInterceptor
     ///     If <see cref="InterceptionResult{Int32}.HasResult" /> is false, the EF will continue as normal.
     ///     If <see cref="InterceptionResult{Int32}.HasResult" /> is true, then EF will suppress the operation it
     ///     was about to perform and use <see cref="InterceptionResult{Int32}.Result" /> instead.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in.
     /// </returns>
     InterceptionResult<int> NonQueryExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<int> result)
@@ -148,7 +163,7 @@ public interface IDbCommandInterceptor : IInterceptor
     ///     If <see cref="InterceptionResult{DbDataReader}.HasResult" /> is false, the EF will continue as normal.
     ///     If <see cref="InterceptionResult{DbDataReader}.HasResult" /> is true, then EF will suppress the operation it
     ///     was about to perform and use <see cref="InterceptionResult{DbDataReader}.Result" /> instead.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in, often using <see cref="Task.FromResult{TResult}" />
     /// </returns>
     /// <exception cref="OperationCanceledException">If the <see cref="CancellationToken" /> is canceled.</exception>
@@ -175,7 +190,7 @@ public interface IDbCommandInterceptor : IInterceptor
     ///     If <see cref="InterceptionResult{Object}.HasResult" /> is false, the EF will continue as normal.
     ///     If <see cref="InterceptionResult{Object}.HasResult" /> is true, then EF will suppress the operation it
     ///     was about to perform and use <see cref="InterceptionResult{Object}.Result" /> instead.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in, often using <see cref="Task.FromResult{TResult}" />
     /// </returns>
     /// <exception cref="OperationCanceledException">If the <see cref="CancellationToken" /> is canceled.</exception>
@@ -202,7 +217,7 @@ public interface IDbCommandInterceptor : IInterceptor
     ///     If <see cref="InterceptionResult{Int32}.HasResult" /> is false, the EF will continue as normal.
     ///     If <see cref="InterceptionResult{Int32}.HasResult" /> is true, then EF will suppress the operation it
     ///     was about to perform and use <see cref="InterceptionResult{Int32}.Result" /> instead.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in, often using <see cref="Task.FromResult{TResult}" />
     /// </returns>
     /// <exception cref="OperationCanceledException">If the <see cref="CancellationToken" /> is canceled.</exception>
@@ -228,7 +243,7 @@ public interface IDbCommandInterceptor : IInterceptor
     /// </param>
     /// <returns>
     ///     The result that EF will use.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in.
     /// </returns>
     DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result)
@@ -249,7 +264,7 @@ public interface IDbCommandInterceptor : IInterceptor
     /// </param>
     /// <returns>
     ///     The result that EF will use.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in.
     /// </returns>
     object? ScalarExecuted(DbCommand command, CommandExecutedEventData eventData, object? result)
@@ -270,7 +285,7 @@ public interface IDbCommandInterceptor : IInterceptor
     /// </param>
     /// <returns>
     ///     The result that EF will use.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in.
     /// </returns>
     int NonQueryExecuted(DbCommand command, CommandExecutedEventData eventData, int result)
@@ -292,7 +307,7 @@ public interface IDbCommandInterceptor : IInterceptor
     /// <param name="cancellationToken">A <see cref="CancellationToken" /> to observe while waiting for the task to complete.</param>
     /// <returns>
     ///     A <see cref="Task" /> providing the result that EF will use.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in, often using <see cref="Task.FromResult{TResult}" />
     /// </returns>
     /// <exception cref="OperationCanceledException">If the <see cref="CancellationToken" /> is canceled.</exception>
@@ -319,7 +334,7 @@ public interface IDbCommandInterceptor : IInterceptor
     /// <param name="cancellationToken">A <see cref="CancellationToken" /> to observe while waiting for the task to complete.</param>
     /// <returns>
     ///     A <see cref="Task" /> providing the result that EF will use.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in, often using <see cref="Task.FromResult{TResult}" />
     /// </returns>
     /// <exception cref="OperationCanceledException">If the <see cref="CancellationToken" /> is canceled.</exception>
@@ -346,7 +361,7 @@ public interface IDbCommandInterceptor : IInterceptor
     /// <param name="cancellationToken">A <see cref="CancellationToken" /> to observe while waiting for the task to complete.</param>
     /// <returns>
     ///     A <see cref="Task" /> providing the result that EF will use.
-    ///     A normal implementation of this method for any interceptor that is not attempting to change the result
+    ///     An implementation of this method for any interceptor that is not attempting to change the result
     ///     is to return the <paramref name="result" /> value passed in, often using <see cref="Task.FromResult{TResult}" />
     /// </returns>
     /// <exception cref="OperationCanceledException">If the <see cref="CancellationToken" /> is canceled.</exception>
@@ -358,8 +373,13 @@ public interface IDbCommandInterceptor : IInterceptor
         => new(result);
 
     /// <summary>
-    ///     Called when a command was canceled.
+    ///     Called when command execution or result consumption was canceled.
     /// </summary>
+    /// <remarks>
+    ///     This method is called if command execution or a call to <see cref="DbDataReader.Read" />,
+    ///     <see cref="DbDataReader.ReadAsync(CancellationToken)" />, <see cref="DbDataReader.NextResult" />, or
+    ///     <see cref="DbDataReader.NextResultAsync(CancellationToken)" /> is canceled while EF Core consumes the result.
+    /// </remarks>
     /// <param name="command">The command.</param>
     /// <param name="eventData">Contextual information about the command and execution.</param>
     void CommandCanceled(DbCommand command, CommandEndEventData eventData)
@@ -367,8 +387,13 @@ public interface IDbCommandInterceptor : IInterceptor
     }
 
     /// <summary>
-    ///     Called when a command was canceled.
+    ///     Called when command execution or result consumption was canceled.
     /// </summary>
+    /// <remarks>
+    ///     This method is called if command execution or a call to <see cref="DbDataReader.Read" />,
+    ///     <see cref="DbDataReader.ReadAsync(CancellationToken)" />, <see cref="DbDataReader.NextResult" />, or
+    ///     <see cref="DbDataReader.NextResultAsync(CancellationToken)" /> is canceled while EF Core consumes the result.
+    /// </remarks>
     /// <param name="command">The command.</param>
     /// <param name="eventData">Contextual information about the command and execution.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken" /> to observe while waiting for the task to complete.</param>
@@ -378,8 +403,16 @@ public interface IDbCommandInterceptor : IInterceptor
         => Task.CompletedTask;
 
     /// <summary>
-    ///     Called when execution of a command has failed with an exception.
+    ///     Called when command execution or result consumption has failed with an exception.
     /// </summary>
+    /// <remarks>
+    ///     This method is called when the command execution operation fails. It is also called if a non-cancellation exception is
+    ///     thrown by <see cref="DbDataReader.Read" />, <see cref="DbDataReader.ReadAsync(CancellationToken)" />,
+    ///     <see cref="DbDataReader.NextResult" />, or <see cref="DbDataReader.NextResultAsync(CancellationToken)" /> while EF Core
+    ///     consumes the result. Exceptions thrown while EF Core materializes a row are not reported through this method.
+    ///     Cancellations use the corresponding command cancellation callback. Query iteration failures are also logged as
+    ///     <see cref="CoreEventId.QueryIterationFailed" />.
+    /// </remarks>
     /// <param name="command">The command.</param>
     /// <param name="eventData">Contextual information about the command and execution.</param>
     void CommandFailed(DbCommand command, CommandErrorEventData eventData)
@@ -387,8 +420,16 @@ public interface IDbCommandInterceptor : IInterceptor
     }
 
     /// <summary>
-    ///     Called when execution of a command has failed with an exception.
+    ///     Called when command execution or result consumption has failed with an exception.
     /// </summary>
+    /// <remarks>
+    ///     This method is called when the command execution operation fails. It is also called if a non-cancellation exception is
+    ///     thrown by <see cref="DbDataReader.Read" />, <see cref="DbDataReader.ReadAsync(CancellationToken)" />,
+    ///     <see cref="DbDataReader.NextResult" />, or <see cref="DbDataReader.NextResultAsync(CancellationToken)" /> while EF Core
+    ///     consumes the result. Exceptions thrown while EF Core materializes a row are not reported through this method.
+    ///     Cancellations use the corresponding command cancellation callback. Query iteration failures are also logged as
+    ///     <see cref="CoreEventId.QueryIterationFailed" />.
+    /// </remarks>
     /// <param name="command">The command.</param>
     /// <param name="eventData">Contextual information about the command and execution.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken" /> to observe while waiting for the task to complete.</param>
@@ -396,6 +437,48 @@ public interface IDbCommandInterceptor : IInterceptor
     /// <exception cref="OperationCanceledException">If the <see cref="CancellationToken" /> is canceled.</exception>
     Task CommandFailedAsync(DbCommand command, CommandErrorEventData eventData, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
+
+    /// <summary>
+    ///     Called just before EF intends to call <see cref="DbDataReader.Close()" />.
+    /// </summary>
+    /// <param name="command">The command.</param>
+    /// <param name="eventData">Contextual information about the command.</param>
+    /// <param name="result">
+    ///     Represents the current result if one exists.
+    ///     This value will have <see cref="InterceptionResult.IsSuppressed" /> set to <see langword="true" /> if some previous
+    ///     interceptor suppressed execution by calling <see cref="InterceptionResult.Suppress" />.
+    ///     This value is typically used as the return value for the implementation of this method.
+    /// </param>
+    /// <returns>
+    ///     If <see cref="InterceptionResult.IsSuppressed" /> is <see langword="false" />, then EF will continue as normal.
+    ///     If <see cref="InterceptionResult.IsSuppressed" /> is <see langword="true" />, then EF will suppress the operation
+    ///     it was about to perform.
+    ///     An implementation of this method for any interceptor that is not attempting to suppress
+    ///     the operation is to return the <paramref name="result" /> value passed in.
+    /// </returns>
+    InterceptionResult DataReaderClosing(DbCommand command, DataReaderClosingEventData eventData, InterceptionResult result)
+        => result;
+
+    /// <summary>
+    ///     Called just before EF intends to call <see cref="DbDataReader.CloseAsync()" /> in an async context.
+    /// </summary>
+    /// <param name="command">The command.</param>
+    /// <param name="eventData">Contextual information about the command.</param>
+    /// <param name="result">
+    ///     Represents the current result if one exists.
+    ///     This value will have <see cref="InterceptionResult.IsSuppressed" /> set to <see langword="true" /> if some previous
+    ///     interceptor suppressed execution by calling <see cref="InterceptionResult.Suppress" />.
+    ///     This value is typically used as the return value for the implementation of this method.
+    /// </param>
+    /// <returns>
+    ///     If <see cref="InterceptionResult.IsSuppressed" /> is <see langword="false" />, then EF will continue as normal.
+    ///     If <see cref="InterceptionResult.IsSuppressed" /> is <see langword="true" />, then EF will suppress the operation
+    ///     it was about to perform.
+    ///     An implementation of this method for any interceptor that is not attempting to suppress
+    ///     the operation is to return the <paramref name="result" /> value passed in.
+    /// </returns>
+    ValueTask<InterceptionResult> DataReaderClosingAsync(DbCommand command, DataReaderClosingEventData eventData, InterceptionResult result)
+        => new(result);
 
     /// <summary>
     ///     Called when execution of a <see cref="DbDataReader" /> is about to be disposed.
@@ -409,10 +492,10 @@ public interface IDbCommandInterceptor : IInterceptor
     ///     This value is typically used as the return value for the implementation of this method.
     /// </param>
     /// <returns>
-    ///     If <see cref="InterceptionResult.IsSuppressed" /> is false, the EF will continue as normal.
-    ///     If <see cref="InterceptionResult.IsSuppressed" /> is true, then EF will suppress the operation
+    ///     If <see cref="InterceptionResult.IsSuppressed" /> is <see langword="false" />, then EF will continue as normal.
+    ///     If <see cref="InterceptionResult.IsSuppressed" /> is <see langword="true" />, then EF will suppress the operation
     ///     it was about to perform.
-    ///     A normal implementation of this method for any interceptor that is not attempting to suppress
+    ///     An implementation of this method for any interceptor that is not attempting to suppress
     ///     the operation is to return the <paramref name="result" /> value passed in.
     /// </returns>
     InterceptionResult DataReaderDisposing(DbCommand command, DataReaderDisposingEventData eventData, InterceptionResult result)

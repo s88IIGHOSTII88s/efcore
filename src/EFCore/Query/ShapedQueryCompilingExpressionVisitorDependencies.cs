@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Microsoft.EntityFrameworkCore.Query;
@@ -21,13 +22,13 @@ namespace Microsoft.EntityFrameworkCore.Query;
 ///         your constructor so that an instance will be created and injected automatically by the
 ///         dependency injection container. To create an instance with some dependent services replaced,
 ///         first resolve the object from the dependency injection container, then replace selected
-///         services using the 'With...' methods. Do not call the constructor at any point in this process.
+///         services using the C# 'with' operator. Do not call the constructor at any point in this process.
 ///     </para>
 ///     <para>
-///         The service lifetime is <see cref="ServiceLifetime.Singleton" /> and multiple registrations
-///         are allowed. This means a single instance of each service is used by many <see cref="DbContext" />
-///         instances. The implementation must be thread-safe.
-///         This service cannot depend on services registered as <see cref="ServiceLifetime.Scoped" />.
+///         The service lifetime is <see cref="ServiceLifetime.Scoped" />. This means that each
+///         <see cref="DbContext" /> instance will use its own instance of this service.
+///         The implementation may depend on other services registered with any lifetime.
+///         The implementation does not need to be thread-safe.
 ///     </para>
 /// </remarks>
 public sealed record ShapedQueryCompilingExpressionVisitorDependencies
@@ -43,26 +44,36 @@ public sealed record ShapedQueryCompilingExpressionVisitorDependencies
     ///     as new dependencies are added. Instead, use this type in your constructor so that an instance
     ///     will be created and injected automatically by the dependency injection container. To create
     ///     an instance with some dependent services replaced, first resolve the object from the dependency
-    ///     injection container, then replace selected services using the 'With...' methods. Do not call
+    ///     injection container, then replace selected services using the C# 'with' operator. Do not call
     ///     the constructor at any point in this process.
     /// </remarks>
     [EntityFrameworkInternal]
     public ShapedQueryCompilingExpressionVisitorDependencies(
-        IEntityMaterializerSource entityMaterializerSource,
+        IStructuralTypeMaterializerSource entityMaterializerSource,
         ITypeMappingSource typeMappingSource,
         IMemoryCache memoryCache,
-        ICoreSingletonOptions coreSingletonOptions)
+        ICoreSingletonOptions coreSingletonOptions,
+        IModel model,
+        ILiftableConstantFactory liftableConstantFactory,
+        IDiagnosticsLogger<DbLoggerCategory.Query> queryLogger,
+        IEnumerable<ISingletonInterceptor> singletonInterceptors,
+        IDbContextServices contextServices)
     {
         EntityMaterializerSource = entityMaterializerSource;
         TypeMappingSource = typeMappingSource;
         MemoryCache = memoryCache;
         CoreSingletonOptions = coreSingletonOptions;
+        Model = model;
+        LiftableConstantFactory = liftableConstantFactory;
+        QueryLogger = queryLogger;
+        SingletonInterceptors = singletonInterceptors;
+        ContextServices = contextServices;
     }
 
     /// <summary>
     ///     The materializer source.
     /// </summary>
-    public IEntityMaterializerSource EntityMaterializerSource { get; init; }
+    public IStructuralTypeMaterializerSource EntityMaterializerSource { get; init; }
 
     /// <summary>
     ///     The type mapping source.
@@ -78,4 +89,29 @@ public sealed record ShapedQueryCompilingExpressionVisitorDependencies
     ///     Core singleton options.
     /// </summary>
     public ICoreSingletonOptions CoreSingletonOptions { get; init; }
+
+    /// <summary>
+    ///     The model.
+    /// </summary>
+    public IModel Model { get; init; }
+
+    /// <summary>
+    ///     The liftable constant factory.
+    /// </summary>
+    public ILiftableConstantFactory LiftableConstantFactory { get; init; }
+
+    /// <summary>
+    ///     The query logger.
+    /// </summary>
+    public IDiagnosticsLogger<DbLoggerCategory.Query> QueryLogger { get; init; }
+
+    /// <summary>
+    ///     Registered singleton interceptors.
+    /// </summary>
+    public IEnumerable<ISingletonInterceptor> SingletonInterceptors { get; init; }
+
+    /// <summary>
+    ///     The context services.
+    /// </summary>
+    public IDbContextServices ContextServices { get; init; }
 }

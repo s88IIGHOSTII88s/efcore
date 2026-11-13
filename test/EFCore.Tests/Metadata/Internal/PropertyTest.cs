@@ -7,11 +7,14 @@
 // ReSharper disable UnusedAutoPropertyAccessor.Local
 // ReSharper disable InconsistentNaming
 
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore.Storage.Json;
+
 namespace Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 public class PropertyTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Throws_when_model_is_readonly()
     {
         var model = CreateModel();
@@ -79,26 +82,26 @@ public class PropertyTest
 
         Assert.Equal(
             CoreStrings.ModelReadOnly,
-            Assert.Throws<InvalidOperationException>(() => property.SetValueComparer((ValueComparer)null)).Message);
+            Assert.Throws<InvalidOperationException>(() => property.SetValueComparer((ValueComparer?)null)).Message);
 
         Assert.Equal(
             CoreStrings.ModelReadOnly,
-            Assert.Throws<InvalidOperationException>(() => property.SetValueComparer((Type)null)).Message);
+            Assert.Throws<InvalidOperationException>(() => property.SetValueComparer((Type?)null)).Message);
 
         Assert.Equal(
             CoreStrings.ModelReadOnly,
-            Assert.Throws<InvalidOperationException>(() => property.SetValueConverter((ValueConverter)null)).Message);
+            Assert.Throws<InvalidOperationException>(() => property.SetValueConverter((ValueConverter?)null)).Message);
 
         Assert.Equal(
             CoreStrings.ModelReadOnly,
-            Assert.Throws<InvalidOperationException>(() => property.SetValueConverter((Type)null)).Message);
+            Assert.Throws<InvalidOperationException>(() => property.SetValueConverter((Type?)null)).Message);
 
         Assert.Equal(
             CoreStrings.ModelReadOnly,
-            Assert.Throws<InvalidOperationException>(() => property.SetValueGeneratorFactory((Type)null)).Message);
+            Assert.Throws<InvalidOperationException>(() => property.SetValueGeneratorFactory((Type?)null)).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_set_ClrType()
     {
         var entityType = CreateModel().AddEntityType(typeof(object));
@@ -107,7 +110,7 @@ public class PropertyTest
         Assert.Equal(typeof(string), property.ClrType);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Default_nullability_of_property_is_based_on_nullability_of_CLR_type()
     {
         var entityType = CreateModel().AddEntityType(typeof(object));
@@ -120,7 +123,7 @@ public class PropertyTest
         Assert.False(intProperty.IsNullable);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Property_nullability_can_be_mutated()
     {
         var entityType = CreateModel().AddEntityType(typeof(object));
@@ -137,7 +140,7 @@ public class PropertyTest
         Assert.False(intProperty.IsNullable);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Adding_a_nullable_property_to_a_key_throws()
     {
         var entityType = CreateModel().AddEntityType(typeof(object));
@@ -148,12 +151,10 @@ public class PropertyTest
 
         Assert.Equal(
             CoreStrings.NullableKey(typeof(object).DisplayName(), stringProperty.Name),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    stringProperty.DeclaringEntityType.AddKey(stringProperty)).Message);
+            Assert.Throws<InvalidOperationException>(() => entityType.AddKey(stringProperty)).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Properties_with_non_nullable_types_cannot_be_made_nullable()
     {
         var entityType = CreateModel().AddEntityType(typeof(object));
@@ -164,20 +165,20 @@ public class PropertyTest
             Assert.Throws<InvalidOperationException>(() => intProperty.IsNullable = true).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Properties_which_are_part_of_primary_key_cannot_be_made_nullable()
     {
         var entityType = CreateModel().AddEntityType(typeof(object));
         var stringProperty = entityType.AddProperty("Name", typeof(string));
         stringProperty.IsNullable = false;
-        stringProperty.DeclaringEntityType.SetPrimaryKey(stringProperty);
+        entityType.SetPrimaryKey(stringProperty);
 
         Assert.Equal(
             CoreStrings.CannotBeNullablePK("Name", "object"),
             Assert.Throws<InvalidOperationException>(() => stringProperty.IsNullable = true).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void UnderlyingType_returns_correct_underlying_type()
     {
         var entityType = CreateModel().AddEntityType(typeof(Entity));
@@ -185,7 +186,7 @@ public class PropertyTest
         Assert.Equal(typeof(int), property1.ClrType.UnwrapNullableType());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void IsShadowProperty_is_set()
     {
         var entityType = CreateModel().AddEntityType(typeof(Entity));
@@ -194,7 +195,7 @@ public class PropertyTest
         Assert.False(property.IsShadowProperty());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Property_does_not_use_ValueGenerated_by_default()
     {
         var entityType = CreateModel().AddEntityType(typeof(Entity));
@@ -203,7 +204,7 @@ public class PropertyTest
         Assert.Equal(ValueGenerated.Never, property.ValueGenerated);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_mark_property_as_using_ValueGenerated()
     {
         var entityType = CreateModel().AddEntityType(typeof(Entity));
@@ -216,7 +217,29 @@ public class PropertyTest
         Assert.Equal(ValueGenerated.Never, property.ValueGenerated);
     }
 
-    [ConditionalFact]
+    [Fact]
+    public void Property_is_auto_loaded_by_default()
+    {
+        var entityType = CreateModel().AddEntityType(typeof(Entity));
+        var property = entityType.AddProperty("Name", typeof(string));
+
+        Assert.True(property.IsAutoLoaded);
+    }
+
+    [Fact]
+    public void Can_mark_property_as_not_auto_loaded()
+    {
+        var entityType = CreateModel().AddEntityType(typeof(Entity));
+        var property = entityType.AddProperty("Name", typeof(string));
+
+        property.IsAutoLoaded = false;
+        Assert.False(property.IsAutoLoaded);
+
+        property.IsAutoLoaded = true;
+        Assert.True(property.IsAutoLoaded);
+    }
+
+    [Fact]
     public void Property_is_not_concurrency_token_by_default()
     {
         var entityType = CreateModel().AddEntityType(typeof(Entity));
@@ -225,7 +248,7 @@ public class PropertyTest
         Assert.False(property.IsConcurrencyToken);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_mark_property_as_concurrency_token()
     {
         var entityType = CreateModel().AddEntityType(typeof(Entity));
@@ -238,7 +261,7 @@ public class PropertyTest
         Assert.False(property.IsConcurrencyToken);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Throws_when_ValueGeneratorFactory_is_invalid()
     {
         var model = CreateModel();
@@ -248,45 +271,40 @@ public class PropertyTest
 
         Assert.Equal(
             CoreStrings.BadValueGeneratorType(nameof(NonDerivedValueGeneratorFactory), nameof(ValueGeneratorFactory)),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueGeneratorFactory(typeof(NonDerivedValueGeneratorFactory))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueGeneratorFactory(typeof(NonDerivedValueGeneratorFactory))).Message);
 
         Assert.Equal(
             CoreStrings.CannotCreateValueGenerator(nameof(AbstractValueGeneratorFactory), "SetValueGeneratorFactory"),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueGeneratorFactory(typeof(AbstractValueGeneratorFactory))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueGeneratorFactory(typeof(AbstractValueGeneratorFactory))).Message);
 
         Assert.Equal(
             CoreStrings.CannotCreateValueGenerator(nameof(StaticValueGeneratorFactory), "SetValueGeneratorFactory"),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueGeneratorFactory(typeof(StaticValueGeneratorFactory))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueGeneratorFactory(typeof(StaticValueGeneratorFactory))).Message);
 
         Assert.Equal(
             CoreStrings.CannotCreateValueGenerator(nameof(PrivateValueGeneratorFactory), "SetValueGeneratorFactory"),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueGeneratorFactory(typeof(PrivateValueGeneratorFactory))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueGeneratorFactory(typeof(PrivateValueGeneratorFactory))).Message);
 
         Assert.Equal(
             CoreStrings.CannotCreateValueGenerator(nameof(NonParameterlessValueGeneratorFactory), "SetValueGeneratorFactory"),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueGeneratorFactory(typeof(NonParameterlessValueGeneratorFactory))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueGeneratorFactory(typeof(NonParameterlessValueGeneratorFactory))).Message);
     }
 
     private class NonDerivedValueGeneratorFactory
     {
-        public ValueGenerator Create(IProperty property, IEntityType entityType)
-            => null;
+        public ValueGenerator Create(IProperty property, ITypeBase typeBase)
+            => null!;
     }
 
     private abstract class AbstractValueGeneratorFactory : ValueGeneratorFactory
     {
-        public override ValueGenerator Create(IProperty property, IEntityType entityType)
-            => null;
+        public override ValueGenerator Create(IProperty property, ITypeBase typeBase)
+            => null!;
     }
 
     private class StaticValueGeneratorFactory : ValueGeneratorFactory
@@ -295,8 +313,8 @@ public class PropertyTest
         {
         }
 
-        public override ValueGenerator Create(IProperty property, IEntityType entityType)
-            => null;
+        public override ValueGenerator Create(IProperty property, ITypeBase typeBase)
+            => null!;
     }
 
     private class PrivateValueGeneratorFactory : ValueGeneratorFactory
@@ -305,21 +323,19 @@ public class PropertyTest
         {
         }
 
-        public override ValueGenerator Create(IProperty property, IEntityType entityType)
-            => null;
+        public override ValueGenerator Create(IProperty property, ITypeBase typeBase)
+            => null!;
     }
 
-    private class NonParameterlessValueGeneratorFactory : ValueGeneratorFactory
+#pragma warning disable CS9113 // Parameter '_' is unread
+    private class NonParameterlessValueGeneratorFactory(object _) : ValueGeneratorFactory
+#pragma warning restore CS9113
     {
-        public NonParameterlessValueGeneratorFactory(object _)
-        {
-        }
-
-        public override ValueGenerator Create(IProperty property, IEntityType entityType)
-            => null;
+        public override ValueGenerator Create(IProperty property, ITypeBase typeBase)
+            => null!;
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Throws_when_ValueConverter_type_is_invalid()
     {
         var model = CreateModel();
@@ -329,42 +345,33 @@ public class PropertyTest
 
         Assert.Equal(
             CoreStrings.BadValueConverterType(nameof(NonDerivedValueConverter), nameof(ValueConverter)),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueConverter(typeof(NonDerivedValueConverter))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueConverter(typeof(NonDerivedValueConverter))).Message);
 
         Assert.Equal(
             CoreStrings.CannotCreateValueConverter(nameof(AbstractValueConverter), "HasConversion"),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueConverter(typeof(AbstractValueConverter))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueConverter(typeof(AbstractValueConverter))).Message);
 
         Assert.Equal(
             CoreStrings.CannotCreateValueConverter(nameof(StaticValueConverter), "HasConversion"),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueConverter(typeof(StaticValueConverter))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueConverter(typeof(StaticValueConverter))).Message);
 
         Assert.Equal(
             CoreStrings.CannotCreateValueConverter(nameof(PrivateValueConverter), "HasConversion"),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueConverter(typeof(PrivateValueConverter))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueConverter(typeof(PrivateValueConverter))).Message);
 
         Assert.Equal(
             CoreStrings.CannotCreateValueConverter(nameof(NonParameterlessValueConverter), "HasConversion"),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueConverter(typeof(NonParameterlessValueConverter))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueConverter(typeof(NonParameterlessValueConverter))).Message);
     }
 
-    private class NonDerivedValueConverter
-    {
-    }
+    private class NonDerivedValueConverter;
 
-    private abstract class AbstractValueConverter : StringToBoolConverter
-    {
-    }
+    private abstract class AbstractValueConverter : StringToBoolConverter;
 
     private class StaticValueConverter : StringToBoolConverter
     {
@@ -380,15 +387,9 @@ public class PropertyTest
         }
     }
 
-    private class NonParameterlessValueConverter : StringToBoolConverter
-    {
-        public NonParameterlessValueConverter(ConverterMappingHints mappingHints = null)
-            : base(mappingHints)
-        {
-        }
-    }
+    private class NonParameterlessValueConverter(ConverterMappingHints? mappingHints = null) : StringToBoolConverter(mappingHints);
 
-    [ConditionalFact]
+    [Fact]
     public void Throws_when_ValueComparer_type_is_invalid()
     {
         var model = CreateModel();
@@ -398,46 +399,33 @@ public class PropertyTest
 
         Assert.Equal(
             CoreStrings.BadValueComparerType(nameof(NonDerivedValueComparer), nameof(ValueComparer)),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueComparer(typeof(NonDerivedValueComparer))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueComparer(typeof(NonDerivedValueComparer))).Message);
 
         Assert.Equal(
             CoreStrings.CannotCreateValueComparer(nameof(AbstractValueComparer), "HasConversion"),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueComparer(typeof(AbstractValueComparer))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueComparer(typeof(AbstractValueComparer))).Message);
 
         Assert.Equal(
             CoreStrings.CannotCreateValueComparer(nameof(StaticValueComparer), "HasConversion"),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueComparer(typeof(StaticValueComparer))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueComparer(typeof(StaticValueComparer))).Message);
 
         Assert.Equal(
             CoreStrings.CannotCreateValueComparer(nameof(PrivateValueComparer), "HasConversion"),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueComparer(typeof(PrivateValueComparer))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueComparer(typeof(PrivateValueComparer))).Message);
 
         Assert.Equal(
             CoreStrings.CannotCreateValueComparer(nameof(NonParameterlessValueComparer), "HasConversion"),
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    property.SetValueComparer(typeof(NonParameterlessValueComparer))).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetValueComparer(typeof(NonParameterlessValueComparer))).Message);
     }
 
-    private class NonDerivedValueComparer
-    {
-    }
+    private class NonDerivedValueComparer;
 
-    private abstract class AbstractValueComparer : ValueComparer<string>
-    {
-        public AbstractValueComparer()
-            : base(false)
-        {
-        }
-    }
+    private abstract class AbstractValueComparer() : ValueComparer<string>(false);
 
     private class StaticValueComparer : ValueComparer<string>
     {
@@ -455,12 +443,247 @@ public class PropertyTest
         }
     }
 
-    private class NonParameterlessValueComparer : ValueComparer<string>
+    private class NonParameterlessValueComparer(bool favorStructuralComparison) : ValueComparer<string>(favorStructuralComparison);
+
+    [Theory, InlineData(typeof(SimpleJasonValueReaderWriter)), InlineData(typeof(JasonValueReaderWriterWithPrivateInstance)),
+     InlineData(typeof(JasonValueReaderWriterWithBadInstance))]
+    public void Creates_instance_of_JsonValueReaderWriter_using_constructor(Type type)
     {
-        public NonParameterlessValueComparer(bool favorStructuralComparison)
-            : base(favorStructuralComparison)
+        var model = CreateModel();
+        var entityType = model.AddEntityType(typeof(object));
+        var property = entityType.AddProperty("Kake", typeof(string));
+        property.SetJsonValueReaderWriterType(type);
+
+        var instance1 = property.GetJsonValueReaderWriter();
+        var instance2 = property.GetJsonValueReaderWriter();
+        Assert.NotNull(instance1);
+        Assert.NotEqual(instance1, instance2);
+    }
+
+    [Theory, InlineData(typeof(SimpleJasonValueReaderWriterWithInstance)),
+     InlineData(typeof(SimpleJasonValueReaderWriterWithInstanceAndPrivateConstructor))]
+    public void Creates_instance_of_JsonValueReaderWriter_using_instance(Type type)
+    {
+        var model = CreateModel();
+        var entityType = model.AddEntityType(typeof(object));
+        var property = entityType.AddProperty("Kake", typeof(string));
+        property.SetJsonValueReaderWriterType(type);
+
+        var instance1 = property.GetJsonValueReaderWriter();
+        var instance2 = property.GetJsonValueReaderWriter();
+        Assert.NotNull(instance1);
+        Assert.Same(instance1, instance2);
+    }
+
+    [Theory, InlineData(typeof(NonDerivedJsonValueReaderWriter)), InlineData(typeof(NonGenericJsonValueReaderWriter))]
+    public void Throws_when_JsonValueReaderWriter_type_is_invalid(Type type)
+    {
+        var model = CreateModel();
+        var entityType = model.AddEntityType(typeof(object));
+        var property = entityType.AddProperty("Kake", typeof(string));
+
+        Assert.Equal(
+            CoreStrings.BadJsonValueReaderWriterType(type.ShortDisplayName()),
+            Assert.Throws<InvalidOperationException>(() =>
+                property.SetJsonValueReaderWriterType(type)).Message);
+    }
+
+    [Theory, InlineData(typeof(AbstractJasonValueReaderWriter)), InlineData(typeof(NonParameterlessJsonValueReaderWriter)),
+     InlineData(typeof(PrivateJasonValueReaderWriter))]
+    public void Throws_when_JsonValueReaderWriter_instance_cannot_be_created(Type type)
+    {
+        var model = CreateModel();
+        var entityType = model.AddEntityType(typeof(object));
+        var property = entityType.AddProperty("Kake", typeof(string));
+        property.SetJsonValueReaderWriterType(type);
+
+        Assert.Equal(
+            CoreStrings.CannotCreateJsonValueReaderWriter(type.ShortDisplayName()),
+            Assert.Throws<InvalidOperationException>(() => property.GetJsonValueReaderWriter()).Message);
+    }
+
+    [Fact]
+    public void Can_set_element_type_for_primitive_collection()
+    {
+        var model = CreateModel();
+        var entityType = model.AddEntityType(typeof(object));
+        var property = entityType.AddPrimitiveCollection("Random", typeof(IList<int>), typeof(int));
+
+        Assert.Equal(typeof(int), property.GetElementType()!.ClrType);
+        Assert.True(property.IsPrimitiveCollection);
+    }
+
+    [Fact]
+    public void Can_set_derived_element_type_for_primitive_collection()
+    {
+        var model = CreateModel();
+        var entityType = model.AddEntityType(typeof(object));
+        var property = entityType.AddPrimitiveCollection("Random", typeof(IList<object>), typeof(int));
+
+        Assert.Equal(typeof(int), property.GetElementType()!.ClrType);
+        Assert.True(property.IsPrimitiveCollection);
+    }
+
+    [Fact]
+    public void Can_set_element_type_for_primitive_collection_with_member_info()
+    {
+        var model = CreateModel();
+        var entityType = model.AddEntityType(typeof(Customer));
+        var memberInfo = typeof(Customer).GetProperty(nameof(Customer.Numbers))!;
+        var property = entityType.AddPrimitiveCollection(nameof(Customer.Numbers), typeof(IList<int>), memberInfo, typeof(int));
+
+        Assert.Equal(typeof(int), property.GetElementType()!.ClrType);
+        Assert.True(property.IsPrimitiveCollection);
+        Assert.Same(memberInfo, property.PropertyInfo);
+    }
+
+    [Fact]
+    public void Adding_element_type_incompatible_with_collection_type_throws()
+    {
+        var model = CreateModel();
+        var entityType = model.AddEntityType(typeof(object));
+
+        Assert.Equal(
+            CoreStrings.ElementTypeNotCompatible(
+                typeof(int).ShortDisplayName(),
+                typeof(Random).ShortDisplayName(),
+                entityType.DisplayName(),
+                "Random"),
+            Assert.Throws<InvalidOperationException>(() => entityType.AddPrimitiveCollection("Random", typeof(Random), typeof(int)))
+                .Message);
+    }
+
+    private class SimpleJasonValueReaderWriter : JsonValueReaderWriter<string>
+    {
+        public override string FromJsonTyped(ref Utf8JsonReaderManager manager, object? existingObject = null)
+            => manager.CurrentReader.GetString()!;
+
+        public override void ToJsonTyped(Utf8JsonWriter writer, string value)
+            => writer.WriteStringValue(value);
+
+        private readonly Expression<Func<SimpleJasonValueReaderWriter>> _instanceLambda = () => new SimpleJasonValueReaderWriter();
+
+        public override Expression ConstructorExpression
+            => _instanceLambda.Body;
+    }
+
+    private class JasonValueReaderWriterWithPrivateInstance : JsonValueReaderWriter<string>
+    {
+        private static JasonValueReaderWriterWithPrivateInstance Instance { get; } = new();
+
+        public override string FromJsonTyped(ref Utf8JsonReaderManager manager, object? existingObject = null)
+            => manager.CurrentReader.GetString()!;
+
+        public override void ToJsonTyped(Utf8JsonWriter writer, string value)
+            => writer.WriteStringValue(value);
+
+        private readonly Expression<Func<JasonValueReaderWriterWithPrivateInstance>> _instanceLambda = () => Instance;
+
+        public override Expression ConstructorExpression
+            => _instanceLambda.Body;
+    }
+
+    private class JasonValueReaderWriterWithBadInstance : JsonValueReaderWriter<string>
+    {
+        public static object Instance { get; } = new();
+
+        public override string FromJsonTyped(ref Utf8JsonReaderManager manager, object? existingObject = null)
+            => manager.CurrentReader.GetString()!;
+
+        public override void ToJsonTyped(Utf8JsonWriter writer, string value)
+            => writer.WriteStringValue(value);
+
+        public override Expression ConstructorExpression
+            => Expression.Default(typeof(JasonValueReaderWriterWithBadInstance));
+    }
+
+    private class SimpleJasonValueReaderWriterWithInstance : JsonValueReaderWriter<string>
+    {
+        public static SimpleJasonValueReaderWriterWithInstance Instance { get; } = new();
+
+        public override string FromJsonTyped(ref Utf8JsonReaderManager manager, object? existingObject = null)
+            => manager.CurrentReader.GetString()!;
+
+        public override void ToJsonTyped(Utf8JsonWriter writer, string value)
+            => writer.WriteStringValue(value);
+
+        private readonly Expression<Func<SimpleJasonValueReaderWriterWithInstance>> _instanceLambda = () => Instance;
+
+        public override Expression ConstructorExpression
+            => _instanceLambda.Body;
+    }
+
+    private class SimpleJasonValueReaderWriterWithInstanceAndPrivateConstructor : JsonValueReaderWriter<string>
+    {
+        public static SimpleJasonValueReaderWriterWithInstanceAndPrivateConstructor Instance { get; } = new();
+
+        private SimpleJasonValueReaderWriterWithInstanceAndPrivateConstructor()
         {
         }
+
+        public override string FromJsonTyped(ref Utf8JsonReaderManager manager, object? existingObject = null)
+            => manager.CurrentReader.GetString()!;
+
+        public override void ToJsonTyped(Utf8JsonWriter writer, string value)
+            => writer.WriteStringValue(value);
+
+        private readonly Expression<Func<SimpleJasonValueReaderWriterWithInstanceAndPrivateConstructor>> _instanceLambda = () => Instance;
+
+        public override Expression ConstructorExpression
+            => _instanceLambda.Body;
+    }
+
+    private class NonDerivedJsonValueReaderWriter;
+
+    private class NonGenericJsonValueReaderWriter : JsonValueReaderWriter
+    {
+        public override object FromJson(ref Utf8JsonReaderManager manager, object? existingObject = null)
+            => manager.CurrentReader.GetString()!;
+
+        public override void ToJson(Utf8JsonWriter writer, object? value)
+            => writer.WriteStringValue((string)value!);
+
+        public override Type ValueType
+            => typeof(string);
+
+        private readonly Expression<Func<NonGenericJsonValueReaderWriter>> _instanceLambda = () => new NonGenericJsonValueReaderWriter();
+
+        public override Expression ConstructorExpression
+            => _instanceLambda.Body;
+    }
+
+    private abstract class AbstractJasonValueReaderWriter : JsonValueReaderWriter<string>;
+
+    private class PrivateJasonValueReaderWriter : JsonValueReaderWriter<string>
+    {
+        private PrivateJasonValueReaderWriter()
+        {
+        }
+
+        public override string FromJsonTyped(ref Utf8JsonReaderManager manager, object? existingObject = null)
+            => manager.CurrentReader.GetString()!;
+
+        public override void ToJsonTyped(Utf8JsonWriter writer, string value)
+            => writer.WriteStringValue(value);
+
+        private readonly Expression<Func<PrivateJasonValueReaderWriter>> _instanceLambda = () => new PrivateJasonValueReaderWriter();
+
+        public override Expression ConstructorExpression
+            => _instanceLambda.Body;
+    }
+
+    private class NonParameterlessJsonValueReaderWriter(bool _) : JsonValueReaderWriter<string>
+    {
+        public override string FromJsonTyped(ref Utf8JsonReaderManager manager, object? existingObject = null)
+            => manager.CurrentReader.GetString()!;
+
+        public override void ToJsonTyped(Utf8JsonWriter writer, string value)
+            => writer.WriteStringValue(value);
+
+        private readonly ConstructorInfo _constructorInfo = typeof(NonParameterlessJsonValueReaderWriter).GetConstructor([typeof(bool)])!;
+
+        public override Expression ConstructorExpression
+            => Expression.New(_constructorInfo, Expression.Constant(_));
     }
 
     private static IMutableModel CreateModel()
@@ -468,7 +691,7 @@ public class PropertyTest
 
     private class Entity
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         public int? Id { get; set; }
     }
 
@@ -481,20 +704,21 @@ public class PropertyTest
     {
         public int AlternateId { get; set; }
         public Guid Unique { get; set; }
-        public string Name { get; set; }
-        public string Mane { get; set; }
-        public ICollection<Order> Orders { get; set; }
+        public string Name { get; set; } = null!;
+        public string Mane { get; set; } = null!;
+        public ICollection<Order> Orders { get; set; } = null!;
 
-        public IEnumerable<Order> EnumerableOrders { get; set; }
-        public Order NotCollectionOrders { get; set; }
+        public IEnumerable<Order> EnumerableOrders { get; set; } = null!;
+        public Order NotCollectionOrders { get; set; } = null!;
+        public IList<int> Numbers { get; set; } = null!;
     }
 
     private class Order : BaseType
     {
         public int CustomerId { get; set; }
         public Guid CustomerUnique { get; set; }
-        public Customer Customer { get; set; }
+        public Customer Customer { get; set; } = null!;
 
-        public Order OrderCustomer { get; set; }
+        public Order OrderCustomer { get; set; } = null!;
     }
 }

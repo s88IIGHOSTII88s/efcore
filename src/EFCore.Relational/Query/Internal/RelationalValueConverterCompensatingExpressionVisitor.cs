@@ -24,9 +24,7 @@ public class RelationalValueConverterCompensatingExpressionVisitor : ExpressionV
     /// </summary>
     public RelationalValueConverterCompensatingExpressionVisitor(
         ISqlExpressionFactory sqlExpressionFactory)
-    {
-        _sqlExpressionFactory = sqlExpressionFactory;
-    }
+        => _sqlExpressionFactory = sqlExpressionFactory;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -37,16 +35,21 @@ public class RelationalValueConverterCompensatingExpressionVisitor : ExpressionV
     protected override Expression VisitExtension(Expression extensionExpression)
         => extensionExpression switch
         {
-            ShapedQueryExpression shapedQueryExpression => VisitShapedQueryExpression(shapedQueryExpression),
-            CaseExpression caseExpression => VisitCase(caseExpression),
-            SelectExpression selectExpression => VisitSelect(selectExpression),
-            InnerJoinExpression innerJoinExpression => VisitInnerJoin(innerJoinExpression),
-            LeftJoinExpression leftJoinExpression => VisitLeftJoin(leftJoinExpression),
+            ShapedQueryExpression shapedQuery => VisitShapedQueryExpression(shapedQuery),
+            CaseExpression @case => VisitCase(@case),
+            SelectExpression select => VisitSelect(select),
+            PredicateJoinExpressionBase join => VisitJoin(join),
+
             _ => base.VisitExtension(extensionExpression)
         };
 
     private Expression VisitShapedQueryExpression(ShapedQueryExpression shapedQueryExpression)
-        => shapedQueryExpression.UpdateQueryExpression(Visit(shapedQueryExpression.QueryExpression));
+    {
+        var newQueryExpression = Visit(shapedQueryExpression.QueryExpression);
+        var newShaperExpression = Visit(shapedQueryExpression.ShaperExpression);
+
+        return shapedQueryExpression.Update(newQueryExpression, newShaperExpression);
+    }
 
     private Expression VisitCase(CaseExpression caseExpression)
     {
@@ -67,105 +70,48 @@ public class RelationalValueConverterCompensatingExpressionVisitor : ExpressionV
 
         var elseResult = (SqlExpression?)Visit(caseExpression.ElseResult);
 
-        return caseExpression.Update(operand, whenClauses, elseResult);
+        return _sqlExpressionFactory.Case(operand, whenClauses, elseResult, caseExpression);
     }
 
     private Expression VisitSelect(SelectExpression selectExpression)
     {
-        var changed = false;
-        var projections = new List<ProjectionExpression>();
-        foreach (var item in selectExpression.Projection)
-        {
-            var updatedProjection = (ProjectionExpression)Visit(item);
-            projections.Add(updatedProjection);
-            changed |= updatedProjection != item;
-        }
-
-        var tables = new List<TableExpressionBase>();
-        foreach (var table in selectExpression.Tables)
-        {
-            var newTable = (TableExpressionBase)Visit(table);
-            changed |= newTable != table;
-            tables.Add(newTable);
-        }
-
+        var projections = this.VisitAndConvert(selectExpression.Projection);
+        var tables = this.VisitAndConvert(selectExpression.Tables);
         var predicate = TryCompensateForBoolWithValueConverter((SqlExpression?)Visit(selectExpression.Predicate));
-        changed |= predicate != selectExpression.Predicate;
-
-        var groupBy = new List<SqlExpression>();
-        foreach (var groupingKey in selectExpression.GroupBy)
-        {
-            var newGroupingKey = (SqlExpression)Visit(groupingKey);
-            changed |= newGroupingKey != groupingKey;
-            groupBy.Add(newGroupingKey);
-        }
-
+        var groupBy = this.VisitAndConvert(selectExpression.GroupBy);
         var having = TryCompensateForBoolWithValueConverter((SqlExpression?)Visit(selectExpression.Having));
-        changed |= having != selectExpression.Having;
-
-        var orderings = new List<OrderingExpression>();
-        foreach (var ordering in selectExpression.Orderings)
-        {
-            var orderingExpression = (SqlExpression)Visit(ordering.Expression);
-            changed |= orderingExpression != ordering.Expression;
-            orderings.Add(ordering.Update(orderingExpression));
-        }
-
+        var orderings = this.VisitAndConvert(selectExpression.Orderings);
         var offset = (SqlExpression?)Visit(selectExpression.Offset);
-        changed |= offset != selectExpression.Offset;
-
         var limit = (SqlExpression?)Visit(selectExpression.Limit);
-        changed |= limit != selectExpression.Limit;
-
-        return changed
-            ? selectExpression.Update(
-                projections, tables, predicate, groupBy, having, orderings, limit, offset)
-            : selectExpression;
+        return selectExpression.Update(tables, predicate, groupBy, having, projections, orderings, offset, limit);
     }
 
-    private Expression VisitInnerJoin(InnerJoinExpression innerJoinExpression)
+    private Expression VisitJoin(PredicateJoinExpressionBase joinExpression)
     {
-        var table = (TableExpressionBase)Visit(innerJoinExpression.Table);
-        var joinPredicate = TryCompensateForBoolWithValueConverter((SqlExpression)Visit(innerJoinExpression.JoinPredicate));
+        var table = (TableExpressionBase)Visit(joinExpression.Table);
+        var joinPredicate = TryCompensateForBoolWithValueConverter((SqlExpression)Visit(joinExpression.JoinPredicate));
 
-        return innerJoinExpression.Update(table, joinPredicate);
+        return joinExpression.Update(table, joinPredicate);
     }
 
-    private Expression VisitLeftJoin(LeftJoinExpression leftJoinExpression)
-    {
-        var table = (TableExpressionBase)Visit(leftJoinExpression.Table);
-        var joinPredicate = TryCompensateForBoolWithValueConverter((SqlExpression)Visit(leftJoinExpression.JoinPredicate));
-
-        return leftJoinExpression.Update(table, joinPredicate);
-    }
-
-    [return: NotNullIfNotNull("sqlExpression")]
+    [return: NotNullIfNotNull(nameof(sqlExpression))]
     private SqlExpression? TryCompensateForBoolWithValueConverter(SqlExpression? sqlExpression)
-    {
-        if (sqlExpression is ColumnExpression columnExpression
-            && columnExpression.TypeMapping!.ClrType == typeof(bool)
-            && columnExpression.TypeMapping.Converter != null)
-        {
-            return _sqlExpressionFactory.Equal(
-                sqlExpression,
-                _sqlExpressionFactory.Constant(true, sqlExpression.TypeMapping));
-        }
-
-        if (sqlExpression is SqlUnaryExpression sqlUnaryExpression)
-        {
-            return sqlUnaryExpression.Update(
-                TryCompensateForBoolWithValueConverter(sqlUnaryExpression.Operand));
-        }
-
-        if (sqlExpression is SqlBinaryExpression sqlBinaryExpression
-            && (sqlBinaryExpression.OperatorType == ExpressionType.AndAlso
-                || sqlBinaryExpression.OperatorType == ExpressionType.OrElse))
-        {
-            return sqlBinaryExpression.Update(
-                TryCompensateForBoolWithValueConverter(sqlBinaryExpression.Left),
-                TryCompensateForBoolWithValueConverter(sqlBinaryExpression.Right));
-        }
-
-        return sqlExpression;
-    }
+        => (sqlExpression is ColumnExpression or JsonScalarExpression or SqlFunctionExpression)
+            && sqlExpression.TypeMapping!.ClrType is var clrType
+            && (clrType == typeof(bool) || clrType == typeof(bool?))
+            && sqlExpression.TypeMapping.Converter != null
+                ? _sqlExpressionFactory.Equal(
+                    sqlExpression,
+                    _sqlExpressionFactory.Constant(true, sqlExpression.TypeMapping))
+                : sqlExpression is SqlUnaryExpression sqlUnaryExpression
+                    ? sqlUnaryExpression.Update(
+                        TryCompensateForBoolWithValueConverter(sqlUnaryExpression.Operand))
+                    : sqlExpression is SqlBinaryExpression
+                    {
+                        OperatorType: ExpressionType.AndAlso or ExpressionType.OrElse
+                    } sqlBinaryExpression
+                        ? sqlBinaryExpression.Update(
+                            TryCompensateForBoolWithValueConverter(sqlBinaryExpression.Left),
+                            TryCompensateForBoolWithValueConverter(sqlBinaryExpression.Right))
+                        : sqlExpression;
 }

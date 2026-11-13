@@ -5,7 +5,7 @@ namespace Microsoft.EntityFrameworkCore.TestModels.ConferencePlanner.ConferenceD
 
 public class SessionResponse : Session
 {
-    public Track Track { get; set; }
+    public Track Track { get; set; } = null!;
 
-    public List<Speaker> Speakers { get; set; } = new();
+    public List<Speaker>? Speakers { get; set; }
 }

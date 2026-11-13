@@ -84,8 +84,8 @@ public static class ProxiesExtensions
         bool useChangeTrackingProxies = true,
         bool checkEquality = true)
         where TContext : DbContext
-        => (DbContextOptionsBuilder<TContext>)UseChangeTrackingProxies(
-            (DbContextOptionsBuilder)optionsBuilder, useChangeTrackingProxies, checkEquality);
+        => (DbContextOptionsBuilder<TContext>)((DbContextOptionsBuilder)optionsBuilder).UseChangeTrackingProxies(
+            useChangeTrackingProxies, checkEquality);
 
     /// <summary>
     ///     Turns on the creation of lazy loading proxies.
@@ -133,6 +133,42 @@ public static class ProxiesExtensions
     ///         See <see href="https://aka.ms/efcore-docs-lazy-loading">Lazy loading</see> for more information and examples.
     ///     </para>
     /// </remarks>
+    /// <param name="optionsBuilder">
+    ///     The options builder, as passed to <see cref="DbContext.OnConfiguring" />
+    ///     or exposed AddDbContext.
+    /// </param>
+    /// <param name="lazyLoadingProxiesOptionsAction">An optional action to allow additional proxy-specific configuration.</param>
+    /// <returns>The same builder to allow method calls to be chained.</returns>
+    public static DbContextOptionsBuilder UseLazyLoadingProxies(
+        this DbContextOptionsBuilder optionsBuilder,
+        Action<LazyLoadingProxiesOptionsBuilder> lazyLoadingProxiesOptionsAction)
+    {
+        Check.NotNull(lazyLoadingProxiesOptionsAction);
+
+        var extension = optionsBuilder.Options.FindExtension<ProxiesOptionsExtension>()
+            ?? new ProxiesOptionsExtension();
+
+        ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(
+            extension.WithLazyLoading(useLazyLoadingProxies: true));
+
+        lazyLoadingProxiesOptionsAction.Invoke(new LazyLoadingProxiesOptionsBuilder(optionsBuilder));
+
+        return optionsBuilder;
+    }
+
+    /// <summary>
+    ///     Turns on the creation of lazy loading proxies.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Note that this requires appropriate services to be available in the EF internal service provider. Normally this
+    ///         will happen automatically, but if the application is controlling the service provider, then a call to
+    ///         <see cref="ProxiesServiceCollectionExtensions.AddEntityFrameworkProxies" /> may be needed.
+    ///     </para>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-lazy-loading">Lazy loading</see> for more information and examples.
+    ///     </para>
+    /// </remarks>
     /// <typeparam name="TContext">The <see cref="DbContext" /> type.</typeparam>
     /// <param name="optionsBuilder">
     ///     The options builder, as passed to <see cref="DbContext.OnConfiguring" />
@@ -144,7 +180,34 @@ public static class ProxiesExtensions
         this DbContextOptionsBuilder<TContext> optionsBuilder,
         bool useLazyLoadingProxies = true)
         where TContext : DbContext
-        => (DbContextOptionsBuilder<TContext>)UseLazyLoadingProxies((DbContextOptionsBuilder)optionsBuilder, useLazyLoadingProxies);
+        => (DbContextOptionsBuilder<TContext>)((DbContextOptionsBuilder)optionsBuilder).UseLazyLoadingProxies(useLazyLoadingProxies);
+
+    /// <summary>
+    ///     Turns on the creation of lazy loading proxies.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Note that this requires appropriate services to be available in the EF internal service provider. Normally this
+    ///         will happen automatically, but if the application is controlling the service provider, then a call to
+    ///         <see cref="ProxiesServiceCollectionExtensions.AddEntityFrameworkProxies" /> may be needed.
+    ///     </para>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-lazy-loading">Lazy loading</see> for more information and examples.
+    ///     </para>
+    /// </remarks>
+    /// <typeparam name="TContext">The <see cref="DbContext" /> type.</typeparam>
+    /// <param name="optionsBuilder">
+    ///     The options builder, as passed to <see cref="DbContext.OnConfiguring" />
+    ///     or exposed AddDbContext.
+    /// </param>
+    /// <param name="lazyLoadingProxiesOptionsAction">An optional action to allow additional proxy-specific configuration.</param>
+    /// <returns>The same builder to allow method calls to be chained.</returns>
+    public static DbContextOptionsBuilder<TContext> UseLazyLoadingProxies<TContext>(
+        this DbContextOptionsBuilder<TContext> optionsBuilder,
+        Action<LazyLoadingProxiesOptionsBuilder> lazyLoadingProxiesOptionsAction)
+        where TContext : DbContext
+        => (DbContextOptionsBuilder<TContext>)((DbContextOptionsBuilder)optionsBuilder).UseLazyLoadingProxies(
+            lazyLoadingProxiesOptionsAction);
 
     /// <summary>
     ///     Creates a proxy instance for an entity type if proxy creation has been turned on.
@@ -158,9 +221,9 @@ public static class ProxiesExtensions
         Type entityType,
         params object[] constructorArguments)
     {
-        Check.NotNull(context, nameof(context));
-        Check.NotNull(entityType, nameof(entityType));
-        Check.NotNull(constructorArguments, nameof(constructorArguments));
+        Check.NotNull(context);
+        Check.NotNull(entityType);
+        Check.NotNull(constructorArguments);
 
         return context.GetInfrastructure().CreateProxy(entityType, constructorArguments);
     }
@@ -175,7 +238,7 @@ public static class ProxiesExtensions
     public static TEntity CreateProxy<TEntity>(
         this DbContext context,
         params object[] constructorArguments)
-        => CreateProxy<TEntity>(context, null, constructorArguments);
+        => context.CreateProxy<TEntity>(null, constructorArguments);
 
     /// <summary>
     ///     Creates a proxy instance for an entity type if proxy creation has been turned on.
@@ -208,7 +271,7 @@ public static class ProxiesExtensions
         this DbSet<TEntity> set,
         params object[] constructorArguments)
         where TEntity : class
-        => CreateProxy(set, null, constructorArguments);
+        => set.CreateProxy(null, constructorArguments);
 
     /// <summary>
     ///     Creates a proxy instance for an entity type if proxy creation has been turned on.
@@ -224,8 +287,8 @@ public static class ProxiesExtensions
         params object[] constructorArguments)
         where TEntity : class
     {
-        Check.NotNull(set, nameof(set));
-        Check.NotNull(constructorArguments, nameof(constructorArguments));
+        Check.NotNull(set);
+        Check.NotNull(constructorArguments);
 
         var entity = (TEntity)set.GetInfrastructure().CreateProxy(set.EntityType, constructorArguments);
 

@@ -8,7 +8,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 public class SequenceUniquificationConventionTest
 {
-    [ConditionalFact]
+    [Fact]
     public virtual void Sequence_names_are_truncated_and_uniquified()
     {
         var modelBuilder = GetModelBuilder();
@@ -73,8 +73,8 @@ public class SequenceUniquificationConventionTest
     }
 
     private ProviderConventionSetBuilderDependencies CreateDependencies()
-        => RelationalTestHelpers.Instance.CreateContextServices().GetRequiredService<ProviderConventionSetBuilderDependencies>();
+        => FakeRelationalTestHelpers.Instance.CreateContextServices().GetRequiredService<ProviderConventionSetBuilderDependencies>();
 
     private RelationalConventionSetBuilderDependencies CreateRelationalDependencies()
-        => RelationalTestHelpers.Instance.CreateContextServices().GetRequiredService<RelationalConventionSetBuilderDependencies>();
+        => FakeRelationalTestHelpers.Instance.CreateContextServices().GetRequiredService<RelationalConventionSetBuilderDependencies>();
 }

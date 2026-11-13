@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore.Migrations.Internal;
 using Microsoft.EntityFrameworkCore.SqlServer.Metadata.Internal;
 
@@ -9,7 +10,7 @@ namespace Microsoft.EntityFrameworkCore.Migrations;
 
 public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
 {
-    [ConditionalFact]
+    [Fact]
     public void Alter_database_edition_options()
         => Execute(
             _ => { },
@@ -42,7 +43,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                     alterDatabaseOperation.OldDatabase[SqlServerAnnotationNames.EditionOptions]);
             });
 
-    [ConditionalFact]
+    [Fact]
     public void Alter_table_MemoryOptimized()
         => Execute(
             common => common.Entity(
@@ -55,10 +56,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
             _ => { },
             target => target.Entity(
                 "Person",
-                x =>
-                {
-                    x.IsMemoryOptimized();
-                }),
+                x => x.ToTable(tb => tb.IsMemoryOptimized())),
             upOps =>
             {
                 Assert.Equal(2, upOps.Count);
@@ -98,17 +96,14 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.Single(alterTableOperation.OldTable.GetAnnotations());
             });
 
-    [ConditionalFact]
+    [Fact]
     public void Add_table_MemoryOptimized()
         => Execute(
             _ => { },
             _ => { },
             target => target.Entity(
                 "Person",
-                x =>
-                {
-                    x.IsMemoryOptimized();
-                }),
+                x => x.ToTable(tb => tb.IsMemoryOptimized())),
             upOps =>
             {
                 Assert.Equal(2, upOps.Count);
@@ -144,7 +139,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.Single(alterDatabaseOperation.OldDatabase.GetAnnotations());
             });
 
-    [ConditionalFact]
+    [Fact]
     public void Add_column_with_dependencies()
         => Execute(
             source => source.Entity(
@@ -174,7 +169,38 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.Equal("[FirstName] + [LastName]", columnOperation.ComputedColumnSql);
             });
 
-    [ConditionalFact]
+    [Fact]
+    public void Add_required_vector_column_uses_zero_vector_default_value()
+        => Execute(
+            source => source.Entity(
+                "Cat",
+                x =>
+                {
+                    x.Property<int>("Id");
+                    x.ToTable("Cats");
+                }),
+            target => target.Entity(
+                "Cat",
+                x =>
+                {
+                    x.Property<int>("Id");
+                    x.ToTable("Cats");
+                    x.Property<SqlVector<float>>("Embedding").HasColumnType("vector(3)");
+                }),
+            operations =>
+            {
+                Assert.Equal(1, operations.Count);
+
+                var operation = Assert.IsType<AddColumnOperation>(operations[0]);
+                Assert.Equal("Embedding", operation.Name);
+
+                var defaultValue = Assert.IsType<SqlVector<float>>(operation.DefaultValue);
+                Assert.False(defaultValue.IsNull);
+                Assert.Equal(3, defaultValue.Length);
+                Assert.True(defaultValue.Memory.Span.TrimStart(0f).IsEmpty);
+            });
+
+    [Fact]
     public void Alter_column_identity()
         => Execute(
             source => source.Entity("Lamb").ToTable("Lamb", "bah").Property<int>("Id").ValueGeneratedNever(),
@@ -190,7 +216,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.Equal("1, 1", operation["SqlServer:Identity"]);
             });
 
-    [ConditionalFact]
+    [Fact]
     public void Alter_column_non_key_identity()
         => Execute(
             source => source.Entity(
@@ -220,7 +246,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.Equal("1, 1", operation["SqlServer:Identity"]);
             });
 
-    [ConditionalFact]
+    [Fact]
     public void Alter_column_computation()
         => Execute(
             source => source.Entity(
@@ -250,7 +276,119 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.Equal("CAST(CURRENT_TIMESTAMP AS int)", operation.ComputedColumnSql);
             });
 
-    [ConditionalFact]
+    [Fact] // Issue #30321
+    public void Rename_column_TPC()
+        => Execute(
+            source =>
+            {
+                source.Entity(
+                    "Campaign",
+                    x =>
+                    {
+                        x.ToTable((string?)null);
+                        x.UseTpcMappingStrategy();
+                        x.Property<int>("Id");
+                        x.Property<int>("Status");
+                    });
+
+                source.Entity(
+                    "SearchCampaign",
+                    x => x.HasBaseType("Campaign"));
+            },
+            source =>
+            {
+            },
+            target => target.Entity(
+                "Campaign",
+                x => x.Property<int>("Status").HasColumnName("status_new")),
+            operations =>
+            {
+                Assert.Equal(1, operations.Count);
+
+                var operation = Assert.IsType<RenameColumnOperation>(operations[0]);
+                Assert.Null(operation.Schema);
+                Assert.Equal("SearchCampaign", operation.Table);
+                Assert.Equal("Status", operation.Name);
+                Assert.Equal("status_new", operation.NewName);
+            });
+
+    [Fact]
+    public void Rename_column_TPT()
+        => Execute(
+            source =>
+            {
+                source.Entity(
+                    "Campaign",
+                    x =>
+                    {
+                        x.UseTptMappingStrategy();
+                        x.Property<int>("Id");
+                        x.Property<int>("Status");
+                    });
+
+                source.Entity(
+                    "SearchCampaign",
+                    x => x.HasBaseType("Campaign"));
+            },
+            source =>
+            {
+            },
+            target => target.Entity(
+                "Campaign",
+                x => x.Property<int>("Status").HasColumnName("status_new")),
+            operations =>
+            {
+                Assert.Equal(1, operations.Count);
+
+                var operation = Assert.IsType<RenameColumnOperation>(operations[0]);
+                Assert.Null(operation.Schema);
+                Assert.Equal("Campaign", operation.Table);
+                Assert.Equal("Status", operation.Name);
+                Assert.Equal("status_new", operation.NewName);
+            });
+
+    [Fact]
+    public void Rename_column_TPC_non_abstract()
+        => Execute(
+            source =>
+            {
+                source.Entity(
+                    "Campaign",
+                    x =>
+                    {
+                        x.UseTpcMappingStrategy();
+                        x.Property<int>("Id");
+                        x.Property<int>("Status");
+                    });
+
+                source.Entity(
+                    "SearchCampaign",
+                    x => x.HasBaseType("Campaign"));
+            },
+            source =>
+            {
+            },
+            target => target.Entity(
+                "Campaign",
+                x => x.Property<int>("Status").HasColumnName("status_new")),
+            operations =>
+            {
+                Assert.Equal(2, operations.Count);
+
+                var operation = Assert.IsType<RenameColumnOperation>(operations[0]);
+                Assert.Null(operation.Schema);
+                Assert.Equal("SearchCampaign", operation.Table);
+                Assert.Equal("Status", operation.Name);
+                Assert.Equal("status_new", operation.NewName);
+
+                operation = Assert.IsType<RenameColumnOperation>(operations[1]);
+                Assert.Null(operation.Schema);
+                Assert.Equal("Campaign", operation.Table);
+                Assert.Equal("Status", operation.Name);
+                Assert.Equal("status_new", operation.NewName);
+            });
+
+    [Fact]
     public void Alter_primary_key_clustering()
         => Execute(
             source => source.Entity(
@@ -282,10 +420,10 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.Equal("bah", addOperation.Schema);
                 Assert.Equal("Ram", addOperation.Table);
                 Assert.Equal("PK_Ram", addOperation.Name);
-                Assert.True((bool)addOperation[SqlServerAnnotationNames.Clustered]);
+                Assert.True((bool)addOperation[SqlServerAnnotationNames.Clustered]!);
             });
 
-    [ConditionalFact]
+    [Fact]
     public void Add_non_clustered_primary_key_with_owned()
         => Execute(
             _ => { },
@@ -302,12 +440,12 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.Equal(1, operations.Count);
 
                 var createTableOperation = Assert.IsType<CreateTableOperation>(operations[0]);
-                var addKey = createTableOperation.PrimaryKey;
+                var addKey = createTableOperation.PrimaryKey!;
                 Assert.Equal("PK_Ram", addKey.Name);
-                Assert.False((bool)addKey[SqlServerAnnotationNames.Clustered]);
+                Assert.False((bool)addKey[SqlServerAnnotationNames.Clustered]!);
             });
 
-    [ConditionalFact]
+    [Fact]
     public void Alter_unique_constraint_clustering()
         => Execute(
             source => source.Entity(
@@ -341,10 +479,10 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.Equal("bah", addOperation.Schema);
                 Assert.Equal("Ewe", addOperation.Table);
                 Assert.Equal("AK_Ewe_AlternateId", addOperation.Name);
-                Assert.True((bool)addOperation[SqlServerAnnotationNames.Clustered]);
+                Assert.True((bool)addOperation[SqlServerAnnotationNames.Clustered]!);
             });
 
-    [ConditionalFact]
+    [Fact]
     public void Create_shared_table_with_two_entity_types()
         => Execute(
             _ => { },
@@ -379,7 +517,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.True(timeColumn.IsNullable);
             });
 
-    [ConditionalFact]
+    [Fact]
     public void Add_SequenceHiLo_with_seed_data()
         => Execute(
             common => common.Entity(
@@ -421,19 +559,83 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 downOps,
                 o =>
                 {
+                    var m = Assert.IsType<DeleteDataOperation>(o);
+                    AssertMultidimensionalArray(
+                        m.KeyValues,
+                        v => Assert.Equal(43, v));
+                },
+                o =>
+                {
                     var operation = Assert.IsType<DropSequenceOperation>(o);
                     Assert.Equal("dbo", operation.Schema);
                     Assert.Equal("EntityFrameworkHiLoSequence", operation.Name);
+                }));
+
+    [Fact]
+    public void Add_KeySequence_with_seed_data()
+        => Execute(
+            common => common.Entity(
+                "Firefly",
+                x =>
+                {
+                    x.ToTable("Firefly", "dbo");
+                    x.Property<int>("Id");
+                    x.Property<int>("SequenceId");
+                    x.HasData(
+                        new { Id = 42 });
+                }),
+            _ => { },
+            target => target.Entity(
+                "Firefly",
+                x =>
+                {
+                    x.ToTable("Firefly", "dbo");
+                    x.Property<int>("SequenceId").UseSequence(schema: "dbo");
+                    x.HasData(
+                        new { Id = 43 });
+                }),
+            upOps => Assert.Collection(
+                upOps,
+                o =>
+                {
+                    var operation = Assert.IsType<CreateSequenceOperation>(o);
+                    Assert.Equal("dbo", operation.Schema);
+                    Assert.Equal("FireflySequence", operation.Name);
                 },
+                o =>
+                {
+                    var operation = Assert.IsType<AlterColumnOperation>(o);
+                    Assert.Equal("NEXT VALUE FOR [dbo].[FireflySequence]", operation.DefaultValueSql);
+                },
+                o =>
+                {
+                    var m = Assert.IsType<InsertDataOperation>(o);
+                    AssertMultidimensionalArray(
+                        m.Values,
+                        v => Assert.Equal(43, v));
+                }),
+            downOps => Assert.Collection(
+                downOps,
                 o =>
                 {
                     var m = Assert.IsType<DeleteDataOperation>(o);
                     AssertMultidimensionalArray(
                         m.KeyValues,
                         v => Assert.Equal(43, v));
+                },
+                o =>
+                {
+                    var operation = Assert.IsType<AlterColumnOperation>(o);
+                    Assert.Null(operation.DefaultValueSql);
+                },
+                o =>
+                {
+                    var operation = Assert.IsType<DropSequenceOperation>(o);
+                    Assert.Equal("dbo", operation.Schema);
+                    Assert.Equal("FireflySequence", operation.Name);
                 }));
 
-    [ConditionalFact]
+    [Fact]
     public void Alter_index_clustering()
         => Execute(
             source => source.Entity(
@@ -469,24 +671,24 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.Equal("bah", createOperation.Schema);
                 Assert.Equal("Mutton", createOperation.Table);
                 Assert.Equal("IX_Mutton_Value", createOperation.Name);
-                Assert.True((bool)createOperation[SqlServerAnnotationNames.Clustered]);
+                Assert.True((bool)createOperation[SqlServerAnnotationNames.Clustered]!);
             });
 
     public static int Function()
         => default;
 
-    [ConditionalFact]
+    [Fact]
     public void Add_dbfunction_ignore()
     {
-        var mi = typeof(SqlServerModelDifferTest).GetRuntimeMethod(nameof(Function), Array.Empty<Type>());
+        var mi = typeof(SqlServerModelDifferTest).GetRuntimeMethod(nameof(Function), []);
 
         Execute(
             _ => { },
-            modelBuilder => modelBuilder.HasDbFunction(mi),
+            modelBuilder => modelBuilder.HasDbFunction(mi!),
             operations => Assert.Equal(0, operations.Count));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Alter_column_rowversion()
         => Execute(
             source => source.Entity(
@@ -516,7 +718,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.True(operation.IsDestructiveChange);
             });
 
-    [ConditionalFact]
+    [Fact]
     public void SeedData_all_operations()
         => Execute(
             _ => { },
@@ -688,27 +890,24 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                         v => Assert.Equal("", v));
                 }));
 
-    [ConditionalFact]
+    [Fact]
     public void Dont_reseed_value_with_value_generated_on_add_property()
         => Execute(
-            common =>
-            {
-                common.Entity(
-                    "EntityWithValueGeneratedOnAddProperty",
-                    x =>
-                    {
-                        x.Property<int>("Id");
-                        x.Property<string>("ValueGeneratedOnAddProperty")
-                            .ValueGeneratedOnAdd();
-                        x.HasData(
-                            new { Id = 1, ValueGeneratedOnAddProperty = "Value" });
-                    });
-            },
+            common => common.Entity(
+                "EntityWithValueGeneratedOnAddProperty",
+                x =>
+                {
+                    x.Property<int>("Id");
+                    x.Property<string>("ValueGeneratedOnAddProperty")
+                        .ValueGeneratedOnAdd();
+                    x.HasData(
+                        new { Id = 1, ValueGeneratedOnAddProperty = "Value" });
+                }),
             source => { },
             target => { },
             operations => Assert.Equal(0, operations.Count));
 
-    [ConditionalFact]
+    [Fact]
     public void Dont_rebuild_index_with_equal_include()
         => Execute(
             source => source
@@ -735,7 +934,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                     }),
             operations => Assert.Equal(0, operations.Count));
 
-    [ConditionalFact]
+    [Fact]
     public void Rebuild_index_with_different_include()
         => Execute(
             source => source
@@ -784,7 +983,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.Equal("Street", annotationValue[0]);
             });
 
-    [ConditionalFact]
+    [Fact]
     public void Dont_rebuild_index_with_unchanged_online_option()
         => Execute(
             source => source
@@ -811,7 +1010,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                     }),
             operations => Assert.Equal(0, operations.Count));
 
-    [ConditionalFact]
+    [Fact]
     public void Rebuild_index_when_changing_online_option()
         => Execute(
             _ => { },
@@ -875,7 +1074,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.Empty(operation2.GetAnnotations());
             });
 
-    [ConditionalFact]
+    [Fact]
     public void Noop_TPT_with_FKs_and_seed_data()
         => Execute(
             modelBuilder =>
@@ -947,12 +1146,9 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                     });
 
                 source.Entity(
-                    "Animal", b =>
-                    {
-                        b.HasOne("Mouse", null)
-                            .WithMany()
-                            .HasForeignKey("MouseId");
-                    });
+                    "Animal", b => b.HasOne("Mouse", null)
+                        .WithMany()
+                        .HasForeignKey("MouseId"));
 
                 source.Entity(
                     "Cat", b =>
@@ -960,7 +1156,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                         b.HasOne("Animal", null)
                             .WithOne()
                             .HasForeignKey("Cat", "Id")
-                            .OnDelete(DeleteBehavior.ClientCascade)
+                            .OnDelete(DeleteBehavior.Cascade)
                             .IsRequired();
 
                         b.HasOne("Animal", null)
@@ -974,7 +1170,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                         b.HasOne("Animal", null)
                             .WithOne()
                             .HasForeignKey("Dog", "Id")
-                            .OnDelete(DeleteBehavior.ClientCascade)
+                            .OnDelete(DeleteBehavior.Cascade)
                             .IsRequired();
 
                         b.HasOne("Animal", null)
@@ -983,14 +1179,11 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                     });
 
                 source.Entity(
-                    "Mouse", b =>
-                    {
-                        b.HasOne("Animal", null)
-                            .WithOne()
-                            .HasForeignKey("Mouse", "Id")
-                            .OnDelete(DeleteBehavior.ClientCascade)
-                            .IsRequired();
-                    });
+                    "Mouse", b => b.HasOne("Animal", null)
+                        .WithOne()
+                        .HasForeignKey("Mouse", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired());
             },
             modelBuilder =>
             {
@@ -1034,8 +1227,8 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                             new { Id = 31 });
                     });
             },
-            upOps => Assert.Empty(upOps),
-            downOps => Assert.Empty(downOps),
+            Assert.Empty,
+            Assert.Empty,
             skipSourceConventions: true);
 
     protected override TestHelpers TestHelpers
@@ -1047,7 +1240,57 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
     private bool? IsMemoryOptimized(Annotatable annotatable)
         => annotatable[SqlServerAnnotationNames.MemoryOptimized] as bool?;
 
-    [ConditionalFact]
+    [Fact]
+    public void Dont_rebuild_key_index_with_unchanged_fillfactor_option()
+        => Execute(
+            source => source
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.HasKey("Id").HasFillFactor(90);
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                    }),
+            target => target
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.HasKey("Id").HasFillFactor(90);
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                    }),
+            operations => Assert.Equal(0, operations.Count));
+
+    [Fact]
+    public void Dont_rebuild_composite_key_index_with_unchanged_fillfactor_option()
+        => Execute(
+            source => source
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.HasAlternateKey("Zip", "City").HasFillFactor(90);
+                    }),
+            target => target
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.HasAlternateKey("Zip", "City").HasFillFactor(90);
+                    }),
+            operations => Assert.Equal(0, operations.Count));
+
+    [Fact]
     public void Dont_rebuild_index_with_unchanged_fillfactor_option()
         => Execute(
             source => source
@@ -1074,7 +1317,231 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                     }),
             operations => Assert.Equal(0, operations.Count));
 
-    [ConditionalFact]
+    [Fact]
+    public void Rebuild_key_index_when_adding_fillfactor_option()
+        => Execute(
+            _ => { },
+            source => source
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.HasKey("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                        x.HasIndex("Zip");
+                    }),
+            target => target
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.HasKey("Id").HasFillFactor(90);
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                        x.HasIndex("Zip");
+                    }),
+            upOps =>
+            {
+                Assert.Equal(2, upOps.Count);
+
+                var operation1 = Assert.IsType<DropPrimaryKeyOperation>(upOps[0]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("PK_Address", operation1.Name);
+
+                Assert.Empty(operation1.GetAnnotations());
+
+                var operation2 = Assert.IsType<AddPrimaryKeyOperation>(upOps[1]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("PK_Address", operation1.Name);
+
+                var annotation = operation2.GetAnnotation(SqlServerAnnotationNames.FillFactor);
+                Assert.NotNull(annotation);
+
+                var annotationValue = Assert.IsType<int>(annotation.Value);
+                Assert.Equal(90, annotationValue);
+            },
+            downOps =>
+            {
+                Assert.Equal(2, downOps.Count);
+
+                var operation1 = Assert.IsType<DropPrimaryKeyOperation>(downOps[0]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("PK_Address", operation1.Name);
+
+                Assert.Empty(operation1.GetAnnotations());
+
+                var operation2 = Assert.IsType<AddPrimaryKeyOperation>(downOps[1]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("PK_Address", operation1.Name);
+
+                Assert.Empty(operation2.GetAnnotations());
+            });
+
+    [Fact]
+    public void Rebuild_key_index_with_different_fillfactor_value()
+        => Execute(
+            source => source
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.HasKey("Id").HasFillFactor(50);
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                    }),
+            target => target
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.HasKey("Id").HasFillFactor(90);
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                    }),
+            operations =>
+            {
+                Assert.Equal(2, operations.Count);
+
+                var operation1 = Assert.IsType<DropPrimaryKeyOperation>(operations[0]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("PK_Address", operation1.Name);
+
+                Assert.Empty(operation1.GetAnnotations());
+
+                var operation2 = Assert.IsType<AddPrimaryKeyOperation>(operations[1]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("PK_Address", operation1.Name);
+
+                var annotation = operation2.GetAnnotation(SqlServerAnnotationNames.FillFactor);
+                Assert.NotNull(annotation);
+
+                var annotationValue = Assert.IsType<int>(annotation.Value);
+
+                Assert.Equal(90, annotationValue);
+            });
+
+    [Fact]
+    public void Rebuild_composite_key_index_when_adding_fillfactor_option()
+        => Execute(
+            _ => { },
+            source => source
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                        x.HasAlternateKey("Zip", "City");
+                    }),
+            target => target
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                        x.HasAlternateKey("Zip", "City").HasFillFactor(90);
+                    }),
+            upOps =>
+            {
+                Assert.Equal(2, upOps.Count);
+
+                var operation1 = Assert.IsType<DropUniqueConstraintOperation>(upOps[0]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("AK_Address_Zip_City", operation1.Name);
+
+                Assert.Empty(operation1.GetAnnotations());
+
+                var operation2 = Assert.IsType<AddUniqueConstraintOperation>(upOps[1]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("AK_Address_Zip_City", operation1.Name);
+
+                var annotation = operation2.GetAnnotation(SqlServerAnnotationNames.FillFactor);
+                Assert.NotNull(annotation);
+
+                var annotationValue = Assert.IsType<int>(annotation.Value);
+                Assert.Equal(90, annotationValue);
+            },
+            downOps =>
+            {
+                Assert.Equal(2, downOps.Count);
+
+                var operation1 = Assert.IsType<DropUniqueConstraintOperation>(downOps[0]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("AK_Address_Zip_City", operation1.Name);
+
+                Assert.Empty(operation1.GetAnnotations());
+
+                var operation2 = Assert.IsType<AddUniqueConstraintOperation>(downOps[1]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("AK_Address_Zip_City", operation1.Name);
+
+                Assert.Empty(operation2.GetAnnotations());
+            });
+
+    [Fact]
+    public void Rebuild_composite_key_index_with_different_fillfactor_value()
+        => Execute(
+            source => source
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                        x.HasIndex("Zip");
+                        x.HasAlternateKey("Zip", "City").HasFillFactor(50);
+                    }),
+            target => target
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                        x.HasIndex("Zip");
+                        x.HasAlternateKey("Zip", "City").HasFillFactor(90);
+                    }),
+            operations =>
+            {
+                Assert.Equal(2, operations.Count);
+
+                var operation1 = Assert.IsType<DropUniqueConstraintOperation>(operations[0]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("AK_Address_Zip_City", operation1.Name);
+
+                Assert.Empty(operation1.GetAnnotations());
+
+                var operation2 = Assert.IsType<AddUniqueConstraintOperation>(operations[1]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("AK_Address_Zip_City", operation1.Name);
+
+                var annotation = operation2.GetAnnotation(SqlServerAnnotationNames.FillFactor);
+                Assert.NotNull(annotation);
+
+                var annotationValue = Assert.IsType<int>(annotation.Value);
+
+                Assert.Equal(90, annotationValue);
+            });
+
+    [Fact]
     public void Rebuild_index_when_adding_fillfactor_option()
         => Execute(
             _ => { },
@@ -1138,7 +1605,7 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 Assert.Empty(operation2.GetAnnotations());
             });
 
-    [ConditionalFact]
+    [Fact]
     public void Rebuild_index_with_different_fillfactor_value()
         => Execute(
             source => source
@@ -1185,5 +1652,342 @@ public class SqlServerModelDifferTest : MigrationsModelDifferTestBase
                 var annotationValue = Assert.IsType<int>(annotation.Value);
 
                 Assert.Equal(90, annotationValue);
+            });
+
+    [Fact]
+    public void Dont_rebuild_index_with_unchanged_sortintempdb_option()
+        => Execute(
+            source => source
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.HasIndex("Zip")
+                            .SortInTempDb();
+                    }),
+            target => target
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.HasIndex("Zip")
+                            .SortInTempDb();
+                    }),
+            operations => Assert.Equal(0, operations.Count));
+
+    [Fact]
+    public void Rebuild_index_when_changing_sortintempdb_option()
+        => Execute(
+            _ => { },
+            source => source
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                        x.HasIndex("Zip");
+                    }),
+            target => target
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                        x.HasIndex("Zip")
+                            .SortInTempDb();
+                    }),
+            upOps =>
+            {
+                Assert.Equal(2, upOps.Count);
+
+                var operation1 = Assert.IsType<DropIndexOperation>(upOps[0]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("IX_Address_Zip", operation1.Name);
+
+                Assert.Empty(operation1.GetAnnotations());
+
+                var operation2 = Assert.IsType<CreateIndexOperation>(upOps[1]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("IX_Address_Zip", operation1.Name);
+
+                var annotation = operation2.GetAnnotation(SqlServerAnnotationNames.SortInTempDb);
+                Assert.NotNull(annotation);
+
+                var annotationValue = Assert.IsType<bool>(annotation.Value);
+                Assert.True(annotationValue);
+            },
+            downOps =>
+            {
+                Assert.Equal(2, downOps.Count);
+
+                var operation1 = Assert.IsType<DropIndexOperation>(downOps[0]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("IX_Address_Zip", operation1.Name);
+
+                Assert.Empty(operation1.GetAnnotations());
+
+                var operation2 = Assert.IsType<CreateIndexOperation>(downOps[1]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("IX_Address_Zip", operation1.Name);
+
+                Assert.Empty(operation2.GetAnnotations());
+            });
+
+    [Theory, InlineData(DataCompressionType.None), InlineData(DataCompressionType.Row), InlineData(DataCompressionType.Page)]
+    public void Dont_rebuild_index_with_unchanged_datacompression_option(DataCompressionType dataCompression)
+        => Execute(
+            source => source
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.HasIndex("Zip")
+                            .UseDataCompression(dataCompression);
+                    }),
+            target => target
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.HasIndex("Zip")
+                            .UseDataCompression(dataCompression);
+                    }),
+            operations => Assert.Equal(0, operations.Count));
+
+    [Theory, InlineData(DataCompressionType.None), InlineData(DataCompressionType.Row), InlineData(DataCompressionType.Page)]
+    public void Rebuild_index_when_adding_datacompression_option(DataCompressionType dataCompression)
+        => Execute(
+            _ => { },
+            source => source
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                        x.HasIndex("Zip");
+                    }),
+            target => target
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                        x.HasIndex("Zip")
+                            .UseDataCompression(dataCompression);
+                    }),
+            upOps =>
+            {
+                Assert.Equal(2, upOps.Count);
+
+                var operation1 = Assert.IsType<DropIndexOperation>(upOps[0]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("IX_Address_Zip", operation1.Name);
+
+                Assert.Empty(operation1.GetAnnotations());
+
+                var operation2 = Assert.IsType<CreateIndexOperation>(upOps[1]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("IX_Address_Zip", operation1.Name);
+
+                var annotation = operation2.GetAnnotation(SqlServerAnnotationNames.DataCompression);
+                Assert.NotNull(annotation);
+
+                var annotationValue = Assert.IsType<DataCompressionType>(annotation.Value);
+                Assert.Equal(dataCompression, annotationValue);
+            },
+            downOps =>
+            {
+                Assert.Equal(2, downOps.Count);
+
+                var operation1 = Assert.IsType<DropIndexOperation>(downOps[0]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("IX_Address_Zip", operation1.Name);
+
+                Assert.Empty(operation1.GetAnnotations());
+
+                var operation2 = Assert.IsType<CreateIndexOperation>(downOps[1]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("IX_Address_Zip", operation1.Name);
+
+                Assert.Empty(operation2.GetAnnotations());
+            });
+
+    [Fact]
+    public void Rebuild_index_with_different_datacompression_value()
+        => Execute(
+            source => source
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                        x.HasIndex("Zip")
+                            .UseDataCompression(DataCompressionType.Row);
+                    }),
+            target => target
+                .Entity(
+                    "Address",
+                    x =>
+                    {
+                        x.Property<int>("Id");
+                        x.Property<string>("Zip");
+                        x.Property<string>("City");
+                        x.Property<string>("Street");
+                        x.HasIndex("Zip")
+                            .UseDataCompression(DataCompressionType.Page);
+                    }),
+            operations =>
+            {
+                Assert.Equal(2, operations.Count);
+
+                var operation1 = Assert.IsType<DropIndexOperation>(operations[0]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("IX_Address_Zip", operation1.Name);
+
+                Assert.Empty(operation1.GetAnnotations());
+
+                var operation2 = Assert.IsType<CreateIndexOperation>(operations[1]);
+                Assert.Equal("Address", operation1.Table);
+                Assert.Equal("IX_Address_Zip", operation1.Name);
+
+                var annotation = operation2.GetAnnotation(SqlServerAnnotationNames.DataCompression);
+                Assert.NotNull(annotation);
+
+                var annotationValue = Assert.IsType<DataCompressionType>(annotation.Value);
+
+                Assert.Equal(DataCompressionType.Page, annotationValue);
+            });
+
+    [Fact]
+    public void Alter_column_from_nvarchar_max_to_json_for_owned_type()
+        => Execute(
+            _ => { },
+            source => source.Entity(
+                "Blog",
+                x =>
+                {
+                    x.Property<int>("Id");
+                    x.HasKey("Id");
+                    x.OwnsOne(
+                        "Details", "Details", d =>
+                        {
+                            d.Property<string>("Author");
+                            d.Property<int>("Viewers");
+                            d.ToJson();
+                        });
+                }),
+            target => target.Entity(
+                "Blog",
+                x =>
+                {
+                    x.Property<int>("Id");
+                    x.HasKey("Id");
+                    x.OwnsOne(
+                        "Details", "Details", d =>
+                        {
+                            d.Property<string>("Author");
+                            d.Property<int>("Viewers");
+                            d.ToJson().HasColumnType("json");
+                        });
+                }),
+            upOps =>
+            {
+                Assert.Equal(1, upOps.Count);
+
+                var operation = Assert.IsType<AlterColumnOperation>(upOps[0]);
+                Assert.Equal("Blog", operation.Table);
+                Assert.Equal("Details", operation.Name);
+                Assert.Equal("json", operation.ColumnType);
+                Assert.Equal("nvarchar(max)", operation.OldColumn.ColumnType);
+            },
+            downOps =>
+            {
+                Assert.Equal(1, downOps.Count);
+
+                var operation = Assert.IsType<AlterColumnOperation>(downOps[0]);
+                Assert.Equal("Blog", operation.Table);
+                Assert.Equal("Details", operation.Name);
+                Assert.Equal("nvarchar(max)", operation.ColumnType);
+                Assert.Equal("json", operation.OldColumn.ColumnType);
+            });
+
+    [Fact]
+    public void Alter_column_from_nvarchar_max_to_json_for_complex_type()
+        => Execute(
+            _ => { },
+            source => source.Entity(
+                "Blog",
+                x =>
+                {
+                    x.Property<int>("Id");
+                    x.HasKey("Id");
+                    x.ComplexProperty(
+                        typeof(Dictionary<string, object>), "Details", d =>
+                        {
+                            d.Property<string>("Author");
+                            d.Property<int>("Viewers");
+                            d.ToJson();
+                        });
+                }),
+            target => target.Entity(
+                "Blog",
+                x =>
+                {
+                    x.Property<int>("Id");
+                    x.HasKey("Id");
+                    x.ComplexProperty(
+                        typeof(Dictionary<string, object>), "Details", d =>
+                        {
+                            d.Property<string>("Author");
+                            d.Property<int>("Viewers");
+                            d.ToJson().HasColumnType("json");
+                        });
+                }),
+            upOps =>
+            {
+                Assert.Equal(1, upOps.Count);
+
+                var operation = Assert.IsType<AlterColumnOperation>(upOps[0]);
+                Assert.Equal("Blog", operation.Table);
+                Assert.Equal("Details", operation.Name);
+                Assert.Equal("json", operation.ColumnType);
+                Assert.Equal("nvarchar(max)", operation.OldColumn.ColumnType);
+            },
+            downOps =>
+            {
+                Assert.Equal(1, downOps.Count);
+
+                var operation = Assert.IsType<AlterColumnOperation>(downOps[0]);
+                Assert.Equal("Blog", operation.Table);
+                Assert.Equal("Details", operation.Name);
+                Assert.Equal("nvarchar(max)", operation.ColumnType);
+                Assert.Equal("json", operation.OldColumn.ColumnType);
             });
 }

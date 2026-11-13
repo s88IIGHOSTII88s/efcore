@@ -7,13 +7,11 @@ namespace Microsoft.EntityFrameworkCore;
 
 public abstract class SeedingTestBase
 {
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Seeding_does_not_leave_context_contaminated(bool async)
     {
         using var context = CreateContextWithEmptyDatabase(async ? "1A" : "1S");
-        TestStore.Clean(context);
+        await TestStore.CleanAsync(context);
         var _ = async
             ? await context.Database.EnsureCreatedResilientlyAsync()
             : context.Database.EnsureCreatedResiliently();
@@ -28,20 +26,17 @@ public abstract class SeedingTestBase
         Assert.Equal("Orange", seeds[1].Species);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Seeding_keyless_entity_throws_exception(bool async)
     {
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () =>
-            {
-                using var context = CreateKeylessContextWithEmptyDatabase();
-                TestStore.Clean(context);
-                var _ = async
-                    ? await context.Database.EnsureCreatedResilientlyAsync()
-                    : context.Database.EnsureCreatedResiliently();
-            });
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            using var context = CreateKeylessContextWithEmptyDatabase();
+            await TestStore.CleanAsync(context);
+            var _ = async
+                ? await context.Database.EnsureCreatedResilientlyAsync()
+                : context.Database.EnsureCreatedResiliently();
+        });
         Assert.Equal(CoreStrings.SeedKeylessEntity(nameof(KeylessSeed)), exception.Message);
     }
 
@@ -52,14 +47,9 @@ public abstract class SeedingTestBase
     protected virtual KeylessSeedingContext CreateKeylessContextWithEmptyDatabase()
         => new(TestStore.AddProviderOptions(new DbContextOptionsBuilder()).Options);
 
-    protected abstract class SeedingContext : DbContext
+    protected abstract class SeedingContext(string testId) : DbContext
     {
-        public string TestId { get; }
-
-        protected SeedingContext(string testId)
-        {
-            TestId = testId;
-        }
+        public string TestId { get; } = testId;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<Seed>().HasData(
@@ -73,16 +63,11 @@ public abstract class SeedingTestBase
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id { get; set; }
 
-        public string Species { get; set; }
+        public string Species { get; set; } = null!;
     }
 
-    public class KeylessSeedingContext : DbContext
+    public class KeylessSeedingContext(DbContextOptions options) : DbContext(options)
     {
-        public KeylessSeedingContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<KeylessSeed>()
                 .HasNoKey()
@@ -94,6 +79,6 @@ public abstract class SeedingTestBase
 
     public class KeylessSeed
     {
-        public string Species { get; set; }
+        public string Species { get; set; } = null!;
     }
 }

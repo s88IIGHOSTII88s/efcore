@@ -8,6 +8,6 @@ public class JoinOneSelfPayload
     public int LeftId;
     public int RightId;
     public DateTime Payload;
-    public EntityOne Right;
-    public EntityOne Left;
+    public EntityOne Right = null!;
+    public EntityOne Left = null!;
 }

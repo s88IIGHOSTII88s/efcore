@@ -7,7 +7,7 @@ namespace Microsoft.EntityFrameworkCore;
 
 public class CompositeKeyEndToEndTest
 {
-    [ConditionalFact]
+    [Fact]
     public async Task Can_use_two_non_generated_integers_as_composite_key_end_to_end()
     {
         var serviceProvider = new ServiceCollection()
@@ -18,7 +18,7 @@ public class CompositeKeyEndToEndTest
 
         using (var context = new BronieContext(serviceProvider))
         {
-            context.Add(
+            await context.AddAsync(
                 new Pegasus
                 {
                     Id1 = ticks,
@@ -54,7 +54,7 @@ public class CompositeKeyEndToEndTest
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_use_generated_values_in_composite_key_end_to_end()
     {
         var serviceProvider = new ServiceCollection()
@@ -67,8 +67,8 @@ public class CompositeKeyEndToEndTest
 
         using (var context = new BronieContext(serviceProvider))
         {
-            var added = context.Add(
-                new Unicorn { Id2 = id2, Name = "Rarity" }).Entity;
+            var added = (await context.AddAsync(
+                new Unicorn { Id2 = id2, Name = "Rarity" })).Entity;
 
             Assert.True(added.Id1 > 0);
             Assert.NotEqual(Guid.Empty, added.Id3);
@@ -110,7 +110,7 @@ public class CompositeKeyEndToEndTest
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Only_one_part_of_a_composite_key_needs_to_vary_for_uniqueness()
     {
         var serviceProvider = new ServiceCollection()
@@ -121,12 +121,12 @@ public class CompositeKeyEndToEndTest
 
         using (var context = new BronieContext(serviceProvider))
         {
-            var pony1 = context.Add(
-                new EarthPony { Id2 = 7, Name = "Apple Jack 1" }).Entity;
-            var pony2 = context.Add(
-                new EarthPony { Id2 = 7, Name = "Apple Jack 2" }).Entity;
-            var pony3 = context.Add(
-                new EarthPony { Id2 = 7, Name = "Apple Jack 3" }).Entity;
+            var pony1 = (await context.AddAsync(
+                new EarthPony { Id2 = 7, Name = "Apple Jack 1" })).Entity;
+            var pony2 = (await context.AddAsync(
+                new EarthPony { Id2 = 7, Name = "Apple Jack 2" })).Entity;
+            var pony3 = (await context.AddAsync(
+                new EarthPony { Id2 = 7, Name = "Apple Jack 3" })).Entity;
 
             await context.SaveChangesAsync();
 
@@ -169,53 +169,46 @@ public class CompositeKeyEndToEndTest
         }
     }
 
-    private class BronieContext : PoolableDbContext
+    private class BronieContext(IServiceProvider serviceProvider) : PoolableDbContext
     {
-        private readonly IServiceProvider _serviceProvider;
+        private readonly IServiceProvider _serviceProvider = serviceProvider;
 
-        public BronieContext(IServiceProvider serviceProvider)
-        {
-            _serviceProvider = serviceProvider;
-        }
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        public DbSet<Pegasus> Pegasuses { get; set; } = null!;
 
-        public DbSet<Pegasus> Pegasuses { get; set; }
-        public DbSet<Unicorn> Unicorns { get; set; }
-        public DbSet<EarthPony> EarthPonies { get; set; }
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        public DbSet<Unicorn> Unicorns { get; set; } = null!;
+
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        public DbSet<EarthPony> EarthPonies { get; set; } = null!;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder.UseInMemoryDatabase(nameof(BronieContext)).UseInternalServiceProvider(_serviceProvider);
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Pegasus>().HasKey(
-                e => new { e.Id1, e.Id2 });
+            modelBuilder.Entity<Pegasus>().HasKey(e => new { e.Id1, e.Id2 });
             modelBuilder
-                .Entity<Pegasus>(
-                    b =>
-                    {
-                        b.HasKey(
-                            e => new { e.Id1, e.Id2 });
-                        b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                        b.Property(e => e.Id2).ValueGeneratedOnAdd();
-                    });
-
-            modelBuilder.Entity<Unicorn>(
-                b =>
+                .Entity<Pegasus>(b =>
                 {
-                    b.Property(e => e.Id1).ValueGeneratedOnAdd();
-                    b.Property(e => e.Id3).ValueGeneratedOnAdd();
-                });
-
-            modelBuilder.Entity<EarthPony>().HasKey(
-                e => new { e.Id1, e.Id2 });
-            modelBuilder.Entity<EarthPony>(
-                b =>
-                {
-                    b.HasKey(
-                        e => new { e.Id1, e.Id2 });
+                    b.HasKey(e => new { e.Id1, e.Id2 });
                     b.Property(e => e.Id1).ValueGeneratedOnAdd();
                     b.Property(e => e.Id2).ValueGeneratedOnAdd();
                 });
+
+            modelBuilder.Entity<Unicorn>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id3).ValueGeneratedOnAdd();
+            });
+
+            modelBuilder.Entity<EarthPony>().HasKey(e => new { e.Id1, e.Id2 });
+            modelBuilder.Entity<EarthPony>(b =>
+            {
+                b.HasKey(e => new { e.Id1, e.Id2 });
+                b.Property(e => e.Id1).ValueGeneratedOnAdd();
+                b.Property(e => e.Id2).ValueGeneratedOnAdd();
+            });
         }
     }
 
@@ -223,22 +216,22 @@ public class CompositeKeyEndToEndTest
     {
         public long Id1 { get; set; }
         public long Id2 { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 
     [PrimaryKey(nameof(Id1), nameof(Id2), nameof(Id3))]
     private class Unicorn
     {
         public int Id1 { get; set; }
-        public string Id2 { get; set; }
+        public string Id2 { get; set; } = null!;
         public Guid Id3 { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 
     private class EarthPony
     {
         public int Id1 { get; set; }
         public int Id2 { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 }

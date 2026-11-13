@@ -58,9 +58,7 @@ public class SqliteNetTopologySuiteTypeMappingSourcePlugin : IRelationalTypeMapp
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public SqliteNetTopologySuiteTypeMappingSourcePlugin(NtsGeometryServices geometryServices)
-    {
-        _geometryServices = geometryServices;
-    }
+        => _geometryServices = geometryServices;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -104,25 +102,17 @@ public class SqliteNetTopologySuiteTypeMappingSourcePlugin : IRelationalTypeMapp
         {
             defaultStoreType = "MULTIPOLYGON";
         }
-        else if (typeof(Point).IsAssignableFrom(type))
-        {
-            defaultStoreType = "POINT";
-        }
-        else if (typeof(Polygon).IsAssignableFrom(type))
-        {
-            defaultStoreType = "POLYGON";
-        }
-        else if (typeof(GeometryCollection).IsAssignableFrom(type))
-        {
-            defaultStoreType = "GEOMETRYCOLLECTION";
-        }
-        else if (typeof(Geometry).IsAssignableFrom(type))
-        {
-            defaultStoreType = "GEOMETRY";
-        }
         else
         {
-            defaultStoreType = null;
+            defaultStoreType = typeof(Point).IsAssignableFrom(type)
+                ? "POINT"
+                : typeof(Polygon).IsAssignableFrom(type)
+                    ? "POLYGON"
+                    : typeof(GeometryCollection).IsAssignableFrom(type)
+                        ? "GEOMETRYCOLLECTION"
+                        : typeof(Geometry).IsAssignableFrom(type)
+                            ? "GEOMETRY"
+                            : null;
         }
 
         return defaultStoreType != null;

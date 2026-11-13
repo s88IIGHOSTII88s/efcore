@@ -21,10 +21,10 @@ public abstract class ParameterBinding
         Type parameterType,
         params IPropertyBase[]? consumedProperties)
     {
-        Check.NotNull(parameterType, nameof(parameterType));
+        Check.NotNull(parameterType);
 
         ParameterType = parameterType;
-        ConsumedProperties = consumedProperties ?? Array.Empty<IPropertyBase>();
+        ConsumedProperties = consumedProperties ?? [];
     }
 
     /// <summary>

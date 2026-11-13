@@ -30,8 +30,8 @@ public static class ProxiesServiceCollectionExtensions
     {
         new EntityFrameworkServicesBuilder(serviceCollection)
             .TryAdd<IConventionSetPlugin, ProxiesConventionSetPlugin>()
-            .TryAddProviderSpecificServices(
-                b => b.TryAddSingleton<IProxyFactory, ProxyFactory>());
+            .TryAdd<ISingletonInterceptor, ProxyBindingInterceptor>()
+            .TryAddProviderSpecificServices(b => b.TryAddSingleton<IProxyFactory, ProxyFactory>());
 
         return serviceCollection;
     }

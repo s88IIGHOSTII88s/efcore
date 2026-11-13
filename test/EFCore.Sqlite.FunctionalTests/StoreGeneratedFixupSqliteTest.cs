@@ -1,20 +1,15 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore;
 
-public class StoreGeneratedFixupSqliteTest : StoreGeneratedFixupRelationalTestBase<
-    StoreGeneratedFixupSqliteTest.StoreGeneratedFixupSqliteFixture>
+public class StoreGeneratedFixupSqliteTest(StoreGeneratedFixupSqliteTest.StoreGeneratedFixupSqliteFixture fixture)
+    : StoreGeneratedFixupRelationalTestBase<
+        StoreGeneratedFixupSqliteTest.StoreGeneratedFixupSqliteFixture>(fixture)
 {
-    public StoreGeneratedFixupSqliteTest(StoreGeneratedFixupSqliteFixture fixture)
-        : base(fixture)
-    {
-    }
-
-    [ConditionalFact]
+    [Fact]
     public void Temp_values_can_be_made_permanent()
     {
         using var context = CreateContext();

@@ -19,7 +19,7 @@ namespace Microsoft.EntityFrameworkCore.Update;
 ///         your constructor so that an instance will be created and injected automatically by the
 ///         dependency injection container. To create an instance with some dependent services replaced,
 ///         first resolve the object from the dependency injection container, then replace selected
-///         services using the 'With...' methods. Do not call the constructor at any point in this process.
+///         services using the C# 'with' operator. Do not call the constructor at any point in this process.
 ///     </para>
 ///     <para>
 ///         The service lifetime is <see cref="ServiceLifetime.Scoped" />. This means that each
@@ -41,7 +41,7 @@ public sealed record ModificationCommandBatchFactoryDependencies
     ///     as new dependencies are added. Instead, use this type in your constructor so that an instance
     ///     will be created and injected automatically by the dependency injection container. To create
     ///     an instance with some dependent services replaced, first resolve the object from the dependency
-    ///     injection container, then replace selected services using the 'With...' methods. Do not call
+    ///     injection container, then replace selected services using the C# 'with' operator. Do not call
     ///     the constructor at any point in this process.
     /// </remarks>
     [EntityFrameworkInternal]
@@ -49,22 +49,27 @@ public sealed record ModificationCommandBatchFactoryDependencies
         IRelationalCommandBuilderFactory commandBuilderFactory,
         ISqlGenerationHelper sqlGenerationHelper,
         IUpdateSqlGenerator updateSqlGenerator,
-        IRelationalValueBufferFactoryFactory valueBufferFactoryFactory,
         ICurrentDbContext currentContext,
-        IRelationalCommandDiagnosticsLogger logger)
+        IRelationalCommandDiagnosticsLogger logger,
+        IDiagnosticsLogger<DbLoggerCategory.Update> updateLogger)
     {
         CommandBuilderFactory = commandBuilderFactory;
         SqlGenerationHelper = sqlGenerationHelper;
         UpdateSqlGenerator = updateSqlGenerator;
-        ValueBufferFactoryFactory = valueBufferFactoryFactory;
         CurrentContext = currentContext;
         Logger = logger;
+        UpdateLogger = updateLogger;
     }
 
     /// <summary>
-    ///     A logger.
+    ///     A logger relational-command events.
     /// </summary>
     public IRelationalCommandDiagnosticsLogger Logger { get; init; }
+
+    /// <summary>
+    ///     A logger for general update events.
+    /// </summary>
+    public IDiagnosticsLogger<DbLoggerCategory.Update> UpdateLogger { get; }
 
     /// <summary>
     ///     The command builder factory.
@@ -80,11 +85,6 @@ public sealed record ModificationCommandBatchFactoryDependencies
     ///     The update SQL generator.
     /// </summary>
     public IUpdateSqlGenerator UpdateSqlGenerator { get; init; }
-
-    /// <summary>
-    ///     The value buffer factory.
-    /// </summary>
-    public IRelationalValueBufferFactoryFactory ValueBufferFactoryFactory { get; init; }
 
     /// <summary>
     ///     Contains the <see cref="DbContext" /> currently in use.

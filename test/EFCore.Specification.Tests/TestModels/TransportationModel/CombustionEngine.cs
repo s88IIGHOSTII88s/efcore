@@ -5,9 +5,9 @@ namespace Microsoft.EntityFrameworkCore.TestModels.TransportationModel;
 
 public abstract class CombustionEngine : Engine
 {
-    public FuelTank FuelTank { get; set; }
+    public FuelTank? FuelTank { get; set; }
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
         => obj is CombustionEngine other
             && base.Equals(other)
             && Equals(FuelTank, other.FuelTank);

@@ -60,6 +60,17 @@ public interface IReadOnlyForeignKey : IReadOnlyAnnotatable
     bool IsRequired { get; }
 
     /// <summary>
+    ///     Gets a value indicating whether the relationship is constrained, that is, backed by a guarantee
+    ///     (such as a database foreign key constraint) that a matching principal key exists for every set
+    ///     foreign key value. When <see langword="false" />, no database foreign key constraint is created and
+    ///     queries treat the relationship as optional even when the foreign key properties are non-nullable —
+    ///     the principal is loaded with a left join and is never assumed to exist. This does not affect change
+    ///     tracking: a required (<see cref="IsRequired" />) relationship still cascades or produces a conceptual
+    ///     null when severed, regardless of this value.
+    /// </summary>
+    bool IsConstrained { get; }
+
+    /// <summary>
     ///     Gets a value indicating whether the dependent entity is required.
     ///     If <see langword="true" />, the principal entity must always have a valid dependent entity assigned.
     /// </summary>
@@ -90,22 +101,16 @@ public interface IReadOnlyForeignKey : IReadOnlyAnnotatable
     /// </summary>
     /// <param name="entityType">One of the entity types related by the foreign key.</param>
     /// <returns>The entity type related to the given one.</returns>
-    IReadOnlyEntityType GetRelatedEntityType(IReadOnlyEntityType entityType)
-    {
-        if (DeclaringEntityType != entityType
-            && PrincipalEntityType != entityType)
-        {
-            throw new InvalidOperationException(
+    IReadOnlyEntityType GetRelatedEntityType(IReadOnlyEntityType entityType) => DeclaringEntityType != entityType
+            && PrincipalEntityType != entityType
+            ? throw new InvalidOperationException(
                 CoreStrings.EntityTypeNotInRelationshipStrict(
                     entityType.DisplayName(),
                     DeclaringEntityType.DisplayName(),
-                    PrincipalEntityType.DisplayName()));
-        }
-
-        return DeclaringEntityType == entityType
+                    PrincipalEntityType.DisplayName()))
+            : DeclaringEntityType == entityType
             ? PrincipalEntityType
             : DeclaringEntityType;
-    }
 
     /// <summary>
     ///     Returns a navigation associated with this foreign key.
@@ -131,6 +136,17 @@ public interface IReadOnlyForeignKey : IReadOnlyAnnotatable
     }
 
     /// <summary>
+    ///     Returns a value indicating whether a set value for this foreign key is guaranteed to reference an
+    ///     existing principal — that is, the relationship is both required (<see cref="IsRequired" />) and
+    ///     constrained (<see cref="IsConstrained" />). Query consults this to decide whether a dependent-to-principal
+    ///     navigation can be expanded with an inner join (and whether such a join can be pruned); an unconstrained
+    ///     relationship is always treated as optional even when its foreign key properties are non-nullable.
+    /// </summary>
+    /// <returns><see langword="true" /> if the relationship is both required and constrained.</returns>
+    bool IsEffectivelyRequired()
+        => IsRequired && IsConstrained;
+
+    /// <summary>
     ///     <para>
     ///         Creates a human-readable representation of the given metadata.
     ///     </para>
@@ -147,53 +163,70 @@ public interface IReadOnlyForeignKey : IReadOnlyAnnotatable
         var builder = new StringBuilder();
         var indentString = new string(' ', indent);
 
-        builder.Append(indentString);
-
-        var singleLine = (options & MetadataDebugStringOptions.SingleLine) != 0;
-        if (singleLine)
+        try
         {
-            builder.Append("ForeignKey: ");
-        }
+            builder.Append(indentString);
 
-        builder
-            .Append(DeclaringEntityType.DisplayName())
-            .Append(' ')
-            .Append(Properties.Format())
-            .Append(" -> ")
-            .Append(PrincipalEntityType.DisplayName())
-            .Append(' ')
-            .Append(PrincipalKey.Properties.Format());
+            var singleLine = (options & MetadataDebugStringOptions.SingleLine) != 0;
+            if (singleLine)
+            {
+                builder.Append("ForeignKey: ");
+            }
 
-        if (IsUnique)
-        {
-            builder.Append(" Unique");
-        }
-
-        if (IsOwnership)
-        {
-            builder.Append(" Ownership");
-        }
-
-        if (PrincipalToDependent != null)
-        {
-            builder.Append(" ToDependent: ").Append(PrincipalToDependent.Name);
-        }
-
-        if (DependentToPrincipal != null)
-        {
-            builder.Append(" ToPrincipal: ").Append(DependentToPrincipal.Name);
-        }
-
-        if (DeleteBehavior != DeleteBehavior.NoAction)
-        {
             builder
+                .Append(DeclaringEntityType.DisplayName())
                 .Append(' ')
-                .Append(DeleteBehavior);
-        }
+                .Append(Properties.Format())
+                .Append(" -> ")
+                .Append(PrincipalEntityType.DisplayName())
+                .Append(' ')
+                .Append(PrincipalKey.Properties.Format());
 
-        if (!singleLine && (options & MetadataDebugStringOptions.IncludeAnnotations) != 0)
+            if (IsUnique)
+            {
+                builder.Append(" Unique");
+            }
+
+            if (IsRequired)
+            {
+                builder.Append(" Required");
+            }
+
+            if (IsRequiredDependent)
+            {
+                builder.Append(" RequiredDependent");
+            }
+
+            if (IsOwnership)
+            {
+                builder.Append(" Ownership");
+            }
+
+            if (DeleteBehavior != DeleteBehavior.NoAction)
+            {
+                builder
+                    .Append(' ')
+                    .Append(DeleteBehavior);
+            }
+
+            if (PrincipalToDependent != null)
+            {
+                builder.Append(" ToDependent: ").Append(PrincipalToDependent.Name);
+            }
+
+            if (DependentToPrincipal != null)
+            {
+                builder.Append(" ToPrincipal: ").Append(DependentToPrincipal.Name);
+            }
+
+            if (!singleLine && (options & MetadataDebugStringOptions.IncludeAnnotations) != 0)
+            {
+                builder.Append(AnnotationsToDebugString(indent + 2));
+            }
+        }
+        catch (Exception exception)
         {
-            builder.Append(AnnotationsToDebugString(indent + 2));
+            builder.AppendLine().AppendLine(CoreStrings.DebugViewError(exception.Message));
         }
 
         return builder.ToString();

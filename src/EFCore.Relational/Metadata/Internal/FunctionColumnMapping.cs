@@ -9,7 +9,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
-public class FunctionColumnMapping : ColumnMappingBase, IFunctionColumnMapping
+public class FunctionColumnMapping : ColumnMappingBase, IFunctionColumnMapping, IComparable<FunctionColumnMapping>
 {
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -20,14 +20,18 @@ public class FunctionColumnMapping : ColumnMappingBase, IFunctionColumnMapping
     public FunctionColumnMapping(
         IProperty property,
         FunctionColumn column,
-        FunctionMapping viewMapping)
-        : base(property, column, viewMapping)
+        FunctionMapping functionMapping)
+        : base(property, column, functionMapping)
     {
     }
 
     /// <inheritdoc />
     public virtual IFunctionMapping FunctionMapping
         => (IFunctionMapping)TableMapping;
+
+    /// <inheritdoc />
+    public int CompareTo(FunctionColumnMapping? other)
+        => CompareTo((IColumnMappingBase?)other);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to

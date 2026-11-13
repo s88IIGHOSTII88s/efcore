@@ -3,18 +3,5 @@
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public abstract class NorthwindJoinQueryRelationalTestBase<TFixture> : NorthwindJoinQueryTestBase<TFixture>
-    where TFixture : NorthwindQueryFixtureBase<NoopModelCustomizer>, new()
-{
-    protected NorthwindJoinQueryRelationalTestBase(TFixture fixture)
-        : base(fixture)
-    {
-    }
-
-    protected virtual bool CanExecuteQueryString
-        => false;
-
-    protected override QueryAsserter CreateQueryAsserter(TFixture fixture)
-        => new RelationalQueryAsserter(
-            fixture, RewriteExpectedQueryExpression, RewriteServerQueryExpression, canExecuteQueryString: CanExecuteQueryString);
-}
+public abstract class NorthwindJoinQueryRelationalTestBase<TFixture>(TFixture fixture) : NorthwindJoinQueryTestBase<TFixture>(fixture)
+    where TFixture : NorthwindQueryFixtureBase<NoopModelCustomizer>, new();

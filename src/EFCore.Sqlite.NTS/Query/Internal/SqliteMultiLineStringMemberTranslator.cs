@@ -16,6 +16,7 @@ public class SqliteMultiLineStringMemberTranslator : IMemberTranslator
 {
     private static readonly MemberInfo IsClosed
         = typeof(MultiLineString).GetTypeInfo().GetRuntimeProperty(nameof(MultiLineString.IsClosed))!;
+
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
     /// <summary>
@@ -25,9 +26,7 @@ public class SqliteMultiLineStringMemberTranslator : IMemberTranslator
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public SqliteMultiLineStringMemberTranslator(ISqlExpressionFactory sqlExpressionFactory)
-    {
-        _sqlExpressionFactory = sqlExpressionFactory;
-    }
+        => _sqlExpressionFactory = sqlExpressionFactory;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -40,25 +39,19 @@ public class SqliteMultiLineStringMemberTranslator : IMemberTranslator
         MemberInfo member,
         Type returnType,
         IDiagnosticsLogger<DbLoggerCategory.Query> logger)
-    {
-        if (Equals(member, IsClosed)
-            && instance != null)
-        {
-            return _sqlExpressionFactory.Case(
-                new[]
-                {
-                    new CaseWhenClause(
-                        _sqlExpressionFactory.IsNotNull(instance),
-                        _sqlExpressionFactory.Function(
-                            "IsClosed",
-                            new[] { instance },
-                            nullable: false,
-                            argumentsPropagateNullability: new[] { false },
-                            returnType))
-                },
-                null);
-        }
-
-        return null;
-    }
+        => Equals(member, IsClosed)
+            && instance != null
+                ? _sqlExpressionFactory.Case(
+                    [
+                        new CaseWhenClause(
+                            _sqlExpressionFactory.IsNotNull(instance),
+                            _sqlExpressionFactory.Function(
+                                "IsClosed",
+                                [instance],
+                                nullable: false,
+                                argumentsPropagateNullability: Statics.FalseArrays[1],
+                                returnType))
+                    ],
+                    null)
+                : null;
 }

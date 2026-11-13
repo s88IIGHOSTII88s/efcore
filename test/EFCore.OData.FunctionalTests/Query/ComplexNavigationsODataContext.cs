@@ -5,17 +5,12 @@ using Microsoft.EntityFrameworkCore.TestModels.ComplexNavigationsModel;
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public class ComplexNavigationsODataContext : PoolableDbContext
+public class ComplexNavigationsODataContext(DbContextOptions options) : PoolableDbContext(options)
 {
-    public ComplexNavigationsODataContext(DbContextOptions options)
-        : base(options)
-    {
-    }
-
-    public DbSet<Level1> LevelOne { get; set; }
-    public DbSet<Level2> LevelTwo { get; set; }
-    public DbSet<Level3> LevelThree { get; set; }
-    public DbSet<Level4> LevelFour { get; set; }
+    public DbSet<Level1> LevelOne { get; set; } = null!;
+    public DbSet<Level2> LevelTwo { get; set; } = null!;
+    public DbSet<Level3> LevelThree { get; set; } = null!;
+    public DbSet<Level4> LevelFour { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

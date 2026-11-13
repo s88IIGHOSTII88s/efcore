@@ -5,7 +5,7 @@ namespace Microsoft.EntityFrameworkCore;
 
 public class IntegerValueGeneratorTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Each_property_gets_its_own_generator()
     {
         var macs = new Mac[4];
@@ -77,7 +77,7 @@ public class IntegerValueGeneratorTest
         Assert.Equal(4, toasts[3].Id);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Each_property_gets_its_own_generator_with_seeding()
     {
         var macs = new Mac[4];
@@ -166,7 +166,7 @@ public class IntegerValueGeneratorTest
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Generators_are_associated_with_database_root()
     {
         var serviceProvider1 = new ServiceCollection()
@@ -210,7 +210,7 @@ public class IntegerValueGeneratorTest
         Assert.Equal(2, toasts[1].Id);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Mixing_explicit_values_with_generated_values_with_care_works()
     {
         var macs = new Mac[4];
@@ -248,7 +248,7 @@ public class IntegerValueGeneratorTest
         Assert.Equal(201, toasts[3].Id);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Each_database_gets_its_own_generators()
     {
         var macs = new List<Mac>();
@@ -282,7 +282,7 @@ public class IntegerValueGeneratorTest
         Assert.Equal(1, toasts[1].Id);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Each_root_gets_its_own_generators()
     {
         var macs = new List<Mac>();
@@ -316,7 +316,7 @@ public class IntegerValueGeneratorTest
         Assert.Equal(1, toasts[1].Id);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void EnsureDeleted_resets_generators()
     {
         var macs = new List<Mac>();
@@ -352,21 +352,14 @@ public class IntegerValueGeneratorTest
         Assert.Equal(1, toasts[1].Id);
     }
 
-    private class PetsContext : DbContext
+    private class PetsContext(
+        string databaseName,
+        InMemoryDatabaseRoot? root = null,
+        IServiceProvider? internalServiceProvider = null) : DbContext
     {
-        private readonly string _databaseName;
-        private readonly InMemoryDatabaseRoot _root;
-        private readonly IServiceProvider _internalServiceProvider;
-
-        public PetsContext(
-            string databaseName,
-            InMemoryDatabaseRoot root = null,
-            IServiceProvider internalServiceProvider = null)
-        {
-            _databaseName = databaseName;
-            _root = root;
-            _internalServiceProvider = internalServiceProvider;
-        }
+        private readonly string _databaseName = databaseName;
+        private readonly InMemoryDatabaseRoot? _root = root;
+        private readonly IServiceProvider? _internalServiceProvider = internalServiceProvider;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -388,23 +381,21 @@ public class IntegerValueGeneratorTest
             modelBuilder.Entity<Dog>();
         }
 
-        public DbSet<Toast> CookedBreads { get; set; }
-        public DbSet<Olive> Olives { get; set; }
-        public DbSet<Mac> Macs { get; set; }
-        public DbSet<Smokey> Smokeys { get; set; }
-        public DbSet<Alice> Alices { get; set; }
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        public DbSet<Toast> CookedBreads { get; set; } = null!;
+        public DbSet<Olive> Olives { get; set; } = null!;
+
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        public DbSet<Mac> Macs { get; set; } = null!;
+        public DbSet<Smokey> Smokeys { get; set; } = null!;
+        public DbSet<Alice> Alices { get; set; } = null!;
     }
 
-    private class PetsContextWithData : PetsContext
+    private class PetsContextWithData(
+        string databaseName,
+        InMemoryDatabaseRoot? root = null,
+        IServiceProvider? internalServiceProvider = null) : PetsContext(databaseName, root, internalServiceProvider)
     {
-        public PetsContextWithData(
-            string databaseName,
-            InMemoryDatabaseRoot root = null,
-            IServiceProvider internalServiceProvider = null)
-            : base(databaseName, root, internalServiceProvider)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -419,28 +410,18 @@ public class IntegerValueGeneratorTest
         public int Id { get; set; }
     }
 
-    private class Toast : Dog
-    {
-    }
+    private class Toast : Dog;
 
-    private class Olive : Dog
-    {
-    }
+    private class Olive : Dog;
 
     private class Cat
     {
         public int Id { get; set; }
     }
 
-    private class Mac : Cat
-    {
-    }
+    private class Mac : Cat;
 
-    private class Smokey : Cat
-    {
-    }
+    private class Smokey : Cat;
 
-    private class Alice : Cat
-    {
-    }
+    private class Alice : Cat;
 }

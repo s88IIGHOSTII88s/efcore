@@ -9,13 +9,12 @@ public class Speaker
 {
     public int Id { get; set; }
 
-    [Required]
-    [StringLength(200)]
-    public string Name { get; set; }
+    [Required, StringLength(200)]
+    public string Name { get; set; } = null!;
 
     [StringLength(4000)]
-    public string Bio { get; set; }
+    public string? Bio { get; set; }
 
     [StringLength(1000)]
-    public virtual string WebSite { get; set; }
+    public virtual string? WebSite { get; set; }
 }

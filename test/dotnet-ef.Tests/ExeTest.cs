@@ -9,18 +9,17 @@ public class ExeTest
     public void ToArguments_works()
     {
         var result = ToArguments(
-            new[]
-            {
-                "",
-                "Good",
-                "Good\\",
-                "Needs quotes",
-                "Needs escaping\\",
-                "Needs escaping\\\\",
-                "Needs \"escaping\"",
-                "Needs \\\"escaping\"",
-                "Needs escaping\\\\too"
-            });
+        [
+            "",
+            "Good",
+            "Good\\",
+            "Needs quotes",
+            "Needs escaping\\",
+            "Needs escaping\\\\",
+            "Needs \"escaping\"",
+            "Needs \\\"escaping\"",
+            "Needs escaping\\\\too"
+        ]);
 
         Assert.Equal(
             "\"\" "
@@ -31,11 +30,17 @@ public class ExeTest
             + "\"Needs escaping\\\\\\\\\" "
             + "\"Needs \\\"escaping\\\"\" "
             + "\"Needs \\\\\\\"escaping\\\"\" "
-            + "\"Needs escaping\\\\\\\\too\"",
+            + "\"Needs escaping\\\\too\"",
             result);
     }
 
+    [Fact]
+    public void ToArguments_does_not_escape_UNC_prefix()
+        => Assert.Equal(
+            "\"\\\\FILESERVER\\DevShare\\Sample Solution\\Api Project.csproj\"",
+            ToArguments(["\\\\FILESERVER\\DevShare\\Sample Solution\\Api Project.csproj"]));
+
     private static string ToArguments(IReadOnlyList<string> args)
-        => (string)typeof(Exe).GetMethod("ToArguments", BindingFlags.Static | BindingFlags.NonPublic)
-            .Invoke(null, new object[] { args });
+        => (string)typeof(Exe).GetMethod("ToArguments", BindingFlags.Static | BindingFlags.Public)!
+            .Invoke(null, [args])!;
 }

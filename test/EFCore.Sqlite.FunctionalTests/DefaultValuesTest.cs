@@ -1,14 +1,13 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore;
 
 public class DefaultValuesTest : SharedStoreFixtureBase<DbContext>
 {
-    [ConditionalFact]
+    [Fact]
     public void Can_use_SQLite_default_values()
     {
         using (var context = CreateChipsContext())
@@ -31,7 +30,8 @@ public class DefaultValuesTest : SharedStoreFixtureBase<DbContext>
         }
     }
 
-    protected override string StoreName { get; } = "DefaultKettleChips";
+    protected override string StoreName
+        => "DefaultKettleChips";
 
     protected override ITestStoreFactory TestStoreFactory
         => SqliteTestStoreFactory.Instance;
@@ -41,15 +41,10 @@ public class DefaultValuesTest : SharedStoreFixtureBase<DbContext>
     private ChipsContext CreateChipsContext()
         => (ChipsContext)CreateContext();
 
-    private class ChipsContext : PoolableDbContext
+    private class ChipsContext(DbContextOptions options) : PoolableDbContext(options)
     {
-        public ChipsContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
         // ReSharper disable once UnusedAutoPropertyAccessor.Local
-        public DbSet<KettleChips> Chips { get; set; }
+        public DbSet<KettleChips> Chips { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<KettleChips>()
@@ -62,7 +57,7 @@ public class DefaultValuesTest : SharedStoreFixtureBase<DbContext>
         // ReSharper disable once UnusedMember.Local
         public int Id { get; set; }
 
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         public DateTime BestBuyDate { get; set; }
     }
 }

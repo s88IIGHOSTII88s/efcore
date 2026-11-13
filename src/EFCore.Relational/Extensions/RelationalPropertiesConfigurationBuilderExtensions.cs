@@ -1,9 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable once CheckNamespace
+
 namespace Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -25,7 +24,7 @@ public static class RelationalPropertiesConfigurationBuilderExtensions
         this PropertiesConfigurationBuilder propertyBuilder,
         string typeName)
     {
-        Check.NotEmpty(typeName, nameof(typeName));
+        Check.NotEmpty(typeName);
 
         propertyBuilder.HaveAnnotation(RelationalAnnotationNames.ColumnType, typeName);
 
@@ -46,7 +45,7 @@ public static class RelationalPropertiesConfigurationBuilderExtensions
     public static PropertiesConfigurationBuilder<TProperty> HaveColumnType<TProperty>(
         this PropertiesConfigurationBuilder<TProperty> propertyBuilder,
         string typeName)
-        => (PropertiesConfigurationBuilder<TProperty>)HaveColumnType((PropertiesConfigurationBuilder)propertyBuilder, typeName);
+        => (PropertiesConfigurationBuilder<TProperty>)((PropertiesConfigurationBuilder)propertyBuilder).HaveColumnType(typeName);
 
     /// <summary>
     ///     Configures the property as capable of storing only fixed-length data, such as strings.
@@ -79,7 +78,7 @@ public static class RelationalPropertiesConfigurationBuilderExtensions
     public static PropertiesConfigurationBuilder<TProperty> AreFixedLength<TProperty>(
         this PropertiesConfigurationBuilder<TProperty> propertyBuilder,
         bool fixedLength = true)
-        => (PropertiesConfigurationBuilder<TProperty>)AreFixedLength((PropertiesConfigurationBuilder)propertyBuilder, fixedLength);
+        => (PropertiesConfigurationBuilder<TProperty>)((PropertiesConfigurationBuilder)propertyBuilder).AreFixedLength(fixedLength);
 
     /// <summary>
     ///     Configures the property to use the given collation. The database column will be created with the given
@@ -93,7 +92,7 @@ public static class RelationalPropertiesConfigurationBuilderExtensions
     /// <returns>The same builder instance so that multiple calls can be chained.</returns>
     public static PropertiesConfigurationBuilder UseCollation(this PropertiesConfigurationBuilder propertyBuilder, string collation)
     {
-        Check.NotEmpty(collation, nameof(collation));
+        Check.NotEmpty(collation);
 
         propertyBuilder.HaveAnnotation(RelationalAnnotationNames.Collation, collation);
 
@@ -113,5 +112,5 @@ public static class RelationalPropertiesConfigurationBuilderExtensions
     public static PropertiesConfigurationBuilder<TProperty> UseCollation<TProperty>(
         this PropertiesConfigurationBuilder<TProperty> propertyBuilder,
         string collation)
-        => (PropertiesConfigurationBuilder<TProperty>)UseCollation((PropertiesConfigurationBuilder)propertyBuilder, collation);
+        => (PropertiesConfigurationBuilder<TProperty>)((PropertiesConfigurationBuilder)propertyBuilder).UseCollation(collation);
 }

@@ -5,5 +5,5 @@ namespace Microsoft.EntityFrameworkCore.TestModels.ConferencePlanner.ConferenceD
 
 public class SearchTerm
 {
-    public string Query { get; set; }
+    public string Query { get; set; } = null!;
 }

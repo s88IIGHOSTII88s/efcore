@@ -14,6 +14,8 @@ namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 /// </summary>
 public class RowNumberExpression : SqlExpression
 {
+    private static ConstructorInfo? _quotingConstructor;
+
     /// <summary>
     ///     Creates a new instance of the <see cref="RowNumberExpression" /> class.
     /// </summary>
@@ -26,7 +28,7 @@ public class RowNumberExpression : SqlExpression
         RelationalTypeMapping? typeMapping)
         : base(typeof(long), typeMapping)
     {
-        Partitions = partitions ?? Array.Empty<SqlExpression>();
+        Partitions = partitions ?? [];
         Orderings = orderings;
     }
 
@@ -82,6 +84,15 @@ public class RowNumberExpression : SqlExpression
                 : new RowNumberExpression(partitions, orderings, TypeMapping);
 
     /// <inheritdoc />
+    public override Expression Quote()
+        => New(
+            _quotingConstructor ??= typeof(RowNumberExpression).GetConstructor(
+                [typeof(IReadOnlyList<SqlExpression>), typeof(IReadOnlyList<OrderingExpression>), typeof(RelationalTypeMapping)])!,
+            NewArrayInit(typeof(SqlExpression), initializers: Partitions.Select(p => p.Quote())),
+            NewArrayInit(typeof(OrderingExpression), initializers: Orderings.Select(o => o.Quote())),
+            RelationalExpressionQuotingUtilities.QuoteTypeMapping(TypeMapping));
+
+    /// <inheritdoc />
     protected override void Print(ExpressionPrinter expressionPrinter)
     {
         expressionPrinter.Append("ROW_NUMBER() OVER(");
@@ -101,8 +112,8 @@ public class RowNumberExpression : SqlExpression
     public override bool Equals(object? obj)
         => obj != null
             && (ReferenceEquals(this, obj)
-                || obj is RowNumberExpression rowNumberExpression
-                && Equals(rowNumberExpression));
+                || (obj is RowNumberExpression rowNumberExpression
+                    && Equals(rowNumberExpression)));
 
     private bool Equals(RowNumberExpression rowNumberExpression)
         => base.Equals(rowNumberExpression)

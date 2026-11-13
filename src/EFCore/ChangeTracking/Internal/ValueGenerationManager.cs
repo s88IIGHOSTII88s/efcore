@@ -1,8 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
-
 namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 
 /// <summary>
@@ -47,7 +45,8 @@ public class ValueGenerationManager : IValueGenerationManager
         InternalEntityEntry? chosenPrincipal = null;
         foreach (var property in entry.EntityType.GetForeignKeyProperties())
         {
-            if (!entry.HasDefaultValue(property))
+            if (!entry.IsUnknown(property)
+                && entry.HasExplicitValue(property))
             {
                 continue;
             }
@@ -65,30 +64,55 @@ public class ValueGenerationManager : IValueGenerationManager
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual void Generate(InternalEntityEntry entry, bool includePrimaryKey = true)
+    public virtual async Task<InternalEntityEntry?> PropagateAsync(InternalEntityEntry entry, CancellationToken cancellationToken)
     {
-        var entityEntry = new EntityEntry(entry);
-
-        foreach (var property in entry.EntityType.GetValueGeneratingProperties())
+        InternalEntityEntry? chosenPrincipal = null;
+        foreach (var property in entry.EntityType.GetForeignKeyProperties())
         {
-            if (!entry.HasDefaultValue(property)
-                || (!includePrimaryKey
-                    && property.IsPrimaryKey()))
+            if (!entry.IsUnknown(property)
+                && entry.HasExplicitValue(property))
             {
                 continue;
             }
 
-            var valueGenerator = GetValueGenerator(property);
-
-            var generatedValue = valueGenerator.Next(entityEntry);
-            var temporary = valueGenerator.GeneratesTemporaryValues;
-
-            Log(entry, property, generatedValue, temporary);
-
-            SetGeneratedValue(entry, property, generatedValue, temporary);
-
-            MarkKeyUnknown(entry, includePrimaryKey, property, valueGenerator);
+            var principalEntry = await _keyPropagator.PropagateValueAsync(entry, property, cancellationToken).ConfigureAwait(false);
+            chosenPrincipal ??= principalEntry;
         }
+
+        return chosenPrincipal;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual bool Generate(InternalEntityEntry entry, bool includePrimaryKey = true)
+    {
+        var entityEntry = new EntityEntry(entry);
+        var hasStableValues = false;
+        var hasNonStableValues = false;
+        IProperty? propertyWithNoGenerator = null;
+
+        foreach (var property in entry.EntityType.GetFlattenedValueGeneratingProperties())
+        {
+            if (!TryFindValueGenerator(
+                    entry, includePrimaryKey, property,
+                    ref hasStableValues, ref hasNonStableValues, ref propertyWithNoGenerator,
+                    out var valueGenerator))
+            {
+                continue;
+            }
+
+            var generatedValue = valueGenerator!.Next(entityEntry);
+
+            FinishGenerate(entry, includePrimaryKey, valueGenerator, property, generatedValue);
+        }
+
+        CheckPropertyWithNoGenerator(propertyWithNoGenerator);
+
+        return hasStableValues && !hasNonStableValues;
     }
 
     private void Log(InternalEntityEntry entry, IProperty property, object? generatedValue, bool temporary)
@@ -109,51 +133,93 @@ public class ValueGenerationManager : IValueGenerationManager
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual async Task GenerateAsync(
+    public virtual async Task<bool> GenerateAsync(
         InternalEntityEntry entry,
         bool includePrimaryKey = true,
         CancellationToken cancellationToken = default)
     {
         var entityEntry = new EntityEntry(entry);
+        var hasStableValues = false;
+        var hasNonStableValues = false;
+        IProperty? propertyWithNoGenerator = null;
 
-        foreach (var property in entry.EntityType.GetValueGeneratingProperties())
+        foreach (var property in entry.EntityType.GetFlattenedValueGeneratingProperties())
         {
-            if (!entry.HasDefaultValue(property)
-                || (!includePrimaryKey
-                    && property.IsPrimaryKey()))
+            if (!TryFindValueGenerator(
+                    entry, includePrimaryKey, property,
+                    ref hasStableValues, ref hasNonStableValues, ref propertyWithNoGenerator,
+                    out var valueGenerator))
             {
                 continue;
             }
 
-            var valueGenerator = GetValueGenerator(property);
-            var generatedValue = await valueGenerator.NextAsync(entityEntry, cancellationToken)
-                .ConfigureAwait(false);
-            var temporary = valueGenerator.GeneratesTemporaryValues;
+            var generatedValue = await valueGenerator!.NextAsync(entityEntry, cancellationToken).ConfigureAwait(false);
 
-            Log(entry, property, generatedValue, temporary);
+            FinishGenerate(entry, includePrimaryKey, valueGenerator, property, generatedValue);
+        }
 
-            SetGeneratedValue(
-                entry,
-                property,
-                generatedValue,
-                temporary);
+        CheckPropertyWithNoGenerator(propertyWithNoGenerator);
 
-            MarkKeyUnknown(entry, includePrimaryKey, property, valueGenerator);
+        return hasStableValues && !hasNonStableValues;
+    }
+
+    private void FinishGenerate(
+        InternalEntityEntry entry,
+        bool includePrimaryKey,
+        ValueGenerator valueGenerator,
+        IProperty property,
+        object? generatedValue)
+    {
+        var temporary = valueGenerator.GeneratesTemporaryValues;
+        Log(entry, property, generatedValue, temporary);
+        SetGeneratedValue(entry, property, generatedValue, temporary);
+        MarkKeyUnknown(entry, includePrimaryKey, property, valueGenerator);
+    }
+
+    private static void CheckPropertyWithNoGenerator(IProperty? property)
+    {
+        if (property != null)
+        {
+            throw new NotSupportedException(
+                CoreStrings.NoValueGenerator(property.Name, property.DeclaringType.DisplayName(), property.ClrType.ShortDisplayName()));
         }
     }
 
-    private ValueGenerator GetValueGenerator(IProperty property)
-        => _valueGeneratorSelector.Select(property, property.DeclaringEntityType);
+    private bool TryFindValueGenerator(
+        InternalEntityEntry entry,
+        bool includePrimaryKey,
+        IProperty property,
+        ref bool hasStableValues,
+        ref bool hasNonStableValues,
+        ref IProperty? propertyWithNoGenerator,
+        out ValueGenerator? valueGenerator)
+    {
+        if (_valueGeneratorSelector.TrySelect(property, property.DeclaringType, out valueGenerator))
+        {
+            if (valueGenerator!.GeneratesStableValues)
+            {
+                hasStableValues = true;
+            }
+            else
+            {
+                hasNonStableValues = true;
+            }
+        }
 
-    /// <summary>
-    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-    ///     any release. You should only use it directly in your code with extreme caution and knowing that
-    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-    /// </summary>
-    public virtual bool MayGetTemporaryValue(IProperty property, IEntityType entityType)
-        => property.RequiresValueGenerator()
-            && _valueGeneratorSelector.Select(property, entityType).GeneratesTemporaryValues;
+        if (valueGenerator == null)
+        {
+            if (property.GetContainingKeys().Any(k => k.Properties.Count == 1))
+            {
+                propertyWithNoGenerator ??= property;
+            }
+
+            return false;
+        }
+
+        return !entry.HasExplicitValue(property)
+            && (includePrimaryKey
+                || !property.IsPrimaryKey());
+    }
 
     private static void SetGeneratedValue(InternalEntityEntry entry, IProperty property, object? generatedValue, bool isTemporary)
     {

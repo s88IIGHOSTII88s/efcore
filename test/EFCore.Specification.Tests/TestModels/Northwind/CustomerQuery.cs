@@ -7,11 +7,11 @@ namespace Microsoft.EntityFrameworkCore.TestModels.Northwind;
 
 public class CustomerQuery
 {
-    public string CompanyName { get; set; }
-    public string ContactName { get; set; }
-    public string ContactTitle { get; set; }
-    public string Address { get; set; }
-    public string City { get; set; }
+    public string CompanyName { get; set; } = null!;
+    public string? ContactName { get; set; }
+    public string? ContactTitle { get; set; }
+    public string? Address { get; set; }
+    public string? City { get; set; }
 
     [NotMapped]
     public bool IsLondon
@@ -20,18 +20,11 @@ public class CustomerQuery
     protected bool Equals(CustomerQuery other)
         => string.Equals(CompanyName, other.CompanyName);
 
-    public override bool Equals(object obj)
-    {
-        if (obj is null)
-        {
-            return false;
-        }
-
-        return ReferenceEquals(this, obj)
-            ? true
-            : obj.GetType() == GetType()
-            && Equals((CustomerQuery)obj);
-    }
+    public override bool Equals(object? obj)
+        => obj is not null
+            && (ReferenceEquals(this, obj)
+                || (obj.GetType() == GetType()
+                    && Equals((CustomerQuery)obj)));
 
     public static bool operator ==(CustomerQuery left, CustomerQuery right)
         => Equals(left, right);

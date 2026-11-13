@@ -5,43 +5,32 @@ using Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public class TemporalPointInTimeQueryRewriter : ExpressionVisitor
+public class TemporalPointInTimeQueryRewriter(DateTime pointInTime, List<Type> temporalEntityTypes) : ExpressionVisitor
 {
     private static readonly MethodInfo _setMethodInfo
-        = typeof(ISetSource).GetMethod(nameof(ISetSource.Set));
+        = typeof(ISetSource).GetMethod(nameof(ISetSource.Set))!;
 
     private static readonly MethodInfo _asOfMethodInfo
-        = typeof(SqlServerDbSetExtensions).GetMethod(nameof(SqlServerDbSetExtensions.TemporalAsOf));
+        = typeof(SqlServerDbSetExtensions).GetMethod(nameof(SqlServerDbSetExtensions.TemporalAsOf))!;
 
-    private readonly DateTime _pointInTime;
+    private readonly DateTime _pointInTime = pointInTime;
 
     // TODO: need model instead
-    private readonly List<Type> _temporalEntityTypes;
-
-    public TemporalPointInTimeQueryRewriter(DateTime pointInTime, List<Type> temporalEntityTypes)
-    {
-        _pointInTime = pointInTime;
-        _temporalEntityTypes = temporalEntityTypes;
-    }
+    private readonly List<Type> _temporalEntityTypes = temporalEntityTypes;
 
     protected override Expression VisitExtension(Expression extensionExpression)
-    {
-        if (extensionExpression is QueryRootExpression queryRootExpression
-            && queryRootExpression.EntityType.GetRootType().IsTemporal())
-        {
-            return new TemporalAsOfQueryRootExpression(
-                queryRootExpression.QueryProvider,
-                queryRootExpression.EntityType,
-                _pointInTime);
-        }
-
-        return base.VisitExtension(extensionExpression);
-    }
+        => extensionExpression is EntityQueryRootExpression queryRootExpression
+            && queryRootExpression.EntityType.GetRootType().IsTemporal()
+                ? new TemporalAsOfQueryRootExpression(
+                    queryRootExpression.QueryProvider!,
+                    queryRootExpression.EntityType,
+                    _pointInTime)
+                : base.VisitExtension(extensionExpression);
 
     protected override Expression VisitMethodCall(MethodCallExpression methodCallExpression)
     {
         // TODO: issue #25236 - also match named sets
-        // in case we want to reuse this on queries that are not using AssertQuery infra 
+        // in case we want to reuse this on queries that are not using AssertQuery infra
         if (methodCallExpression.Method.IsGenericMethod
             && methodCallExpression.Method.GetGenericMethodDefinition() == _setMethodInfo)
         {

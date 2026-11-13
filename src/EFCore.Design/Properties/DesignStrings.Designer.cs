@@ -20,6 +20,14 @@ namespace Microsoft.EntityFrameworkCore.Internal
             = new ResourceManager("Microsoft.EntityFrameworkCore.Properties.DesignStrings", typeof(DesignStrings).Assembly);
 
         /// <summary>
+        ///     Failed to create and apply migration '{name}'. {message}
+        /// </summary>
+        public static string AddAndApplyMigrationFailed(object? name, object? message)
+            => string.Format(
+                GetString("AddAndApplyMigrationFailed", nameof(name), nameof(message)),
+                name, message);
+
+        /// <summary>
         ///     Failed creating connection: {exceptionMessage}
         /// </summary>
         public static string BadConnection(object? exceptionMessage)
@@ -28,7 +36,15 @@ namespace Microsoft.EntityFrameworkCore.Internal
                 exceptionMessage);
 
         /// <summary>
-        ///     Cannot scaffold sequence '{sequenceName}' because it uses type '{typeName}' which is unsupported.
+        ///     The migration name '{name}' is not valid. Migration names cannot contain any of the following characters: '{characters}'.
+        /// </summary>
+        public static string BadMigrationName(object? name, object? characters)
+            => string.Format(
+                GetString("BadMigrationName", nameof(name), nameof(characters)),
+                name, characters);
+
+        /// <summary>
+        ///     Sequence '{sequenceName}' cannot be scaffolded because it uses type '{typeName}' which is unsupported.
         /// </summary>
         public static string BadSequenceType(object? sequenceName, object? typeName)
             => string.Format(
@@ -40,6 +56,22 @@ namespace Microsoft.EntityFrameworkCore.Internal
         /// </summary>
         public static string BundleFullName
             => GetString("BundleFullName");
+
+        /// <summary>
+        ///     Unable to create a 'DbContext' of type '{contextType}'. The exception '{rootException}' was thrown while attempting to create an instance. For the different patterns supported at design time, see https://go.microsoft.com/fwlink/?linkid=851728
+        /// </summary>
+        public static string CannotCreateContextInstance(object? contextType, object? rootException)
+            => string.Format(
+                GetString("CannotCreateContextInstance", nameof(contextType), nameof(rootException)),
+                contextType, rootException);
+
+        /// <summary>
+        ///     The exception '{rootException}' was thrown while attempting to find 'DbContext' types. For the different patterns supported at design time, see https://go.microsoft.com/fwlink/?linkid=851728
+        /// </summary>
+        public static string CannotFindDbContextTypes(object? rootException)
+            => string.Format(
+                GetString("CannotFindDbContextTypes", nameof(rootException)),
+                rootException);
 
         /// <summary>
         ///     Unable to find expected assembly attribute [DesignTimeProviderServices] in provider assembly '{runtimeProviderAssemblyName}'. This attribute is required to identify the class which acts as the design-time service provider factory for the provider.
@@ -72,7 +104,41 @@ namespace Microsoft.EntityFrameworkCore.Internal
             => GetString("CannotGenerateTypeQualifiedMethodCall");
 
         /// <summary>
-        ///     The entity type '{entityType}' has a custom constructor binding. This is usually caused by using proxies. Compiled model can't be generated, because dynamic proxy types are not supported. If you are not using proxies configure the custom constructor binding in '{customize}' in a partial '{className}' class instead.
+        ///     The provider '{provider}' does not support reverse engineering.
+        /// </summary>
+        public static string CannotScaffoldProvider(object? provider)
+            => string.Format(
+                GetString("CannotScaffoldProvider", nameof(provider)),
+                provider);
+
+        /// <summary>
+        ///     The C# language version '{languageVersion}' is not supported. Specify a valid C# language version, such as 'latest' or '15.0'.
+        /// </summary>
+        public static string InvalidCSharpLanguageVersion(object? languageVersion)
+            => string.Format(
+                GetString("InvalidCSharpLanguageVersion", nameof(languageVersion)),
+                languageVersion);
+
+        /// <summary>
+        ///     You cannot add a migration with the name 'Migration'.
+        /// </summary>
+        public static string CircularBaseClassDependency
+            => GetString("CircularBaseClassDependency");
+
+        /// <summary>
+        ///     Compilation failed with errors:
+        /// </summary>
+        public static string CompilationErrors
+            => GetString("CompilationErrors");
+
+        /// <summary>
+        ///     A compilation must be loaded.
+        /// </summary>
+        public static string CompilationMustBeLoaded
+            => GetString("CompilationMustBeLoaded");
+
+        /// <summary>
+        ///     The entity type '{entityType}' has a custom constructor binding. Compiled model can't be generated, because custom constructor bindings are not supported. Configure the custom constructor binding in '{customize}' in a partial '{className}' class instead.
         /// </summary>
         public static string CompiledModelConstructorBinding(object? entityType, object? customize, object? className)
             => string.Format(
@@ -88,15 +154,7 @@ namespace Microsoft.EntityFrameworkCore.Internal
                 factoryType);
 
         /// <summary>
-        ///     The entity type '{entityType}' has a defining query configured. Compiled model can't be generated, because defining queries are not supported.
-        /// </summary>
-        public static string CompiledModelDefiningQuery(object? entityType)
-            => string.Format(
-                GetString("CompiledModelDefiningQuery", nameof(entityType)),
-                entityType);
-
-        /// <summary>
-        ///     Successfully generated a compiled model, to use it call '{optionsCall}'. Run this command again when the model is modified.
+        ///     Successfully generated a compiled model, it will be discovered automatically, but you can also call '{optionsCall}'. Run this command again when the model is modified.
         /// </summary>
         public static string CompiledModelGenerated(object? optionsCall)
             => string.Format(
@@ -110,30 +168,6 @@ namespace Microsoft.EntityFrameworkCore.Internal
             => string.Format(
                 GetString("CompiledModelQueryFilter", nameof(entityType)),
                 entityType);
-
-        /// <summary>
-        ///     The property '{entityType}.{property}' has a custom type mapping configured. Configure it in '{customize}' in a partial '{className}' class instead.
-        /// </summary>
-        public static string CompiledModelTypeMapping(object? entityType, object? property, object? customize, object? className)
-            => string.Format(
-                GetString("CompiledModelTypeMapping", nameof(entityType), nameof(property), nameof(customize), nameof(className)),
-                entityType, property, customize, className);
-
-        /// <summary>
-        ///     The property '{entityType}.{property}' has a value comparer configured using a ValueComparer instance. Instead, create types that inherit from ValueConverter and ValueComparer and use '{method}=&lt;ConverterType, ComparerType=&gt;()' or '{method}(Type converterType, Type comparerType)' to configure the value converter and comparer.
-        /// </summary>
-        public static string CompiledModelValueComparer(object? entityType, object? property, object? method)
-            => string.Format(
-                GetString("CompiledModelValueComparer", nameof(entityType), nameof(property), nameof(method)),
-                entityType, property, method);
-
-        /// <summary>
-        ///     The property '{entityType}.{property}' has a value converter configured using a ValueConverter instance or inline expressions. Instead, create a type that inherits from ValueConverter and use '{method}=&lt;ConverterType=&gt;()' or '{method}(Type converterType)' to configure the value converter.
-        /// </summary>
-        public static string CompiledModelValueConverter(object? entityType, object? property, object? method)
-            => string.Format(
-                GetString("CompiledModelValueConverter", nameof(entityType), nameof(property), nameof(method)),
-                entityType, property, method);
 
         /// <summary>
         ///     The property '{entityType}.{property}' has a value generator configured. Use '{method}' to configure the value generator factory type.
@@ -158,12 +192,37 @@ namespace Microsoft.EntityFrameworkCore.Internal
             => GetString("ConnectionDescription");
 
         /// <summary>
+        ///     Your target project '{assembly}' doesn't match the assembly containing '{contextType}' - '{contextAssembly}'. This is not recommended as it will cause the compiled model to not be discovered automatically.
+        ///     Consider changing your target project to the DbContext project by using the Package Manager Console's Default project drop-down list, by executing "dotnet ef" from the directory containing the DbContext project or by supplying it with the '--project' option.
+        /// </summary>
+        public static string ContextAssemblyMismatch(object? assembly, object? contextType, object? contextAssembly)
+            => string.Format(
+                GetString("ContextAssemblyMismatch", nameof(assembly), nameof(contextType), nameof(contextAssembly)),
+                assembly, contextType, contextAssembly);
+
+        /// <summary>
         ///     The context class name '{contextClassName}' is not a valid C# identifier.
         /// </summary>
         public static string ContextClassNotValidCSharpIdentifier(object? contextClassName)
             => string.Format(
                 GetString("ContextClassNotValidCSharpIdentifier", nameof(contextClassName)),
                 contextClassName);
+
+        /// <summary>
+        ///     Couldn't get interceptable location for: '{node}'.
+        /// </summary>
+        public static string CouldNotGetInterceptableLocation(object? node)
+            => string.Format(
+                GetString("CouldNotGetInterceptableLocation", nameof(node)),
+                node);
+
+        /// <summary>
+        ///     Creating and applying migration '{migrationName}'.
+        /// </summary>
+        public static string CreatingAndApplyingMigration(object? migrationName)
+            => string.Format(
+                GetString("CreatingAndApplyingMigration", nameof(migrationName)),
+                migrationName);
 
         /// <summary>
         ///     Successfully dropped database '{name}'.
@@ -202,6 +261,20 @@ namespace Microsoft.EntityFrameworkCore.Internal
                 migrationName);
 
         /// <summary>
+        ///     The dynamic migration '{migrationId}' was not found. Only migrations applied in the current session using CreateAndApplyMigration can be reverted.
+        /// </summary>
+        public static string DynamicMigrationNotFound(object? migrationId)
+            => string.Format(
+                GetString("DynamicMigrationNotFound", nameof(migrationId)),
+                migrationId);
+
+        /// <summary>
+        ///     Dynamic LINQ queries are not supported when precompiling queries.
+        /// </summary>
+        public static string DynamicQueryNotSupported
+            => GetString("DynamicQueryNotSupported");
+
+        /// <summary>
         ///     The encoding '{encoding}' specified in the output directive will be ignored. EF Core always scaffolds files using the encoding 'utf-8'.
         /// </summary>
         public static string EncodingIgnored(object? encoding)
@@ -216,6 +289,14 @@ namespace Microsoft.EntityFrameworkCore.Internal
             => string.Format(
                 GetString("ErrorConnecting", nameof(message)),
                 message);
+
+        /// <summary>
+        ///     Processing '{inputFile}' failed.
+        /// </summary>
+        public static string ErrorGeneratingOutput(object? inputFile)
+            => string.Format(
+                GetString("ErrorGeneratingOutput", nameof(inputFile)),
+                inputFile);
 
         /// <summary>
         ///     The following file(s) already exist in directory '{outputDirectoryName}': {existingFiles}. Use the Force flag to overwrite these files.
@@ -338,7 +419,7 @@ namespace Microsoft.EntityFrameworkCore.Internal
                 foreignKeyName, existingForeignKey);
 
         /// <summary>
-        ///     The namespace '{migrationsNamespace}' contains migrations for a different DbContext. This can result in conflicting migration names. It's recommend to put migrations for different DbContext classes into different namespaces.
+        ///     The namespace '{migrationsNamespace}' contains migrations for a different DbContext. This can result in conflicting migration names. It's recommended to put migrations for different DbContext classes into different namespaces.
         /// </summary>
         public static string ForeignMigrations(object? migrationsNamespace)
             => string.Format(
@@ -390,10 +471,33 @@ namespace Microsoft.EntityFrameworkCore.Internal
             => GetString("ManuallyDeleted");
 
         /// <summary>
+        ///     Failed to compile migration '{migrationId}'. Errors:
+        ///     {errors}
+        /// </summary>
+        public static string MigrationCompilationFailed(object? migrationId, object? errors)
+            => string.Format(
+                GetString("MigrationCompilationFailed", nameof(migrationId), nameof(errors)),
+                migrationId, errors);
+
+        /// <summary>
+        ///     Migration '{migrationId}' was successfully created and applied.
+        /// </summary>
+        public static string MigrationCreatedAndApplied(object? migrationId)
+            => string.Format(
+                GetString("MigrationCreatedAndApplied", nameof(migrationId)),
+                migrationId);
+
+        /// <summary>
         ///     The target migration. If '0', all migrations will be reverted. Defaults to the last migration.
         /// </summary>
         public static string MigrationDescription
             => GetString("MigrationDescription");
+
+        /// <summary>
+        ///     A migration name must be specified.
+        /// </summary>
+        public static string MigrationNameRequired
+            => GetString("MigrationNameRequired");
 
         /// <summary>
         ///     Your target project '{assembly}' doesn't match your migrations assembly '{migrationsAssembly}'. Either change your target project or change your migrations assembly.
@@ -406,12 +510,28 @@ namespace Microsoft.EntityFrameworkCore.Internal
                 assembly, migrationsAssembly);
 
         /// <summary>
-        ///     The annotation '{annotationName}' was specified twice with potentially different values. Specifying the same annotation multiple times for different providers is no longer supported. Review the generated Migration to ensure it is correct and, if necessary, edit the Migration to fix any issues.
+        ///     Could not find migration type with ID '{migrationId}' in the compiled assembly.
         /// </summary>
-        public static string MultipleAnnotationConflict(object? annotationName)
+        public static string MigrationTypeNotFound(object? migrationId)
             => string.Format(
-                GetString("MultipleAnnotationConflict", nameof(annotationName)),
-                annotationName);
+                GetString("MigrationTypeNotFound", nameof(migrationId)),
+                migrationId);
+
+        /// <summary>
+        ///     MSBuild Workspace diagnostics:{diagnostics}
+        /// </summary>
+        public static string MSBuildWorkspaceDiagnostics(object? diagnostics)
+            => string.Format(
+                GetString("MSBuildWorkspaceDiagnostics", nameof(diagnostics)),
+                diagnostics);
+
+        /// <summary>
+        ///     MSBuild Workspace failure: {kind} - {message}
+        /// </summary>
+        public static string MSBuildWorkspaceFailure(object? kind, object? message)
+            => string.Format(
+                GetString("MSBuildWorkspaceFailure", nameof(kind), nameof(message)),
+                kind, message);
 
         /// <summary>
         ///     More than one DbContext was found. Specify which one to use. Use the '-Context' parameter for PowerShell commands and the '--context' parameter for dotnet commands.
@@ -436,6 +556,12 @@ namespace Microsoft.EntityFrameworkCore.Internal
                 name);
 
         /// <summary>
+        ///     Could not find symbol for anonymous object creation initializer:
+        /// </summary>
+        public static string NoAnonymousSymbol
+            => GetString("NoAnonymousSymbol");
+
+        /// <summary>
         ///     Don't colorize output.
         /// </summary>
         public static string NoColorDescription
@@ -448,6 +574,24 @@ namespace Microsoft.EntityFrameworkCore.Internal
             => string.Format(
                 GetString("NoContext", nameof(assembly)),
                 assembly);
+
+        /// <summary>
+        ///     No type deriving from DbContext was found. Add [assembly: DbContext(typeof(*))] attribute for every context type used in this project.
+        /// </summary>
+        public static string NoContextsToOptimize
+            => GetString("NoContextsToOptimize");
+
+        /// <summary>
+        ///     You must provide a DbContext.t4 file in order to scaffold using custom templates.
+        /// </summary>
+        public static string NoContextTemplate
+            => GetString("NoContextTemplate");
+
+        /// <summary>
+        ///     You've provided an EntityTypeConfiguration.t4 file without a corresponding DbContext.t4 file. The generated DbContext code must be modified to work with your configuration classes. Provide a DbContext.t4 file and try again.
+        /// </summary>
+        public static string NoContextTemplateButConfiguration
+            => GetString("NoContextTemplateButConfiguration");
 
         /// <summary>
         ///     No DbContext named '{name}' was found.
@@ -468,6 +612,12 @@ namespace Microsoft.EntityFrameworkCore.Internal
         /// </summary>
         public static string NoDesignTimeServices
             => GetString("NoDesignTimeServices");
+
+        /// <summary>
+        ///     No dynamic migrations have been applied in the current session. Only migrations applied using CreateAndApplyMigration can be reverted with RevertMigration.
+        /// </summary>
+        public static string NoDynamicMigrationsToRevert
+            => GetString("NoDynamicMigrationsToRevert");
 
         /// <summary>
         ///     The project language '{language}' isn't supported by the built-in {service} service. You can try looking for an additional NuGet package which supports this language; moving your DbContext type to a C# class library referenced by this project; or manually implementing and registering the design-time service for the programming language.
@@ -494,7 +644,7 @@ namespace Microsoft.EntityFrameworkCore.Internal
                 file);
 
         /// <summary>
-        ///     The column '{columnName}' would normally be mapped to a non-nullable bool property, but it has a default constraint. Such a column is mapped to a nullable bool property to allow a difference between setting the property to false and invoking the default constraint. See https://go.microsoft.com/fwlink/?linkid=851278 for details.
+        ///     The column '{columnName}' would normally be mapped to a non-nullable bool property, but it has a default constraint. Such a column is mapped to a nullable bool property to allow a difference between setting the property to 'false' and invoking the default constraint. See https://go.microsoft.com/fwlink/?linkid=851278 for details.
         /// </summary>
         public static string NonNullableBoooleanColumnHasDefaultConstraint(object? columnName)
             => string.Format(
@@ -510,12 +660,10 @@ namespace Microsoft.EntityFrameworkCore.Internal
                 provider);
 
         /// <summary>
-        ///     Unable to create an object of type '{contextType}'. For the different patterns supported at design time, see https://go.microsoft.com/fwlink/?linkid=851728
+        ///     No changes have been made to the model since the last migration.
         /// </summary>
-        public static string NoParameterlessConstructor(object? contextType)
-            => string.Format(
-                GetString("NoParameterlessConstructor", nameof(contextType)),
-                contextType);
+        public static string NoPendingModelChanges
+            => GetString("NoPendingModelChanges");
 
         /// <summary>
         ///     No referenced design-time services were found.
@@ -558,6 +706,18 @@ namespace Microsoft.EntityFrameworkCore.Internal
                 name);
 
         /// <summary>
+        ///     No files were generated during the DbContext optimization. Ensure that the target project has code that uses DbContext and that the supplied options are correct.
+        /// </summary>
+        public static string OptimizeNoFilesGenerated
+            => GetString("OptimizeNoFilesGenerated");
+
+        /// <summary>
+        ///     Changes have been made to the model since the last migration. Add a new migration.
+        /// </summary>
+        public static string PendingModelChanges
+            => GetString("PendingModelChanges");
+
+        /// <summary>
         ///     Prefix output with level.
         /// </summary>
         public static string PrefixDescription
@@ -572,12 +732,32 @@ namespace Microsoft.EntityFrameworkCore.Internal
                 tableName, columnNames);
 
         /// <summary>
-        ///     Metadata model returned should not be null. Provider: {providerTypeName}.
+        ///     Metadata model returned should not be 'null'. Provider: {providerTypeName}.
         /// </summary>
         public static string ProviderReturnedNullModel(object? providerTypeName)
             => string.Format(
                 GetString("ProviderReturnedNullModel", nameof(providerTypeName)),
                 providerTypeName);
+
+        /// <summary>
+        ///     LINQ query comprehension syntax is currently not supported in precompiled queries.
+        /// </summary>
+        public static string QueryComprehensionSyntaxNotSupportedInPrecompiledQueries
+            => GetString("QueryComprehensionSyntaxNotSupportedInPrecompiledQueries");
+
+        /// <summary>
+        ///     Query precompilation failed with errors:
+        /// </summary>
+        public static string QueryPrecompilationErrors
+            => GetString("QueryPrecompilationErrors");
+
+        /// <summary>
+        ///     Failed to load project for query precompilation. Project: {project}. Error: {error}
+        /// </summary>
+        public static string QueryPrecompilationProjectLoadFailed(object? project, object? error)
+            => string.Format(
+                GetString("QueryPrecompilationProjectLoadFailed", nameof(project), nameof(error)),
+                project, error);
 
         /// <summary>
         ///     No files were generated in directory '{outputDirectoryName}'. The following file(s) already exist(s) and must be made writeable to continue: {readOnlyFiles}.
@@ -632,13 +812,21 @@ namespace Microsoft.EntityFrameworkCore.Internal
                 name);
 
         /// <summary>
-        ///     To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see http://go.microsoft.com/fwlink/?LinkId=723263.
+        ///     The same ParameterExpression instance with name '{parameter}' was used as a variable declaration in a block and a nested block inside it. This is not allowed - use different ParameterExpression instances.
+        /// </summary>
+        public static string SameParameterExpressionDeclaredAsVariableInNestedBlocks(object? parameter)
+            => string.Format(
+                GetString("SameParameterExpressionDeclaredAsVariableInNestedBlocks", nameof(parameter)),
+                parameter);
+
+        /// <summary>
+        ///     To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
         /// </summary>
         public static string SensitiveInformationWarning
             => GetString("SensitiveInformationWarning");
 
         /// <summary>
-        ///     Sequence name cannot be null or empty. Entity Framework cannot model a sequence that does not have a name.
+        ///     Sequence name cannot be 'null' or empty. Entity Framework cannot model a sequence that does not have a name.
         /// </summary>
         public static string SequencesRequireName
             => GetString("SequencesRequireName");
@@ -658,6 +846,22 @@ namespace Microsoft.EntityFrameworkCore.Internal
             => string.Format(
                 GetString("UnableToScaffoldIndexMissingProperty", nameof(indexName), nameof(columnNames)),
                 indexName, columnNames);
+
+        /// <summary>
+        ///     Unable to translate type '{type}'.
+        /// </summary>
+        public static string UnableToTranslateType(object? type)
+            => string.Format(
+                GetString("UnableToTranslateType", nameof(type)),
+                type);
+
+        /// <summary>
+        ///     The project '{project}' does not support compilation.
+        /// </summary>
+        public static string UncompilableProject(object? project)
+            => string.Format(
+                GetString("UncompilableProject", nameof(project)),
+                project);
 
         /// <summary>
         ///     Unhandled enum value '{enumValue}'.
@@ -766,6 +970,12 @@ namespace Microsoft.EntityFrameworkCore.Internal
             => string.Format(
                 GetString("VersionMismatch", nameof(toolsVersion), nameof(runtimeVersion)),
                 toolsVersion, runtimeVersion);
+
+        /// <summary>
+        ///     The wildcard '*' can only be used with commands that run for all contexts found. Specify a context name for this command.
+        /// </summary>
+        public static string WildcardNotSupported
+            => GetString("WildcardNotSupported");
 
         /// <summary>
         ///     Writing migration to '{file}'.

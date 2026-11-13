@@ -28,22 +28,38 @@ public static class TransparentIdentifierFactory
     /// <param name="outerType">The outer type of the transparent identifier.</param>
     /// <param name="innerType">The inner type of the transparent identifier.</param>
     /// <returns>The created transparent identifier type.</returns>
+    [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(TransparentIdentifier<,>))]
     public static Type Create(Type outerType, Type innerType)
         => typeof(TransparentIdentifier<,>).MakeGenericType(outerType, innerType);
 
-    private readonly struct TransparentIdentifier<TOuter, TInner>
+    /// <summary>
+    ///     Determines whether the given type is a transparent identifier type created by <see cref="Create" />.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <returns><see langword="true" /> if the type is a transparent identifier type; otherwise, <see langword="false" />.</returns>
+    public static bool IsTransparentIdentifierType(Type type)
+        => type is { IsValueType: true, IsGenericType: true }
+            && type.GetGenericTypeDefinition() == typeof(TransparentIdentifier<,>);
+
+    private readonly struct TransparentIdentifier<TOuter, TInner>(TOuter outer, TInner inner)
     {
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
         [UsedImplicitly]
-        public TransparentIdentifier(TOuter outer, TInner inner)
-        {
-            Outer = outer;
-            Inner = inner;
-        }
+        public readonly TOuter Outer = outer;
 
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
         [UsedImplicitly]
-        public readonly TOuter Outer;
-
-        [UsedImplicitly]
-        public readonly TInner Inner;
+        public readonly TInner Inner = inner;
     }
 }

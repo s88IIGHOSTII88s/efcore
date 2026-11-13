@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
+using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -22,9 +23,7 @@ public class DiscriminatorBuilder : IConventionDiscriminatorBuilder
     /// </summary>
     [EntityFrameworkInternal]
     public DiscriminatorBuilder(IMutableEntityType entityType)
-    {
-        EntityTypeBuilder = ((EntityType)entityType).Builder;
-    }
+        => EntityTypeBuilder = ((EntityType)entityType).Builder;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -79,7 +78,8 @@ public class DiscriminatorBuilder : IConventionDiscriminatorBuilder
     /// <typeparam name="TEntity">The entity type for which a discriminator value is being set.</typeparam>
     /// <param name="value">The discriminator value.</param>
     /// <returns>The same builder so that multiple calls can be chained.</returns>
-    public virtual DiscriminatorBuilder HasValue<TEntity>(object? value)
+    public virtual DiscriminatorBuilder HasValue<[DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] TEntity>(
+        object? value)
         => HasValue(typeof(TEntity), value);
 
     /// <summary>
@@ -88,7 +88,9 @@ public class DiscriminatorBuilder : IConventionDiscriminatorBuilder
     /// <param name="entityType">The entity type for which a discriminator value is being set.</param>
     /// <param name="value">The discriminator value.</param>
     /// <returns>The same builder so that multiple calls can be chained.</returns>
-    public virtual DiscriminatorBuilder HasValue(Type entityType, object? value)
+    public virtual DiscriminatorBuilder HasValue(
+        [DynamicallyAccessedMembers(IEntityType.DynamicallyAccessedMemberTypes)] Type entityType,
+        object? value)
     {
         var entityTypeBuilder = EntityTypeBuilder.ModelBuilder.Entity(
             entityType, ConfigurationSource.Explicit);

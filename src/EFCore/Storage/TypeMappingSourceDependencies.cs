@@ -1,6 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.Storage.Json;
+
 namespace Microsoft.EntityFrameworkCore.Storage;
 
 /// <summary>
@@ -19,7 +21,7 @@ namespace Microsoft.EntityFrameworkCore.Storage;
 ///         your constructor so that an instance will be created and injected automatically by the
 ///         dependency injection container. To create an instance with some dependent services replaced,
 ///         first resolve the object from the dependency injection container, then replace selected
-///         services using the 'With...' methods. Do not call the constructor at any point in this process.
+///         services using the C# 'with' operator. Do not call the constructor at any point in this process.
 ///     </para>
 ///     <para>
 ///         The service lifetime is <see cref="ServiceLifetime.Singleton" />.
@@ -41,15 +43,17 @@ public sealed record TypeMappingSourceDependencies
     ///     as new dependencies are added. Instead, use this type in your constructor so that an instance
     ///     will be created and injected automatically by the dependency injection container. To create
     ///     an instance with some dependent services replaced, first resolve the object from the dependency
-    ///     injection container, then replace selected services using the 'With...' methods. Do not call
+    ///     injection container, then replace selected services using the C# 'with' operator. Do not call
     ///     the constructor at any point in this process.
     /// </remarks>
     [EntityFrameworkInternal]
     public TypeMappingSourceDependencies(
         IValueConverterSelector valueConverterSelector,
+        IJsonValueReaderWriterSource jsonValueReaderWriterSource,
         IEnumerable<ITypeMappingSourcePlugin> plugins)
     {
         ValueConverterSelector = valueConverterSelector;
+        JsonValueReaderWriterSource = jsonValueReaderWriterSource;
         Plugins = plugins;
     }
 
@@ -57,6 +61,11 @@ public sealed record TypeMappingSourceDependencies
     ///     The registry of known <see cref="ValueConverter" />s.
     /// </summary>
     public IValueConverterSelector ValueConverterSelector { get; init; }
+
+    /// <summary>
+    ///     Used to find the <see cref="JsonValueReaderWriter{TValue}" /> for a type.
+    /// </summary>
+    public IJsonValueReaderWriterSource JsonValueReaderWriterSource { get; }
 
     /// <summary>
     ///     Gets the plugins.

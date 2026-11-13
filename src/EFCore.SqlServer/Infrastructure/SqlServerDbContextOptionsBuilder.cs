@@ -1,19 +1,17 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Microsoft.EntityFrameworkCore.SqlServer.Infrastructure.Internal;
-
 namespace Microsoft.EntityFrameworkCore.Infrastructure;
 
 /// <summary>
 ///     Allows SQL Server specific configuration to be performed on <see cref="DbContextOptions" />.
 /// </summary>
 /// <remarks>
-///     Instances of this class are returned from a call to <see cref="O:SqlServerDbContextOptionsExtensions.UseSqlServer" />
+///     Instances of this class are returned from a call to
+///     <see cref="O:SqlServerDbContextOptionsExtensions.UseSqlServer" />
 ///     and it is not designed to be directly constructed in your application code.
 /// </remarks>
-public class SqlServerDbContextOptionsBuilder
-    : RelationalDbContextOptionsBuilder<SqlServerDbContextOptionsBuilder, SqlServerOptionsExtension>
+public class SqlServerDbContextOptionsBuilder : SqlEngineDbContextOptionsBuilderBase<SqlServerDbContextOptionsBuilder>
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="SqlServerDbContextOptionsBuilder" /> class.
@@ -29,7 +27,7 @@ public class SqlServerDbContextOptionsBuilder
     /// </summary>
     /// <remarks>
     ///     <para>
-    ///         This strategy is specifically tailored to SQL Server (including SQL Azure). It is pre-configured with
+    ///         This strategy is specifically tailored to SQL Server. It is pre-configured with
     ///         error numbers for transient errors that can be retried.
     ///     </para>
     ///     <para>
@@ -48,7 +46,7 @@ public class SqlServerDbContextOptionsBuilder
     /// </summary>
     /// <remarks>
     ///     <para>
-    ///         This strategy is specifically tailored to SQL Server (including SQL Azure). It is pre-configured with
+    ///         This strategy is specifically tailored to SQL Server. It is pre-configured with
     ///         error numbers for transient errors that can be retried.
     ///     </para>
     ///     <para>
@@ -67,7 +65,7 @@ public class SqlServerDbContextOptionsBuilder
     /// </summary>
     /// <remarks>
     ///     <para>
-    ///         This strategy is specifically tailored to SQL Server (including SQL Azure). It is pre-configured with
+    ///         This strategy is specifically tailored to SQL Server. It is pre-configured with
     ///         error numbers for transient errors that can be retried.
     ///     </para>
     ///     <para>
@@ -87,7 +85,7 @@ public class SqlServerDbContextOptionsBuilder
     /// </summary>
     /// <remarks>
     ///     <para>
-    ///         This strategy is specifically tailored to SQL Server (including SQL Azure). It is pre-configured with
+    ///         This strategy is specifically tailored to SQL Server. It is pre-configured with
     ///         error numbers for transient errors that can be retried, but additional error numbers can also be supplied.
     ///     </para>
     ///     <para>
@@ -103,4 +101,20 @@ public class SqlServerDbContextOptionsBuilder
         TimeSpan maxRetryDelay,
         IEnumerable<int>? errorNumbersToAdd)
         => ExecutionStrategy(c => new SqlServerRetryingExecutionStrategy(c, maxRetryCount, maxRetryDelay, errorNumbersToAdd));
+
+    /// <summary>
+    ///     Sets the SQL Server compatibility level that EF Core will use when interacting with the database. This allows configuring EF
+    ///     Core to work with older (or newer) versions of SQL Server. Defaults to <c>160</c> (SQL Server 2022).
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-dbcontext-options">Using DbContextOptions</see>, and
+    ///     <see href="https://learn.microsoft.com/sql/t-sql/statements/alter-database-transact-sql-compatibility-level">
+    ///         SQL Server
+    ///         documentation on compatibility level
+    ///     </see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="compatibilityLevel">The compatibility level to use for the database.</param>
+    public virtual SqlServerDbContextOptionsBuilder UseCompatibilityLevel(int compatibilityLevel)
+        => WithOption(e => e.WithSqlServerCompatibilityLevel(compatibilityLevel));
 }

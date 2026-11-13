@@ -15,8 +15,6 @@ namespace Microsoft.EntityFrameworkCore.Metadata;
 /// </remarks>
 public abstract class ServiceParameterBinding : ParameterBinding
 {
-    private Func<MaterializationContext, IEntityType, object, object>? _serviceDelegate;
-
     /// <summary>
     ///     Creates a new <see cref="ServiceParameterBinding" /> instance for the given service type
     ///     or metadata type.
@@ -30,7 +28,7 @@ public abstract class ServiceParameterBinding : ParameterBinding
         params IPropertyBase[]? serviceProperties)
         : base(parameterType, serviceProperties)
     {
-        Check.NotNull(serviceType, nameof(serviceType));
+        Check.NotNull(serviceType);
 
         ServiceType = serviceType;
     }
@@ -47,34 +45,44 @@ public abstract class ServiceParameterBinding : ParameterBinding
     /// <param name="bindingInfo">The binding information.</param>
     /// <returns>The expression tree.</returns>
     public override Expression BindToParameter(ParameterBindingInfo bindingInfo)
-        => BindToParameter(
-            bindingInfo.MaterializationContextExpression,
-            Expression.Constant(bindingInfo.EntityType));
+    {
+        var serviceInstance = bindingInfo.ServiceInstances.FirstOrDefault(e => e.Type == ServiceType);
+        return serviceInstance
+            ?? BindToParameter(
+                bindingInfo.MaterializationContextExpression,
+                Expression.Constant(bindingInfo));
+    }
 
     /// <summary>
     ///     Creates an expression tree representing the binding of the value of a property from a
     ///     materialization expression to a parameter of the constructor, factory method, etc.
     /// </summary>
     /// <param name="materializationExpression">The expression representing the materialization context.</param>
-    /// <param name="entityTypeExpression">The expression representing the <see cref="IEntityType" /> constant.</param>
+    /// <param name="bindingInfoExpression">The expression representing the <see cref="ParameterBindingInfo" /> constant.</param>
     /// <returns>The expression tree.</returns>
     public abstract Expression BindToParameter(
         Expression materializationExpression,
-        Expression entityTypeExpression);
+        Expression bindingInfoExpression);
 
     /// <summary>
     ///     A delegate to set a CLR service property on an entity instance.
     /// </summary>
-    public virtual Func<MaterializationContext, IEntityType, object, object> ServiceDelegate
+    [field: AllowNull, MaybeNull]
+    public virtual Func<MaterializationContext, IEntityType, object, object?> ServiceDelegate
         => NonCapturingLazyInitializer.EnsureInitialized(
-            ref _serviceDelegate, this, static b =>
+            ref field, this, static b =>
             {
                 var materializationContextParam = Expression.Parameter(typeof(MaterializationContext));
                 var entityTypeParam = Expression.Parameter(typeof(IEntityType));
                 var entityParam = Expression.Parameter(typeof(object));
 
                 return Expression.Lambda<Func<MaterializationContext, IEntityType, object, object>>(
-                    b.BindToParameter(materializationContextParam, entityTypeParam),
+                    b.BindToParameter(
+                        materializationContextParam,
+                        Expression.New(
+                            typeof(ParameterBindingInfo).GetConstructor([typeof(IEntityType), typeof(Expression)])!,
+                            entityTypeParam,
+                            Expression.Constant(materializationContextParam))),
                     materializationContextParam,
                     entityTypeParam,
                     entityParam).Compile();

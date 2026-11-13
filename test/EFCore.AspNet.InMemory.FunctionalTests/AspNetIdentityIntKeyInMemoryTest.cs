@@ -6,13 +6,11 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 
 namespace Microsoft.EntityFrameworkCore;
 
-public class AspNetIdentityIntKeyInMemoryTest
-    : AspNetIdentityIntKeyTestBase<AspNetIdentityIntKeyInMemoryTest.AspNetIdentityIntKeyInMemoryFixture>
+public class AspNetIdentityIntKeyInMemoryTest(AspNetIdentityIntKeyInMemoryTest.AspNetIdentityIntKeyInMemoryFixture fixture)
+    : AspNetIdentityIntKeyTestBase<AspNetIdentityIntKeyInMemoryTest.AspNetIdentityIntKeyInMemoryFixture>(fixture)
 {
-    public AspNetIdentityIntKeyInMemoryTest(AspNetIdentityIntKeyInMemoryFixture fixture)
-        : base(fixture)
-    {
-    }
+    protected override bool HasForeignKeyIndexes
+        => false;
 
     protected override void UseTransaction(DatabaseFacade facade, IDbContextTransaction transaction)
     {
@@ -20,9 +18,9 @@ public class AspNetIdentityIntKeyInMemoryTest
 
     protected override async Task ExecuteWithStrategyInTransactionAsync(
         Func<IdentityDbContext<IdentityUser<int>, IdentityRole<int>, int>, Task> testOperation,
-        Func<IdentityDbContext<IdentityUser<int>, IdentityRole<int>, int>, Task> nestedTestOperation1 = null,
-        Func<IdentityDbContext<IdentityUser<int>, IdentityRole<int>, int>, Task> nestedTestOperation2 = null,
-        Func<IdentityDbContext<IdentityUser<int>, IdentityRole<int>, int>, Task> nestedTestOperation3 = null)
+        Func<IdentityDbContext<IdentityUser<int>, IdentityRole<int>, int>, Task>? nestedTestOperation1 = null,
+        Func<IdentityDbContext<IdentityUser<int>, IdentityRole<int>, int>, Task>? nestedTestOperation2 = null,
+        Func<IdentityDbContext<IdentityUser<int>, IdentityRole<int>, int>, Task>? nestedTestOperation3 = null)
     {
         await base.ExecuteWithStrategyInTransactionAsync(
             testOperation, nestedTestOperation1, nestedTestOperation2, nestedTestOperation3);

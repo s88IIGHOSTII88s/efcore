@@ -8,9 +8,9 @@ public class JoinThreeToCompositeKeyFull
     public Guid Id;
     public int ThreeId;
     public int CompositeId1;
-    public string CompositeId2;
+    public string CompositeId2 = null!;
     public DateTime CompositeId3;
 
-    public EntityThree Three;
-    public EntityCompositeKey Composite;
+    public EntityThree Three = null!;
+    public EntityCompositeKey Composite = null!;
 }

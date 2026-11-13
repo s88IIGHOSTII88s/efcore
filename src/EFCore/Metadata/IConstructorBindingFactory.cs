@@ -1,8 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Diagnostics.CodeAnalysis;
-
 namespace Microsoft.EntityFrameworkCore.Metadata;
 
 /// <summary>
@@ -59,32 +57,15 @@ public interface IConstructorBindingFactory
         out InstantiationBinding? serviceOnlyBinding);
 
     /// <summary>
-    ///     Attempts to create a <see cref="InstantiationBinding" /> for the given entity type and
-    ///     <see cref="ConstructorInfo" />
+    ///     Create a <see cref="InstantiationBinding" /> for the constructor with most parameters and
+    ///     the constructor with only service property parameters.
     /// </summary>
-    /// <param name="entityType">The entity type.</param>
-    /// <param name="constructor">The constructor to use.</param>
-    /// <param name="binding">The binding, or <see langword="null" /> if <see langword="null" /> could be created.</param>
-    /// <param name="unboundParameters">The parameters that could not be bound.</param>
-    /// <returns><see langword="true" /> if a binding was created; <see langword="false" /> otherwise.</returns>
-    bool TryBindConstructor(
-        IConventionEntityType entityType,
-        ConstructorInfo constructor,
-        [NotNullWhen(true)] out InstantiationBinding? binding,
-        [NotNullWhen(false)] out IEnumerable<ParameterInfo>? unboundParameters);
+    /// <param name="complexType">The complex type.</param>
+    /// <param name="constructorBinding">The binding for the constructor with most parameters.</param>
+    /// <param name="serviceOnlyBinding">The binding for the constructor with only service property parameters.</param>
+    void GetBindings(
+        IReadOnlyComplexType complexType,
+        out InstantiationBinding constructorBinding,
+        out InstantiationBinding? serviceOnlyBinding);
 
-    /// <summary>
-    ///     Attempts to create a <see cref="InstantiationBinding" /> for the given entity type and
-    ///     <see cref="ConstructorInfo" />
-    /// </summary>
-    /// <param name="entityType">The entity type.</param>
-    /// <param name="constructor">The constructor to use.</param>
-    /// <param name="binding">The binding, or <see langword="null" /> if <see langword="null" /> could be created.</param>
-    /// <param name="unboundParameters">The parameters that could not be bound.</param>
-    /// <returns><see langword="true" /> if a binding was created; <see langword="false" /> otherwise.</returns>
-    bool TryBindConstructor(
-        IMutableEntityType entityType,
-        ConstructorInfo constructor,
-        [NotNullWhen(true)] out InstantiationBinding? binding,
-        [NotNullWhen(false)] out IEnumerable<ParameterInfo>? unboundParameters);
 }

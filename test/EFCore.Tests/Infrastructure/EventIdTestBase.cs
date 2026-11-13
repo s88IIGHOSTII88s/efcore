@@ -12,11 +12,11 @@ public abstract class EventIdTestBase
         Type loggerExtensionType,
         LoggingDefinitions loggerDefinitions,
         IDictionary<Type, Func<object>> fakeFactories,
-        Dictionary<string, IList<string>> eventMappings = null)
+        Dictionary<string, IList<string>>? eventMappings = null)
         => TestEventLogging(
             eventIdType,
             loggerExtensionType,
-            loggerMethodTypes: Array.Empty<Type>(),
+            loggerMethodTypes: [],
             loggerDefinitions,
             fakeFactories,
             serviceCollectionBuilder: services => new EntityFrameworkServicesBuilder(services).TryAddCoreServices(),
@@ -29,7 +29,7 @@ public abstract class EventIdTestBase
         LoggingDefinitions loggerDefinitions,
         IDictionary<Type, Func<object>> fakeFactories,
         Action<ServiceCollection> serviceCollectionBuilder,
-        Dictionary<string, IList<string>> eventMappings = null)
+        Dictionary<string, IList<string>>? eventMappings = null)
     {
         var testLoggerFactory = new TestLoggerFactory(loggerDefinitions);
         var testLogger = testLoggerFactory.Logger;
@@ -85,19 +85,19 @@ public abstract class EventIdTestBase
                     loggerMethod = loggerMethod.MakeGenericMethod(category);
                 }
 
-                var eventId = (EventId)eventIdField.GetValue(null);
+                var eventId = (EventId)eventIdField.GetValue(null)!;
 
                 Assert.InRange(eventId.Id, CoreEventId.CoreBaseId, ushort.MaxValue);
 
-                var categoryName = Activator.CreateInstance(category).ToString();
+                var categoryName = Activator.CreateInstance(category)!.ToString();
                 Assert.Equal(categoryName + "." + eventName, eventId.Name);
 
                 var diagnosticLogger = scopeServiceProvider.GetRequiredService(
                     isExtensionMethod
                         ? typeof(IDiagnosticsLogger<>).MakeGenericType(category)
-                        : loggerMethod.DeclaringType);
+                        : loggerMethod.DeclaringType!);
 
-                var args = new object[loggerParameters.Length];
+                    var args = new object?[loggerParameters.Length];
                 var i = 0;
                 if (isExtensionMethod)
                 {
@@ -118,10 +118,9 @@ public abstract class EventIdTestBase
                         {
                             args[i] = Activator.CreateInstance(type);
                         }
-                        catch (Exception)
+                        catch
                         {
-                            Assert.True(
-                                false,
+                            Assert.Fail(
                                 "Need to add fake test factory for type "
                                 + type.DisplayName()
                                 + " in class "
@@ -131,16 +130,16 @@ public abstract class EventIdTestBase
                     }
                 }
 
-                foreach (var enableFor in new[] { "Foo", eventId.Name })
+                foreach (var enableFor in new[] { "Foo", eventId.Name! })
                 {
                     testDiagnostics.EnableFor = enableFor;
 
                     var logged = false;
-                    foreach (LogLevel logLevel in Enum.GetValues(typeof(LogLevel)))
+                    foreach (var logLevel in Enum.GetValues<LogLevel>())
                     {
                         testLogger.EnabledFor = logLevel;
                         testLogger.LoggedAt = null;
-                        testDiagnostics.LoggedEventName = null;
+                        testDiagnostics.LoggedEventName = null!;
 
                         loggerMethod.Invoke(isExtensionMethod ? null : diagnosticLogger, args);
 

@@ -1,10 +1,9 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable UnusedAutoPropertyAccessor.Local
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore;
 
 public class CommandConfigurationTest : IClassFixture<CommandConfigurationTest.CommandConfigurationFixture>
@@ -17,21 +16,17 @@ public class CommandConfigurationTest : IClassFixture<CommandConfigurationTest.C
 
     protected CommandConfigurationFixture Fixture { get; set; }
 
-    [ConditionalFact]
+    [Fact]
     public void Constructed_select_query_CommandBuilder_throws_when_negative_CommandTimeout_is_used()
     {
         using var context = CreateContext();
         Assert.Throws<ArgumentException>(() => context.Database.SetCommandTimeout(-5));
     }
 
-    [ConditionalTheory]
-    [InlineData(59, 6)]
-    [InlineData(50, 5)]
-    [InlineData(20, 2)]
-    [InlineData(2, 1)]
-    public void Keys_generated_in_batches(int count, int expected)
+    [Theory, InlineData(59, 6), InlineData(50, 5), InlineData(20, 2), InlineData(2, 1)]
+    public async Task Keys_generated_in_batches(int count, int expected)
     {
-        TestHelpers.ExecuteWithStrategyInTransaction(
+        await TestHelpers.ExecuteWithStrategyInTransactionAsync(
             Fixture.CreateContext, UseTransaction,
             context =>
             {
@@ -40,7 +35,7 @@ public class CommandConfigurationTest : IClassFixture<CommandConfigurationTest.C
                     context.Set<KettleChips>().Add(new KettleChips { BestBuyDate = DateTime.Now, Name = "Doritos Locos Tacos " + i });
                 }
 
-                context.SaveChanges();
+                return context.SaveChangesAsync();
             });
 
         Assert.Equal(expected, CountSqlLinesContaining("SELECT NEXT VALUE FOR", Fixture.TestSqlLoggerFactory.Sql));
@@ -57,7 +52,7 @@ public class CommandConfigurationTest : IClassFixture<CommandConfigurationTest.C
 
     public int CountLinesContaining(string source, string searchTerm)
     {
-        var text = source.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+        var text = source.Split([Environment.NewLine], StringSplitOptions.RemoveEmptyEntries);
 
         var matchQuery = from word in text
                          where word.Contains(searchTerm)
@@ -66,14 +61,9 @@ public class CommandConfigurationTest : IClassFixture<CommandConfigurationTest.C
         return matchQuery.Count();
     }
 
-    private class ChipsContext : PoolableDbContext
+    private class ChipsContext(DbContextOptions options) : PoolableDbContext(options)
     {
-        public ChipsContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public DbSet<KettleChips> Chips { get; set; }
+        public DbSet<KettleChips> Chips { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.UseHiLo();
@@ -84,13 +74,15 @@ public class CommandConfigurationTest : IClassFixture<CommandConfigurationTest.C
         // ReSharper disable once UnusedMember.Local
         public int Id { get; set; }
 
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         public DateTime BestBuyDate { get; set; }
     }
 
     public class CommandConfigurationFixture : SharedStoreFixtureBase<DbContext>
     {
-        protected override string StoreName { get; } = "CommandConfiguration";
+        protected override string StoreName
+            => "CommandConfiguration";
+
         protected override Type ContextType { get; } = typeof(ChipsContext);
 
         protected override ITestStoreFactory TestStoreFactory

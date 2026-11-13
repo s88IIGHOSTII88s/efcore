@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.EntityFrameworkCore.Design.Internal;
@@ -8,7 +8,7 @@ namespace Microsoft.EntityFrameworkCore;
 
 public class AppServiceProviderFactoryTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Create_services_from_template_method()
     {
         TestCreateServices(typeof(ProgramWithBuildWebHost));
@@ -21,9 +21,7 @@ public class AppServiceProviderFactoryTest
         var factory = new TestAppServiceProviderFactory(
             MockAssembly.Create(programType));
 
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
-        Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", null);
-        var services = factory.Create(new[] { "arg1" });
+        var services = factory.Create(["arg1"]);
 
         Assert.NotNull(services.GetRequiredService<TestService>());
     }
@@ -58,27 +56,23 @@ public class AppServiceProviderFactoryTest
         }
     }
 
-    [ConditionalFact]
+    [Fact, SkipOnPlatform(TestPlatforms.OSX, "Test does not run on macOS")]
     public void Create_with_no_builder_method()
     {
         var factory = new TestAppServiceProviderFactory(
             MockAssembly.Create(
-                new[] { typeof(ProgramWithNoHostBuilder) },
+                [typeof(ProgramWithNoHostBuilder)],
                 new MockMethodInfo(typeof(ProgramWithNoHostBuilder), InjectHostIntoDiagnostics)));
 
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
-        Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", null);
-        var services = factory.Create(new[] { "arg1" });
+        var services = factory.Create(["arg1"]);
 
         Assert.NotNull(services.GetRequiredService<TestService>());
     }
 
-    private static void InjectHostIntoDiagnostics(object[] args)
+    private static void InjectHostIntoDiagnostics(object?[] args)
     {
-        Assert.Equal("Development", Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"));
-        Assert.Equal("Development", Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"));
         Assert.Single(args);
-        Assert.Equal((string[])args[0], new[] { "arg1", "--applicationName", "MockAssembly" });
+        Assert.Equal((string[])args[0]!, new[] { "arg1", "--applicationName", "MockAssembly" });
 
         using var diagnosticListener = new DiagnosticListener("Microsoft.Extensions.Hosting");
 
@@ -87,42 +81,32 @@ public class AppServiceProviderFactoryTest
             new TestWebHost(BuildTestServiceProvider()));
     }
 
-    private class ProgramWithNoHostBuilder
-    {
-    }
+    private class ProgramWithNoHostBuilder;
 
     private static void ValidateEnvironmentAndArgs(string[] args)
-    {
-        Assert.Equal("Development", Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"));
-        Assert.Equal("Development", Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"));
-        Assert.Equal(args, new[] { "arg1" });
-    }
+        => Assert.Equal(args, new[] { "arg1" });
 
     private static ServiceProvider BuildTestServiceProvider()
         => new ServiceCollection()
             .AddScoped<TestService>()
             .BuildServiceProvider(validateScopes: true);
 
-    private class TestService
-    {
-    }
+    private class TestService;
 
-    [ConditionalFact]
+    [Fact]
     public void Create_works_when_no_BuildWebHost()
     {
         var factory = new TestAppServiceProviderFactory(
             MockAssembly.Create(typeof(ProgramWithoutBuildWebHost)));
 
-        var services = factory.Create(Array.Empty<string>());
+        var services = factory.Create([]);
 
         Assert.NotNull(services);
     }
 
-    private class ProgramWithoutBuildWebHost
-    {
-    }
+    private class ProgramWithoutBuildWebHost;
 
-    [ConditionalFact]
+    [Fact]
     public void Create_works_when_BuildWebHost_throws()
     {
         var reporter = new TestOperationReporter();
@@ -130,7 +114,7 @@ public class AppServiceProviderFactoryTest
             MockAssembly.Create(typeof(ProgramWithThrowingBuildWebHost)),
             reporter);
 
-        var services = factory.Create(Array.Empty<string>());
+        var services = factory.Create([]);
 
         Assert.NotNull(services);
         Assert.Contains(
@@ -145,32 +129,17 @@ public class AppServiceProviderFactoryTest
     }
 }
 
-public class TestAppServiceProviderFactory : AppServiceProviderFactory
+public class TestAppServiceProviderFactory(Assembly startupAssembly, IOperationReporter? reporter = null)
+    : AppServiceProviderFactory(startupAssembly, reporter ?? new TestOperationReporter());
+
+public class TestWebHost(IServiceProvider services)
 {
-    public TestAppServiceProviderFactory(Assembly startupAssembly, IOperationReporter reporter = null)
-        : base(startupAssembly, reporter ?? new TestOperationReporter())
-    {
-    }
+    public IServiceProvider Services { get; } = services;
 }
 
-public class TestWebHost
+public class TestWebHostBuilder(IServiceProvider services)
 {
-    public TestWebHost(IServiceProvider services)
-    {
-        Services = services;
-    }
-
-    public IServiceProvider Services { get; }
-}
-
-public class TestWebHostBuilder
-{
-    public TestWebHostBuilder(IServiceProvider services)
-    {
-        Services = services;
-    }
-
-    public IServiceProvider Services { get; }
+    public IServiceProvider Services { get; } = services;
 
     public TestWebHost Build()
         => new(Services);
@@ -178,7 +147,7 @@ public class TestWebHostBuilder
 
 public class TestOperationReporter : IOperationReporter
 {
-    private readonly List<string> _messages = new();
+    private readonly List<string> _messages = [];
 
     public IReadOnlyList<string> Messages
         => _messages;

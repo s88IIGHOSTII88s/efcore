@@ -11,7 +11,7 @@ namespace Microsoft.EntityFrameworkCore;
 /// </summary>
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
 ///     for more information and examples.
 /// </remarks>
 public static class SqlServerModelBuilderExtensions
@@ -22,7 +22,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -34,8 +34,8 @@ public static class SqlServerModelBuilderExtensions
         string? name = null,
         string? schema = null)
     {
-        Check.NullButNotEmpty(name, nameof(name));
-        Check.NullButNotEmpty(schema, nameof(schema));
+        Check.NullButNotEmpty(name);
+        Check.NullButNotEmpty(schema);
 
         var model = modelBuilder.Model;
 
@@ -49,6 +49,8 @@ public static class SqlServerModelBuilderExtensions
         model.SetValueGenerationStrategy(SqlServerValueGenerationStrategy.SequenceHiLo);
         model.SetHiLoSequenceName(name);
         model.SetHiLoSequenceSchema(schema);
+        model.SetSequenceNameSuffix(null);
+        model.SetSequenceSchema(null);
         model.SetIdentitySeed(null);
         model.SetIdentityIncrement(null);
 
@@ -61,7 +63,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -91,7 +93,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -105,11 +107,47 @@ public static class SqlServerModelBuilderExtensions
         string? schema,
         bool fromDataAnnotation = false)
     {
-        Check.NullButNotEmpty(name, nameof(name));
-        Check.NullButNotEmpty(schema, nameof(schema));
+        Check.NullButNotEmpty(name);
+        Check.NullButNotEmpty(schema);
 
         return modelBuilder.CanSetAnnotation(SqlServerAnnotationNames.HiLoSequenceName, name, fromDataAnnotation)
             && modelBuilder.CanSetAnnotation(SqlServerAnnotationNames.HiLoSequenceSchema, schema, fromDataAnnotation);
+    }
+
+    /// <summary>
+    ///     Configures the model to use a sequence per hierarchy to generate values for key properties
+    ///     marked as <see cref="ValueGenerated.OnAdd" />, when targeting SQL Server.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="modelBuilder">The model builder.</param>
+    /// <param name="nameSuffix">The name that will suffix the table name for each sequence created automatically.</param>
+    /// <param name="schema">The schema of the sequence.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public static ModelBuilder UseKeySequences(
+        this ModelBuilder modelBuilder,
+        string? nameSuffix = null,
+        string? schema = null)
+    {
+        Check.NullButNotEmpty(nameSuffix);
+        Check.NullButNotEmpty(schema);
+
+        var model = modelBuilder.Model;
+
+        nameSuffix ??= SqlServerModelExtensions.DefaultSequenceNameSuffix;
+
+        model.SetValueGenerationStrategy(SqlServerValueGenerationStrategy.Sequence);
+        model.SetSequenceNameSuffix(nameSuffix);
+        model.SetSequenceSchema(schema);
+        model.SetHiLoSequenceName(null);
+        model.SetHiLoSequenceSchema(null);
+        model.SetIdentitySeed(null);
+        model.SetIdentityIncrement(null);
+
+        return modelBuilder;
     }
 
     /// <summary>
@@ -119,7 +157,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -136,6 +174,8 @@ public static class SqlServerModelBuilderExtensions
         model.SetValueGenerationStrategy(SqlServerValueGenerationStrategy.IdentityColumn);
         model.SetIdentitySeed(seed);
         model.SetIdentityIncrement(increment);
+        model.SetSequenceNameSuffix(null);
+        model.SetSequenceSchema(null);
         model.SetHiLoSequenceName(null);
         model.SetHiLoSequenceSchema(null);
 
@@ -149,7 +189,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -167,7 +207,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -196,7 +236,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -214,7 +254,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -243,7 +283,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -262,7 +302,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -291,10 +331,25 @@ public static class SqlServerModelBuilderExtensions
                 modelBuilder.HasHiLoSequence(null, null, fromDataAnnotation);
             }
 
+            if (valueGenerationStrategy != SqlServerValueGenerationStrategy.Sequence)
+            {
+                RemoveKeySequenceAnnotations();
+            }
+
             return modelBuilder;
         }
 
         return null;
+
+        void RemoveKeySequenceAnnotations()
+        {
+            if (modelBuilder.CanSetAnnotation(SqlServerAnnotationNames.SequenceNameSuffix, null)
+                && modelBuilder.CanSetAnnotation(SqlServerAnnotationNames.SequenceSchema, null))
+            {
+                modelBuilder.Metadata.SetSequenceNameSuffix(null, fromDataAnnotation);
+                modelBuilder.Metadata.SetSequenceSchema(null, fromDataAnnotation);
+            }
+        }
     }
 
     /// <summary>
@@ -302,7 +357,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -325,7 +380,7 @@ public static class SqlServerModelBuilderExtensions
     ///     </para>
     ///     <para>
     ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///         for more information and examples.
     ///     </para>
     /// </remarks>
@@ -334,7 +389,7 @@ public static class SqlServerModelBuilderExtensions
     /// <returns>The same builder instance so that multiple calls can be chained.</returns>
     public static ModelBuilder HasDatabaseMaxSize(this ModelBuilder modelBuilder, string maxSize)
     {
-        Check.NotNull(maxSize, nameof(maxSize));
+        Check.NotNull(maxSize);
 
         modelBuilder.Model.SetDatabaseMaxSize(maxSize);
 
@@ -350,7 +405,7 @@ public static class SqlServerModelBuilderExtensions
     ///     </para>
     ///     <para>
     ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///         for more information and examples.
     ///     </para>
     /// </remarks>
@@ -380,7 +435,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -402,7 +457,7 @@ public static class SqlServerModelBuilderExtensions
     ///     </para>
     ///     <para>
     ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///         for more information and examples.
     ///     </para>
     /// </remarks>
@@ -411,7 +466,7 @@ public static class SqlServerModelBuilderExtensions
     /// <returns>The same builder instance so that multiple calls can be chained.</returns>
     public static ModelBuilder HasServiceTier(this ModelBuilder modelBuilder, string serviceTier)
     {
-        Check.NotNull(serviceTier, nameof(serviceTier));
+        Check.NotNull(serviceTier);
 
         modelBuilder.Model.SetServiceTierSql("'" + serviceTier.Replace("'", "''") + "'");
 
@@ -427,7 +482,7 @@ public static class SqlServerModelBuilderExtensions
     ///     </para>
     ///     <para>
     ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///         for more information and examples.
     ///     </para>
     /// </remarks>
@@ -436,7 +491,7 @@ public static class SqlServerModelBuilderExtensions
     /// <returns>The same builder instance so that multiple calls can be chained.</returns>
     public static ModelBuilder HasServiceTierSql(this ModelBuilder modelBuilder, string serviceTier)
     {
-        Check.NotNull(serviceTier, nameof(serviceTier));
+        Check.NotNull(serviceTier);
 
         modelBuilder.Model.SetServiceTierSql(serviceTier);
 
@@ -452,7 +507,7 @@ public static class SqlServerModelBuilderExtensions
     ///     </para>
     ///     <para>
     ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///         for more information and examples.
     ///     </para>
     /// </remarks>
@@ -482,7 +537,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -504,7 +559,7 @@ public static class SqlServerModelBuilderExtensions
     ///     </para>
     ///     <para>
     ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///         for more information and examples.
     ///     </para>
     /// </remarks>
@@ -513,7 +568,7 @@ public static class SqlServerModelBuilderExtensions
     /// <returns>The same builder instance so that multiple calls can be chained.</returns>
     public static ModelBuilder HasPerformanceLevel(this ModelBuilder modelBuilder, string performanceLevel)
     {
-        Check.NotNull(performanceLevel, nameof(performanceLevel));
+        Check.NotNull(performanceLevel);
 
         modelBuilder.Model.SetPerformanceLevelSql("'" + performanceLevel.Replace("'", "''") + "'");
 
@@ -529,7 +584,7 @@ public static class SqlServerModelBuilderExtensions
     ///     </para>
     ///     <para>
     ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///         for more information and examples.
     ///     </para>
     /// </remarks>
@@ -538,7 +593,7 @@ public static class SqlServerModelBuilderExtensions
     /// <returns>The same builder instance so that multiple calls can be chained.</returns>
     public static ModelBuilder HasPerformanceLevelSql(this ModelBuilder modelBuilder, string performanceLevel)
     {
-        Check.NotNull(performanceLevel, nameof(performanceLevel));
+        Check.NotNull(performanceLevel);
 
         modelBuilder.Model.SetPerformanceLevelSql(performanceLevel);
 
@@ -554,7 +609,7 @@ public static class SqlServerModelBuilderExtensions
     ///     </para>
     ///     <para>
     ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///         <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///         for more information and examples.
     ///     </para>
     /// </remarks>
@@ -584,7 +639,7 @@ public static class SqlServerModelBuilderExtensions
     /// </summary>
     /// <remarks>
     ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
     ///     for more information and examples.
     /// </remarks>
     /// <param name="modelBuilder">The model builder.</param>
@@ -596,4 +651,106 @@ public static class SqlServerModelBuilderExtensions
         string? performanceLevel,
         bool fromDataAnnotation = false)
         => modelBuilder.CanSetAnnotation(SqlServerAnnotationNames.PerformanceLevelSql, performanceLevel, fromDataAnnotation);
+
+    /// <summary>
+    ///     Configures the model to use named default constraints.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="modelBuilder">The model builder.</param>
+    /// <param name="value">The value to use.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public static ModelBuilder UseNamedDefaultConstraints(this ModelBuilder modelBuilder, bool value = true)
+    {
+        Check.NotNull(value);
+
+        modelBuilder.Model.UseNamedDefaultConstraints(value);
+
+        return modelBuilder;
+    }
+
+    /// <summary>
+    ///     Configures the model to use named default constraints.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="modelBuilder">The model builder.</param>
+    /// <param name="value">The value to use.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The same builder instance if the configuration was applied,
+    ///     <see langword="null" /> otherwise.
+    /// </returns>
+    public static IConventionModelBuilder? UseNamedDefaultConstraints(
+        this IConventionModelBuilder modelBuilder,
+        bool value,
+        bool fromDataAnnotation = false)
+    {
+        if (modelBuilder.CanUseNamedDefaultConstraints(value, fromDataAnnotation))
+        {
+            modelBuilder.Metadata.UseNamedDefaultConstraints(value, fromDataAnnotation);
+            return modelBuilder;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Returns a value indicating whether named default constraints should be used in the model.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
+    ///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
+    ///     for more information and examples.
+    /// </remarks>
+    /// <param name="modelBuilder">The model builder.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <param name="value">The value to use.</param>
+    /// <returns><see langword="true" /> if the given value can be set as the configuration for named default constraints setting.</returns>
+    public static bool CanUseNamedDefaultConstraints(
+        this IConventionModelBuilder modelBuilder,
+        bool value,
+        bool fromDataAnnotation = false)
+        => modelBuilder.CanSetAnnotation(RelationalAnnotationNames.UseNamedDefaultConstraints, value, fromDataAnnotation);
+
+    /// <summary>
+    ///     Configures a full-text catalog in the model.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
+    ///     for more information on SQL Server full-text search.
+    /// </remarks>
+    /// <param name="modelBuilder">The model builder.</param>
+    /// <param name="name">The name of the full-text catalog.</param>
+    /// <returns>A builder to further configure the full-text catalog.</returns>
+    public static SqlServerFullTextCatalogBuilder HasFullTextCatalog(
+        this ModelBuilder modelBuilder,
+        string name)
+    {
+        Check.NotEmpty(name);
+
+        var catalog = HasFullTextCatalog(modelBuilder.Model, name, ConfigurationSource.Explicit);
+        return new SqlServerFullTextCatalogBuilder(catalog);
+    }
+
+    private static SqlServerFullTextCatalog HasFullTextCatalog(
+        IMutableModel model,
+        string name,
+        ConfigurationSource configurationSource)
+    {
+        var catalog = SqlServerFullTextCatalog.FindFullTextCatalog(model, name);
+        if (catalog != null)
+        {
+            catalog.UpdateConfigurationSource(configurationSource);
+            return catalog;
+        }
+
+        return SqlServerFullTextCatalog.AddFullTextCatalog(model, name, configurationSource);
+    }
 }

@@ -10,10 +10,10 @@ public class ConvertToProviderTypesSqliteTest : ConvertToProviderTypesTestBase<
         : base(fixture)
     {
         fixture.TestSqlLoggerFactory.Clear();
-        //fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
+        fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
 
-    public class ConvertToProviderTypesSqliteFixture : ConvertToProviderTypesFixtureBase
+    public class ConvertToProviderTypesSqliteFixture : ConvertToProviderTypesFixtureBase, ITestSqlLoggerFactory
     {
         public override bool StrictEquality
             => false;

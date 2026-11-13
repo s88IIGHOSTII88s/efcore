@@ -5,7 +5,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure;
 
 public class DbContextAttributeTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Create_attribute()
     {
         var attribute = new DbContextAttribute(typeof(MyContext));
@@ -13,7 +13,5 @@ public class DbContextAttributeTest
         Assert.Same(typeof(MyContext), attribute.ContextType);
     }
 
-    public class MyContext : DbContext
-    {
-    }
+    public class MyContext : DbContext;
 }

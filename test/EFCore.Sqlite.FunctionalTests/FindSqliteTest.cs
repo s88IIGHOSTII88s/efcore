@@ -3,58 +3,51 @@
 
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class FindSqliteTest : FindTestBase<FindSqliteTest.FindSqliteFixture>
+public abstract class FindSqliteTest(FindSqliteTest.FindSqliteFixture fixture) : FindTestBase<FindSqliteTest.FindSqliteFixture>(fixture)
 {
-    protected FindSqliteTest(FindSqliteFixture fixture)
-        : base(fixture)
+    public class FindSqliteTestSet(FindSqliteFixture fixture) : FindSqliteTest(fixture)
     {
+        protected override TestFinder Finder { get; } = new FindViaSetFinder();
     }
 
-    public class FindSqliteTestSet : FindSqliteTest
+    public class FindSqliteTestContext(FindSqliteFixture fixture) : FindSqliteTest(fixture)
     {
-        public FindSqliteTestSet(FindSqliteFixture fixture)
-            : base(fixture)
-        {
-        }
-
-        protected override TEntity Find<TEntity>(DbContext context, params object[] keyValues)
-            => context.Set<TEntity>().Find(keyValues);
-
-        protected override ValueTask<TEntity> FindAsync<TEntity>(DbContext context, params object[] keyValues)
-            => context.Set<TEntity>().FindAsync(keyValues);
+        protected override TestFinder Finder { get; } = new FindViaContextFinder();
     }
 
-    public class FindSqliteTestContext : FindSqliteTest
+    public class FindSqliteTestNonGeneric(FindSqliteFixture fixture) : FindSqliteTest(fixture)
     {
-        public FindSqliteTestContext(FindSqliteFixture fixture)
-            : base(fixture)
-        {
-        }
-
-        protected override TEntity Find<TEntity>(DbContext context, params object[] keyValues)
-            => context.Find<TEntity>(keyValues);
-
-        protected override ValueTask<TEntity> FindAsync<TEntity>(DbContext context, params object[] keyValues)
-            => context.FindAsync<TEntity>(keyValues);
-    }
-
-    public class FindSqliteTestNonGeneric : FindSqliteTest
-    {
-        public FindSqliteTestNonGeneric(FindSqliteFixture fixture)
-            : base(fixture)
-        {
-        }
-
-        protected override TEntity Find<TEntity>(DbContext context, params object[] keyValues)
-            => (TEntity)context.Find(typeof(TEntity), keyValues);
-
-        protected override async ValueTask<TEntity> FindAsync<TEntity>(DbContext context, params object[] keyValues)
-            => (TEntity)await context.FindAsync(typeof(TEntity), keyValues);
+        protected override TestFinder Finder { get; } = new FindViaNonGenericContextFinder();
     }
 
     public class FindSqliteFixture : FindFixtureBase
     {
         protected override ITestStoreFactory TestStoreFactory
             => SqliteTestStoreFactory.Instance;
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder, DbContext context)
+        {
+            base.OnModelCreating(modelBuilder, context);
+
+            modelBuilder.Entity<IntKey>(b =>
+            {
+                // This configuration for SQLite prevents attempts to use the default composite key config, which doesn't work
+                // on SQLite. See #26708
+                b.OwnsOne(
+                    e => e.OwnedReference, b =>
+                    {
+                        b.OwnsOne(e => e.NestedOwned);
+                        b.OwnsMany(e => e.NestedOwnedCollection).ToTable("NestedOwnedCollection").HasKey(e => e.Prop);
+                    });
+
+                b.OwnsMany(
+                    e => e.OwnedCollection, b =>
+                    {
+                        b.ToTable("OwnedCollection").HasKey(e => e.Prop);
+                        b.OwnsOne(e => e.NestedOwned);
+                        b.OwnsMany(e => e.NestedOwnedCollection).ToTable("OwnedNestedOwnedCollection").HasKey(e => e.Prop);
+                    });
+            });
+        }
     }
 }

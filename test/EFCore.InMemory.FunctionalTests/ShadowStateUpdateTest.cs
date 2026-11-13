@@ -3,16 +3,14 @@
 
 namespace Microsoft.EntityFrameworkCore;
 
-public class ShadowStateUpdateTest : IClassFixture<InMemoryFixture>
+public class ShadowStateUpdateTest(InMemoryFixture fixture) : IClassFixture<InMemoryFixture>
 {
-    [ConditionalFact]
+    [Fact]
     public async Task Can_add_update_delete_end_to_end_using_partial_shadow_state()
     {
         var modelBuilder = InMemoryTestHelpers.Instance.CreateConventionBuilder();
         var entityTypeBuilder = modelBuilder.Entity<Customer>();
         entityTypeBuilder.Property<string>("Name");
-
-        var customerType = (IEntityType)entityTypeBuilder.Metadata;
 
         var optionsBuilder = new DbContextOptionsBuilder()
             .UseModel(modelBuilder.FinalizeModel())
@@ -23,7 +21,7 @@ public class ShadowStateUpdateTest : IClassFixture<InMemoryFixture>
 
         using (var context = new DbContext(optionsBuilder.Options))
         {
-            context.Add(customer);
+            await context.AddAsync(customer);
 
             context.Entry(customer).Property("Name").CurrentValue = "Daenerys";
 
@@ -39,13 +37,13 @@ public class ShadowStateUpdateTest : IClassFixture<InMemoryFixture>
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal(
                 "Daenerys",
-                (string)context.Entry(customerFromStore).Property("Name").CurrentValue);
+                (string)context.Entry(customerFromStore).Property("Name").CurrentValue!);
         }
 
         using (var context = new DbContext(optionsBuilder.Options))
         {
             var customerEntry = context.Entry(customer).GetInfrastructure();
-            customerEntry[customerType.FindProperty("Name")] = "Daenerys Targaryen";
+            customerEntry[customerEntry.EntityType.FindProperty("Name")!] = "Daenerys Targaryen";
 
             context.Update(customer);
 
@@ -59,7 +57,7 @@ public class ShadowStateUpdateTest : IClassFixture<InMemoryFixture>
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal(
                 "Daenerys Targaryen",
-                (string)context.Entry(customerFromStore).Property("Name").CurrentValue);
+                (string)context.Entry(customerFromStore).Property("Name").CurrentValue!);
         }
 
         using (var context = new DbContext(optionsBuilder.Options))
@@ -75,19 +73,12 @@ public class ShadowStateUpdateTest : IClassFixture<InMemoryFixture>
         }
     }
 
-    private readonly InMemoryFixture _fixture;
-
-    public ShadowStateUpdateTest(InMemoryFixture fixture)
-    {
-        _fixture = fixture;
-    }
+    private readonly InMemoryFixture _fixture = fixture;
 
     private class Customer
     {
         private Customer(object[] values)
-        {
-            Id = (int)values[0];
-        }
+            => Id = (int)values[0];
 
         public Customer()
         {

@@ -1,29 +1,24 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text.Json;
 
-#nullable enable
-
 // ReSharper disable StaticMemberInGenericType
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<TFixture>
+public abstract class ValueConvertersEndToEndTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : ValueConvertersEndToEndTestBase<TFixture>.ValueConvertersEndToEndFixtureBase, new()
 {
-    protected ValueConvertersEndToEndTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
-
-    protected TFixture Fixture { get; }
+    protected TFixture Fixture { get; } = fixture;
 
     private static readonly DateTimeOffset _dateTimeOffset1 = new(1973, 9, 3, 12, 10, 0, new TimeSpan(7, 0, 0));
     private static readonly DateTimeOffset _dateTimeOffset2 = new(1973, 9, 3, 12, 10, 0, new TimeSpan(8, 0, 0));
     private static readonly DateTime _dateTime1 = new(1973, 9, 3, 12, 10, 0);
     private static readonly DateTime _dateTime2 = new(1973, 9, 3, 12, 10, 1);
+    private static readonly DateOnly _dateOnly1 = new(1973, 9, 3);
+    private static readonly DateOnly _dateOnly2 = new(1973, 9, 4);
     private static readonly IPAddress _ipAddress1 = IPAddress.Parse("127.0.0.1");
     private static readonly IPAddress _ipAddress2 = IPAddress.Parse("127.0.0.2");
     private static readonly PhysicalAddress _physicalAddress1 = PhysicalAddress.Parse("1D4E55D69273");
@@ -33,27 +28,28 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
     private static readonly Uri _uri1 = new("http://localhost/");
     private static readonly Uri _uri2 = new("http://microsoft.com/");
     private static readonly string _dateTimeFormat = @"yyyy\-MM\-dd HH\:mm\:ss.FFFFFFF";
+    private static readonly string _dateOnlyFormat = @"yyyy\-MM\-dd";
     private static readonly string _dateTimeOffsetFormat = @"yyyy\-MM\-dd HH\:mm\:ss.FFFFFFFzzz";
 
     protected static Dictionary<Type, object?[]> TestValues = new()
     {
-        { typeof(bool), new object?[] { true, false, true, false } },
-        { typeof(int), new object?[] { 77, 0, 78, 0 } },
-        { typeof(char), new object?[] { 'A', 'B', 'C', 'D' } },
-        { typeof(byte[]), new object?[] { new byte[] { 1 }, new byte[] { 2 }, new byte[] { 3 }, new byte[] { 4 } } },
-        { typeof(DateTimeOffset), new object?[] { _dateTimeOffset1, _dateTimeOffset2, _dateTimeOffset1, _dateTimeOffset2 } },
-        { typeof(DateTime), new object?[] { _dateTime1, _dateTime2, _dateTime1, _dateTime2 } },
-        { typeof(TheExperience), new object?[] { TheExperience.Jimi, TheExperience.Mitch, TheExperience.Noel, TheExperience.Jimi } },
-        { typeof(Guid), new object?[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() } },
-        { typeof(IPAddress), new object?[] { _ipAddress1, _ipAddress2, _ipAddress1, _ipAddress2 } },
-        { typeof(ulong), new object?[] { (ulong)77, (ulong)0, (ulong)78, (ulong)0 } },
-        { typeof(sbyte), new object?[] { (sbyte)-77, (sbyte)0, (sbyte)78, (sbyte)0 } },
-        { typeof(PhysicalAddress), new object?[] { _physicalAddress1, _physicalAddress2, _physicalAddress1, _physicalAddress2 } },
-        { typeof(TimeSpan), new object?[] { _timeSpan1, _timeSpan2, _timeSpan1, _timeSpan2 } },
-        { typeof(Uri), new object?[] { _uri1, _uri2, _uri1, _uri2 } },
+        { typeof(bool), [true, false, true, false] },
+        { typeof(int), [77, 0, 78, 0] },
+        { typeof(char), ['A', 'B', 'C', 'D'] },
+        { typeof(byte[]), [new byte[] { 1 }, new byte[] { 2 }, new byte[] { 3 }, new byte[] { 4 }] },
+        { typeof(DateTimeOffset), [_dateTimeOffset1, _dateTimeOffset2, _dateTimeOffset1, _dateTimeOffset2] },
+        { typeof(DateTime), [_dateTime1, _dateTime2, _dateTime1, _dateTime2] },
+        { typeof(DateOnly), [_dateOnly1, _dateOnly2, _dateOnly1, _dateOnly2] },
+        { typeof(TheExperience), [TheExperience.Jimi, TheExperience.Mitch, TheExperience.Noel, TheExperience.Jimi] },
+        { typeof(Guid), [Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()] },
+        { typeof(IPAddress), [_ipAddress1, _ipAddress2, _ipAddress1, _ipAddress2] },
+        { typeof(ulong), [(ulong)77, (ulong)0, (ulong)78, (ulong)0] },
+        { typeof(sbyte), [(sbyte)-77, (sbyte)0, (sbyte)78, (sbyte)0] },
+        { typeof(PhysicalAddress), [_physicalAddress1, _physicalAddress2, _physicalAddress1, _physicalAddress2] },
+        { typeof(TimeSpan), [_timeSpan1, _timeSpan2, _timeSpan1, _timeSpan2] },
+        { typeof(Uri), [_uri1, _uri2, _uri1, _uri2] },
         {
-            typeof(List<int>), new object?[]
-            {
+            typeof(List<int>), [
                 new List<int>
                 {
                     47,
@@ -81,12 +77,11 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
                     78,
                     77,
                     76
-                },
-            }
+                }
+            ]
         },
         {
-            typeof(IEnumerable<int>), new object?[]
-            {
+            typeof(IEnumerable<int>), [
                 new List<int>
                 {
                     47,
@@ -114,59 +109,58 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
                     78,
                     77,
                     76
-                },
-            }
+                }
+            ]
         },
     };
 
     protected static Dictionary<Type, object?[]> StringTestValues = new()
     {
-        { typeof(bool), new object?[] { "True", "False", "True", "False" } },
-        { typeof(char), new object?[] { "A", "B", "C", "D" } },
-        { typeof(byte[]), new object?[] { "", "", "", "" } },
+        { typeof(bool), ["True", "False", "True", "False"] },
+        { typeof(char), ["A", "B", "C", "D"] },
+        { typeof(byte[]), ["", "", "", ""] },
         {
-            typeof(DateTimeOffset),
-            new object?[]
-            {
+            typeof(DateTimeOffset), [
                 _dateTimeOffset1.ToString(_dateTimeOffsetFormat),
                 _dateTimeOffset2.ToString(_dateTimeOffsetFormat),
                 _dateTimeOffset1.ToString(_dateTimeOffsetFormat),
                 _dateTimeOffset2.ToString(_dateTimeOffsetFormat)
-            }
+            ]
         },
         {
-            typeof(DateTime),
-            new object?[]
-            {
+            typeof(DateTime), [
                 _dateTime1.ToString(_dateTimeFormat),
                 _dateTime2.ToString(_dateTimeFormat),
                 _dateTime1.ToString(_dateTimeFormat),
                 _dateTime2.ToString(_dateTimeFormat)
-            }
+            ]
         },
-        { typeof(string), new object?[] { "A", "<null>", "C", "<null>" } },
         {
-            typeof(TheExperience),
-            new object?[]
-            {
+            typeof(DateOnly), [
+                _dateOnly1.ToString(_dateOnlyFormat),
+                _dateOnly2.ToString(_dateOnlyFormat),
+                _dateOnly1.ToString(_dateOnlyFormat),
+                _dateOnly2.ToString(_dateOnlyFormat)
+            ]
+        },
+        { typeof(string), ["A", "<null>", "C", "<null>"] },
+        {
+            typeof(TheExperience), [
                 nameof(TheExperience.Jimi), nameof(TheExperience.Mitch), nameof(TheExperience.Noel), nameof(TheExperience.Jimi)
-            }
+            ]
         },
-        {
-            typeof(Guid),
-            new object?[] { Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), Guid.NewGuid().ToString() }
-        },
-        { typeof(ulong), new object?[] { "77", "0", "78", "0" } },
-        { typeof(sbyte), new object?[] { "-77", "75", "-78", "0" } },
-        { typeof(byte), new object?[] { "77", "75", "78", "0" } },
-        { typeof(TimeSpan), new object?[] { _timeSpan1.ToString(), _timeSpan2.ToString(), _timeSpan1.ToString(), _timeSpan2.ToString() } },
+        { typeof(Guid), [Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), Guid.NewGuid().ToString()] },
+        { typeof(ulong), ["77", "0", "78", "0"] },
+        { typeof(sbyte), ["-77", "75", "-78", "0"] },
+        { typeof(byte), ["77", "75", "78", "0"] },
+        { typeof(TimeSpan), [_timeSpan1.ToString(), _timeSpan2.ToString(), _timeSpan1.ToString(), _timeSpan2.ToString()] },
     };
 
-    [ConditionalTheory]
-    [InlineData(new[] { 0, 1, 2, 3 })]
-    [InlineData(new[] { 3, 2, 1, 0 })]
-    [InlineData(new[] { 0, 2, 0, 2 })]
-    public virtual void Can_insert_and_read_back_with_conversions(int[] valueOrder)
+    [Theory,
+     InlineData(new[] { 0, 1, 2, 3 }),
+     InlineData(new[] { 3, 2, 1, 0 }),
+     InlineData(new[] { 0, 2, 0, 2 })]
+    public virtual async Task Can_insert_and_read_back_with_conversions(int[] valueOrder)
     {
         var id = Guid.Empty;
 
@@ -174,38 +168,50 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         {
             var entity = new ConvertingEntity();
 
+            Add(context, entity);
+
             SetPropertyValues(context, entity, valueOrder[0], -1);
 
-            context.Add(entity);
-            context.SaveChanges();
+            await context.SaveChangesAsync();
 
             id = entity.Id;
         }
 
         using (var context = CreateContext())
         {
-            SetPropertyValues(context, context.Set<ConvertingEntity>().Single(e => e.Id == id), valueOrder[1], valueOrder[0]);
-            context.SaveChanges();
+            SetPropertyValues(context, await GetAsync(context, id), valueOrder[1], valueOrder[0]);
+            await context.SaveChangesAsync();
         }
 
         using (var context = CreateContext())
         {
-            SetPropertyValues(context, context.Set<ConvertingEntity>().Single(e => e.Id == id), valueOrder[2], valueOrder[1]);
-            context.SaveChanges();
+            SetPropertyValues(context, await GetAsync(context, id), valueOrder[2], valueOrder[1]);
+            await context.SaveChangesAsync();
         }
 
         using (var context = CreateContext())
         {
-            SetPropertyValues(context, context.Set<ConvertingEntity>().Single(e => e.Id == id), valueOrder[3], valueOrder[2]);
-            context.SaveChanges();
+            SetPropertyValues(context, await GetAsync(context, id), valueOrder[3], valueOrder[2]);
+            await context.SaveChangesAsync();
         }
     }
 
-    private static void SetPropertyValues(DbContext context, ConvertingEntity entity, int valueIndex, int previousValueIndex)
+    protected virtual void Add(DbContext context, ConvertingEntity entity)
+        => context.Add(entity);
+
+    protected virtual Task<ConvertingEntity> GetAsync(DbContext context, Guid id)
+        => context.Set<ConvertingEntity>().SingleAsync(e => e.Id == id);
+
+    protected virtual PropertyEntry Property(DbContext context, ConvertingEntity entity, IProperty property)
+        => context.Entry(entity).Property(property);
+
+    protected virtual ITypeBase FindType(DbContext context)
+        => context.Model.FindEntityType(
+            typeof(ConvertingEntity))!;
+
+    private void SetPropertyValues(DbContext context, ConvertingEntity entity, int valueIndex, int previousValueIndex)
     {
-        var entry = context.Entry(entity);
-        foreach (var property in context.Model.FindEntityType(
-                     entity.GetType())!.GetProperties().Where(p => !p.IsPrimaryKey() && !p.IsShadowProperty()))
+        foreach (var property in FindType(context).GetProperties().Where(p => !p.IsPrimaryKey() && !p.IsShadowProperty()))
         {
             var testValues = (property.ClrType == typeof(string)
                 ? StringTestValues[property.GetValueConverter()!.ProviderClrType.UnwrapNullableType()]
@@ -217,7 +223,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
                 testValues[3] = null;
             }
 
-            var propertyEntry = entry.Property(property);
+            var propertyEntry = Property(context, entity, property);
 
             if (previousValueIndex >= 0
                 && property.FindAnnotation("Relational:DefaultValue") == null)
@@ -234,7 +240,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_nulls_to_string_non_nulls_in_provider()
     {
         var converter = new NullStringToNonNullStringConverter().ConvertToProviderExpression.Compile();
@@ -245,7 +251,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal("", converter(""));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_nulls_to_string_non_nulls_in_provider_object()
     {
         var converter = new NullStringToNonNullStringConverter().ConvertToProvider;
@@ -256,7 +262,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal("", converter(""));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_nulls_to_string_non_nulls_in_app()
     {
         var converter = new NonNullStringToNullStringConverter().ConvertFromProviderExpression.Compile();
@@ -267,7 +273,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal("", converter(""));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_nulls_to_string_non_nulls_in_app_object()
     {
         var converter = new NonNullStringToNullStringConverter().ConvertFromProvider;
@@ -278,7 +284,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal("", converter(""));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_non_nulls_to_string_nulls_in_provider()
     {
         var converter = new NonNullStringToNullStringConverter().ConvertToProviderExpression.Compile();
@@ -288,7 +294,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal("", converter(""));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_non_nulls_to_string_nulls_in_provider_object()
     {
         var converter = new NonNullStringToNullStringConverter().ConvertToProvider;
@@ -298,7 +304,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal("", converter(""));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_non_nulls_to_string_nulls_in_app()
     {
         var converter = new NullStringToNonNullStringConverter().ConvertFromProviderExpression.Compile();
@@ -308,7 +314,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal("", converter(""));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_non_nulls_to_string_nulls_in_app_object()
     {
         var converter = new NullStringToNonNullStringConverter().ConvertFromProvider;
@@ -318,7 +324,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal("", converter(""));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_int_nulls_to_string_non_nulls_in_provider()
     {
         var converter = new NullIntToNonNullStringConverter().ConvertToProviderExpression.Compile();
@@ -328,7 +334,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal("<null>", converter(null));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_int_nulls_to_string_nulls_in_provider()
     {
         var converter = new NullIntToNullStringConverter().ConvertToProviderExpression.Compile();
@@ -338,7 +344,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Null(converter(null));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_int_non_nulls_to_string_non_nulls_in_provider()
     {
         var converter = new NonNullIntToNonNullStringConverter().ConvertToProviderExpression.Compile();
@@ -347,7 +353,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal("1", converter(1));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_int_non_nulls_to_string_nulls_in_provider()
     {
         var converter = new NonNullIntToNullStringConverter().ConvertToProviderExpression.Compile();
@@ -356,7 +362,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal("1", converter(1));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_nulls_to_int_non_nulls_in_app()
     {
         var converter = new NonNullIntToNullStringConverter().ConvertFromProviderExpression.Compile();
@@ -366,7 +372,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal(0, converter(null));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_nulls_to_int_nulls_in_app()
     {
         var converter = new NullIntToNullStringConverter().ConvertFromProviderExpression.Compile();
@@ -377,7 +383,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Null(converter(null));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_non_nulls_to_int_non_nulls_in_app()
     {
         var converter = new NonNullIntToNonNullStringConverter().ConvertFromProviderExpression.Compile();
@@ -387,7 +393,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal(0, converter("<null>"));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_non_nulls_to_int_nulls_in_app()
     {
         var converter = new NullIntToNonNullStringConverter().ConvertFromProviderExpression.Compile();
@@ -397,7 +403,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Null(converter("<null>"));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_int_nulls_to_string_non_nulls_in_provider_object()
     {
         var converter = new NullIntToNonNullStringConverter().ConvertToProvider;
@@ -407,7 +413,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal("<null>", converter(null));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_int_nulls_to_string_nulls_in_provider_object()
     {
         var converter = new NullIntToNullStringConverter().ConvertToProvider;
@@ -417,7 +423,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Null(converter(null));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_int_non_nulls_to_string_non_nulls_in_provider_object()
     {
         var converter = new NonNullIntToNonNullStringConverter().ConvertToProvider;
@@ -427,7 +433,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Throws<NullReferenceException>(() => converter(null));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_int_non_nulls_to_string_nulls_in_provider_object()
     {
         var converter = new NonNullIntToNullStringConverter().ConvertToProvider;
@@ -437,7 +443,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Throws<NullReferenceException>(() => converter(null));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_nulls_to_int_non_nulls_in_app_object()
     {
         var converter = new NonNullIntToNullStringConverter().ConvertFromProvider;
@@ -448,7 +454,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Equal(0, converter(null));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_nulls_to_int_nulls_in_app_object()
     {
         var converter = new NullIntToNullStringConverter().ConvertFromProvider;
@@ -459,7 +465,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Null(converter(null));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_non_nulls_to_int_non_nulls_in_app_object()
     {
         var converter = new NonNullIntToNonNullStringConverter().ConvertFromProvider;
@@ -470,7 +476,7 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Assert.Throws<ArgumentNullException>(() => converter(null));
     }
 
-    [ConditionalFact]
+    [Fact]
     protected void Convert_string_non_nulls_to_int_nulls_in_app_object()
     {
         var converter = new NullIntToNonNullStringConverter().ConvertFromProvider;
@@ -534,6 +540,11 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         public DateTime DateTimeToNullableString { get; set; }
         public DateTime? NullableDateTimeToString { get; set; }
         public DateTime? NullableDateTimeToNullableString { get; set; }
+
+        public DateOnly DateOnlyToString { get; set; }
+        public DateOnly DateOnlyToNullableString { get; set; }
+        public DateOnly? NullableDateOnlyToString { get; set; }
+        public DateOnly? NullableDateOnlyToNullableString { get; set; }
 
         public TheExperience EnumToString { get; set; }
         public TheExperience EnumToNullableString { get; set; }
@@ -668,252 +679,232 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         protected override string StoreName
             => "ValueConvertersEndToEnd";
 
+        public override DbContextOptionsBuilder AddOptions(DbContextOptionsBuilder builder)
+            => base.AddOptions(builder).ConfigureWarnings(w => w.Ignore(
+                CoreEventId.MappedEntityTypeIgnoredWarning,
+                CoreEventId.MappedPropertyIgnoredWarning,
+                CoreEventId.MappedNavigationIgnoredWarning));
+
         protected override void OnModelCreating(ModelBuilder modelBuilder, DbContext context)
-            => modelBuilder.Entity<ConvertingEntity>(
-                b =>
-                {
-                    b.Property(e => e.BoolAsChar).HasConversion(new BoolToTwoValuesConverter<char>('O', 'N'));
-                    b.Property(e => e.BoolAsNullableChar).HasConversion(new BoolToTwoValuesConverter<char?>('O', 'N'));
-                    b.Property(e => e.NullableBoolAsChar).HasConversion(new BoolToTwoValuesConverter<char>('O', 'N'));
-                    b.Property(e => e.NullableBoolAsNullableChar).HasConversion(new BoolToTwoValuesConverter<char?>('O', 'N'));
+            => modelBuilder.Entity<ConvertingEntity>(b =>
+            {
+                b.Property(e => e.BoolAsChar).HasConversion(new BoolToTwoValuesConverter<char>('O', 'N'));
+                b.Property(e => e.BoolAsNullableChar).HasConversion(new BoolToTwoValuesConverter<char?>('O', 'N'));
+                b.Property(e => e.NullableBoolAsChar).HasConversion(new BoolToTwoValuesConverter<char>('O', 'N'));
+                b.Property(e => e.NullableBoolAsNullableChar).HasConversion(new BoolToTwoValuesConverter<char?>('O', 'N'));
 
-                    b.Property(e => e.BoolAsString).HasConversion(new BoolToStringConverter("Non", "Oui"));
-                    b.Property(e => e.BoolAsNullableString).HasConversion(
-                        new BoolToTwoValuesConverter<string?>("Non", "Oui", mappingHints: new ConverterMappingHints(size: 3)));
-                    b.Property(e => e.NullableBoolAsString).HasConversion(new BoolToStringConverter("Non", "Oui"));
-                    b.Property(e => e.NullableBoolAsNullableString).HasConversion(
-                        new BoolToTwoValuesConverter<string?>("Non", "Oui", mappingHints: new ConverterMappingHints(size: 3)));
+                b.Property(e => e.BoolAsString).HasConversion(new BoolToStringConverter("Non", "Oui"));
+                b.Property(e => e.BoolAsNullableString).HasConversion(
+                    new BoolToTwoValuesConverter<string?>("Non", "Oui", mappingHints: new ConverterMappingHints(size: 3)));
+                b.Property(e => e.NullableBoolAsString).HasConversion(new BoolToStringConverter("Non", "Oui"));
+                b.Property(e => e.NullableBoolAsNullableString).HasConversion(
+                    new BoolToTwoValuesConverter<string?>("Non", "Oui", mappingHints: new ConverterMappingHints(size: 3)));
 
-                    b.Property(e => e.BoolAsInt).HasConversion(new BoolToZeroOneConverter<int>());
-                    b.Property(e => e.BoolAsNullableInt).HasConversion(new BoolToZeroOneConverter<int?>());
-                    b.Property(e => e.NullableBoolAsInt).HasConversion(new BoolToZeroOneConverter<int>());
-                    b.Property(e => e.NullableBoolAsNullableInt).HasConversion(new BoolToZeroOneConverter<int?>());
+                b.Property(e => e.BoolAsInt).HasConversion(new BoolToZeroOneConverter<int>());
+                b.Property(e => e.BoolAsNullableInt).HasConversion(new BoolToZeroOneConverter<int?>());
+                b.Property(e => e.NullableBoolAsInt).HasConversion(new BoolToZeroOneConverter<int>());
+                b.Property(e => e.NullableBoolAsNullableInt).HasConversion(new BoolToZeroOneConverter<int?>());
 
-                    b.Property(e => e.IntAsLong).HasConversion(new CastingConverter<int, long>());
-                    b.Property(e => e.IntAsNullableLong).HasConversion(new CastingConverter<int, long?>());
-                    b.Property(e => e.NullableIntAsLong).HasConversion(new CastingConverter<int?, long>());
-                    b.Property(e => e.NullableIntAsNullableLong).HasConversion(new CastingConverter<int?, long?>());
+                b.Property(e => e.IntAsLong).HasConversion(new CastingConverter<int, long>());
+                b.Property(e => e.IntAsNullableLong).HasConversion(new CastingConverter<int, long?>());
+                b.Property(e => e.NullableIntAsLong).HasConversion(new CastingConverter<int?, long>());
+                b.Property(e => e.NullableIntAsNullableLong).HasConversion(new CastingConverter<int?, long?>());
 
-                    b.Property(e => e.BytesAsString).HasConversion(
-                        (ValueConverter)new BytesToStringConverter(), new ArrayStructuralComparer<byte>());
-                    b.Property(e => e.BytesAsNullableString).HasConversion(
-                        (ValueConverter)new BytesToStringConverter(), new ArrayStructuralComparer<byte>());
-                    b.Property(e => e.NullableBytesAsString).HasConversion(
-                        new BytesToStringConverter(), new ArrayStructuralComparer<byte>());
-                    b.Property(e => e.NullableBytesAsNullableString).HasConversion(
-                        new BytesToStringConverter(), new ArrayStructuralComparer<byte>());
+                b.Property(e => e.BytesAsString).HasConversion(
+                    (ValueConverter)new BytesToStringConverter(), new ArrayStructuralComparer<byte>());
+                b.Property(e => e.BytesAsNullableString).HasConversion(
+                    (ValueConverter)new BytesToStringConverter(), new ArrayStructuralComparer<byte>());
+                b.Property(e => e.NullableBytesAsString).HasConversion(
+                    new BytesToStringConverter(), new ArrayStructuralComparer<byte>());
+                b.Property(e => e.NullableBytesAsNullableString).HasConversion(
+                    new BytesToStringConverter(), new ArrayStructuralComparer<byte>());
 
-                    b.Property(e => e.CharAsString).HasConversion(new CharToStringConverter());
-                    b.Property(e => e.NullableCharAsString).HasConversion(new CharToStringConverter());
-                    b.Property(e => e.CharAsNullableString).HasConversion(new CharToStringConverter());
-                    b.Property(e => e.NullableCharAsNullableString).HasConversion(new CharToStringConverter());
+                b.Property(e => e.CharAsString).HasConversion(new CharToStringConverter());
+                b.Property(e => e.NullableCharAsString).HasConversion(new CharToStringConverter());
+                b.Property(e => e.CharAsNullableString).HasConversion(new CharToStringConverter());
+                b.Property(e => e.NullableCharAsNullableString).HasConversion(new CharToStringConverter());
 
-                    b.Property(e => e.DateTimeOffsetToBinary).HasConversion(new DateTimeOffsetToBinaryConverter());
-                    b.Property(e => e.DateTimeOffsetToNullableBinary).HasConversion(new DateTimeOffsetToBinaryConverter());
-                    b.Property(e => e.NullableDateTimeOffsetToBinary).HasConversion(new DateTimeOffsetToBinaryConverter());
-                    b.Property(e => e.NullableDateTimeOffsetToNullableBinary).HasConversion(new DateTimeOffsetToBinaryConverter());
+                b.Property(e => e.DateTimeOffsetToBinary).HasConversion(new DateTimeOffsetToBinaryConverter());
+                b.Property(e => e.DateTimeOffsetToNullableBinary).HasConversion(new DateTimeOffsetToBinaryConverter());
+                b.Property(e => e.NullableDateTimeOffsetToBinary).HasConversion(new DateTimeOffsetToBinaryConverter());
+                b.Property(e => e.NullableDateTimeOffsetToNullableBinary).HasConversion(new DateTimeOffsetToBinaryConverter());
 
-                    b.Property(e => e.DateTimeOffsetToString).HasConversion(new DateTimeOffsetToStringConverter());
-                    b.Property(e => e.DateTimeOffsetToNullableString).HasConversion(new DateTimeOffsetToStringConverter());
-                    b.Property(e => e.NullableDateTimeOffsetToString).HasConversion(new DateTimeOffsetToStringConverter());
-                    b.Property(e => e.NullableDateTimeOffsetToNullableString).HasConversion(new DateTimeOffsetToStringConverter());
+                b.Property(e => e.DateTimeOffsetToString).HasConversion(new DateTimeOffsetToStringConverter());
+                b.Property(e => e.DateTimeOffsetToNullableString).HasConversion(new DateTimeOffsetToStringConverter());
+                b.Property(e => e.NullableDateTimeOffsetToString).HasConversion(new DateTimeOffsetToStringConverter());
+                b.Property(e => e.NullableDateTimeOffsetToNullableString).HasConversion(new DateTimeOffsetToStringConverter());
 
-                    b.Property(e => e.DateTimeToBinary).HasConversion(new DateTimeToBinaryConverter());
-                    b.Property(e => e.DateTimeToNullableBinary).HasConversion(new DateTimeToBinaryConverter());
-                    b.Property(e => e.NullableDateTimeToBinary).HasConversion(new DateTimeToBinaryConverter());
-                    b.Property(e => e.NullableDateTimeToNullableBinary).HasConversion(new DateTimeToBinaryConverter());
+                b.Property(e => e.DateTimeToBinary).HasConversion(new DateTimeToBinaryConverter());
+                b.Property(e => e.DateTimeToNullableBinary).HasConversion(new DateTimeToBinaryConverter());
+                b.Property(e => e.NullableDateTimeToBinary).HasConversion(new DateTimeToBinaryConverter());
+                b.Property(e => e.NullableDateTimeToNullableBinary).HasConversion(new DateTimeToBinaryConverter());
 
-                    b.Property(e => e.DateTimeToString).HasConversion(new DateTimeToStringConverter());
-                    b.Property(e => e.DateTimeToNullableString).HasConversion(new DateTimeToStringConverter());
-                    b.Property(e => e.NullableDateTimeToString).HasConversion(new DateTimeToStringConverter());
-                    b.Property(e => e.NullableDateTimeToNullableString).HasConversion(new DateTimeToStringConverter());
+                b.Property(e => e.DateTimeToString).HasConversion(new DateTimeToStringConverter());
+                b.Property(e => e.DateTimeToNullableString).HasConversion(new DateTimeToStringConverter());
+                b.Property(e => e.NullableDateTimeToString).HasConversion(new DateTimeToStringConverter());
+                b.Property(e => e.NullableDateTimeToNullableString).HasConversion(new DateTimeToStringConverter());
 
-                    b.Property(e => e.EnumToString).HasConversion(new EnumToStringConverter<TheExperience>());
-                    b.Property(e => e.EnumToNullableString).HasConversion(new EnumToStringConverter<TheExperience>());
-                    b.Property(e => e.NullableEnumToString).HasConversion(new EnumToStringConverter<TheExperience>());
-                    b.Property(e => e.NullableEnumToNullableString).HasConversion(new EnumToStringConverter<TheExperience>());
+                b.Property(e => e.DateOnlyToString).HasConversion(new DateOnlyToStringConverter());
+                b.Property(e => e.DateOnlyToNullableString).HasConversion(new DateOnlyToStringConverter());
+                b.Property(e => e.NullableDateOnlyToString).HasConversion(new DateOnlyToStringConverter());
+                b.Property(e => e.NullableDateOnlyToNullableString).HasConversion(new DateOnlyToStringConverter());
 
-                    b.Property(e => e.EnumToNumber).HasConversion(new EnumToNumberConverter<TheExperience, long>());
-                    b.Property(e => e.EnumToNullableNumber).HasConversion(new EnumToNumberConverter<TheExperience, long>());
-                    b.Property(e => e.NullableEnumToNumber).HasConversion(new EnumToNumberConverter<TheExperience, long>());
-                    b.Property(e => e.NullableEnumToNullableNumber).HasConversion(new EnumToNumberConverter<TheExperience, long>());
+                b.Property(e => e.EnumToString).HasConversion(new EnumToStringConverter<TheExperience>());
+                b.Property(e => e.EnumToNullableString).HasConversion(new EnumToStringConverter<TheExperience>());
+                b.Property(e => e.NullableEnumToString).HasConversion(new EnumToStringConverter<TheExperience>());
+                b.Property(e => e.NullableEnumToNullableString).HasConversion(new EnumToStringConverter<TheExperience>());
 
-                    b.Property(e => e.GuidToString).HasConversion(new GuidToStringConverter());
-                    b.Property(e => e.GuidToNullableString).HasConversion(new GuidToStringConverter());
-                    b.Property(e => e.NullableGuidToString).HasConversion(new GuidToStringConverter());
-                    b.Property(e => e.NullableGuidToNullableString).HasConversion(new GuidToStringConverter());
+                b.Property(e => e.EnumToNumber).HasConversion(new EnumToNumberConverter<TheExperience, long>());
+                b.Property(e => e.EnumToNullableNumber).HasConversion(new EnumToNumberConverter<TheExperience, long>());
+                b.Property(e => e.NullableEnumToNumber).HasConversion(new EnumToNumberConverter<TheExperience, long>());
+                b.Property(e => e.NullableEnumToNullableNumber).HasConversion(new EnumToNumberConverter<TheExperience, long>());
 
-                    b.Property(e => e.GuidToBytes).HasConversion(new GuidToBytesConverter());
-                    b.Property(e => e.GuidToNullableBytes).HasConversion(new GuidToBytesConverter());
-                    b.Property(e => e.NullableGuidToBytes).HasConversion(new GuidToBytesConverter());
-                    b.Property(e => e.NullableGuidToNullableBytes).HasConversion(new GuidToBytesConverter());
+                b.Property(e => e.GuidToString).HasConversion(new GuidToStringConverter());
+                b.Property(e => e.GuidToNullableString).HasConversion(new GuidToStringConverter());
+                b.Property(e => e.NullableGuidToString).HasConversion(new GuidToStringConverter());
+                b.Property(e => e.NullableGuidToNullableString).HasConversion(new GuidToStringConverter());
 
-                    b.Property(e => e.IPAddressToString).HasConversion((ValueConverter)new IPAddressToStringConverter());
-                    b.Property(e => e.IPAddressToNullableString).HasConversion((ValueConverter)new IPAddressToStringConverter());
-                    b.Property(e => e.NullableIPAddressToString).HasConversion(new IPAddressToStringConverter());
-                    b.Property(e => e.NullableIPAddressToNullableString).HasConversion(new IPAddressToStringConverter());
+                b.Property(e => e.GuidToBytes).HasConversion(new GuidToBytesConverter());
+                b.Property(e => e.GuidToNullableBytes).HasConversion(new GuidToBytesConverter());
+                b.Property(e => e.NullableGuidToBytes).HasConversion(new GuidToBytesConverter());
+                b.Property(e => e.NullableGuidToNullableBytes).HasConversion(new GuidToBytesConverter());
 
-                    b.Property(e => e.IPAddressToBytes).HasConversion((ValueConverter)new IPAddressToBytesConverter());
-                    b.Property(e => e.IPAddressToNullableBytes).HasConversion((ValueConverter)new IPAddressToBytesConverter());
-                    b.Property(e => e.NullableIPAddressToBytes).HasConversion(new IPAddressToBytesConverter());
-                    b.Property(e => e.NullableIPAddressToNullableBytes).HasConversion(new IPAddressToBytesConverter());
+                b.Property(e => e.IPAddressToString).HasConversion((ValueConverter)new IPAddressToStringConverter());
+                b.Property(e => e.IPAddressToNullableString).HasConversion((ValueConverter)new IPAddressToStringConverter());
+                b.Property(e => e.NullableIPAddressToString).HasConversion(new IPAddressToStringConverter());
+                b.Property(e => e.NullableIPAddressToNullableString).HasConversion(new IPAddressToStringConverter());
 
-                    b.Property(e => e.PhysicalAddressToString).HasConversion((ValueConverter)new PhysicalAddressToStringConverter());
-                    b.Property(e => e.PhysicalAddressToNullableString)
-                        .HasConversion((ValueConverter)new PhysicalAddressToStringConverter());
-                    b.Property(e => e.NullablePhysicalAddressToString).HasConversion(new PhysicalAddressToStringConverter());
-                    b.Property(e => e.NullablePhysicalAddressToNullableString).HasConversion(new PhysicalAddressToStringConverter());
+                b.Property(e => e.IPAddressToBytes).HasConversion((ValueConverter)new IPAddressToBytesConverter());
+                b.Property(e => e.IPAddressToNullableBytes).HasConversion((ValueConverter)new IPAddressToBytesConverter());
+                b.Property(e => e.NullableIPAddressToBytes).HasConversion(new IPAddressToBytesConverter());
+                b.Property(e => e.NullableIPAddressToNullableBytes).HasConversion(new IPAddressToBytesConverter());
 
-                    b.Property(e => e.PhysicalAddressToBytes).HasConversion((ValueConverter)new PhysicalAddressToBytesConverter());
-                    b.Property(e => e.PhysicalAddressToNullableBytes)
-                        .HasConversion((ValueConverter)new PhysicalAddressToBytesConverter());
-                    b.Property(e => e.NullablePhysicalAddressToBytes).HasConversion(new PhysicalAddressToBytesConverter());
-                    b.Property(e => e.NullablePhysicalAddressToNullableBytes).HasConversion(new PhysicalAddressToBytesConverter());
+                b.Property(e => e.PhysicalAddressToString).HasConversion((ValueConverter)new PhysicalAddressToStringConverter());
+                b.Property(e => e.PhysicalAddressToNullableString)
+                    .HasConversion((ValueConverter)new PhysicalAddressToStringConverter());
+                b.Property(e => e.NullablePhysicalAddressToString).HasConversion(new PhysicalAddressToStringConverter());
+                b.Property(e => e.NullablePhysicalAddressToNullableString).HasConversion(new PhysicalAddressToStringConverter());
 
-                    b.Property(e => e.NumberToString).HasConversion(new NumberToStringConverter<ulong>());
-                    b.Property(e => e.NumberToNullableString).HasConversion(new NumberToStringConverter<ulong>());
-                    b.Property(e => e.NullableNumberToString).HasConversion(new NumberToStringConverter<ulong>());
-                    b.Property(e => e.NullableNumberToNullableString).HasConversion(new NumberToStringConverter<ulong>());
+                b.Property(e => e.PhysicalAddressToBytes).HasConversion((ValueConverter)new PhysicalAddressToBytesConverter());
+                b.Property(e => e.PhysicalAddressToNullableBytes)
+                    .HasConversion((ValueConverter)new PhysicalAddressToBytesConverter());
+                b.Property(e => e.NullablePhysicalAddressToBytes).HasConversion(new PhysicalAddressToBytesConverter());
+                b.Property(e => e.NullablePhysicalAddressToNullableBytes).HasConversion(new PhysicalAddressToBytesConverter());
 
-                    b.Property(e => e.NumberToBytes).HasConversion(new NumberToBytesConverter<sbyte>());
-                    b.Property(e => e.NumberToNullableBytes).HasConversion(new NumberToBytesConverter<sbyte>());
-                    b.Property(e => e.NullableNumberToBytes).HasConversion(new NumberToBytesConverter<sbyte>());
-                    b.Property(e => e.NullableNumberToNullableBytes).HasConversion(new NumberToBytesConverter<sbyte>());
+                b.Property(e => e.NumberToString).HasConversion(new NumberToStringConverter<ulong>());
+                b.Property(e => e.NumberToNullableString).HasConversion(new NumberToStringConverter<ulong>());
+                b.Property(e => e.NullableNumberToString).HasConversion(new NumberToStringConverter<ulong>());
+                b.Property(e => e.NullableNumberToNullableString).HasConversion(new NumberToStringConverter<ulong>());
 
-                    b.Property(e => e.StringToBool).HasConversion(new StringToBoolConverter());
-                    b.Property(e => e.StringToNullableBool).HasConversion(new StringToBoolConverter());
-                    b.Property(e => e.NullableStringToBool).HasConversion((ValueConverter)new StringToBoolConverter());
-                    b.Property(e => e.NullableStringToNullableBool).HasConversion((ValueConverter)new StringToBoolConverter());
+                b.Property(e => e.NumberToBytes).HasConversion(new NumberToBytesConverter<sbyte>());
+                b.Property(e => e.NumberToNullableBytes).HasConversion(new NumberToBytesConverter<sbyte>());
+                b.Property(e => e.NullableNumberToBytes).HasConversion(new NumberToBytesConverter<sbyte>());
+                b.Property(e => e.NullableNumberToNullableBytes).HasConversion(new NumberToBytesConverter<sbyte>());
 
-                    b.Property(e => e.StringToBytes).HasConversion((ValueConverter)new StringToBytesConverter(Encoding.UTF32));
-                    b.Property(e => e.StringToNullableBytes).HasConversion((ValueConverter)new StringToBytesConverter(Encoding.UTF32));
-                    b.Property(e => e.NullableStringToBytes).HasConversion(new StringToBytesConverter(Encoding.UTF32));
-                    b.Property(e => e.NullableStringToNullableBytes).HasConversion(new StringToBytesConverter(Encoding.UTF32));
+                b.Property(e => e.StringToBool).HasConversion(new StringToBoolConverter());
+                b.Property(e => e.StringToNullableBool).HasConversion(new StringToBoolConverter());
+                b.Property(e => e.NullableStringToBool).HasConversion((ValueConverter)new StringToBoolConverter());
+                b.Property(e => e.NullableStringToNullableBool).HasConversion((ValueConverter)new StringToBoolConverter());
 
-                    b.Property(e => e.StringToChar).HasConversion(new StringToCharConverter());
-                    b.Property(e => e.StringToNullableChar).HasConversion(new StringToCharConverter());
-                    b.Property(e => e.NullableStringToChar).HasConversion((ValueConverter)new StringToCharConverter());
-                    b.Property(e => e.NullableStringToNullableChar).HasConversion((ValueConverter)new StringToCharConverter());
+                b.Property(e => e.StringToBytes).HasConversion((ValueConverter)new StringToBytesConverter(Encoding.UTF32));
+                b.Property(e => e.StringToNullableBytes).HasConversion((ValueConverter)new StringToBytesConverter(Encoding.UTF32));
+                b.Property(e => e.NullableStringToBytes).HasConversion(new StringToBytesConverter(Encoding.UTF32));
+                b.Property(e => e.NullableStringToNullableBytes).HasConversion(new StringToBytesConverter(Encoding.UTF32));
 
-                    b.Property(e => e.StringToDateTime).HasConversion(new StringToDateTimeConverter());
-                    b.Property(e => e.StringToNullableDateTime).HasConversion(new StringToDateTimeConverter());
-                    b.Property(e => e.NullableStringToDateTime).HasConversion((ValueConverter)new StringToDateTimeConverter());
-                    b.Property(e => e.NullableStringToNullableDateTime).HasConversion((ValueConverter)new StringToDateTimeConverter());
+                b.Property(e => e.StringToChar).HasConversion(new StringToCharConverter());
+                b.Property(e => e.StringToNullableChar).HasConversion(new StringToCharConverter());
+                b.Property(e => e.NullableStringToChar).HasConversion((ValueConverter)new StringToCharConverter());
+                b.Property(e => e.NullableStringToNullableChar).HasConversion((ValueConverter)new StringToCharConverter());
 
-                    b.Property(e => e.StringToDateTimeOffset).HasConversion(new StringToDateTimeOffsetConverter());
-                    b.Property(e => e.StringToNullableDateTimeOffset).HasConversion(new StringToDateTimeOffsetConverter());
-                    b.Property(e => e.NullableStringToDateTimeOffset)
-                        .HasConversion((ValueConverter)new StringToDateTimeOffsetConverter());
-                    b.Property(e => e.NullableStringToNullableDateTimeOffset)
-                        .HasConversion((ValueConverter)new StringToDateTimeOffsetConverter());
+                b.Property(e => e.StringToDateTime).HasConversion(new StringToDateTimeConverter());
+                b.Property(e => e.StringToNullableDateTime).HasConversion(new StringToDateTimeConverter());
+                b.Property(e => e.NullableStringToDateTime).HasConversion((ValueConverter)new StringToDateTimeConverter());
+                b.Property(e => e.NullableStringToNullableDateTime).HasConversion((ValueConverter)new StringToDateTimeConverter());
 
-                    b.Property(e => e.StringToEnum).HasConversion(new StringToEnumConverter<TheExperience>());
-                    b.Property(e => e.StringToNullableEnum).HasConversion(new StringToEnumConverter<TheExperience>());
-                    b.Property(e => e.NullableStringToEnum).HasConversion((ValueConverter)new StringToEnumConverter<TheExperience>());
-                    b.Property(e => e.NullableStringToNullableEnum)
-                        .HasConversion((ValueConverter)new StringToEnumConverter<TheExperience>());
+                b.Property(e => e.StringToDateTimeOffset).HasConversion(new StringToDateTimeOffsetConverter());
+                b.Property(e => e.StringToNullableDateTimeOffset).HasConversion(new StringToDateTimeOffsetConverter());
+                b.Property(e => e.NullableStringToDateTimeOffset)
+                    .HasConversion((ValueConverter)new StringToDateTimeOffsetConverter());
+                b.Property(e => e.NullableStringToNullableDateTimeOffset)
+                    .HasConversion((ValueConverter)new StringToDateTimeOffsetConverter());
 
-                    b.Property(e => e.StringToGuid).HasConversion(new StringToGuidConverter());
-                    b.Property(e => e.StringToNullableGuid).HasConversion(new StringToGuidConverter());
-                    b.Property(e => e.NullableStringToGuid).HasConversion((ValueConverter)new StringToGuidConverter());
-                    b.Property(e => e.NullableStringToNullableGuid).HasConversion((ValueConverter)new StringToGuidConverter());
+                b.Property(e => e.StringToEnum).HasConversion(new StringToEnumConverter<TheExperience>());
+                b.Property(e => e.StringToNullableEnum).HasConversion(new StringToEnumConverter<TheExperience>());
+                b.Property(e => e.NullableStringToEnum).HasConversion((ValueConverter)new StringToEnumConverter<TheExperience>());
+                b.Property(e => e.NullableStringToNullableEnum)
+                    .HasConversion((ValueConverter)new StringToEnumConverter<TheExperience>());
 
-                    b.Property(e => e.StringToNumber).HasConversion(new StringToNumberConverter<byte>());
-                    b.Property(e => e.StringToNullableNumber).HasConversion(new StringToNumberConverter<byte>());
-                    b.Property(e => e.NullableStringToNumber).HasConversion((ValueConverter)new StringToNumberConverter<byte>());
-                    b.Property(e => e.NullableStringToNullableNumber)
-                        .HasConversion((ValueConverter)new StringToNumberConverter<byte>());
+                b.Property(e => e.StringToGuid).HasConversion(new StringToGuidConverter());
+                b.Property(e => e.StringToNullableGuid).HasConversion(new StringToGuidConverter());
+                b.Property(e => e.NullableStringToGuid).HasConversion((ValueConverter)new StringToGuidConverter());
+                b.Property(e => e.NullableStringToNullableGuid).HasConversion((ValueConverter)new StringToGuidConverter());
 
-                    b.Property(e => e.StringToTimeSpan).HasConversion(new StringToTimeSpanConverter());
-                    b.Property(e => e.StringToNullableTimeSpan).HasConversion(new StringToTimeSpanConverter());
-                    b.Property(e => e.NullableStringToTimeSpan).HasConversion((ValueConverter)new StringToTimeSpanConverter());
-                    b.Property(e => e.NullableStringToNullableTimeSpan).HasConversion((ValueConverter)new StringToTimeSpanConverter());
+                b.Property(e => e.StringToNumber).HasConversion(new StringToNumberConverter<byte>());
+                b.Property(e => e.StringToNullableNumber).HasConversion(new StringToNumberConverter<byte>());
+                b.Property(e => e.NullableStringToNumber).HasConversion((ValueConverter)new StringToNumberConverter<byte>());
+                b.Property(e => e.NullableStringToNullableNumber)
+                    .HasConversion((ValueConverter)new StringToNumberConverter<byte>());
 
-                    b.Property(e => e.TimeSpanToTicks).HasConversion(new TimeSpanToTicksConverter());
-                    b.Property(e => e.TimeSpanToNullableTicks).HasConversion(new TimeSpanToTicksConverter());
-                    b.Property(e => e.NullableTimeSpanToTicks).HasConversion(new TimeSpanToTicksConverter());
-                    b.Property(e => e.NullableTimeSpanToNullableTicks).HasConversion(new TimeSpanToTicksConverter());
+                b.Property(e => e.StringToTimeSpan).HasConversion(new StringToTimeSpanConverter());
+                b.Property(e => e.StringToNullableTimeSpan).HasConversion(new StringToTimeSpanConverter());
+                b.Property(e => e.NullableStringToTimeSpan).HasConversion((ValueConverter)new StringToTimeSpanConverter());
+                b.Property(e => e.NullableStringToNullableTimeSpan).HasConversion((ValueConverter)new StringToTimeSpanConverter());
 
-                    b.Property(e => e.TimeSpanToString).HasConversion(new TimeSpanToStringConverter());
-                    b.Property(e => e.TimeSpanToNullableString).HasConversion(new TimeSpanToStringConverter());
-                    b.Property(e => e.NullableTimeSpanToString).HasConversion(new TimeSpanToStringConverter());
-                    b.Property(e => e.NullableTimeSpanToNullableString).HasConversion(new TimeSpanToStringConverter());
+                b.Property(e => e.TimeSpanToTicks).HasConversion(new TimeSpanToTicksConverter());
+                b.Property(e => e.TimeSpanToNullableTicks).HasConversion(new TimeSpanToTicksConverter());
+                b.Property(e => e.NullableTimeSpanToTicks).HasConversion(new TimeSpanToTicksConverter());
+                b.Property(e => e.NullableTimeSpanToNullableTicks).HasConversion(new TimeSpanToTicksConverter());
 
-                    b.Property(e => e.UriToString).HasConversion((ValueConverter)new UriToStringConverter());
-                    b.Property(e => e.UriToNullableString).HasConversion((ValueConverter)new UriToStringConverter());
-                    b.Property(e => e.NullableUriToString).HasConversion(new UriToStringConverter());
-                    b.Property(e => e.NullableUriToNullableString).HasConversion(new UriToStringConverter());
+                b.Property(e => e.TimeSpanToString).HasConversion(new TimeSpanToStringConverter());
+                b.Property(e => e.TimeSpanToNullableString).HasConversion(new TimeSpanToStringConverter());
+                b.Property(e => e.NullableTimeSpanToString).HasConversion(new TimeSpanToStringConverter());
+                b.Property(e => e.NullableTimeSpanToNullableString).HasConversion(new TimeSpanToStringConverter());
 
-                    b.Property(e => e.NonNullIntToNullString).HasConversion(new NonNullIntToNullStringConverter());
-                    b.Property(e => e.NonNullIntToNonNullString).HasConversion(new NonNullIntToNonNullStringConverter());
-                    b.Property(e => e.NullIntToNullString).HasConversion(new NullIntToNullStringConverter()).IsRequired(false);
-                    b.Property(e => e.NullIntToNonNullString).HasConversion(new NullIntToNonNullStringConverter()).IsRequired(false);
+                b.Property(e => e.UriToString).HasConversion((ValueConverter)new UriToStringConverter());
+                b.Property(e => e.UriToNullableString).HasConversion((ValueConverter)new UriToStringConverter());
+                b.Property(e => e.NullableUriToString).HasConversion(new UriToStringConverter());
+                b.Property(e => e.NullableUriToNullableString).HasConversion(new UriToStringConverter());
 
-                    b.Property(e => e.NullStringToNonNullString).HasConversion(new NullStringToNonNullStringConverter()).IsRequired();
-                    b.Property(e => e.NonNullStringToNullString).HasConversion(new NonNullStringToNullStringConverter())
-                        .IsRequired(false);
+                b.Property(e => e.NonNullIntToNullString).HasConversion(new NonNullIntToNullStringConverter());
+                b.Property(e => e.NonNullIntToNonNullString).HasConversion(new NonNullIntToNonNullStringConverter());
+                b.Property(e => e.NullIntToNullString).HasConversion(new NullIntToNullStringConverter()).IsRequired(false);
+                b.Property(e => e.NullIntToNonNullString).HasConversion(new NullIntToNonNullStringConverter()).IsRequired(false);
 
-                    b.Property(e => e.NullableListOfInt).HasConversion(
-                        (ValueConverter?)new ListOfIntToJsonConverter(), new ListOfIntComparer());
+                b.Property(e => e.NullStringToNonNullString).HasConversion(new NullStringToNonNullStringConverter()).IsRequired();
+                b.Property(e => e.NonNullStringToNullString).HasConversion(new NonNullStringToNullStringConverter())
+                    .IsRequired(false);
 
-                    b.Property(e => e.ListOfInt).HasConversion(
-                        new ListOfIntToJsonConverter(), new ListOfIntComparer());
+                b.Property(e => e.NullableListOfInt).HasConversion(
+                    (ValueConverter?)new ListOfIntToJsonConverter(), new ListOfIntComparer());
 
-                    b.Property(e => e.NullableEnumerableOfInt).HasConversion(
-                        (ValueConverter?)new EnumerableOfIntToJsonConverter(), new EnumerableOfIntComparer());
+                b.Property(e => e.ListOfInt).HasConversion(
+                    new ListOfIntToJsonConverter(), new ListOfIntComparer());
 
-                    b.Property(e => e.EnumerableOfInt).HasConversion(
-                        new EnumerableOfIntToJsonConverter(), new EnumerableOfIntComparer());
-                });
+                b.Property(e => e.NullableEnumerableOfInt).HasConversion(
+                    (ValueConverter?)new EnumerableOfIntToJsonConverter(), new EnumerableOfIntComparer());
+
+                b.Property(e => e.EnumerableOfInt).HasConversion(
+                    new EnumerableOfIntToJsonConverter(), new EnumerableOfIntComparer());
+            });
     }
 
-    protected class NullStringToNonNullStringConverter : ValueConverter<string?, string>
-    {
-        public NullStringToNonNullStringConverter()
-            : base(v => v ?? "<null>", v => v == "<null>" ? null : v, convertsNulls: true)
-        {
-        }
-    }
+    protected class NullStringToNonNullStringConverter() : ValueConverter<string?, string>(
+        v => v ?? "<null>", v => v == "<null>" ? null : v, convertsNulls: true);
 
-    protected class NonNullStringToNullStringConverter : ValueConverter<string, string?>
-    {
-        public NonNullStringToNullStringConverter()
-            : base(v => v == "<null>" ? null : v, v => v ?? "<null>", convertsNulls: true)
-        {
-        }
-    }
+    protected class NonNullStringToNullStringConverter() : ValueConverter<string, string?>(
+        v => v == "<null>" ? null : v, v => v ?? "<null>", convertsNulls: true);
 
-    protected class NullIntToNonNullStringConverter : ValueConverter<int?, string>
-    {
-        public NullIntToNonNullStringConverter()
-            : base(v => v == null ? "<null>" : v.ToString()!, v => v == "<null>" ? null : int.Parse(v), convertsNulls: true)
-        {
-        }
-    }
+    protected class NullIntToNonNullStringConverter() : ValueConverter<int?, string>(
+        v => v == null ? "<null>" : v.ToString()!, v => v == "<null>" ? null : int.Parse(v), convertsNulls: true);
 
-    protected class NullIntToNullStringConverter : ValueConverter<int?, string?>
-    {
-        public NullIntToNullStringConverter()
-            : base(v => v == null ? null : v.ToString()!, v => v == null || v == "<null>" ? null : int.Parse(v), convertsNulls: true)
-        {
-        }
-    }
+    protected class NullIntToNullStringConverter() : ValueConverter<int?, string?>(
+        v => v == null ? null : v.ToString()!, v => v == null || v == "<null>" ? null : int.Parse(v), convertsNulls: true);
 
-    protected class NonNullIntToNonNullStringConverter : ValueConverter<int, string>
-    {
-        public NonNullIntToNonNullStringConverter()
-            : base(v => v.ToString()!, v => v == "<null>" ? 0 : int.Parse(v), convertsNulls: true)
-        {
-        }
-    }
+    protected class NonNullIntToNonNullStringConverter() : ValueConverter<int, string>(
+        v => v.ToString()!, v => v == "<null>" ? 0 : int.Parse(v), convertsNulls: true);
 
-    protected class NonNullIntToNullStringConverter : ValueConverter<int, string?>
-    {
-        public NonNullIntToNullStringConverter()
-            : base(v => v.ToString()!, v => v == null ? 0 : int.Parse(v), convertsNulls: true)
-        {
-        }
-    }
+    protected class NonNullIntToNullStringConverter() : ValueConverter<int, string?>(
+        v => v.ToString()!, v => v == null ? 0 : int.Parse(v), convertsNulls: true);
 
     protected enum TheExperience : ushort
     {
@@ -922,47 +913,21 @@ public abstract class ValueConvertersEndToEndTestBase<TFixture> : IClassFixture<
         Mitch
     }
 
-    protected class ListOfIntToJsonConverter : ValueConverter<List<int>, string>
-    {
-        public ListOfIntToJsonConverter()
-            : base(
-                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => JsonSerializer.Deserialize<List<int>>(v, (JsonSerializerOptions?)null)!)
-        {
-        }
-    }
+    protected class ListOfIntToJsonConverter() : ValueConverter<List<int>, string>(
+        v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+        v => JsonSerializer.Deserialize<List<int>>(v, (JsonSerializerOptions?)null)!);
 
-    protected class ListOfIntComparer : ValueComparer<List<int>?>
-    {
-        public ListOfIntComparer()
-            : base(
-                (c1, c2) => (c1 == null && c2 == null) || (c1 != null && c2 != null && c1.SequenceEqual(c2)),
-                c => c == null ? 0 : c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
-                c => c == null ? null : c.ToList())
-        {
-        }
-    }
+    protected class ListOfIntComparer() : ValueComparer<List<int>?>(
+        (c1, c2) => (c1 == null && c2 == null) || (c1 != null && c2 != null && c1.SequenceEqual(c2)),
+        c => c == null ? 0 : c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+        c => c == null ? null : c.ToList());
 
-    protected class EnumerableOfIntToJsonConverter : ValueConverter<IEnumerable<int>, string>
-    {
-        public EnumerableOfIntToJsonConverter()
-            : base(
-                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => JsonSerializer.Deserialize<List<int>>(v, (JsonSerializerOptions?)null)!)
-        {
-        }
-    }
+    protected class EnumerableOfIntToJsonConverter() : ValueConverter<IEnumerable<int>, string>(
+        v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+        v => JsonSerializer.Deserialize<List<int>>(v, (JsonSerializerOptions?)null)!);
 
-    protected class EnumerableOfIntComparer : ValueComparer<IEnumerable<int>?>
-    {
-        public EnumerableOfIntComparer()
-            : base(
-                (c1, c2) => (c1 == null && c2 == null) || (c1 != null && c2 != null && c1.SequenceEqual(c2)),
-                c => c == null ? 0 : c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
-                c => c == null ? null : c.ToList())
-        {
-        }
-    }
+    protected class EnumerableOfIntComparer() : ValueComparer<IEnumerable<int>?>(
+        (c1, c2) => (c1 == null && c2 == null) || (c1 != null && c2 != null && c1.SequenceEqual(c2)),
+        c => c == null ? 0 : c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+        c => c == null ? null : c.ToList());
 }
-
-#nullable restore

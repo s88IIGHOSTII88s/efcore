@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 // ReSharper disable AccessToDisposedClosure
@@ -7,20 +7,15 @@
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixture<TFixture>
+public abstract class QueryFilterFuncletizationTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : QueryFilterFuncletizationFixtureBase, new()
 {
-    protected QueryFilterFuncletizationTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
-
-    protected TFixture Fixture { get; }
+    protected TFixture Fixture { get; } = fixture;
 
     protected QueryFilterFuncletizationContext CreateContext()
         => Fixture.CreateContext();
 
-    [ConditionalFact]
+    [Fact]
     public virtual void DbContext_property_parameter_does_not_clash_with_closure_parameter_name()
     {
         using var context = CreateContext();
@@ -28,7 +23,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.Single(context.Set<FieldFilter>().Where(e => e.IsEnabled == Field).ToList());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void DbContext_field_is_parameterized()
     {
         using var context = CreateContext();
@@ -41,7 +36,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.True(entity.IsEnabled);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void DbContext_property_is_parameterized()
     {
         using var context = CreateContext();
@@ -54,7 +49,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.True(entity.IsEnabled);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void DbContext_method_call_is_parameterized()
     {
         using var context = CreateContext();
@@ -62,7 +57,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.Equal(2, entity.Tenant);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void DbContext_list_is_parameterized()
     {
         using var context = CreateContext();
@@ -70,20 +65,20 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         var query = context.Set<ListFilter>().ToList();
         Assert.Empty(query);
 
-        context.TenantIds = new List<int>();
+        context.TenantIds = [];
         query = context.Set<ListFilter>().ToList();
         Assert.Empty(query);
 
-        context.TenantIds = new List<int> { 1 };
+        context.TenantIds = [1];
         query = context.Set<ListFilter>().ToList();
         Assert.Single(query);
 
-        context.TenantIds = new List<int> { 2, 3 };
+        context.TenantIds = [2, 3];
         query = context.Set<ListFilter>().ToList();
         Assert.Equal(2, query.Count);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void DbContext_property_chain_is_parameterized()
     {
         using var context = CreateContext();
@@ -99,7 +94,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.True(entity.IsEnabled);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void DbContext_property_method_call_is_parameterized()
     {
         using var context = CreateContext();
@@ -111,7 +106,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.Equal(2, entity.Tenant);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void DbContext_method_call_chain_is_parameterized()
     {
         using var context = CreateContext();
@@ -119,7 +114,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.Equal(2, entity.Tenant);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void DbContext_complex_expression_is_parameterized()
     {
         using var context = CreateContext();
@@ -135,7 +130,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.Empty(context.Set<ComplexFilter>().ToList());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void DbContext_property_based_filter_does_not_short_circuit()
     {
         using var context = CreateContext();
@@ -150,7 +145,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.Equal(2, query.Count);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void EntityTypeConfiguration_DbContext_field_is_parameterized()
     {
         using var context = CreateContext();
@@ -163,7 +158,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.True(entity.IsEnabled);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void EntityTypeConfiguration_DbContext_property_is_parameterized()
     {
         using var context = CreateContext();
@@ -176,7 +171,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.True(entity.IsEnabled);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void EntityTypeConfiguration_DbContext_method_call_is_parameterized()
     {
         using var context = CreateContext();
@@ -184,7 +179,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.Equal(2, entity.Tenant);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void EntityTypeConfiguration_DbContext_property_chain_is_parameterized()
     {
         using var context = CreateContext();
@@ -200,7 +195,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.True(entity.IsEnabled);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Local_method_DbContext_field_is_parameterized()
     {
         using var context = CreateContext();
@@ -213,7 +208,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.True(entity.IsEnabled);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Local_static_method_DbContext_property_is_parameterized()
     {
         using var context = CreateContext();
@@ -226,7 +221,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.True(entity.IsEnabled);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Remote_method_DbContext_property_method_call_is_parameterized()
     {
         using var context = CreateContext();
@@ -238,7 +233,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.Equal(2, entity.Tenant);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Extension_method_DbContext_field_is_parameterized()
     {
         using var context = CreateContext();
@@ -251,7 +246,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.True(entity.IsEnabled);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Extension_method_DbContext_property_chain_is_parameterized()
     {
         using var context = CreateContext();
@@ -267,14 +262,14 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.True(entity.IsEnabled);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Using_DbSet_in_filter_works()
     {
         using var context = CreateContext();
         Assert.Single(context.Set<PrincipalSetFilter>().ToList());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Using_Context_set_method_in_filter_works()
     {
         using var context = CreateContext();
@@ -283,7 +278,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.Equal(2, query.Count);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Static_member_from_dbContext_is_inlined()
     {
         using var context = CreateContext();
@@ -292,7 +287,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         Assert.Equal(2, query.Count);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Static_member_from_non_dbContext_is_inlined()
     {
         using var context = CreateContext();
@@ -301,7 +296,7 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         var entity = Assert.Single(query);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Local_variable_from_OnModelCreating_is_inlined()
     {
         using var context = CreateContext();
@@ -310,25 +305,24 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
         var entity = Assert.Single(query);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Local_variable_from_OnModelCreating_can_throw_exception()
     {
         using var context = CreateContext();
         Assert.Equal(
             CoreStrings.ExpressionParameterizationExceptionSensitive(
                 "value(Microsoft.EntityFrameworkCore.Query.QueryFilterFuncletizationContext+<>c__DisplayClass29_0).flag.Enabled"),
-            Assert.Throws<InvalidOperationException>(
-                () => context.Set<LocalVariableErrorFilter>().ToList()).Message);
+            Assert.Throws<InvalidOperationException>(() => context.Set<LocalVariableErrorFilter>().ToList()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Method_parameter_is_inlined()
     {
         using var context = CreateContext();
         Assert.Empty(context.Set<ParameterFilter>().ToList());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Using_multiple_context_in_filter_parametrize_only_current_context()
     {
         using var context = CreateContext();
@@ -339,5 +333,22 @@ public abstract class QueryFilterFuncletizationTestBase<TFixture> : IClassFixtur
 
         query = context.Set<MultiContextFilter>().ToList();
         Assert.Equal(2, query.Count);
+    }
+
+    [Fact]
+    public virtual void Using_multiple_entities_with_filters_reuses_parameters()
+    {
+        using var context = CreateContext();
+        context.Tenant = 1;
+        context.Property = false;
+
+        var query = context.Set<DeDupeFilter1>()
+            .Include(x => x.DeDupeFilter2s)
+            .Include(x => x.DeDupeFilter3s)
+            .ToList();
+
+        Assert.Single(query);
+        Assert.Single(query[0].DeDupeFilter2s);
+        Assert.Single(query[0].DeDupeFilter3s);
     }
 }

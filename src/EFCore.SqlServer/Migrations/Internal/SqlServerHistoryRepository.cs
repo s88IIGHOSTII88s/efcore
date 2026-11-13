@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Text;
+using Microsoft.EntityFrameworkCore.SqlServer.Metadata.Internal;
 
 namespace Microsoft.EntityFrameworkCore.SqlServer.Migrations.Internal;
 
@@ -22,6 +23,36 @@ public class SqlServerHistoryRepository : HistoryRepository
     public SqlServerHistoryRepository(HistoryRepositoryDependencies dependencies)
         : base(dependencies)
     {
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    protected override IReadOnlyList<MigrationCommand> GetCreateCommands()
+    {
+        // TODO: This is a hack around https://github.com/dotnet/efcore/issues/34991: provider-specific conventions may add
+        // database-level annotations (e.g. full-text catalogs) to the model, and the default EF logic causes them to be created
+        // at this point, when the history table is being created. This is too early, and causes the later actual migration to fail.
+        // So we filter out full-text catalog annotations from AlterDatabaseOperation.
+        // This follows the same approach as the Npgsql provider (npgsql/efcore.pg#3713).
+#pragma warning disable EF1001 // Internal EF Core API usage.
+        var model = EnsureModel();
+#pragma warning restore EF1001 // Internal EF Core API usage.
+
+        var operations = Dependencies.ModelDiffer.GetDifferences(null, model.GetRelationalModel());
+
+        foreach (var operation in operations)
+        {
+            if (operation is AlterDatabaseOperation alterDatabaseOperation)
+            {
+                alterDatabaseOperation.RemoveAnnotation(SqlServerAnnotationNames.FullTextCatalogs);
+            }
+        }
+
+        return Dependencies.MigrationsSqlGenerator.Generate(operations, model);
     }
 
     /// <summary>
@@ -52,6 +83,112 @@ public class SqlServerHistoryRepository : HistoryRepository
     /// </summary>
     protected override bool InterpretExistsResult(object? value)
         => value != DBNull.Value;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public override LockReleaseBehavior LockReleaseBehavior
+        => LockReleaseBehavior.Connection;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public override IMigrationsDatabaseLock AcquireDatabaseLock()
+    {
+        Dependencies.MigrationsLogger.AcquiringMigrationLock();
+
+        var dbLock = CreateMigrationDatabaseLock();
+        int result;
+        try
+        {
+            result = (int)CreateGetLockCommand().ExecuteScalar(CreateRelationalCommandParameters())!;
+        }
+        catch
+        {
+            try
+            {
+                dbLock.Dispose();
+            }
+            catch
+            {
+            }
+
+            throw;
+        }
+
+        return result < 0
+            ? throw new TimeoutException()
+            : dbLock;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public override async Task<IMigrationsDatabaseLock> AcquireDatabaseLockAsync(CancellationToken cancellationToken = default)
+    {
+        Dependencies.MigrationsLogger.AcquiringMigrationLock();
+
+        var dbLock = CreateMigrationDatabaseLock();
+        int result;
+        try
+        {
+            result = (int)(await CreateGetLockCommand().ExecuteScalarAsync(CreateRelationalCommandParameters(), cancellationToken)
+                .ConfigureAwait(false))!;
+        }
+        catch
+        {
+            try
+            {
+                await dbLock.DisposeAsync().ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+
+            throw;
+        }
+
+        return result < 0
+            ? throw new TimeoutException()
+            : dbLock;
+    }
+
+    private IRelationalCommand CreateGetLockCommand()
+        => Dependencies.RawSqlCommandBuilder.Build(
+            """
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+""",
+            []).RelationalCommand;
+
+    private SqlServerMigrationDatabaseLock CreateMigrationDatabaseLock()
+        => new(
+            Dependencies.RawSqlCommandBuilder.Build(
+                """
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+"""),
+            CreateRelationalCommandParameters(),
+            this);
+
+    private RelationalCommandParameterObject CreateRelationalCommandParameters()
+        => new(
+            Dependencies.Connection,
+            null,
+            null,
+            Dependencies.CurrentContext.Context,
+            Dependencies.CommandLogger, CommandSource.Migrations);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -114,12 +251,12 @@ public class SqlServerHistoryRepository : HistoryRepository
         var stringTypeMapping = Dependencies.TypeMappingSource.GetMapping(typeof(string));
 
         return new StringBuilder()
-            .Append("IF NOT EXISTS(SELECT * FROM ")
-            .Append(SqlGenerationHelper.DelimitIdentifier(TableName, TableSchema))
-            .Append(" WHERE ")
+            .AppendLine("IF NOT EXISTS (")
+            .Append("    SELECT * FROM ")
+            .AppendLine(SqlGenerationHelper.DelimitIdentifier(TableName, TableSchema))
+            .Append("    WHERE ")
             .Append(SqlGenerationHelper.DelimitIdentifier(MigrationIdColumnName))
-            .Append(" = ")
-            .Append(stringTypeMapping.GenerateSqlLiteral(migrationId))
+            .Append(" = ").AppendLine(stringTypeMapping.GenerateSqlLiteral(migrationId))
             .AppendLine(")")
             .Append("BEGIN")
             .ToString();
@@ -136,12 +273,13 @@ public class SqlServerHistoryRepository : HistoryRepository
         var stringTypeMapping = Dependencies.TypeMappingSource.GetMapping(typeof(string));
 
         return new StringBuilder()
-            .Append("IF EXISTS(SELECT * FROM ")
-            .Append(SqlGenerationHelper.DelimitIdentifier(TableName, TableSchema))
-            .Append(" WHERE ")
+            .AppendLine("IF EXISTS (")
+            .Append("    SELECT * FROM ")
+            .AppendLine(SqlGenerationHelper.DelimitIdentifier(TableName, TableSchema))
+            .Append("    WHERE ")
             .Append(SqlGenerationHelper.DelimitIdentifier(MigrationIdColumnName))
             .Append(" = ")
-            .Append(stringTypeMapping.GenerateSqlLiteral(migrationId))
+            .AppendLine(stringTypeMapping.GenerateSqlLiteral(migrationId))
             .AppendLine(")")
             .Append("BEGIN")
             .ToString();

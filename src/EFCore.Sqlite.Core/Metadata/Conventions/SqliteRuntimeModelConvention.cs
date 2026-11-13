@@ -3,8 +3,6 @@
 
 using Microsoft.EntityFrameworkCore.Sqlite.Metadata.Internal;
 
-#nullable enable
-
 namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 /// <summary>
@@ -45,6 +43,7 @@ public class SqliteRuntimeModelConvention : RelationalRuntimeModelConvention
 
         if (!runtime)
         {
+            annotations.Remove(SqliteAnnotationNames.Autoincrement);
             annotations.Remove(SqliteAnnotationNames.Srid);
         }
     }

@@ -7,6 +7,6 @@ public class EntityLeaf : EntityBranch
 {
     public bool? IsGreen;
 
-    public ICollection<EntityCompositeKey> CompositeKeySkipFull;
-    public ICollection<JoinCompositeKeyToLeaf> JoinCompositeKeyFull;
+    public ICollection<EntityCompositeKey> CompositeKeySkipFull = null!;
+    public ICollection<JoinCompositeKeyToLeaf> JoinCompositeKeyFull = null!;
 }

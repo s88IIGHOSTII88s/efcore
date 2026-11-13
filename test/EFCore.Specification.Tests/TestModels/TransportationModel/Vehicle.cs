@@ -5,11 +5,11 @@ namespace Microsoft.EntityFrameworkCore.TestModels.TransportationModel;
 
 public class Vehicle
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public int SeatingCapacity { get; set; }
-    public Operator Operator { get; set; }
+    public Operator Operator { get; set; } = null!;
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
         => obj is Vehicle other
             && Name == other.Name
             && SeatingCapacity == other.SeatingCapacity

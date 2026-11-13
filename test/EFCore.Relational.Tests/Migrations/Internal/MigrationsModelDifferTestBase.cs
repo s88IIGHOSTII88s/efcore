@@ -1,7 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 using Microsoft.EntityFrameworkCore.Update.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Migrations.Internal;
@@ -28,7 +27,7 @@ public abstract class MigrationsModelDifferTestBase
         Action<ModelBuilder> buildSourceAction,
         Action<ModelBuilder> buildTargetAction,
         Action<IReadOnlyList<MigrationOperation>> assertActionUp,
-        Action<IReadOnlyList<MigrationOperation>> assertActionDown,
+        Action<IReadOnlyList<MigrationOperation>>? assertActionDown,
         bool skipSourceConventions = false)
         => Execute(
             buildCommonAction, buildSourceAction, buildTargetAction, assertActionUp, assertActionDown, null, skipSourceConventions);
@@ -38,9 +37,10 @@ public abstract class MigrationsModelDifferTestBase
         Action<ModelBuilder> buildSourceAction,
         Action<ModelBuilder> buildTargetAction,
         Action<IReadOnlyList<MigrationOperation>> assertActionUp,
-        Action<IReadOnlyList<MigrationOperation>> assertActionDown,
-        Action<DbContextOptionsBuilder> builderOptionsAction,
-        bool skipSourceConventions = false)
+        Action<IReadOnlyList<MigrationOperation>>? assertActionDown,
+        Action<DbContextOptionsBuilder>? builderOptionsAction,
+        bool skipSourceConventions = false,
+        bool enableSensitiveLogging = true)
     {
         var sourceModelBuilder = CreateModelBuilder(skipSourceConventions);
         buildCommonAction(sourceModelBuilder);
@@ -55,13 +55,14 @@ public abstract class MigrationsModelDifferTestBase
 
         var targetOptionsBuilder = TestHelpers
             .AddProviderOptions(new DbContextOptionsBuilder())
-            .UseModel(targetModel)
-            .EnableSensitiveDataLogging();
+            .UseModel(targetModel);
 
-        if (builderOptionsAction != null)
+        if (enableSensitiveLogging)
         {
-            builderOptionsAction(targetOptionsBuilder);
+            targetOptionsBuilder = targetOptionsBuilder.EnableSensitiveDataLogging();
         }
+
+        builderOptionsAction?.Invoke(targetOptionsBuilder);
 
         var modelDiffer = CreateModelDiffer(targetOptionsBuilder.Options);
 
@@ -82,24 +83,7 @@ public abstract class MigrationsModelDifferTestBase
     }
 
     protected void AssertMultidimensionalArray<T>(T[,] values, params Action<T>[] assertions)
-        => Assert.Collection(ToOnedimensionalArray(values), assertions);
-
-    protected static T[] ToOnedimensionalArray<T>(T[,] values, bool firstDimension = false)
-    {
-        Check.DebugAssert(
-            values.GetLength(firstDimension ? 1 : 0) == 1,
-            $"Length of dimension {(firstDimension ? 1 : 0)} is not 1.");
-
-        var result = new T[values.Length];
-        for (var i = 0; i < values.Length; i++)
-        {
-            result[i] = firstDimension
-                ? values[i, 0]
-                : values[0, i];
-        }
-
-        return result;
-    }
+        => Assert.Collection(values.Cast<T>(), assertions);
 
     protected static T[][] ToJaggedArray<T>(T[,] twoDimensionalArray, bool firstDimension = false)
     {
@@ -128,19 +112,18 @@ public abstract class MigrationsModelDifferTestBase
     protected abstract TestHelpers TestHelpers { get; }
 
     protected virtual TestHelpers.TestModelBuilder CreateModelBuilder(bool skipConventions)
-        => TestHelpers.CreateConventionBuilder(configure: skipConventions ? c => c.RemoveAllConventions() : null);
+        => TestHelpers.CreateConventionBuilder(configureConventions: skipConventions ? c => c.RemoveAllConventions() : null);
 
     protected virtual MigrationsModelDiffer CreateModelDiffer(DbContextOptions options)
-    {
-        var context = TestHelpers.CreateContext(options);
-        return new MigrationsModelDiffer(
+        => new(
             new TestRelationalTypeMappingSource(
                 TestServiceFactory.Instance.Create<TypeMappingSourceDependencies>(),
                 TestServiceFactory.Instance.Create<RelationalTypeMappingSourceDependencies>()),
             new MigrationsAnnotationProvider(
                 new MigrationsAnnotationProviderDependencies()),
-            context.GetService<IChangeDetector>(),
-            context.GetService<IUpdateAdapterFactory>(),
-            context.GetService<CommandBatchPreparerDependencies>());
-    }
+            new RelationalAnnotationProvider(
+                new RelationalAnnotationProviderDependencies()),
+            TestServiceFactory.Instance.Create<IRowIdentityMapFactory>(),
+            TestHelpers.CreateContext(options).GetService<CommandBatchPreparerDependencies>(),
+            new FakeDiagnosticsLogger<DbLoggerCategory.Migrations>());
 }

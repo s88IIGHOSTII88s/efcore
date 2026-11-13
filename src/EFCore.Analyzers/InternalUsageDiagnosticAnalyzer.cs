@@ -12,13 +12,11 @@ namespace Microsoft.EntityFrameworkCore;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class InternalUsageDiagnosticAnalyzer : DiagnosticAnalyzer
 {
-    public const string Id = "EF1001";
     private static readonly int EFLen = "EntityFrameworkCore".Length;
 
     private static readonly DiagnosticDescriptor Descriptor
-        // HACK: Work around dotnet/roslyn-analyzers#5828 by not using target-typed new
-        = new DiagnosticDescriptor(
-            Id,
+        = new(
+            EFDiagnostics.InternalUsage,
             title: AnalyzerStrings.InternalUsageTitle,
             messageFormat: AnalyzerStrings.InternalUsageMessageFormat,
             category: "Usage",
@@ -26,70 +24,83 @@ public sealed class InternalUsageDiagnosticAnalyzer : DiagnosticAnalyzer
             isEnabledByDefault: true);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics
-        => ImmutableArray.Create(Descriptor);
+        => [Descriptor];
 
     public override void Initialize(AnalysisContext context)
     {
         context.EnableConcurrentExecution();
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 
-        context.RegisterOperationAction(
-            AnalyzeNode,
-            OperationKind.FieldReference,
-            OperationKind.PropertyReference,
-            OperationKind.MethodReference,
-            OperationKind.EventReference,
-            OperationKind.Invocation,
-            OperationKind.ObjectCreation,
-            OperationKind.VariableDeclaration,
-            OperationKind.TypeOf);
+        context.RegisterCompilationStartAction(compilationStartContext =>
+        {
+            var internalAttributeSymbol = compilationStartContext.Compilation
+                .GetTypeByMetadataName("Microsoft.EntityFrameworkCore.Infrastructure.EntityFrameworkInternalAttribute");
 
-        context.RegisterSymbolAction(
-            AnalyzeSymbol,
-            SymbolKind.NamedType,
-            SymbolKind.Method,
-            SymbolKind.Property,
-            SymbolKind.Field,
-            SymbolKind.Event);
+            compilationStartContext.RegisterOperationAction(
+                operationContext => AnalyzeNode(operationContext, internalAttributeSymbol),
+                OperationKind.FieldReference,
+                OperationKind.PropertyReference,
+                OperationKind.MethodReference,
+                OperationKind.EventReference,
+                OperationKind.Invocation,
+                OperationKind.ObjectCreation,
+                OperationKind.VariableDeclaration,
+                OperationKind.TypeOf);
+
+            compilationStartContext.RegisterSymbolAction(
+                symbolContext => AnalyzeSymbol(symbolContext, internalAttributeSymbol),
+                SymbolKind.NamedType,
+                SymbolKind.Method,
+                SymbolKind.Property,
+                SymbolKind.Field,
+                SymbolKind.Event);
+        });
     }
 
-    private static void AnalyzeNode(OperationAnalysisContext context)
+    private static void AnalyzeNode(OperationAnalysisContext context, INamedTypeSymbol? internalAttributeSymbol)
     {
-        switch (context.Operation.Kind)
+        switch (context.Operation)
         {
-            case OperationKind.FieldReference:
-                AnalyzeMember(context, ((IFieldReferenceOperation)context.Operation).Field);
+            case IFieldReferenceOperation fieldReference:
+                AnalyzeMember(context, fieldReference.Field, internalAttributeSymbol);
                 break;
-            case OperationKind.PropertyReference:
-                AnalyzeMember(context, ((IPropertyReferenceOperation)context.Operation).Property);
+
+            case IPropertyReferenceOperation propertyReference:
+                AnalyzeMember(context, propertyReference.Property, internalAttributeSymbol);
                 break;
-            case OperationKind.EventReference:
-                AnalyzeMember(context, ((IEventReferenceOperation)context.Operation).Event);
+
+            case IEventReferenceOperation eventReference:
+                AnalyzeMember(context, eventReference.Event, internalAttributeSymbol);
                 break;
-            case OperationKind.MethodReference:
-                AnalyzeMember(context, ((IMethodReferenceOperation)context.Operation).Method);
+
+            case IMethodReferenceOperation methodReference:
+                AnalyzeMember(context, methodReference.Method, internalAttributeSymbol);
                 break;
-            case OperationKind.ObjectCreation when ((IObjectCreationOperation)context.Operation).Constructor is { } constructor:
-                AnalyzeMember(context, constructor);
+
+            case IObjectCreationOperation { Constructor: { } constructor }:
+                AnalyzeMember(context, constructor, internalAttributeSymbol);
                 break;
-            case OperationKind.Invocation:
-                AnalyzeInvocation(context, (IInvocationOperation)context.Operation);
+
+            case IInvocationOperation invocation:
+                AnalyzeInvocation(context, invocation, internalAttributeSymbol);
                 break;
-            case OperationKind.VariableDeclaration:
-                AnalyzeVariableDeclaration(context, ((IVariableDeclarationOperation)context.Operation));
+
+            case IVariableDeclarationOperation variableDeclaration:
+                AnalyzeVariableDeclaration(context, variableDeclaration, internalAttributeSymbol);
                 break;
-            case OperationKind.TypeOf:
-                AnalyzeTypeof(context, ((ITypeOfOperation)context.Operation));
+
+            case ITypeOfOperation typeOf:
+                AnalyzeTypeof(context, typeOf, internalAttributeSymbol);
                 break;
+
             default:
-                throw new ArgumentException($"Unexpected {nameof(OperationKind)}: {context.Operation.Kind}");
+                throw new ArgumentException($"Unexpected operation: {context.Operation.Kind}");
         }
     }
 
-    private static void AnalyzeMember(OperationAnalysisContext context, ISymbol symbol)
+    private static void AnalyzeMember(OperationAnalysisContext context, ISymbol symbol, INamedTypeSymbol? internalAttributeSymbol)
     {
-        // ReSharper disable once RedundantCast
-        if ((object)symbol.ContainingAssembly == context.Compilation.Assembly)
+        if (symbol.ContainingAssembly?.Equals(context.Compilation.Assembly, SymbolEqualityComparer.Default) == true)
         {
             // Skip all methods inside the same assembly - internal access is fine
             return;
@@ -97,38 +108,39 @@ public sealed class InternalUsageDiagnosticAnalyzer : DiagnosticAnalyzer
 
         var containingType = symbol.ContainingType;
 
-        if (HasInternalAttribute(symbol))
+        if (HasInternalAttribute(symbol, internalAttributeSymbol))
         {
-            ReportDiagnostic(context, symbol.Name == ".ctor" ? (object)containingType : $"{containingType}.{symbol.Name}");
+            ReportDiagnostic(
+                context, symbol.Name == WellKnownMemberNames.InstanceConstructorName ? containingType : $"{containingType}.{symbol.Name}");
             return;
         }
 
-        if (IsInternal(context, containingType))
+        if (IsInternal(context, containingType, internalAttributeSymbol))
         {
             ReportDiagnostic(context, containingType);
         }
     }
 
-    private static void AnalyzeInvocation(OperationAnalysisContext context, IInvocationOperation invocation)
+    private static void AnalyzeInvocation(OperationAnalysisContext context, IInvocationOperation invocation, INamedTypeSymbol? internalAttributeSymbol)
     {
         // First check for any internal type parameters
         foreach (var a in invocation.TargetMethod.TypeArguments)
         {
-            if (IsInternal(context, a))
+            if (IsInternal(context, a, internalAttributeSymbol))
             {
                 context.ReportDiagnostic(Diagnostic.Create(Descriptor, context.Operation.Syntax.GetLocation(), a));
             }
         }
 
         // Then check the method being invoked
-        AnalyzeMember(context, invocation.TargetMethod);
+        AnalyzeMember(context, invocation.TargetMethod, internalAttributeSymbol);
     }
 
-    private static void AnalyzeVariableDeclaration(OperationAnalysisContext context, IVariableDeclarationOperation variableDeclaration)
+    private static void AnalyzeVariableDeclaration(OperationAnalysisContext context, IVariableDeclarationOperation variableDeclaration, INamedTypeSymbol? internalAttributeSymbol)
     {
         foreach (var declarator in variableDeclaration.Declarators)
         {
-            if (IsInternal(context, declarator.Symbol.Type))
+            if (IsInternal(context, declarator.Symbol.Type, internalAttributeSymbol))
             {
                 var syntax = context.Operation.Syntax switch
                 {
@@ -141,36 +153,36 @@ public sealed class InternalUsageDiagnosticAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static void AnalyzeTypeof(OperationAnalysisContext context, ITypeOfOperation typeOf)
+    private static void AnalyzeTypeof(OperationAnalysisContext context, ITypeOfOperation typeOf, INamedTypeSymbol? internalAttributeSymbol)
     {
-        if (IsInternal(context, typeOf.TypeOperand))
+        if (IsInternal(context, typeOf.TypeOperand, internalAttributeSymbol))
         {
             ReportDiagnostic(context, typeOf.TypeOperand);
         }
     }
 
-    private static void AnalyzeSymbol(SymbolAnalysisContext context)
+    private static void AnalyzeSymbol(SymbolAnalysisContext context, INamedTypeSymbol? internalAttributeSymbol)
     {
         switch (context.Symbol)
         {
             case INamedTypeSymbol symbol:
-                AnalyzeNamedTypeSymbol(context, symbol);
+                AnalyzeNamedTypeSymbol(context, symbol, internalAttributeSymbol);
                 break;
 
             case IMethodSymbol symbol:
-                AnalyzeMethodTypeSymbol(context, symbol);
+                AnalyzeMethodTypeSymbol(context, symbol, internalAttributeSymbol);
                 break;
 
             case IFieldSymbol symbol:
-                AnalyzeMemberDeclarationTypeSymbol(context, symbol, symbol.Type);
+                AnalyzeMemberDeclarationTypeSymbol(context, symbol, symbol.Type, internalAttributeSymbol);
                 break;
 
             case IPropertySymbol symbol:
-                AnalyzeMemberDeclarationTypeSymbol(context, symbol, symbol.Type);
+                AnalyzeMemberDeclarationTypeSymbol(context, symbol, symbol.Type, internalAttributeSymbol);
                 break;
 
             case IEventSymbol symbol:
-                AnalyzeMemberDeclarationTypeSymbol(context, symbol, symbol.Type);
+                AnalyzeMemberDeclarationTypeSymbol(context, symbol, symbol.Type, internalAttributeSymbol);
                 break;
 
             default:
@@ -178,17 +190,16 @@ public sealed class InternalUsageDiagnosticAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static void AnalyzeNamedTypeSymbol(SymbolAnalysisContext context, INamedTypeSymbol symbol)
+    private static void AnalyzeNamedTypeSymbol(SymbolAnalysisContext context, INamedTypeSymbol symbol, INamedTypeSymbol? internalAttributeSymbol)
     {
         if (symbol.BaseType is ITypeSymbol baseSymbol
-            && IsInternal(context, baseSymbol))
+            && IsInternal(context, baseSymbol, internalAttributeSymbol))
         {
             foreach (var declaringSyntax in symbol.DeclaringSyntaxReferences)
             {
                 var location = declaringSyntax.GetSyntax() switch
                 {
-                    CSharpSyntax.ClassDeclarationSyntax s when s.BaseList?.Types.Count > 0
-                        => s.BaseList.Types[0].GetLocation(),
+                    CSharpSyntax.ClassDeclarationSyntax { BaseList.Types.Count: > 0 } s => s.BaseList.Types[0].GetLocation(),
                     { } otherSyntax => otherSyntax.GetLocation()
                 };
 
@@ -196,7 +207,7 @@ public sealed class InternalUsageDiagnosticAnalyzer : DiagnosticAnalyzer
             }
         }
 
-        foreach (var @interface in symbol.Interfaces.Where(i => IsInternal(context, i)))
+        foreach (var @interface in symbol.Interfaces.Where(i => IsInternal(context, i, internalAttributeSymbol)))
         {
             foreach (var declaringSyntax in symbol.DeclaringSyntaxReferences)
             {
@@ -211,16 +222,15 @@ public sealed class InternalUsageDiagnosticAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static void AnalyzeMethodTypeSymbol(SymbolAnalysisContext context, IMethodSymbol symbol)
+    private static void AnalyzeMethodTypeSymbol(SymbolAnalysisContext context, IMethodSymbol symbol, INamedTypeSymbol? internalAttributeSymbol)
     {
-        if (symbol.MethodKind == MethodKind.PropertyGet
-            || symbol.MethodKind == MethodKind.PropertySet)
+        if (symbol.MethodKind is MethodKind.PropertyGet or MethodKind.PropertySet)
         {
             // Property getters/setters are handled via IPropertySymbol
             return;
         }
 
-        if (IsInternal(context, symbol.ReturnType))
+        if (IsInternal(context, symbol.ReturnType, internalAttributeSymbol))
         {
             foreach (var declaringSyntax in symbol.DeclaringSyntaxReferences)
             {
@@ -234,13 +244,14 @@ public sealed class InternalUsageDiagnosticAnalyzer : DiagnosticAnalyzer
             }
         }
 
-        foreach (var paramSymbol in symbol.Parameters.Where(ps => IsInternal(context, ps.Type)))
+        foreach (var paramSymbol in symbol.Parameters.Where(ps => IsInternal(context, ps.Type, internalAttributeSymbol)))
         {
             foreach (var declaringSyntax in paramSymbol.DeclaringSyntaxReferences)
             {
                 var location = declaringSyntax.GetSyntax() switch
                 {
-                    CSharpSyntax.ParameterSyntax s when s.Type != null => s.Type.GetLocation(),
+                    CSharpSyntax.ParameterSyntax { Type: not null } s => s.Type.GetLocation(),
+
                     { } otherSyntax => otherSyntax.GetLocation()
                 };
 
@@ -252,9 +263,10 @@ public sealed class InternalUsageDiagnosticAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeMemberDeclarationTypeSymbol(
         SymbolAnalysisContext context,
         ISymbol declarationSymbol,
-        ITypeSymbol typeSymbol)
+        ITypeSymbol typeSymbol,
+        INamedTypeSymbol? internalAttributeSymbol)
     {
-        if (IsInternal(context, typeSymbol))
+        if (IsInternal(context, typeSymbol, internalAttributeSymbol))
         {
             foreach (var declaringSyntax in declarationSymbol.DeclaringSyntaxReferences)
             {
@@ -277,9 +289,10 @@ public sealed class InternalUsageDiagnosticAnalyzer : DiagnosticAnalyzer
     private static SyntaxNode NarrowDownSyntax(SyntaxNode syntax)
         => syntax switch
         {
-            CSharpSyntax.InvocationExpressionSyntax s
-                when s.Expression is CSharpSyntax.MemberAccessExpressionSyntax memberAccessSyntax
-                => memberAccessSyntax.Name,
+            CSharpSyntax.InvocationExpressionSyntax
+            {
+                Expression: CSharpSyntax.MemberAccessExpressionSyntax memberAccessSyntax
+            } => memberAccessSyntax.Name,
             CSharpSyntax.MemberAccessExpressionSyntax s => s.Name,
             CSharpSyntax.ObjectCreationExpressionSyntax s => s.Type,
             CSharpSyntax.PropertyDeclarationSyntax s => s.Type,
@@ -294,25 +307,22 @@ public sealed class InternalUsageDiagnosticAnalyzer : DiagnosticAnalyzer
             _ => syntax
         };
 
-    private static bool IsInternal(SymbolAnalysisContext context, ITypeSymbol symbol)
-        // ReSharper disable once RedundantCast
-        => (object)symbol.ContainingAssembly != context.Compilation.Assembly
-            && (IsInInternalNamespace(symbol) || HasInternalAttribute(symbol));
+    private static bool IsInternal(SymbolAnalysisContext context, ITypeSymbol symbol, INamedTypeSymbol? internalAttributeSymbol)
+        => symbol.ContainingAssembly?.Equals(context.Compilation.Assembly, SymbolEqualityComparer.Default) != true
+            && (IsInInternalNamespace(symbol) || HasInternalAttribute(symbol, internalAttributeSymbol));
 
-    private static bool IsInternal(OperationAnalysisContext context, ITypeSymbol symbol)
-        // ReSharper disable once RedundantCast
-        => (object)symbol.ContainingAssembly != context.Compilation.Assembly
-            && (IsInInternalNamespace(symbol) || HasInternalAttribute(symbol));
+    private static bool IsInternal(OperationAnalysisContext context, ITypeSymbol symbol, INamedTypeSymbol? internalAttributeSymbol)
+        => symbol.ContainingAssembly?.Equals(context.Compilation.Assembly, SymbolEqualityComparer.Default) != true
+            && (IsInInternalNamespace(symbol) || HasInternalAttribute(symbol, internalAttributeSymbol));
 
-    private static bool HasInternalAttribute(ISymbol symbol)
-        => symbol.GetAttributes().Any(
-            a =>
-                a.AttributeClass!.ToDisplayString()
-                == "Microsoft.EntityFrameworkCore.Infrastructure.EntityFrameworkInternalAttribute");
+    private static bool HasInternalAttribute(ISymbol symbol, INamedTypeSymbol? internalAttributeSymbol)
+        => internalAttributeSymbol is not null
+            && symbol.GetAttributes().Any(a =>
+                SymbolEqualityComparer.Default.Equals(a.AttributeClass, internalAttributeSymbol));
 
     private static bool IsInInternalNamespace(ISymbol symbol)
     {
-        if (symbol?.ContainingNamespace?.ToDisplayString() is string ns)
+        if (symbol?.ContainingNamespace?.ToDisplayString() is { } ns)
         {
             var i = ns.IndexOf("EntityFrameworkCore", StringComparison.Ordinal);
 

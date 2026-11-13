@@ -8,5 +8,5 @@ namespace Microsoft.EntityFrameworkCore.TestModels.SpatialModel;
 public class PolygonEntity
 {
     public Guid Id { get; set; }
-    public Polygon Polygon { get; set; }
+    public Polygon? Polygon { get; set; }
 }

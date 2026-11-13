@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Data;
 using Microsoft.Data.Sqlite;
 
 namespace Microsoft.EntityFrameworkCore.Sqlite.Storage.Internal;
@@ -51,7 +52,7 @@ public class SqliteDatabaseCreator : RelationalDatabaseCreator
                     Dependencies.Connection,
                     null,
                     null,
-                    null,
+                    Dependencies.CurrentContext.Context,
                     Dependencies.CommandLogger, CommandSource.Migrations));
 
         Dependencies.Connection.Close();
@@ -100,7 +101,7 @@ public class SqliteDatabaseCreator : RelationalDatabaseCreator
                     Dependencies.Connection,
                     null,
                     null,
-                    null,
+                    Dependencies.CurrentContext.Context,
                     Dependencies.CommandLogger, CommandSource.Migrations))!;
 
         return count != 0;
@@ -117,9 +118,10 @@ public class SqliteDatabaseCreator : RelationalDatabaseCreator
         string? path = null;
 
         Dependencies.Connection.Open();
+        var dbConnection = Dependencies.Connection.DbConnection;
         try
         {
-            path = Dependencies.Connection.DbConnection.DataSource;
+            path = dbConnection.DataSource;
         }
         catch
         {
@@ -132,10 +134,14 @@ public class SqliteDatabaseCreator : RelationalDatabaseCreator
 
         if (!string.IsNullOrEmpty(path))
         {
-            SqliteConnection.ClearPool(new SqliteConnection(Dependencies.Connection.ConnectionString));
-            // See issues #25797 and #26016
-            // SqliteConnection.ClearAllPools();
+            SqliteConnection.ClearAllPools();
             File.Delete(path);
+        }
+        else if (dbConnection.State == ConnectionState.Open)
+        {
+            dbConnection.Close();
+            SqliteConnection.ClearPool(new SqliteConnection(Dependencies.Connection.ConnectionString));
+            dbConnection.Open();
         }
     }
 }

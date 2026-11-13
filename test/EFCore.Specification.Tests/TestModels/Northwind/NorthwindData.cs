@@ -5,18 +5,20 @@ namespace Microsoft.EntityFrameworkCore.TestModels.Northwind;
 
 public partial class NorthwindData : ISetSource
 {
+    public static readonly NorthwindData Instance = new();
+
     public Customer[] Customers { get; }
     public CustomerQuery[] CustomerQueries { get; }
     public CustomerQueryWithQueryFilter[] CustomerQueriesWithQueryFilter { get; }
     public Employee[] Employees { get; }
     public Product[] Products { get; }
     public ProductQuery[] ProductQueries { get; }
-    public ProductView[] ProductViews { get; }
+    public ProductView[] ProductViews { get; } = [];
     public Order[] Orders { get; }
-    public OrderQuery[] OrderQueries { get; }
+    public OrderQuery[] OrderQueries { get; } = [];
     public OrderDetail[] OrderDetails { get; }
 
-    private readonly Dictionary<int, string> _categoryNameMap = new Dictionary<int, string>
+    private readonly Dictionary<int, string> _categoryNameMap = new()
     {
         { 1, "Beverages" },
         { 2, "Condiments" },
@@ -40,7 +42,7 @@ public partial class NorthwindData : ISetSource
 
         foreach (var customer in Customers)
         {
-            customer.Orders = new List<Order>();
+            customer.Orders = [];
 
             customerQueries.Add(
                 new CustomerQuery
@@ -60,7 +62,7 @@ public partial class NorthwindData : ISetSource
 
         foreach (var product in Products)
         {
-            product.OrderDetails = new List<OrderDetail>();
+            product.OrderDetails = [];
 
             if (!product.Discontinued)
             {
@@ -72,12 +74,13 @@ public partial class NorthwindData : ISetSource
                         ProductName = product.ProductName
                     });
 
-                productViews.Add(new ProductView
-                {
-                    CategoryName = _categoryNameMap[product.CategoryID.Value],
-                    ProductID = product.ProductID,
-                    ProductName = product.ProductName
-                });
+                productViews.Add(
+                    new ProductView
+                    {
+                        CategoryName = _categoryNameMap[product.CategoryID!.Value],
+                        ProductID = product.ProductID,
+                        ProductName = product.ProductName
+                    });
             }
         }
 
@@ -88,7 +91,7 @@ public partial class NorthwindData : ISetSource
 
         foreach (var order in Orders)
         {
-            order.OrderDetails = new List<OrderDetail>();
+            order.OrderDetails = [];
 
             var customer = Customers.First(c => c.CustomerID == order.CustomerID);
             order.Customer = customer;
@@ -195,24 +198,11 @@ public partial class NorthwindData : ISetSource
             return (IQueryable<TEntity>)ProductQueries.AsQueryable();
         }
 
-        if (typeof(TEntity) == typeof(ProductView))
-        {
-            return (IQueryable<TEntity>)ProductViews.AsQueryable();
-        }
-
-        if (typeof(TEntity) == typeof(CustomerQueryWithQueryFilter))
-        {
-            return (IQueryable<TEntity>)CustomerQueriesWithQueryFilter.AsQueryable();
-        }
-
-        throw new InvalidOperationException("Invalid entity type: " + typeof(TEntity));
-    }
-
-    public static void Seed(NorthwindContext context)
-    {
-        AddEntities(context);
-
-        context.SaveChanges();
+        return typeof(TEntity) == typeof(ProductView)
+            ? (IQueryable<TEntity>)ProductViews.AsQueryable()
+            : typeof(TEntity) == typeof(CustomerQueryWithQueryFilter)
+                ? (IQueryable<TEntity>)CustomerQueriesWithQueryFilter.AsQueryable()
+                : throw new InvalidOperationException("Invalid entity type: " + typeof(TEntity));
     }
 
     public static Task SeedAsync(NorthwindContext context)
@@ -226,7 +216,7 @@ public partial class NorthwindData : ISetSource
     {
         context.Set<Customer>().AddRange(CreateCustomers());
 
-        var titleProperty = context.Model.FindEntityType(typeof(Employee)).FindProperty("Title");
+        var titleProperty = context.Model.FindEntityType(typeof(Employee))!.FindProperty("Title")!;
         foreach (var employee in CreateEmployees())
         {
             context.Set<Employee>().Add(employee);

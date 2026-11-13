@@ -8,7 +8,7 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 
 public class QueryFixupTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Query_dependent_include_principal()
     {
         Seed();
@@ -27,7 +27,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_principal_include_dependent()
     {
         Seed();
@@ -46,7 +46,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_dependent_include_principal_unidirectional()
     {
         Seed();
@@ -64,7 +64,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_principal_include_dependent_unidirectional()
     {
         Seed();
@@ -82,7 +82,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_dependent_include_principal_one_to_one()
     {
         Seed();
@@ -101,7 +101,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_principal_include_dependent_one_to_one()
     {
         Seed();
@@ -120,7 +120,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_dependent_include_principal_unidirectional_one_to_one()
     {
         Seed();
@@ -138,7 +138,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_principal_include_dependent_unidirectional_one_to_one()
     {
         Seed();
@@ -156,7 +156,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_self_ref()
     {
         Seed();
@@ -176,7 +176,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_dependent_include_principal_self_ref()
     {
         Seed();
@@ -196,7 +196,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_principal_include_dependent_self_ref()
     {
         Seed();
@@ -216,7 +216,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_self_ref_prinipal_nav_only()
     {
         Seed();
@@ -235,7 +235,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_self_ref_dependent_nav_only()
     {
         Seed();
@@ -254,7 +254,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_dependent_include_principal_self_ref_unidirectional()
     {
         Seed();
@@ -273,7 +273,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_principal_include_dependent_self_ref_unidirectional()
     {
         Seed();
@@ -292,7 +292,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_self_ref_one_to_one()
     {
         Seed();
@@ -312,7 +312,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_dependent_include_principal_self_ref_one_to_one()
     {
         Seed();
@@ -332,7 +332,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_principal_include_dependent_self_ref_one_to_one()
     {
         Seed();
@@ -352,7 +352,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_self_ref_one_to_one_principal_nav_only()
     {
         Seed();
@@ -371,7 +371,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_self_ref_one_to_one_dependent_nav_only()
     {
         Seed();
@@ -390,7 +390,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_dependent_include_principal_self_ref_one_to_one_unidirectional()
     {
         Seed();
@@ -409,7 +409,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_principal_include_dependent_self_ref_one_to_one_unidirectional()
     {
         Seed();
@@ -428,7 +428,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_dependent_include_principal_multiple_relationships()
     {
         Seed();
@@ -450,7 +450,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_principal_include_dependent_multiple_relationships()
     {
         Seed();
@@ -472,10 +472,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Added)]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Unchanged)]
+    [Theory, InlineData(EntityState.Added), InlineData(EntityState.Modified), InlineData(EntityState.Unchanged)]
     public void Query_dependent_include_principal_with_existing(EntityState existingState)
     {
         Seed();
@@ -501,10 +498,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Added)]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Unchanged)]
+    [Theory, InlineData(EntityState.Added), InlineData(EntityState.Modified), InlineData(EntityState.Unchanged)]
     public void Query_principal_include_dependent_with_existing(EntityState existingState)
     {
         Seed();
@@ -530,10 +524,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Added)]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Unchanged)]
+    [Theory, InlineData(EntityState.Added), InlineData(EntityState.Modified), InlineData(EntityState.Unchanged)]
     public void Query_dependent_include_principal_unidirectional_with_existing(EntityState existingState)
     {
         Seed();
@@ -557,10 +548,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Added)]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Unchanged)]
+    [Theory, InlineData(EntityState.Added), InlineData(EntityState.Modified), InlineData(EntityState.Unchanged)]
     public void Query_principal_include_dependent_unidirectional_with_existing(EntityState existingState)
     {
         Seed();
@@ -584,10 +572,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Added)]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Unchanged)]
+    [Theory, InlineData(EntityState.Added), InlineData(EntityState.Modified), InlineData(EntityState.Unchanged)]
     public void Query_self_ref_with_existing(EntityState existingState)
     {
         Seed();
@@ -614,10 +599,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Added)]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Unchanged)]
+    [Theory, InlineData(EntityState.Added), InlineData(EntityState.Modified), InlineData(EntityState.Unchanged)]
     public void Query_dependent_include_principal_self_ref_with_existing(EntityState existingState)
     {
         Seed();
@@ -644,10 +626,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Added)]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Unchanged)]
+    [Theory, InlineData(EntityState.Added), InlineData(EntityState.Modified), InlineData(EntityState.Unchanged)]
     public void Query_principal_include_dependent_self_ref_with_existing(EntityState existingState)
     {
         Seed();
@@ -674,10 +653,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Added)]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Unchanged)]
+    [Theory, InlineData(EntityState.Added), InlineData(EntityState.Modified), InlineData(EntityState.Unchanged)]
     public void Query_self_ref_prinipal_nav_only_with_existing(EntityState existingState)
     {
         Seed();
@@ -702,10 +678,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Added)]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Unchanged)]
+    [Theory, InlineData(EntityState.Added), InlineData(EntityState.Modified), InlineData(EntityState.Unchanged)]
     public void Query_self_ref_dependent_nav_only_with_existing(EntityState existingState)
     {
         Seed();
@@ -730,10 +703,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Added)]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Unchanged)]
+    [Theory, InlineData(EntityState.Added), InlineData(EntityState.Modified), InlineData(EntityState.Unchanged)]
     public void Query_dependent_include_principal_self_ref_unidirectional_with_existing(EntityState existingState)
     {
         Seed();
@@ -758,10 +728,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Added)]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Unchanged)]
+    [Theory, InlineData(EntityState.Added), InlineData(EntityState.Modified), InlineData(EntityState.Unchanged)]
     public void Query_principal_include_dependent_self_ref_unidirectional_with_existing(EntityState existingState)
     {
         Seed();
@@ -786,7 +753,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_ownership_navigations()
     {
         Seed();
@@ -814,12 +781,12 @@ public class QueryFixupTest
                 var principalEntry = context.Entry(principal);
                 Assert.Equal(EntityState.Unchanged, principalEntry.State);
 
-                var dependentEntry = principalEntry.Reference(p => p.OrderDetails).TargetEntry;
+                var dependentEntry = principalEntry.Reference(p => p.OrderDetails).TargetEntry!;
                 Assert.Equal(principal.Id, dependentEntry.Property("OrderId").CurrentValue);
                 Assert.Equal(EntityState.Unchanged, dependentEntry.State);
-                Assert.Equal(nameof(OrderDetails), dependentEntry.Metadata.FindOwnership().PrincipalToDependent.Name);
+                Assert.Equal(nameof(OrderDetails), dependentEntry.Metadata.FindOwnership()!.PrincipalToDependent!.Name);
 
-                var subDependent1Entry = dependentEntry.Reference(p => p.BillingAddress).TargetEntry;
+                var subDependent1Entry = dependentEntry.Reference(p => p.BillingAddress).TargetEntry!;
                 Assert.Equal(principal.Id, subDependent1Entry.Property("OrderDetailsId").CurrentValue);
                 Assert.Equal(EntityState.Unchanged, subDependent1Entry.State);
                 Assert.Equal(
@@ -829,7 +796,7 @@ public class QueryFixupTest
                     + "#"
                     + typeof(Address).ShortDisplayName(), subDependent1Entry.Metadata.Name);
 
-                var subDependent2Entry = dependentEntry.Reference(p => p.ShippingAddress).TargetEntry;
+                var subDependent2Entry = dependentEntry.Reference(p => p.ShippingAddress).TargetEntry!;
                 Assert.Equal(principal.Id, subDependent2Entry.Property("OrderDetailsId").CurrentValue);
                 Assert.Equal(EntityState.Unchanged, subDependent2Entry.State);
                 Assert.Equal(
@@ -841,7 +808,7 @@ public class QueryFixupTest
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_owned_foreign_key()
     {
         Seed();
@@ -856,7 +823,7 @@ public class QueryFixupTest
             () => Assert.Equal(principal.Id, foreignKeyValue));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_subowned_foreign_key()
     {
         Seed();
@@ -871,7 +838,7 @@ public class QueryFixupTest
             () => Assert.Equal(principal.Id, foreignKeyValue));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_owned()
     {
         Seed();
@@ -886,11 +853,11 @@ public class QueryFixupTest
             {
                 var dependentEntry = context.Entry(owned);
                 Assert.Equal(principal.Id, dependentEntry.Property("OrderId").CurrentValue);
-                Assert.Equal(nameof(Order.OrderDetails), dependentEntry.Metadata.FindOwnership().PrincipalToDependent.Name);
+                Assert.Equal(nameof(Order.OrderDetails), dependentEntry.Metadata.FindOwnership()!.PrincipalToDependent!.Name);
             });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Query_subowned()
     {
         Seed();
@@ -900,14 +867,13 @@ public class QueryFixupTest
         // Owned entity without owner. Issue #24807.
         Assert.Equal(
             CoreStrings.OwnedEntitiesCannotBeTrackedWithoutTheirOwner,
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                {
-                    var subDependent1 = context.Set<Order>()
-                        .Include(a => a.OrderDetails.BillingAddress.OrderDetails.Order)
-                        .Select(o => o.OrderDetails.BillingAddress)
-                        .Single();
-                }).Message);
+            Assert.Throws<InvalidOperationException>(() =>
+            {
+                var subDependent1 = context.Set<Order>()
+                    .Include(a => a.OrderDetails.BillingAddress.OrderDetails.Order)
+                    .Select(o => o.OrderDetails.BillingAddress)
+                    .Single();
+            }).Message);
 
         // var subDependent2 = context.Set<Order>()
         //     .Include(a => a.OrderDetails.ShippingAddress.OrderDetails.Order)
@@ -974,7 +940,8 @@ public class QueryFixupTest
                 Id = 77,
                 OrderDetails = new OrderDetails
                 {
-                    BillingAddress = new Address { Street = "BillMe" }, ShippingAddress = new Address { Street = "ShipMe" }
+                    BillingAddress = new Address { Street = "BillMe" },
+                    ShippingAddress = new Address { Street = "ShipMe" }
                 }
             });
 
@@ -985,7 +952,7 @@ public class QueryFixupTest
     {
         public int Id { get; set; }
 
-        public Child Child { get; set; }
+        public Child Child { get; set; } = null!;
     }
 
     private class Child
@@ -993,14 +960,14 @@ public class QueryFixupTest
         public int Id { get; set; }
         public int ParentId { get; set; }
 
-        public Parent Parent { get; set; }
+        public Parent Parent { get; set; } = null!;
     }
 
     private class ParentPN
     {
         public int Id { get; set; }
 
-        public ChildPN Child { get; set; }
+        public ChildPN Child { get; set; } = null!;
     }
 
     private class ChildPN
@@ -1020,7 +987,7 @@ public class QueryFixupTest
         public int Id { get; set; }
         public int ParentId { get; set; }
 
-        public ParentDN Parent { get; set; }
+        public ParentDN Parent { get; set; } = null!;
     }
 
     private class CategoryDN
@@ -1033,7 +1000,7 @@ public class QueryFixupTest
         public int Id { get; set; }
         public int CategoryId { get; set; }
 
-        public CategoryDN Category { get; set; }
+        public CategoryDN Category { get; set; } = null!;
     }
 
     private class CategoryPN
@@ -1061,27 +1028,27 @@ public class QueryFixupTest
         public int Id { get; set; }
         public int CategoryId { get; set; }
 
-        public Category Category { get; set; }
+        public Category Category { get; set; } = null!;
     }
 
     private class Order
     {
         public int Id { get; set; }
 
-        public OrderDetails OrderDetails { get; set; }
+        public OrderDetails OrderDetails { get; set; } = null!;
     }
 
     private class OrderDetails
     {
-        public Order Order { get; set; }
-        public Address BillingAddress { get; set; }
-        public Address ShippingAddress { get; set; }
+        public Order Order { get; } = null!;
+        public Address BillingAddress { get; set; } = null!;
+        public Address ShippingAddress { get; set; } = null!;
     }
 
     private class Address
     {
-        public OrderDetails OrderDetails { get; set; }
-        public string Street { get; set; }
+        public OrderDetails OrderDetails { get; } = null!;
+        public string Street { get; set; } = null!;
     }
 
     private class Blog
@@ -1091,7 +1058,7 @@ public class QueryFixupTest
         public ICollection<Post> Posts { get; } = new List<Post>();
 
         public int TopPostId { get; set; }
-        public Post TopPost { get; set; }
+        public Post TopPost { get; set; } = null!;
     }
 
     private class Post
@@ -1099,7 +1066,7 @@ public class QueryFixupTest
         public int Id { get; set; }
         public int BlogId { get; set; }
 
-        public Blog Blog { get; set; }
+        public Blog Blog { get; set; } = null!;
     }
 
     public class Widget
@@ -1107,9 +1074,9 @@ public class QueryFixupTest
         public int Id { get; set; }
 
         public int? ParentWidgetId { get; set; }
-        public Widget ParentWidget { get; set; }
+        public Widget ParentWidget { get; set; } = null!;
 
-        public List<Widget> ChildWidgets { get; set; }
+        public List<Widget> ChildWidgets { get; set; } = null!;
     }
 
     public class WidgetPN
@@ -1118,7 +1085,7 @@ public class QueryFixupTest
 
         public int? ParentWidgetId { get; set; }
 
-        public List<WidgetPN> ChildWidgets { get; set; }
+        public List<WidgetPN> ChildWidgets { get; set; } = null!;
     }
 
     public class WidgetDN
@@ -1126,7 +1093,7 @@ public class QueryFixupTest
         public int Id { get; set; }
 
         public int? ParentWidgetId { get; set; }
-        public WidgetDN ParentWidget { get; set; }
+        public WidgetDN ParentWidget { get; set; } = null!;
     }
 
     public class Smidget
@@ -1134,8 +1101,8 @@ public class QueryFixupTest
         public int Id { get; set; }
 
         public int? ParentSmidgetId { get; set; }
-        public Smidget ParentSmidget { get; set; }
-        public Smidget ChildSmidget { get; set; }
+        public Smidget ParentSmidget { get; set; } = null!;
+        public Smidget ChildSmidget { get; set; } = null!;
     }
 
     public class SmidgetPN
@@ -1143,7 +1110,7 @@ public class QueryFixupTest
         public int Id { get; set; }
 
         public int? ParentSmidgetId { get; set; }
-        public SmidgetPN ChildSmidget { get; set; }
+        public SmidgetPN ChildSmidget { get; set; } = null!;
     }
 
     public class SmidgetDN
@@ -1151,15 +1118,13 @@ public class QueryFixupTest
         public int Id { get; set; }
 
         public int? ParentSmidgetId { get; set; }
-        public SmidgetDN ParentSmidget { get; set; }
+        public SmidgetDN ParentSmidget { get; set; } = null!;
     }
 
     private class QueryFixupContext : DbContext
     {
         public QueryFixupContext()
-        {
-            ChangeTracker.AutoDetectChangesEnabled = false;
-        }
+            => ChangeTracker.AutoDetectChangesEnabled = false;
 
         protected internal override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -1232,26 +1197,25 @@ public class QueryFixupTest
                 .WithOne()
                 .HasForeignKey<Blog>(e => e.TopPostId);
 
-            modelBuilder.Entity<Order>(
-                pb =>
-                {
-                    pb.Property(p => p.Id).ValueGeneratedNever();
-                    pb.OwnsOne(
-                        p => p.OrderDetails, cb =>
-                        {
-                            cb.Property<int?>("OrderId");
-                            cb.WithOwner(c => c.Order)
-                                .HasForeignKey("OrderId");
+            modelBuilder.Entity<Order>(pb =>
+            {
+                pb.Property(p => p.Id).ValueGeneratedNever();
+                pb.OwnsOne(
+                    p => p.OrderDetails, cb =>
+                    {
+                        cb.Property<int?>("OrderId");
+                        cb.WithOwner(c => c.Order)
+                            .HasForeignKey("OrderId");
 
-                            cb.OwnsOne(c => c.BillingAddress)
-                                .WithOwner(c => c.OrderDetails)
-                                .HasForeignKey("OrderDetailsId");
+                        cb.OwnsOne(c => c.BillingAddress)
+                            .WithOwner(c => c.OrderDetails)
+                            .HasForeignKey("OrderDetailsId");
 
-                            cb.OwnsOne(c => c.ShippingAddress)
-                                .WithOwner(c => c.OrderDetails)
-                                .HasForeignKey("OrderDetailsId");
-                        });
-                });
+                        cb.OwnsOne(c => c.ShippingAddress)
+                            .WithOwner(c => c.OrderDetails)
+                            .HasForeignKey("OrderDetailsId");
+                    });
+            });
         }
 
         protected internal override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

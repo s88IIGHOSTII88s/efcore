@@ -98,7 +98,7 @@ public class DesignTimeServicesBuilder
         _reporter.WriteVerbose(DesignStrings.FindingDesignTimeServices(_startupAssembly.GetName().Name));
 
         var designTimeServicesType = _startupAssembly.GetLoadableDefinedTypes()
-            .Where(t => typeof(IDesignTimeServices).IsAssignableFrom(t)).Select(t => t.AsType())
+            .Where(t => typeof(IDesignTimeServices).IsAssignableFrom(t) && t.IsInstantiable()).Select(t => t.AsType())
             .FirstOrDefault();
         if (designTimeServicesType == null)
         {
@@ -172,17 +172,10 @@ public class DesignTimeServicesBuilder
         var providerServicesAttribute = providerAssembly.GetCustomAttribute<DesignTimeProviderServicesAttribute>();
         if (providerServicesAttribute == null)
         {
-            var message = DesignStrings.CannotFindDesignTimeProviderAssemblyAttribute(
-                provider);
+            _reporter.WriteVerbose(
+                DesignStrings.CannotFindDesignTimeProviderAssemblyAttribute(provider));
 
-            if (!throwOnError)
-            {
-                _reporter.WriteVerbose(message);
-
-                return;
-            }
-
-            throw new InvalidOperationException(message);
+            return;
         }
 
         var designTimeServicesType = providerAssembly.GetType(

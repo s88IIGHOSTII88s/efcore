@@ -20,13 +20,32 @@ public class DbConnectionInterceptorAggregator : InterceptorAggregator<IDbConnec
     protected override IDbConnectionInterceptor CreateChain(IEnumerable<IDbConnectionInterceptor> interceptors)
         => new CompositeDbConnectionInterceptor(interceptors);
 
-    private sealed class CompositeDbConnectionInterceptor : IDbConnectionInterceptor
+    private sealed class CompositeDbConnectionInterceptor(IEnumerable<IDbConnectionInterceptor> interceptors) : IDbConnectionInterceptor
     {
-        private readonly IDbConnectionInterceptor[] _interceptors;
+        private readonly IDbConnectionInterceptor[] _interceptors = interceptors.ToArray();
 
-        public CompositeDbConnectionInterceptor(IEnumerable<IDbConnectionInterceptor> interceptors)
+        public InterceptionResult<DbConnection> ConnectionCreating(
+            ConnectionCreatingEventData eventData,
+            InterceptionResult<DbConnection> result)
         {
-            _interceptors = interceptors.ToArray();
+            for (var i = 0; i < _interceptors.Length; i++)
+            {
+                result = _interceptors[i].ConnectionCreating(eventData, result);
+            }
+
+            return result;
+        }
+
+        public DbConnection ConnectionCreated(
+            ConnectionCreatedEventData eventData,
+            DbConnection result)
+        {
+            for (var i = 0; i < _interceptors.Length; i++)
+            {
+                result = _interceptors[i].ConnectionCreated(eventData, result);
+            }
+
+            return result;
         }
 
         public InterceptionResult ConnectionOpening(
@@ -123,6 +142,76 @@ public class DbConnectionInterceptorAggregator : InterceptorAggregator<IDbConnec
             for (var i = 0; i < _interceptors.Length; i++)
             {
                 await _interceptors[i].ConnectionClosedAsync(connection, eventData)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        public InterceptionResult ConnectionDisposing(
+            DbConnection connection,
+            ConnectionEventData eventData,
+            InterceptionResult result)
+        {
+            for (var i = 0; i < _interceptors.Length; i++)
+            {
+                result = _interceptors[i].ConnectionDisposing(connection, eventData, result);
+            }
+
+            return result;
+        }
+
+        public async ValueTask<InterceptionResult> ConnectionDisposingAsync(
+            DbConnection connection,
+            ConnectionEventData eventData,
+            InterceptionResult result)
+        {
+            for (var i = 0; i < _interceptors.Length; i++)
+            {
+                result = await _interceptors[i].ConnectionDisposingAsync(connection, eventData, result)
+                    .ConfigureAwait(false);
+            }
+
+            return result;
+        }
+
+        public void ConnectionDisposed(
+            DbConnection connection,
+            ConnectionEndEventData eventData)
+        {
+            for (var i = 0; i < _interceptors.Length; i++)
+            {
+                _interceptors[i].ConnectionDisposed(connection, eventData);
+            }
+        }
+
+        public async Task ConnectionDisposedAsync(
+            DbConnection connection,
+            ConnectionEndEventData eventData)
+        {
+            for (var i = 0; i < _interceptors.Length; i++)
+            {
+                await _interceptors[i].ConnectionDisposedAsync(connection, eventData)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        public void ConnectionCanceled(
+            DbConnection connection,
+            ConnectionEndEventData eventData)
+        {
+            for (var i = 0; i < _interceptors.Length; i++)
+            {
+                _interceptors[i].ConnectionCanceled(connection, eventData);
+            }
+        }
+
+        public async Task ConnectionCanceledAsync(
+            DbConnection connection,
+            ConnectionEndEventData eventData,
+            CancellationToken cancellationToken = default)
+        {
+            for (var i = 0; i < _interceptors.Length; i++)
+            {
+                await _interceptors[i].ConnectionCanceledAsync(connection, eventData, cancellationToken)
                     .ConfigureAwait(false);
             }
         }

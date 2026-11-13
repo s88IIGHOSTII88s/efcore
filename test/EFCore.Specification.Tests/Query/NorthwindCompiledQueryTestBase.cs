@@ -1,25 +1,19 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
-using Xunit.Sdk;
 
 // ReSharper disable AccessToModifiedClosure
 // ReSharper disable InconsistentNaming
 // ReSharper disable ConvertToExpressionBodyWhenPossible
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<TFixture>
+public abstract class NorthwindCompiledQueryTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : NorthwindQueryFixtureBase<NoopModelCustomizer>, new()
 {
-    protected NorthwindCompiledQueryTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
+    protected TFixture Fixture { get; } = fixture;
 
-    protected TFixture Fixture { get; }
-
-    [ConditionalFact]
+    [Fact]
     public virtual void DbSet_query()
     {
         var query = EF.CompileQuery((NorthwindContext context) => context.Customers);
@@ -35,11 +29,10 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void DbSet_query_first()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context) => context.Set<Customer>().OrderBy(c => c.CustomerID).First());
+        var query = EF.CompileQuery((NorthwindContext context) => context.Set<Customer>().OrderBy(c => c.CustomerID).First());
 
         using (var context = CreateContext())
         {
@@ -47,7 +40,7 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Keyless_query()
     {
         var query = EF.CompileQuery((NorthwindContext context) => context.CustomerQueries);
@@ -63,11 +56,10 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Keyless_query_first()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context) => context.CustomerQueries.OrderBy(c => c.CompanyName).First());
+        var query = EF.CompileQuery((NorthwindContext context) => context.CustomerQueries.OrderBy(c => c.CompanyName).First());
 
         using (var context = CreateContext())
         {
@@ -75,12 +67,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Query_ending_with_include()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context)
-                => context.Customers.Include(c => c.Orders));
+        var query = EF.CompileQuery((NorthwindContext context)
+            => context.Customers.Include(c => c.Orders));
 
         using (var context = CreateContext())
         {
@@ -93,7 +84,7 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Untyped_context()
     {
         var query = EF.CompileQuery((DbContext context) => context.Set<Customer>());
@@ -109,12 +100,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Query_with_single_parameter()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context, string customerID)
-                => context.Customers.Where(c => c.CustomerID == customerID));
+        var query = EF.CompileQuery((NorthwindContext context, string customerID)
+            => context.Customers.Where(c => c.CustomerID == customerID));
 
         using (var context = CreateContext())
         {
@@ -127,12 +117,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Query_with_single_parameter_with_include()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context, string customerID)
-                => context.Customers.Where(c => c.CustomerID == customerID).Include(c => c.Orders));
+        var query = EF.CompileQuery((NorthwindContext context, string customerID)
+            => context.Customers.Where(c => c.CustomerID == customerID).Include(c => c.Orders));
 
         using (var context = CreateContext())
         {
@@ -145,12 +134,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void First_query_with_single_parameter()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context, string customerID)
-                => context.Customers.First(c => c.CustomerID == customerID));
+        var query = EF.CompileQuery((NorthwindContext context, string customerID)
+            => context.Customers.First(c => c.CustomerID == customerID));
 
         using (var context = CreateContext())
         {
@@ -163,12 +151,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Query_with_two_parameters()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context, object _, string customerID)
-                => context.Customers.Where(c => c.CustomerID == customerID));
+        var query = EF.CompileQuery((NorthwindContext context, object? _, string customerID)
+            => context.Customers.Where(c => c.CustomerID == customerID));
 
         using (var context = CreateContext())
         {
@@ -181,12 +168,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Query_with_three_parameters()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context, object _, int __, string customerID)
-                => context.Customers.Where(c => c.CustomerID == customerID));
+        var query = EF.CompileQuery((NorthwindContext context, object? _, int __, string customerID)
+            => context.Customers.Where(c => c.CustomerID == customerID));
 
         using (var context = CreateContext())
         {
@@ -199,49 +185,46 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Query_with_array_parameter()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context, string[] args)
-                => context.Customers.Where(c => c.CustomerID == args[0]));
+        var query = EF.CompileQuery((NorthwindContext context, string[] args)
+            => context.Customers.Where(c => c.CustomerID == args[0]));
 
         using (var context = CreateContext())
         {
-            query(context, new[] { "ALFKI" });
+            Assert.Equal(1, query(context, ["ALFKI"]).Count());
         }
 
         using (var context = CreateContext())
         {
-            query(context, new[] { "ANATR" });
+            Assert.Equal(1, query(context, ["ANATR"]).Count());
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Query_with_contains()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context, string[] args)
-                => context.Customers.Where(c => args.Contains(c.CustomerID)));
+        var query = EF.CompileQuery((NorthwindContext context, string[] args)
+            => context.Customers.Where(c => args.Contains(c.CustomerID)));
 
         using (var context = CreateContext())
         {
-            Assert.Equal("ALFKI", query(context, new[] { "ALFKI" }).First().CustomerID);
+            Assert.Equal("ALFKI", query(context, ["ALFKI"]).First().CustomerID);
         }
 
         using (var context = CreateContext())
         {
-            Assert.Equal("ANATR", query(context, new[] { "ANATR" }).First().CustomerID);
+            Assert.Equal("ANATR", query(context, ["ANATR"]).First().CustomerID);
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Multiple_queries()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context)
-                => context.Customers.OrderBy(c => c.CustomerID).Select(c => c.CustomerID).FirstOrDefault()
-                + context.Orders.OrderBy(o => o.CustomerID).Select(o => o.CustomerID).FirstOrDefault());
+        var query = EF.CompileQuery((NorthwindContext context)
+            => context.Customers.OrderBy(c => c.CustomerID).Select(c => c.CustomerID).FirstOrDefault()
+            + context.Orders.OrderBy(o => o.CustomerID).Select(o => o.CustomerID).FirstOrDefault());
 
         using (var context = CreateContext())
         {
@@ -254,14 +237,13 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Query_with_closure()
     {
         var customerID = "ALFKI";
 
-        var query = EF.CompileQuery(
-            (NorthwindContext context)
-                => context.Customers.Where(c => c.CustomerID == customerID));
+        var query = EF.CompileQuery((NorthwindContext context)
+            => context.Customers.Where(c => c.CustomerID == customerID));
 
         using (var context = CreateContext())
         {
@@ -276,14 +258,13 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Query_with_closure_null()
     {
-        string customerID = null;
+        string? customerID = null;
 
-        var query = EF.CompileQuery(
-            (NorthwindContext context)
-                => context.Customers.Where(c => c.CustomerID == customerID));
+        var query = EF.CompileQuery((NorthwindContext context)
+            => context.Customers.Where(c => c.CustomerID == customerID));
 
         using (var context = CreateContext())
         {
@@ -291,7 +272,7 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task DbSet_query_async()
     {
         var query = EF.CompileAsyncQuery((NorthwindContext context) => context.Customers);
@@ -307,12 +288,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task DbSet_query_first_async()
     {
-        var query = EF.CompileAsyncQuery(
-            (NorthwindContext context)
-                => context.Customers.OrderBy(c => c.CustomerID).First());
+        var query = EF.CompileAsyncQuery((NorthwindContext context)
+            => context.Customers.OrderBy(c => c.CustomerID).First());
 
         using (var context = CreateContext())
         {
@@ -320,7 +300,7 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Keyless_query_async()
     {
         var query = EF.CompileAsyncQuery((NorthwindContext context) => context.CustomerQueries);
@@ -336,12 +316,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Keyless_query_first_async()
     {
-        var query = EF.CompileAsyncQuery(
-            (NorthwindContext context)
-                => context.CustomerQueries.OrderBy(c => c.CompanyName).First());
+        var query = EF.CompileAsyncQuery((NorthwindContext context)
+            => context.CustomerQueries.OrderBy(c => c.CompanyName).First());
 
         using (var context = CreateContext())
         {
@@ -349,7 +328,7 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Untyped_context_async()
     {
         var query = EF.CompileAsyncQuery((DbContext context) => context.Set<Customer>());
@@ -365,12 +344,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Query_with_single_parameter_async()
     {
-        var query = EF.CompileAsyncQuery(
-            (NorthwindContext context, string customerID)
-                => context.Customers.Where(c => c.CustomerID == customerID));
+        var query = EF.CompileAsyncQuery((NorthwindContext context, string customerID)
+            => context.Customers.Where(c => c.CustomerID == customerID));
 
         using (var context = CreateContext())
         {
@@ -383,12 +361,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task First_query_with_single_parameter_async()
     {
-        var query = EF.CompileAsyncQuery(
-            (NorthwindContext context, string customerID)
-                => context.Customers.First(c => c.CustomerID == customerID));
+        var query = EF.CompileAsyncQuery((NorthwindContext context, string customerID)
+            => context.Customers.First(c => c.CustomerID == customerID));
 
         using (var context = CreateContext())
         {
@@ -401,12 +378,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task First_query_with_cancellation_async()
     {
-        var query = EF.CompileAsyncQuery(
-            (NorthwindContext context, string customerID, CancellationToken ct)
-                => context.Customers.First(c => c.CustomerID == customerID));
+        var query = EF.CompileAsyncQuery((NorthwindContext context, string customerID, CancellationToken ct)
+            => context.Customers.First(c => c.CustomerID == customerID));
 
         var cancellationToken = default(CancellationToken);
 
@@ -421,12 +397,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Query_with_two_parameters_async()
     {
-        var query = EF.CompileAsyncQuery(
-            (NorthwindContext context, object _, string customerID)
-                => context.Customers.Where(c => c.CustomerID == customerID));
+        var query = EF.CompileAsyncQuery((NorthwindContext context, object? _, string customerID)
+            => context.Customers.Where(c => c.CustomerID == customerID));
 
         using (var context = CreateContext())
         {
@@ -439,12 +414,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Query_with_three_parameters_async()
     {
-        var query = EF.CompileAsyncQuery(
-            (NorthwindContext context, object _, int __, string customerID)
-                => context.Customers.Where(c => c.CustomerID == customerID));
+        var query = EF.CompileAsyncQuery((NorthwindContext context, object? _, int __, string customerID)
+            => context.Customers.Where(c => c.CustomerID == customerID));
 
         using (var context = CreateContext())
         {
@@ -457,32 +431,30 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Query_with_array_parameter_async()
     {
-        var query = EF.CompileAsyncQuery(
-            (NorthwindContext context, string[] args)
-                => context.Customers.Where(c => c.CustomerID == args[0]));
+        var query = EF.CompileAsyncQuery((NorthwindContext context, string[] args)
+            => context.Customers.Where(c => c.CustomerID == args[0]));
 
         using (var context = CreateContext())
         {
-            await Enumerate(query(context, new[] { "ALFKI" }));
+            Assert.Equal(1, await CountAsync(query(context, ["ALFKI"])));
         }
 
         using (var context = CreateContext())
         {
-            await Enumerate(query(context, new[] { "ANATR" }));
+            Assert.Equal(1, await CountAsync(query(context, ["ANATR"])));
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Query_with_closure_async()
     {
         var customerID = "ALFKI";
 
-        var query = EF.CompileAsyncQuery(
-            (NorthwindContext context)
-                => context.Customers.Where(c => c.CustomerID == customerID));
+        var query = EF.CompileAsyncQuery((NorthwindContext context)
+            => context.Customers.Where(c => c.CustomerID == customerID));
 
         using (var context = CreateContext())
         {
@@ -497,14 +469,13 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Query_with_closure_async_null()
     {
-        string customerID = null;
+        string? customerID = null;
 
-        var query = EF.CompileAsyncQuery(
-            (NorthwindContext context)
-                => context.Customers.Where(c => c.CustomerID == customerID));
+        var query = EF.CompileAsyncQuery((NorthwindContext context)
+            => context.Customers.Where(c => c.CustomerID == customerID));
 
         using (var context = CreateContext())
         {
@@ -512,12 +483,11 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Compiled_query_when_does_not_end_in_query_operator()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context, string customerID)
-                => context.Customers.Where(c => c.CustomerID == customerID).Count() == 1);
+        var query = EF.CompileQuery((NorthwindContext context, string customerID)
+            => context.Customers.Where(c => c.CustomerID == customerID).Count() == 1);
 
         using (var context = CreateContext())
         {
@@ -525,284 +495,266 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Compiled_query_when_using_member_on_context()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context)
-                => context.Customers.Where(c => c.CustomerID.StartsWith(context.TenantPrefix)));
+        var query = EF.CompileQuery((NorthwindContext context)
+            => context.Customers.Where(c => c.CustomerID.StartsWith(context.TenantPrefix)));
 
         using (var context = CreateContext())
         {
             context.TenantPrefix = "A";
 
             // Parameter-specific evaluation in ParameterExtractor. Issue #19209.
-            Assert.Equal(
-                "4",
-                Assert.Throws<EqualException>(
-                    () =>
-                        Assert.Equal(6, query(context).Count())).Actual);
+            // Assert.Equal(6, query(context).Count())
+            Assert.Equal(4, query(context).Count());
 
             context.TenantPrefix = "B";
             Assert.Equal(4, query(context).Count());
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual async Task Compiled_query_with_max_parameters()
     {
-        var syncEnumerableQuery = EF.CompileQuery(
-            (
-                    NorthwindContext context,
-                    string s1,
-                    string s2,
-                    string s3,
-                    string s4,
-                    string s5,
-                    string s6,
-                    string s7,
-                    string s8,
-                    string s9,
-                    string s10,
-                    string s11,
-                    string s12,
-                    string s13,
-                    string s14,
-                    string s15)
-                => context.Set<Customer>()
-                    .Where(
-                        c => c.CustomerID == s1
-                            || c.CustomerID == s2
-                            || c.CustomerID == s3
-                            || c.CustomerID == s4
-                            || c.CustomerID == s5
-                            || c.CustomerID == s6
-                            || c.CustomerID == s7
-                            || c.CustomerID == s8
-                            || c.CustomerID == s9
-                            || c.CustomerID == s10
-                            || c.CustomerID == s11
-                            || c.CustomerID == s12
-                            || c.CustomerID == s13
-                            || c.CustomerID == s14
-                            || c.CustomerID == s15));
+        var syncEnumerableQuery = EF.CompileQuery((
+                NorthwindContext context,
+                string s1,
+                string s2,
+                string s3,
+                string s4,
+                string s5,
+                string s6,
+                string s7,
+                string s8,
+                string s9,
+                string s10,
+                string s11,
+                string s12,
+                string s13,
+                string s14,
+                string s15)
+            => context.Set<Customer>()
+                .Where(c => c.CustomerID == s1
+                    || c.CustomerID == s2
+                    || c.CustomerID == s3
+                    || c.CustomerID == s4
+                    || c.CustomerID == s5
+                    || c.CustomerID == s6
+                    || c.CustomerID == s7
+                    || c.CustomerID == s8
+                    || c.CustomerID == s9
+                    || c.CustomerID == s10
+                    || c.CustomerID == s11
+                    || c.CustomerID == s12
+                    || c.CustomerID == s13
+                    || c.CustomerID == s14
+                    || c.CustomerID == s15));
 
-        var syncIncludeEnumerableQuery = EF.CompileQuery(
-            (
-                    NorthwindContext context,
-                    string s1,
-                    string s2,
-                    string s3,
-                    string s4,
-                    string s5,
-                    string s6,
-                    string s7,
-                    string s8,
-                    string s9,
-                    string s10,
-                    string s11,
-                    string s12,
-                    string s13,
-                    string s14,
-                    string s15)
-                => context.Set<Customer>()
-                    .Where(
-                        c => c.CustomerID == s1
-                            || c.CustomerID == s2
-                            || c.CustomerID == s3
-                            || c.CustomerID == s4
-                            || c.CustomerID == s5
-                            || c.CustomerID == s6
-                            || c.CustomerID == s7
-                            || c.CustomerID == s8
-                            || c.CustomerID == s9
-                            || c.CustomerID == s10
-                            || c.CustomerID == s11
-                            || c.CustomerID == s12
-                            || c.CustomerID == s13
-                            || c.CustomerID == s14
-                            || c.CustomerID == s15)
-                    .Include(c => c.Orders));
+        var syncIncludeEnumerableQuery = EF.CompileQuery((
+                NorthwindContext context,
+                string s1,
+                string s2,
+                string s3,
+                string s4,
+                string s5,
+                string s6,
+                string s7,
+                string s8,
+                string s9,
+                string s10,
+                string s11,
+                string s12,
+                string s13,
+                string s14,
+                string s15)
+            => context.Set<Customer>()
+                .Where(c => c.CustomerID == s1
+                    || c.CustomerID == s2
+                    || c.CustomerID == s3
+                    || c.CustomerID == s4
+                    || c.CustomerID == s5
+                    || c.CustomerID == s6
+                    || c.CustomerID == s7
+                    || c.CustomerID == s8
+                    || c.CustomerID == s9
+                    || c.CustomerID == s10
+                    || c.CustomerID == s11
+                    || c.CustomerID == s12
+                    || c.CustomerID == s13
+                    || c.CustomerID == s14
+                    || c.CustomerID == s15)
+                .Include(c => c.Orders));
 
-        var syncSingleResultQuery = EF.CompileQuery(
-            (
-                    NorthwindContext context,
-                    string s1,
-                    string s2,
-                    string s3,
-                    string s4,
-                    string s5,
-                    string s6,
-                    string s7,
-                    string s8,
-                    string s9,
-                    string s10,
-                    string s11,
-                    string s12,
-                    string s13,
-                    string s14,
-                    string s15)
-                => context.Set<Customer>()
-                    .Count(
-                        c => c.CustomerID == s1
-                            || c.CustomerID == s2
-                            || c.CustomerID == s3
-                            || c.CustomerID == s4
-                            || c.CustomerID == s5
-                            || c.CustomerID == s6
-                            || c.CustomerID == s7
-                            || c.CustomerID == s8
-                            || c.CustomerID == s9
-                            || c.CustomerID == s10
-                            || c.CustomerID == s11
-                            || c.CustomerID == s12
-                            || c.CustomerID == s13
-                            || c.CustomerID == s14
-                            || c.CustomerID == s15));
+        var syncSingleResultQuery = EF.CompileQuery((
+                NorthwindContext context,
+                string s1,
+                string s2,
+                string s3,
+                string s4,
+                string s5,
+                string s6,
+                string s7,
+                string s8,
+                string s9,
+                string s10,
+                string s11,
+                string s12,
+                string s13,
+                string s14,
+                string s15)
+            => context.Set<Customer>()
+                .Count(c => c.CustomerID == s1
+                    || c.CustomerID == s2
+                    || c.CustomerID == s3
+                    || c.CustomerID == s4
+                    || c.CustomerID == s5
+                    || c.CustomerID == s6
+                    || c.CustomerID == s7
+                    || c.CustomerID == s8
+                    || c.CustomerID == s9
+                    || c.CustomerID == s10
+                    || c.CustomerID == s11
+                    || c.CustomerID == s12
+                    || c.CustomerID == s13
+                    || c.CustomerID == s14
+                    || c.CustomerID == s15));
 
-        var asyncEnumerableQuery = EF.CompileAsyncQuery(
-            (
-                    NorthwindContext context,
-                    string s1,
-                    string s2,
-                    string s3,
-                    string s4,
-                    string s5,
-                    string s6,
-                    string s7,
-                    string s8,
-                    string s9,
-                    string s10,
-                    string s11,
-                    string s12,
-                    string s13,
-                    string s14,
-                    string s15)
-                => context.Set<Customer>()
-                    .Where(
-                        c => c.CustomerID == s1
-                            || c.CustomerID == s2
-                            || c.CustomerID == s3
-                            || c.CustomerID == s4
-                            || c.CustomerID == s5
-                            || c.CustomerID == s6
-                            || c.CustomerID == s7
-                            || c.CustomerID == s8
-                            || c.CustomerID == s9
-                            || c.CustomerID == s10
-                            || c.CustomerID == s11
-                            || c.CustomerID == s12
-                            || c.CustomerID == s13
-                            || c.CustomerID == s14
-                            || c.CustomerID == s15));
+        var asyncEnumerableQuery = EF.CompileAsyncQuery((
+                NorthwindContext context,
+                string s1,
+                string s2,
+                string s3,
+                string s4,
+                string s5,
+                string s6,
+                string s7,
+                string s8,
+                string s9,
+                string s10,
+                string s11,
+                string s12,
+                string s13,
+                string s14,
+                string s15)
+            => context.Set<Customer>()
+                .Where(c => c.CustomerID == s1
+                    || c.CustomerID == s2
+                    || c.CustomerID == s3
+                    || c.CustomerID == s4
+                    || c.CustomerID == s5
+                    || c.CustomerID == s6
+                    || c.CustomerID == s7
+                    || c.CustomerID == s8
+                    || c.CustomerID == s9
+                    || c.CustomerID == s10
+                    || c.CustomerID == s11
+                    || c.CustomerID == s12
+                    || c.CustomerID == s13
+                    || c.CustomerID == s14
+                    || c.CustomerID == s15));
 
-        var asyncIncludeEnumerableQuery = EF.CompileAsyncQuery(
-            (
-                    NorthwindContext context,
-                    string s1,
-                    string s2,
-                    string s3,
-                    string s4,
-                    string s5,
-                    string s6,
-                    string s7,
-                    string s8,
-                    string s9,
-                    string s10,
-                    string s11,
-                    string s12,
-                    string s13,
-                    string s14,
-                    string s15)
-                => context.Set<Customer>()
-                    .Where(
-                        c => c.CustomerID == s1
-                            || c.CustomerID == s2
-                            || c.CustomerID == s3
-                            || c.CustomerID == s4
-                            || c.CustomerID == s5
-                            || c.CustomerID == s6
-                            || c.CustomerID == s7
-                            || c.CustomerID == s8
-                            || c.CustomerID == s9
-                            || c.CustomerID == s10
-                            || c.CustomerID == s11
-                            || c.CustomerID == s12
-                            || c.CustomerID == s13
-                            || c.CustomerID == s14
-                            || c.CustomerID == s15)
-                    .Include(c => c.Orders));
+        var asyncIncludeEnumerableQuery = EF.CompileAsyncQuery((
+                NorthwindContext context,
+                string s1,
+                string s2,
+                string s3,
+                string s4,
+                string s5,
+                string s6,
+                string s7,
+                string s8,
+                string s9,
+                string s10,
+                string s11,
+                string s12,
+                string s13,
+                string s14,
+                string s15)
+            => context.Set<Customer>()
+                .Where(c => c.CustomerID == s1
+                    || c.CustomerID == s2
+                    || c.CustomerID == s3
+                    || c.CustomerID == s4
+                    || c.CustomerID == s5
+                    || c.CustomerID == s6
+                    || c.CustomerID == s7
+                    || c.CustomerID == s8
+                    || c.CustomerID == s9
+                    || c.CustomerID == s10
+                    || c.CustomerID == s11
+                    || c.CustomerID == s12
+                    || c.CustomerID == s13
+                    || c.CustomerID == s14
+                    || c.CustomerID == s15)
+                .Include(c => c.Orders));
 
-        var asyncSingleResultQuery = EF.CompileAsyncQuery(
-            (
-                    NorthwindContext context,
-                    string s1,
-                    string s2,
-                    string s3,
-                    string s4,
-                    string s5,
-                    string s6,
-                    string s7,
-                    string s8,
-                    string s9,
-                    string s10,
-                    string s11,
-                    string s12,
-                    string s13,
-                    string s14,
-                    string s15)
-                => context.Set<Customer>()
-                    .Count(
-                        c => c.CustomerID == s1
-                            || c.CustomerID == s2
-                            || c.CustomerID == s3
-                            || c.CustomerID == s4
-                            || c.CustomerID == s5
-                            || c.CustomerID == s6
-                            || c.CustomerID == s7
-                            || c.CustomerID == s8
-                            || c.CustomerID == s9
-                            || c.CustomerID == s10
-                            || c.CustomerID == s11
-                            || c.CustomerID == s12
-                            || c.CustomerID == s13
-                            || c.CustomerID == s14
-                            || c.CustomerID == s15));
+        var asyncSingleResultQuery = EF.CompileAsyncQuery((
+                NorthwindContext context,
+                string s1,
+                string s2,
+                string s3,
+                string s4,
+                string s5,
+                string s6,
+                string s7,
+                string s8,
+                string s9,
+                string s10,
+                string s11,
+                string s12,
+                string s13,
+                string s14,
+                string s15)
+            => context.Set<Customer>()
+                .Count(c => c.CustomerID == s1
+                    || c.CustomerID == s2
+                    || c.CustomerID == s3
+                    || c.CustomerID == s4
+                    || c.CustomerID == s5
+                    || c.CustomerID == s6
+                    || c.CustomerID == s7
+                    || c.CustomerID == s8
+                    || c.CustomerID == s9
+                    || c.CustomerID == s10
+                    || c.CustomerID == s11
+                    || c.CustomerID == s12
+                    || c.CustomerID == s13
+                    || c.CustomerID == s14
+                    || c.CustomerID == s15));
 
-        var asyncSingleResultQueryWithCancellationToken = EF.CompileAsyncQuery(
-            (
-                    NorthwindContext context,
-                    string s1,
-                    string s2,
-                    string s3,
-                    string s4,
-                    string s5,
-                    string s6,
-                    string s7,
-                    string s8,
-                    string s9,
-                    string s10,
-                    string s11,
-                    string s12,
-                    string s13,
-                    string s14,
-                    CancellationToken ct)
-                => context.Set<Customer>()
-                    .Count(
-                        c => c.CustomerID == s1
-                            || c.CustomerID == s2
-                            || c.CustomerID == s3
-                            || c.CustomerID == s4
-                            || c.CustomerID == s5
-                            || c.CustomerID == s6
-                            || c.CustomerID == s7
-                            || c.CustomerID == s8
-                            || c.CustomerID == s9
-                            || c.CustomerID == s10
-                            || c.CustomerID == s11
-                            || c.CustomerID == s12
-                            || c.CustomerID == s13
-                            || c.CustomerID == s14));
+        var asyncSingleResultQueryWithCancellationToken = EF.CompileAsyncQuery((
+                NorthwindContext context,
+                string s1,
+                string s2,
+                string s3,
+                string s4,
+                string s5,
+                string s6,
+                string s7,
+                string s8,
+                string s9,
+                string s10,
+                string s11,
+                string s12,
+                string s13,
+                string s14,
+                CancellationToken ct)
+            => context.Set<Customer>()
+                .Count(c => c.CustomerID == s1
+                    || c.CustomerID == s2
+                    || c.CustomerID == s3
+                    || c.CustomerID == s4
+                    || c.CustomerID == s5
+                    || c.CustomerID == s6
+                    || c.CustomerID == s7
+                    || c.CustomerID == s8
+                    || c.CustomerID == s9
+                    || c.CustomerID == s10
+                    || c.CustomerID == s11
+                    || c.CustomerID == s12
+                    || c.CustomerID == s13
+                    || c.CustomerID == s14));
 
         using var context = CreateContext();
 
@@ -847,27 +799,43 @@ public abstract class NorthwindCompiledQueryTestBase<TFixture> : IClassFixture<T
                 "CHOPS", "CONSH", default));
     }
 
-    [ConditionalFact]
-    public virtual void MakeBinary_does_not_throw_for_unsupported_operator()
+    [Fact]
+    public virtual void Compiled_query_with_EF_Constant_throws()
     {
-        var query = EF.CompileQuery(
-            (NorthwindContext context, object[] parameters)
-                => context.Customers.Where(c => c.CustomerID == (string)parameters[0]));
+        var query = EF.CompileQuery((NorthwindContext context) => context.Customers.Where(c => c.CustomerID == EF.Constant("ALFKI")));
 
         using var context = CreateContext();
 
-        var result = query(context, new[] { "ALFKI" }).ToList();
-
-        Assert.Single(result);
+        var message = Assert.Throws<InvalidOperationException>(() => query(context).ToList()).Message;
+        Assert.Equal(CoreStrings.EFMethodNotSupportedInCompiledQueries("EF.Constant<T>"), message);
     }
 
-    protected async Task Enumerate<T>(IAsyncEnumerable<T> source)
+    [Fact]
+    public virtual void Compiled_query_with_EF_Parameter_throws()
     {
+        var customerID = "ALFKI";
+
+        var query = EF.CompileQuery((NorthwindContext context) => context.Customers.Where(c => c.CustomerID == EF.Parameter(customerID)));
+
+        using var context = CreateContext();
+
+        var message = Assert.Throws<InvalidOperationException>(() => query(context).ToList()).Message;
+        Assert.Equal(CoreStrings.EFMethodNotSupportedInCompiledQueries("EF.Parameter<T>"), message);
+    }
+
+    protected async Task<int> CountAsync<T>(IAsyncEnumerable<T> source)
+    {
+        var count = 0;
         await foreach (var _ in source)
         {
+            count++;
         }
+
+        return count;
     }
 
     protected NorthwindContext CreateContext()
         => Fixture.CreateContext();
+
+    public static readonly IEnumerable<object[]> IsAsyncData = [[false], [true]];
 }

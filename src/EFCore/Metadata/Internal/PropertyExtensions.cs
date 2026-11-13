@@ -35,6 +35,19 @@ public static class PropertyExtensions
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    public static IReadOnlyProperty? FindFirstDifferentPrincipal(this IReadOnlyProperty property)
+    {
+        var principal = property.FindFirstPrincipal();
+
+        return principal != property ? principal : null;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
     public static IProperty? FindGenerationProperty(this IProperty property)
     {
         var traversalList = new List<IProperty> { property };
@@ -81,7 +94,7 @@ public static class PropertyExtensions
                 && property.IsKey()
                 && (!property.IsForeignKey()
                     || property.IsForeignKeyToSelf()
-                    || (property.GetContainingForeignKeys().All(fk => fk.Properties.Any(p => p != property && p.IsNullable)))))
+                    || property.GetContainingForeignKeys().All(fk => fk.Properties.Any(p => p != property && p.IsNullable))))
             || property.GetValueGeneratorFactory() != null;
 
     /// <summary>
@@ -123,13 +136,13 @@ public static class PropertyExtensions
     /// </summary>
     public static bool MayBeStoreGenerated(this IProperty property)
     {
-        if (property.ValueGenerated != ValueGenerated.Never)
+        if (property.ValueGenerated != ValueGenerated.Never
+            || property.IsForeignKey())
         {
             return true;
         }
 
-        if (property.IsKey()
-            || property.IsForeignKey())
+        if (property.IsKey())
         {
             var generationProperty = property.FindGenerationProperty();
             return (generationProperty != null)
@@ -146,7 +159,7 @@ public static class PropertyExtensions
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public static bool RequiresOriginalValue(this IReadOnlyProperty property)
-        => property.DeclaringEntityType.GetChangeTrackingStrategy() != ChangeTrackingStrategy.ChangingAndChangedNotifications
+        => property.DeclaringType.GetChangeTrackingStrategy() != ChangeTrackingStrategy.ChangingAndChangedNotifications
             || property.IsConcurrencyToken
             || property.IsKey()
             || property.IsForeignKey()
@@ -158,9 +171,28 @@ public static class PropertyExtensions
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public static string ToDebugString(
-        this Property property,
-        MetadataDebugStringOptions options = MetadataDebugStringOptions.ShortDefault,
-        int indent = 0)
-        => ((IReadOnlyProperty)property).ToDebugString(options, indent);
+    public static bool RequiresOriginalValue(this IReadOnlyComplexProperty property)
+        => property.ComplexType.ContainingEntityType.GetChangeTrackingStrategy() != ChangeTrackingStrategy.ChangingAndChangedNotifications;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public static object? ConvertToProviderValue(this IProperty property, object? value)
+    {
+        var typeMapping = property.GetTypeMapping();
+        value = value?.GetType().IsInteger() == true && typeMapping.ClrType.UnwrapNullableType().IsEnum
+            ? Enum.ToObject(typeMapping.ClrType.UnwrapNullableType(), value)
+            : value;
+
+        var converter = typeMapping.Converter;
+        if (converter != null)
+        {
+            value = converter.ConvertToProvider(value);
+        }
+
+        return value;
+    }
 }

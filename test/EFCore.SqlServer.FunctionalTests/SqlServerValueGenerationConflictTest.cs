@@ -7,16 +7,11 @@ using Microsoft.EntityFrameworkCore.SqlServer.Internal;
 // ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore;
 
-public class SqlServerValueGenerationStrategyThrowTest :
-    SqlServerValueGenerationConflictTest<SqlServerValueGenerationStrategyThrowTest.ThrowContext>
+public class SqlServerValueGenerationStrategyThrowTest(
+    SqlServerValueGenerationStrategyFixture<SqlServerValueGenerationStrategyThrowTest.ThrowContext> fixture) :
+    SqlServerValueGenerationConflictTest<SqlServerValueGenerationStrategyThrowTest.ThrowContext>(fixture)
 {
-    public SqlServerValueGenerationStrategyThrowTest(
-        SqlServerValueGenerationStrategyFixture<ThrowContext> fixture)
-        : base(fixture)
-    {
-    }
-
-    [ConditionalFact]
+    [Fact]
     public virtual void SqlServerValueGeneration_conflicting_with_existing_ValueGeneration_strategy_throws()
     {
         var modelBuilder = CreateModelBuilder();
@@ -35,32 +30,40 @@ public class SqlServerValueGenerationStrategyThrowTest :
             Assert.Throws<InvalidOperationException>(() => Validate(modelBuilder)).Message);
     }
 
-    public class ThrowContext : DbContext
+    [Fact]
+    public virtual void SqlServerValueGeneration_conflicting_with_existing_default_value_strategy_throws()
     {
-        public ThrowContext(DbContextOptions options)
-            : base(options)
-        {
-        }
+        var modelBuilder = CreateModelBuilder();
+        modelBuilder.Entity<Fred>()
+            .Property(e => e.Id)
+            .HasDefaultValueSql("2")
+            .UseSequence();
 
-        public virtual DbSet<Fred> Freds { get; set; }
+        Assert.Equal(
+            CoreStrings.WarningAsErrorTemplate(
+                SqlServerEventId.ConflictingValueGenerationStrategiesWarning,
+                SqlServerResources.LogConflictingValueGenerationStrategies(
+                        new TestLogger<SqlServerLoggingDefinitions>())
+                    .GenerateMessage(SqlServerValueGenerationStrategy.Sequence.ToString(), "DefaultValueSql", "Id", nameof(Fred)),
+                "SqlServerEventId.ConflictingValueGenerationStrategiesWarning"),
+            Assert.Throws<InvalidOperationException>(() => Validate(modelBuilder)).Message);
+    }
+
+    public class ThrowContext(DbContextOptions options) : DbContext(options)
+    {
+        public virtual DbSet<Fred> Freds { get; set; } = null!;
 
         // use the normal behavior of ConflictingValueGenerationStrategiesWarning
-        // defined in UseSqlServer()
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-            => optionsBuilder.UseSqlServer();
+            => _ = SqlServerTestEnvironment.IsAzureSql ? optionsBuilder.UseAzureSql() : optionsBuilder.UseSqlServer();
     }
 }
 
-public class SqlServerValueGenerationStrategyNoThrowTest :
-    SqlServerValueGenerationConflictTest<SqlServerValueGenerationStrategyNoThrowTest.NoThrowContext>
+public class SqlServerValueGenerationStrategyNoThrowTest(
+    SqlServerValueGenerationStrategyFixture<SqlServerValueGenerationStrategyNoThrowTest.NoThrowContext> fixture) :
+    SqlServerValueGenerationConflictTest<SqlServerValueGenerationStrategyNoThrowTest.NoThrowContext>(fixture)
 {
-    public SqlServerValueGenerationStrategyNoThrowTest(
-        SqlServerValueGenerationStrategyFixture<NoThrowContext> fixture)
-        : base(fixture)
-    {
-    }
-
-    [ConditionalFact]
+    [Fact]
     public virtual void SqlServerValueGeneration_conflicting_with_existing_ValueGeneration_strategy_warns()
     {
         var modelBuilder = CreateModelBuilder();
@@ -72,8 +75,8 @@ public class SqlServerValueGenerationStrategyNoThrowTest :
         // Assert - this does not throw
         Validate(modelBuilder);
 
-        var logEntry = Fixture.ListLoggerFactory.Log.Single(
-            l => l.Level == LogLevel.Warning && l.Id == SqlServerEventId.ConflictingValueGenerationStrategiesWarning);
+        var logEntry = Fixture.ListLoggerFactory.Log.Single(l
+            => l.Level == LogLevel.Warning && l.Id == SqlServerEventId.ConflictingValueGenerationStrategiesWarning);
         Assert.Equal(
             SqlServerResources.LogConflictingValueGenerationStrategies(
                     new TestLogger<SqlServerLoggingDefinitions>())
@@ -81,34 +84,22 @@ public class SqlServerValueGenerationStrategyNoThrowTest :
             logEntry.Message);
     }
 
-    public class NoThrowContext : DbContext
+    public class NoThrowContext(DbContextOptions options) : DbContext(options)
     {
-        public NoThrowContext(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public virtual DbSet<Fred> Freds { get; set; }
+        public virtual DbSet<Fred> Freds { get; set; } = null!;
 
         // override the normal behavior of ConflictingValueGenerationStrategiesWarning
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-            => optionsBuilder
-                .UseSqlServer()
-                .ConfigureWarnings(
-                    b => b.Log(SqlServerEventId.ConflictingValueGenerationStrategiesWarning));
+            => (SqlServerTestEnvironment.IsAzureSql ? optionsBuilder.UseAzureSql() : optionsBuilder.UseSqlServer())
+                .ConfigureWarnings(b => b.Log(SqlServerEventId.ConflictingValueGenerationStrategiesWarning));
     }
 }
 
-public class SqlServerValueGenerationConflictTest<TContext>
+public class SqlServerValueGenerationConflictTest<TContext>(SqlServerValueGenerationStrategyFixture<TContext> fixture)
     : IClassFixture<SqlServerValueGenerationStrategyFixture<TContext>>
     where TContext : DbContext
 {
-    public SqlServerValueGenerationConflictTest(SqlServerValueGenerationStrategyFixture<TContext> fixture)
-    {
-        Fixture = fixture;
-    }
-
-    protected SqlServerValueGenerationStrategyFixture<TContext> Fixture { get; }
+    protected SqlServerValueGenerationStrategyFixture<TContext> Fixture { get; } = fixture;
 
     public TContext CreateContext()
         => (TContext)Fixture.CreateContext();
@@ -133,7 +124,9 @@ public class SqlServerValueGenerationConflictTest<TContext>
 public class SqlServerValueGenerationStrategyFixture<TContext> : SharedStoreFixtureBase<DbContext>
     where TContext : DbContext
 {
-    protected override string StoreName { get; } = "SqlServerValueGenerationStrategy";
+    protected override string StoreName
+        => "SqlServerValueGenerationStrategy";
+
     protected override Type ContextType { get; } = typeof(TContext);
 
     protected override ITestStoreFactory TestStoreFactory

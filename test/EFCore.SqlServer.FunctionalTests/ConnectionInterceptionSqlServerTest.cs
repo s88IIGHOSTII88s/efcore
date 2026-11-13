@@ -2,16 +2,14 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class ConnectionInterceptionSqlServerTestBase : ConnectionInterceptionTestBase
+public abstract class ConnectionInterceptionSqlServerTestBase(
+    ConnectionInterceptionSqlServerTestBase.InterceptionSqlServerFixtureBase fixture)
+    : ConnectionInterceptionTestBase(fixture)
 {
-    protected ConnectionInterceptionSqlServerTestBase(InterceptionSqlServerFixtureBase fixture)
-        : base(fixture)
-    {
-    }
-
     public abstract class InterceptionSqlServerFixtureBase : InterceptionFixtureBase
     {
         protected override string StoreName
@@ -26,11 +24,15 @@ public abstract class ConnectionInterceptionSqlServerTestBase : ConnectionInterc
             => base.InjectInterceptors(serviceCollection.AddEntityFrameworkSqlServer(), injectedInterceptors);
     }
 
+    protected override DbContextOptionsBuilder ConfigureProvider(DbContextOptionsBuilder optionsBuilder)
+        => optionsBuilder.UseSqlServer();
+
     protected override BadUniverseContext CreateBadUniverse(DbContextOptionsBuilder optionsBuilder)
         => new(optionsBuilder.UseSqlServer(new FakeDbConnection()).Options);
 
     public class FakeDbConnection : DbConnection
     {
+        [AllowNull]
         public override string ConnectionString { get; set; }
 
         public override string Database
@@ -61,14 +63,9 @@ public abstract class ConnectionInterceptionSqlServerTestBase : ConnectionInterc
             => throw new NotImplementedException();
     }
 
-    public class ConnectionInterceptionSqlServerTest
-        : ConnectionInterceptionSqlServerTestBase, IClassFixture<ConnectionInterceptionSqlServerTest.InterceptionSqlServerFixture>
+    public class ConnectionInterceptionSqlServerTest(ConnectionInterceptionSqlServerTest.InterceptionSqlServerFixture fixture)
+        : ConnectionInterceptionSqlServerTestBase(fixture), IClassFixture<ConnectionInterceptionSqlServerTest.InterceptionSqlServerFixture>
     {
-        public ConnectionInterceptionSqlServerTest(InterceptionSqlServerFixture fixture)
-            : base(fixture)
-        {
-        }
-
         public class InterceptionSqlServerFixture : InterceptionSqlServerFixtureBase
         {
             protected override bool ShouldSubscribeToDiagnosticListener
@@ -76,15 +73,26 @@ public abstract class ConnectionInterceptionSqlServerTestBase : ConnectionInterc
         }
     }
 
-    public class ConnectionInterceptionWithDiagnosticsSqlServerTest
-        : ConnectionInterceptionSqlServerTestBase,
-            IClassFixture<ConnectionInterceptionWithDiagnosticsSqlServerTest.InterceptionSqlServerFixture>
+    public class ConnectionInterceptionWithConnectionStringSqlServerTest(
+        ConnectionInterceptionWithConnectionStringSqlServerTest.InterceptionSqlServerFixture fixture)
+        : ConnectionInterceptionSqlServerTestBase(fixture),
+            IClassFixture<ConnectionInterceptionWithConnectionStringSqlServerTest.InterceptionSqlServerFixture>
     {
-        public ConnectionInterceptionWithDiagnosticsSqlServerTest(InterceptionSqlServerFixture fixture)
-            : base(fixture)
+        public class InterceptionSqlServerFixture : InterceptionSqlServerFixtureBase
         {
+            protected override bool ShouldSubscribeToDiagnosticListener
+                => false;
         }
 
+        protected override DbContextOptionsBuilder ConfigureProvider(DbContextOptionsBuilder optionsBuilder)
+            => optionsBuilder.UseSqlServer("Database=Dummy");
+    }
+
+    public class ConnectionInterceptionWithDiagnosticsSqlServerTest(
+        ConnectionInterceptionWithDiagnosticsSqlServerTest.InterceptionSqlServerFixture fixture)
+        : ConnectionInterceptionSqlServerTestBase(fixture),
+            IClassFixture<ConnectionInterceptionWithDiagnosticsSqlServerTest.InterceptionSqlServerFixture>
+    {
         public class InterceptionSqlServerFixture : InterceptionSqlServerFixtureBase
         {
             protected override bool ShouldSubscribeToDiagnosticListener

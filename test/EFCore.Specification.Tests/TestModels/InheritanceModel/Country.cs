@@ -5,14 +5,9 @@ namespace Microsoft.EntityFrameworkCore.TestModels.InheritanceModel;
 
 public class Country
 {
-    public Country()
-    {
-        Animals = new List<Animal>();
-    }
-
     public int Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
-    public IList<Animal> Animals { get; set; }
-    public IList<Plant> Plants { get; set; }
+    public IList<Animal> Animals { get; set; } = [];
+    public IList<Plant> Plants { get; set; } = null!;
 }

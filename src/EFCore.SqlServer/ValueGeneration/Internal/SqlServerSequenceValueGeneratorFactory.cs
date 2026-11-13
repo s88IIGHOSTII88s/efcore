@@ -24,9 +24,7 @@ public class SqlServerSequenceValueGeneratorFactory : ISqlServerSequenceValueGen
     /// </summary>
     public SqlServerSequenceValueGeneratorFactory(
         ISqlServerUpdateSqlGenerator sqlGenerator)
-    {
-        _sqlGenerator = sqlGenerator;
-    }
+        => _sqlGenerator = sqlGenerator;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -78,30 +76,18 @@ public class SqlServerSequenceValueGeneratorFactory : ISqlServerSequenceValueGen
                 rawSqlCommandBuilder, _sqlGenerator, generatorState, connection, commandLogger);
         }
 
-        if (type == typeof(ulong))
-        {
-            return new SqlServerSequenceHiLoValueGenerator<ulong>(
-                rawSqlCommandBuilder, _sqlGenerator, generatorState, connection, commandLogger);
-        }
-
-        if (type == typeof(uint))
-        {
-            return new SqlServerSequenceHiLoValueGenerator<uint>(
-                rawSqlCommandBuilder, _sqlGenerator, generatorState, connection, commandLogger);
-        }
-
-        if (type == typeof(ushort))
-        {
-            return new SqlServerSequenceHiLoValueGenerator<ushort>(
-                rawSqlCommandBuilder, _sqlGenerator, generatorState, connection, commandLogger);
-        }
-
-        if (type == typeof(sbyte))
-        {
-            return new SqlServerSequenceHiLoValueGenerator<sbyte>(
-                rawSqlCommandBuilder, _sqlGenerator, generatorState, connection, commandLogger);
-        }
-
-        return null;
+        return type == typeof(ulong)
+            ? new SqlServerSequenceHiLoValueGenerator<ulong>(
+                rawSqlCommandBuilder, _sqlGenerator, generatorState, connection, commandLogger)
+            : type == typeof(uint)
+                ? new SqlServerSequenceHiLoValueGenerator<uint>(
+                    rawSqlCommandBuilder, _sqlGenerator, generatorState, connection, commandLogger)
+                : type == typeof(ushort)
+                    ? new SqlServerSequenceHiLoValueGenerator<ushort>(
+                        rawSqlCommandBuilder, _sqlGenerator, generatorState, connection, commandLogger)
+                    : type == typeof(sbyte)
+                        ? new SqlServerSequenceHiLoValueGenerator<sbyte>(
+                            rawSqlCommandBuilder, _sqlGenerator, generatorState, connection, commandLogger)
+                        : (ValueGenerator?)null;
     }
 }

@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Data.Common;
@@ -12,15 +12,15 @@ namespace Microsoft.EntityFrameworkCore.Scaffolding.Internal;
 
 public class ReverseEngineerScaffolderTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Save_works()
     {
         using var directory = new TempDirectory();
         var scaffolder = CreateScaffolder();
         var scaffoldedModel = new ScaffoldedModel
         {
-            ContextFile = new ScaffoldedFile { Path = Path.Combine("..", "Data", "TestContext.cs"), Code = "// TestContext" },
-            AdditionalFiles = { new ScaffoldedFile { Path = "TestEntity.cs", Code = "// TestEntity" } }
+            ContextFile = new ScaffoldedFile(Path.Combine("..", "Data", "TestContext.cs"), "// TestContext"),
+            AdditionalFiles = { new ScaffoldedFile("TestEntity.cs", "// TestEntity") }
         };
 
         var result = scaffolder.Save(
@@ -38,7 +38,7 @@ public class ReverseEngineerScaffolderTest
         Assert.Equal("// TestEntity", File.ReadAllText(entityTypePath));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Save_throws_when_existing_files()
     {
         using var directory = new TempDirectory();
@@ -51,12 +51,11 @@ public class ReverseEngineerScaffolderTest
         var scaffolder = CreateScaffolder();
         var scaffoldedModel = new ScaffoldedModel
         {
-            ContextFile = new ScaffoldedFile { Path = "TestContext.cs", Code = "// TestContext" },
-            AdditionalFiles = { new ScaffoldedFile { Path = "TestEntity.cs", Code = "// TestEntity" } }
+            ContextFile = new ScaffoldedFile("TestContext.cs", "// TestContext"),
+            AdditionalFiles = { new ScaffoldedFile("TestEntity.cs", "// TestEntity") }
         };
 
-        var ex = Assert.Throws<OperationException>(
-            () => scaffolder.Save(scaffoldedModel, directory.Path, overwriteFiles: false));
+        var ex = Assert.Throws<OperationException>(() => scaffolder.Save(scaffoldedModel, directory.Path, overwriteFiles: false));
 
         Assert.Equal(
             DesignStrings.ExistingFiles(
@@ -65,7 +64,7 @@ public class ReverseEngineerScaffolderTest
             ex.Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Save_works_when_overwriteFiles()
     {
         using var directory = new TempDirectory();
@@ -73,7 +72,7 @@ public class ReverseEngineerScaffolderTest
         File.WriteAllText(path, "// Old");
 
         var scaffolder = CreateScaffolder();
-        var scaffoldedModel = new ScaffoldedModel { ContextFile = new ScaffoldedFile { Path = "Test.cs", Code = "// Test" } };
+        var scaffoldedModel = new ScaffoldedModel { ContextFile = new ScaffoldedFile("Test.cs", "// Test") };
 
         var result = scaffolder.Save(scaffoldedModel, directory.Path, overwriteFiles: true);
 
@@ -81,7 +80,7 @@ public class ReverseEngineerScaffolderTest
         Assert.Equal("// Test", File.ReadAllText(path));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Save_throws_when_readonly_files()
     {
         using var directory = new TempDirectory();
@@ -99,12 +98,11 @@ public class ReverseEngineerScaffolderTest
             var scaffolder = CreateScaffolder();
             var scaffoldedModel = new ScaffoldedModel
             {
-                ContextFile = new ScaffoldedFile { Path = "TestContext.cs", Code = "// TestContext" },
-                AdditionalFiles = { new ScaffoldedFile { Path = "TestEntity.cs", Code = "// TestEntity" } }
+                ContextFile = new ScaffoldedFile("TestContext.cs", "// TestContext"),
+                AdditionalFiles = { new ScaffoldedFile("TestEntity.cs", "// TestEntity") }
             };
 
-            var ex = Assert.Throws<OperationException>(
-                () => scaffolder.Save(scaffoldedModel, directory.Path, overwriteFiles: true));
+            var ex = Assert.Throws<OperationException>(() => scaffolder.Save(scaffoldedModel, directory.Path, overwriteFiles: true));
 
             Assert.Equal(
                 DesignStrings.ReadOnlyFiles(
@@ -123,15 +121,14 @@ public class ReverseEngineerScaffolderTest
         => new DesignTimeServicesBuilder(
                 typeof(ReverseEngineerScaffolderTest).Assembly,
                 typeof(ReverseEngineerScaffolderTest).Assembly,
-                new TestOperationReporter(),
-                new string[0])
+                new TestOperationReporter(), [])
             .CreateServiceCollection("Microsoft.EntityFrameworkCore.SqlServer")
             .BuildServiceProvider(validateScopes: true)
             .CreateScope()
             .ServiceProvider
             .GetRequiredService<IReverseEngineerScaffolder>();
 
-    [ConditionalFact]
+    [Fact]
     public void ScaffoldModel_works_with_named_connection_string()
     {
         var resolver = new TestNamedConnectionStringResolver("Data Source=Test");
@@ -139,8 +136,7 @@ public class ReverseEngineerScaffolderTest
         var scaffolder = new DesignTimeServicesBuilder(
                 typeof(ReverseEngineerScaffolderTest).Assembly,
                 typeof(ReverseEngineerScaffolderTest).Assembly,
-                new TestOperationReporter(),
-                new string[0])
+                new TestOperationReporter(), [])
             .CreateServiceCollection("Microsoft.EntityFrameworkCore.SqlServer")
             .AddSingleton<IDesignTimeConnectionStringResolver>(resolver)
             .AddScoped<IDatabaseModelFactory>(p => databaseModelFactory)
@@ -162,17 +158,15 @@ public class ReverseEngineerScaffolderTest
         Assert.DoesNotContain("#warning", result.ContextFile.Code);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void ScaffoldModel_works_with_overridden_connection_string()
     {
         var resolver = new TestNamedConnectionStringResolver("Data Source=Test");
-        var databaseModelFactory = new TestDatabaseModelFactory();
-        databaseModelFactory.ScaffoldedConnectionString = "Data Source=ScaffoldedConnectionString";
+        var databaseModelFactory = new TestDatabaseModelFactory { ScaffoldedConnectionString = "Data Source=ScaffoldedConnectionString" };
         var scaffolder = new DesignTimeServicesBuilder(
                 typeof(ReverseEngineerScaffolderTest).Assembly,
                 typeof(ReverseEngineerScaffolderTest).Assembly,
-                new TestOperationReporter(),
-                new string[0])
+                new TestOperationReporter(), [])
             .CreateServiceCollection("Microsoft.EntityFrameworkCore.SqlServer")
             .AddSingleton<IDesignTimeConnectionStringResolver>(resolver)
             .AddScoped<IDatabaseModelFactory>(p => databaseModelFactory)
@@ -190,16 +184,12 @@ public class ReverseEngineerScaffolderTest
         Assert.Contains("Data Source=ScaffoldedConnectionString", result.ContextFile.Code);
         Assert.DoesNotContain("Name=DefaultConnection", result.ContextFile.Code);
         Assert.DoesNotContain("Data Source=Test", result.ContextFile.Code);
+        Assert.DoesNotContain(ScaffoldingAnnotationNames.ConnectionString, result.ContextFile.Code);
     }
 
-    private class TestNamedConnectionStringResolver : IDesignTimeConnectionStringResolver
+    private class TestNamedConnectionStringResolver(string resolvedConnectionString) : IDesignTimeConnectionStringResolver
     {
-        private readonly string _resolvedConnectionString;
-
-        public TestNamedConnectionStringResolver(string resolvedConnectionString)
-        {
-            _resolvedConnectionString = resolvedConnectionString;
-        }
+        private readonly string _resolvedConnectionString = resolvedConnectionString;
 
         public string ResolveConnectionString(string connectionString)
             => _resolvedConnectionString;
@@ -207,8 +197,8 @@ public class ReverseEngineerScaffolderTest
 
     private class TestDatabaseModelFactory : IDatabaseModelFactory
     {
-        public string ConnectionString { get; set; }
-        public string ScaffoldedConnectionString { get; set; }
+        public string ConnectionString { get; set; } = null!;
+        public string? ScaffoldedConnectionString { get; set; }
 
         public DatabaseModel Create(string connectionString, DatabaseModelFactoryOptions options)
         {

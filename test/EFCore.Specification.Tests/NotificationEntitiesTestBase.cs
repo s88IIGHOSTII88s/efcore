@@ -8,17 +8,12 @@ using System.Runtime.CompilerServices;
 // ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class NotificationEntitiesTestBase<TFixture> : IClassFixture<TFixture>
+public abstract class NotificationEntitiesTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : NotificationEntitiesTestBase<TFixture>.NotificationEntitiesFixtureBase, new()
 {
-    protected NotificationEntitiesTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
+    protected virtual TFixture Fixture { get; } = fixture;
 
-    protected virtual TFixture Fixture { get; }
-
-    [ConditionalFact] // Issue #4020
+    [Fact] // Issue #4020
     public virtual void Include_brings_entities_referenced_from_already_tracked_notification_entities_as_Unchanged()
     {
         using var context = CreateContext();
@@ -31,7 +26,7 @@ public abstract class NotificationEntitiesTestBase<TFixture> : IClassFixture<TFi
         Assert.Equal(EntityState.Unchanged, context.Entry(postA.Blog).State);
     }
 
-    [ConditionalFact] // Issue #4020
+    [Fact] // Issue #4020
     public virtual void Include_brings_collections_referenced_from_already_tracked_notification_entities_as_Unchanged()
     {
         using var context = CreateContext();
@@ -47,50 +42,43 @@ public abstract class NotificationEntitiesTestBase<TFixture> : IClassFixture<TFi
 
     protected class Blog : NotificationEntity
     {
-        private int _id;
-        private ICollection<Post> _posts;
-
         public int Id
         {
-            get => _id;
-            set => SetWithNotify(value, ref _id);
+            get;
+            set => SetWithNotify(value, ref field);
         }
 
         public ICollection<Post> Posts
         {
-            get => _posts;
-            set => SetWithNotify(value, ref _posts);
-        }
+            get;
+            set => SetWithNotify(value, ref field);
+        } = null!;
     }
 
     protected class Post : NotificationEntity
     {
-        private int _id;
-        private int _postId;
-        private Blog _blog;
-
         public int Id
         {
-            get => _id;
-            set => SetWithNotify(value, ref _id);
+            get;
+            set => SetWithNotify(value, ref field);
         }
 
         public int PostId
         {
-            get => _postId;
-            set => SetWithNotify(value, ref _postId);
+            get;
+            set => SetWithNotify(value, ref field);
         }
 
         public Blog Blog
         {
-            get => _blog;
-            set => SetWithNotify(value, ref _blog);
-        }
+            get;
+            set => SetWithNotify(value, ref field);
+        } = null!;
     }
 
     protected class NotificationEntity : INotifyPropertyChanged
     {
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         private void NotifyChanged(string propertyName)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -110,7 +98,8 @@ public abstract class NotificationEntitiesTestBase<TFixture> : IClassFixture<TFi
 
     public abstract class NotificationEntitiesFixtureBase : SharedStoreFixtureBase<PoolableDbContext>
     {
-        protected override string StoreName { get; } = "NotificationEntities";
+        protected override string StoreName
+            => "NotificationEntities";
 
         protected override void OnModelCreating(ModelBuilder modelBuilder, DbContext context)
         {
@@ -118,12 +107,12 @@ public abstract class NotificationEntitiesTestBase<TFixture> : IClassFixture<TFi
             modelBuilder.Entity<Post>().Property(e => e.Id).ValueGeneratedNever();
         }
 
-        protected override void Seed(PoolableDbContext context)
+        protected override Task SeedAsync(PoolableDbContext context)
         {
             context.Add(
-                new Blog { Id = 1, Posts = new List<Post> { new() { Id = 1 }, new() { Id = 2 } } });
+                new Blog { Id = 1, Posts = [new() { Id = 1 }, new() { Id = 2 }] });
 
-            context.SaveChanges();
+            return context.SaveChangesAsync();
         }
     }
 }

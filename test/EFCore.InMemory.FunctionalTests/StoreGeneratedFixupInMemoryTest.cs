@@ -1,25 +1,20 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore;
 
-public class StoreGeneratedFixupInMemoryTest : StoreGeneratedFixupTestBase<
-    StoreGeneratedFixupInMemoryTest.StoreGeneratedFixupInMemoryFixture>
+public class StoreGeneratedFixupInMemoryTest(StoreGeneratedFixupInMemoryTest.StoreGeneratedFixupInMemoryFixture fixture)
+    : StoreGeneratedFixupTestBase<
+        StoreGeneratedFixupInMemoryTest.StoreGeneratedFixupInMemoryFixture>(fixture)
 {
-    public StoreGeneratedFixupInMemoryTest(StoreGeneratedFixupInMemoryFixture fixture)
-        : base(fixture)
-    {
-    }
-
     public override void Temporary_value_equals_database_generated_value()
     {
         // In-memory doesn't use real store-generated values.
     }
 
-    [ConditionalFact]
+    [Fact]
     public void InMemory_database_does_not_use_temp_values()
     {
         using var context = CreateContext();
@@ -36,10 +31,10 @@ public class StoreGeneratedFixupInMemoryTest : StoreGeneratedFixupTestBase<
         Assert.Equal(tempValue, entry.Property(e => e.Id).CurrentValue);
     }
 
-    protected override void ExecuteWithStrategyInTransaction(Action<DbContext> testOperation)
+    protected override async Task ExecuteWithStrategyInTransactionAsync(Func<DbContext, Task> testOperation)
     {
-        base.ExecuteWithStrategyInTransaction(testOperation);
-        Fixture.Reseed();
+        await base.ExecuteWithStrategyInTransactionAsync(testOperation);
+        await Fixture.ReseedAsync();
     }
 
     protected override bool EnforcesFKs
@@ -57,117 +52,89 @@ public class StoreGeneratedFixupInMemoryTest : StoreGeneratedFixupTestBase<
         {
             base.OnModelCreating(modelBuilder, context);
 
-            modelBuilder.Entity<Parent>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<Parent>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
-            modelBuilder.Entity<Child>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<Child>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
-            modelBuilder.Entity<ParentPN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<ParentPN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
-            modelBuilder.Entity<ChildPN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<ChildPN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
-            modelBuilder.Entity<ParentDN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<ParentDN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
-            modelBuilder.Entity<ChildDN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<ChildDN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
-            modelBuilder.Entity<ParentNN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<ParentNN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
-            modelBuilder.Entity<ChildNN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<ChildNN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
-            modelBuilder.Entity<CategoryDN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<CategoryDN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
-            modelBuilder.Entity<ProductDN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<ProductDN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
-            modelBuilder.Entity<CategoryPN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<CategoryPN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
-            modelBuilder.Entity<ProductPN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<ProductPN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
-            modelBuilder.Entity<CategoryNN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<CategoryNN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
-            modelBuilder.Entity<ProductNN>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
-
-            modelBuilder.Entity<Category>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
-
-            modelBuilder.Entity<Product>(
-                b =>
-                {
-                    b.Property(e => e.Id1).ValueGeneratedNever();
-                    b.Property(e => e.Id2).ValueGeneratedNever();
-                });
+            modelBuilder.Entity<ProductNN>(b =>
+            {
+                b.Property(e => e.Id1).ValueGeneratedNever();
+                b.Property(e => e.Id2).ValueGeneratedNever();
+            });
 
             modelBuilder.Entity<Item>(b => b.Property(e => e.Id).ValueGeneratedNever());
 

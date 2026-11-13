@@ -1,11 +1,27 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>$(DefaultNetCoreTargetFramework)</TargetFramework>
     <AssemblyName>Microsoft.EntityFrameworkCore.InMemory.FunctionalTests</AssemblyName>
     <RootNamespace>Microsoft.EntityFrameworkCore</RootNamespace>
     <ImplicitUsings>true</ImplicitUsings>
+    <PreserveCompilationContext>true</PreserveCompilationContext>
+    <!-- Avoid referencing EFCore.Relational -->
+    <DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Scaffolding\Baselines\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Scaffolding\Baselines\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\Shared\*.cs" />
+    <Compile Include="..\Shared\ModuleInitializer.cs" Link="ModuleInitializer.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <Using Include="System.Diagnostics" />
@@ -32,11 +48,14 @@
     <Using Include="Microsoft.Extensions.Logging" />
     <Using Include="Microsoft.Extensions.DependencyInjection" />
     <Using Include="Xunit" />
-    <Using Include="Xunit.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\EFCore\EFCore.csproj" />
+    <ProjectReference Include="..\..\src\EFCore.Abstractions\EFCore.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\EFCore.Design\EFCore.Design.csproj" />
     <ProjectReference Include="..\..\src\EFCore.InMemory\EFCore.InMemory.csproj" />
+    <ProjectReference Include="..\..\src\EFCore.Proxies\EFCore.Proxies.csproj" />
     <ProjectReference Include="..\EFCore.Specification.Tests\EFCore.Specification.Tests.csproj" />
   </ItemGroup>
 

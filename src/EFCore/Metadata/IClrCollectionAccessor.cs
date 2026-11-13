@@ -24,7 +24,7 @@ public interface IClrCollectionAccessor
     /// </summary>
     /// <param name="entity">The entity instance.</param>
     /// <param name="value">The value to add.</param>
-    /// <param name="forMaterialization">If true, then the value is being added as part of query materialization.</param>
+    /// <param name="forMaterialization">If <see langword="true" />, then the value is being added as part of query materialization.</param>
     /// <returns><see langword="true" /> if a value was added; <see langword="false" /> if it was already in the collection.</returns>
     bool Add(object entity, object value, bool forMaterialization);
 
@@ -43,6 +43,30 @@ public interface IClrCollectionAccessor
     /// <param name="value">The value to check.</param>
     /// <returns><see langword="true" /> if the value was contained in the collection; <see langword="false" /> otherwise.</returns>
     bool Remove(object entity, object value);
+
+    /// <summary>
+    ///     Adds a value to the passed collection, unless it is already contained in the collection.
+    /// </summary>
+    /// <param name="collection">The collection.</param>
+    /// <param name="value">The value to add.</param>
+    /// <returns><see langword="true" /> if a value was added; <see langword="false" /> if it was already in the collection.</returns>
+    bool AddStandalone(object collection, object value);
+
+    /// <summary>
+    ///     Checks whether the value is contained in the passed collection.
+    /// </summary>
+    /// <param name="collection">The collection.</param>
+    /// <param name="value">The value to check.</param>
+    /// <returns><see langword="true" /> if the value is contained in the collection; <see langword="false" /> otherwise.</returns>
+    bool ContainsStandalone(object collection, object value);
+
+    /// <summary>
+    ///     Removes a value from the passed collection.
+    /// </summary>
+    /// <param name="collection">The collection.</param>
+    /// <param name="value">The value to check.</param>
+    /// <returns><see langword="true" /> if the value was contained in the collection; <see langword="false" /> otherwise.</returns>
+    bool RemoveStandalone(object? collection, object value);
 
     /// <summary>
     ///     Creates a new collection instance of the appropriate type for the navigation property.

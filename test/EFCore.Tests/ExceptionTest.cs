@@ -1,7 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Runtime.Serialization.Formatters.Binary;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
@@ -11,15 +10,15 @@ namespace Microsoft.EntityFrameworkCore;
 
 public class ExceptionTest
 {
-    [ConditionalFact]
+    [Fact]
     public void RetryLimitExceededException_exposes_public_empty_constructor()
         => new RetryLimitExceededException();
 
-    [ConditionalFact]
+    [Fact]
     public void RetryLimitExceededException_exposes_public_string_constructor()
         => Assert.Equal("Foo", new RetryLimitExceededException("Foo").Message);
 
-    [ConditionalFact]
+    [Fact]
     public void RetryLimitExceededException_exposes_public_string_and_inner_exception_constructor()
     {
         var inner = new Exception();
@@ -30,28 +29,15 @@ public class ExceptionTest
         Assert.Same(inner, ex.InnerException);
     }
 
-    [ConditionalFact]
-    public void Deserialized_RetryLimitExceededException_can_be_serialized_and_deserialized_again()
-    {
-        var transportedException = SerializeAndDeserialize(
-            SerializeAndDeserialize(
-                new RetryLimitExceededException(
-                    "But somehow the vital connection is made",
-                    new Exception("Bang!"))));
-
-        Assert.Equal("But somehow the vital connection is made", transportedException.Message);
-        Assert.Equal("Bang!", transportedException.InnerException.Message);
-    }
-
-    [ConditionalFact]
+    [Fact]
     public void DbUpdateException_exposes_public_empty_constructor()
         => new DbUpdateException();
 
-    [ConditionalFact]
+    [Fact]
     public void DbUpdateException_exposes_public_string_constructor()
         => Assert.Equal("Foo", new DbUpdateException("Foo").Message);
 
-    [ConditionalFact]
+    [Fact]
     public void DbUpdateException_exposes_public_string_and_inner_exception_constructor()
     {
         var inner = new Exception();
@@ -62,40 +48,15 @@ public class ExceptionTest
         Assert.Same(inner, ex.InnerException);
     }
 
-    [ConditionalFact]
-    public void Deserialized_DbUpdateException_can_be_serialized_and_deserialized_again()
-    {
-        var transportedException = SerializeAndDeserialize(
-            SerializeAndDeserialize(
-                new DbUpdateException("But somehow the vital connection is made")));
-
-        Assert.Equal("But somehow the vital connection is made", transportedException.Message);
-    }
-
-    [ConditionalFact]
-    public void Deserialized_DbUpdateException_can_be_serialized_and_deserialized_again_with_entries()
-    {
-        var transportedException = SerializeAndDeserialize(
-            SerializeAndDeserialize(
-                new DbUpdateException(
-                    "But somehow the vital connection is made",
-                    new Exception("Bang!"),
-                    new IUpdateEntry[] { new FakeUpdateEntry() })));
-
-        Assert.Equal("But somehow the vital connection is made", transportedException.Message);
-        Assert.Equal("Bang!", transportedException.InnerException.Message);
-        Assert.Empty(transportedException.Entries); // Because the entries cannot be serialized
-    }
-
-    [ConditionalFact]
+    [Fact]
     public void DbUpdateConcurrencyException_exposes_public_empty_constructor()
         => new DbUpdateConcurrencyException();
 
-    [ConditionalFact]
+    [Fact]
     public void DbUpdateConcurrencyException_exposes_public_string_constructor()
         => Assert.Equal("Foo", new DbUpdateConcurrencyException("Foo").Message);
 
-    [ConditionalFact]
+    [Fact]
     public void DbUpdateConcurrencyException_exposes_public_string_and_inner_exception_constructor()
     {
         var inner = new Exception();
@@ -106,34 +67,7 @@ public class ExceptionTest
         Assert.Same(inner, ex.InnerException);
     }
 
-    [ConditionalFact]
-    public void Deserialized_DbUpdateConcurrencyException_can_be_serialized_and_deserialized_again()
-    {
-        var transportedException = SerializeAndDeserialize(
-            SerializeAndDeserialize(
-                new DbUpdateConcurrencyException("But somehow the vital connection is made")));
-
-        Assert.Equal(
-            "But somehow the vital connection is made",
-            transportedException.Message);
-    }
-
-    [ConditionalFact]
-    public void Deserialized_DbUpdateConcurrencyException_can_be_serialized_and_deserialized_again_with_entries()
-    {
-        var transportedException = SerializeAndDeserialize(
-            SerializeAndDeserialize(
-                new DbUpdateConcurrencyException(
-                    "But somehow the vital connection is made",
-                    new Exception("Bang!"),
-                    new IUpdateEntry[] { new FakeUpdateEntry() })));
-
-        Assert.Equal("But somehow the vital connection is made", transportedException.Message);
-        Assert.Equal("Bang!", transportedException.InnerException.Message);
-        Assert.Empty(transportedException.Entries); // Because the entries cannot be serialized
-    }
-
-    [ConditionalFact]
+    [Fact]
     public void DbUpdateException_exposes_public_string_and_entries_constructor()
     {
         var entries = new List<EntityEntry>
@@ -147,7 +81,7 @@ public class ExceptionTest
         Assert.Same(entries, exception.Entries);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void DbUpdateException_exposes_public_string_and_inner_exception_and_entries_constructor()
     {
         var inner = new Exception();
@@ -165,20 +99,32 @@ public class ExceptionTest
 
     private class FakeUpdateEntry : IUpdateEntry
     {
-        public void SetOriginalValue(IProperty property, object value)
+        public DbContext Context
+            => throw new NotImplementedException();
+
+        public void SetOriginalValue(IProperty property, object? value)
             => throw new NotImplementedException();
 
         public void SetPropertyModified(IProperty property)
             => throw new NotImplementedException();
 
-        public IEntityType EntityType { get; }
+        public IEntityType EntityType { get; } = null!;
         public EntityState EntityState { get; set; }
-        public IUpdateEntry SharedIdentityEntry { get; }
+        public IUpdateEntry? SharedIdentityEntry { get; }
 
         public bool IsModified(IProperty property)
             => throw new NotImplementedException();
 
+        public bool IsLoaded(IProperty property)
+            => throw new NotImplementedException();
+
         public bool HasTemporaryValue(IProperty property)
+            => throw new NotImplementedException();
+
+        public bool HasExplicitValue(IProperty property)
+            => throw new NotImplementedException();
+
+        public bool HasStoreGeneratedValue(IProperty property)
             => throw new NotImplementedException();
 
         public bool IsStoreGenerated(IProperty property)
@@ -190,13 +136,16 @@ public class ExceptionTest
         public object GetOriginalValue(IPropertyBase propertyBase)
             => throw new NotImplementedException();
 
+        public bool CanHaveOriginalValue(IPropertyBase propertyBase)
+            => throw new NotImplementedException();
+
         public TProperty GetCurrentValue<TProperty>(IPropertyBase propertyBase)
             => throw new NotImplementedException();
 
         public TProperty GetOriginalValue<TProperty>(IProperty property)
             => throw new NotImplementedException();
 
-        public void SetStoreGeneratedValue(IProperty property, object value)
+        public void SetStoreGeneratedValue(IProperty property, object? value, bool setModified = true)
             => throw new NotImplementedException();
 
         public EntityEntry ToEntityEntry()
@@ -210,26 +159,15 @@ public class ExceptionTest
 
         public bool IsConceptualNull(IProperty property)
             => throw new NotImplementedException();
+
+        public bool IsModified(IComplexProperty property)
+            => throw new NotImplementedException();
     }
 
     private static IEntityType CreateEntityType()
     {
         var model = new Model();
         model.AddEntityType(typeof(object), owned: false, ConfigurationSource.Convention);
-        return model.FinalizeModel().FindEntityType(typeof(object));
-    }
-
-    private TException SerializeAndDeserialize<TException>(TException exception)
-        where TException : Exception
-    {
-        var stream = new MemoryStream();
-        var formatter = new BinaryFormatter();
-
-#pragma warning disable SYSLIB0011 // Issue https://github.com/dotnet/runtime/issues/39289 tracks finding an alternative to BinaryFormatter
-        formatter.Serialize(stream, exception);
-        stream.Seek(0, SeekOrigin.Begin);
-
-        return (TException)formatter.Deserialize(stream);
-#pragma warning restore SYSLIB0011
+        return model.FinalizeModel().FindEntityType(typeof(object))!;
     }
 }

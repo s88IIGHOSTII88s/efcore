@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 
 #
 # Add-Migration
@@ -36,6 +36,9 @@ Register-TabExpansion Add-Migration @{
 .PARAMETER Namespace
     The namespace to use. Matches the directory by default.
 
+.PARAMETER NoBuild
+    Don't build the project. Intended to be used when the build is up-to-date.
+
 .PARAMETER Args
     Arguments passed to the application.
 
@@ -55,6 +58,7 @@ function Add-Migration
         [string] $Project,
         [string] $StartupProject,
         [string] $Namespace,
+        [switch] $NoBuild,
         [string] $Args)
 
     WarnIfEF6 'Add-Migration'
@@ -77,7 +81,7 @@ function Add-Migration
     $params += GetParams $Context
 
     # NB: -join is here to support ConvertFrom-Json on PowerShell 3.0
-    $result = (EF $dteProject $dteStartupProject $params $Args) -join "`n" | ConvertFrom-Json
+    $result = (EF $dteProject $dteStartupProject $params $Args -skipBuild:$NoBuild) -join "`n" | ConvertFrom-Json
     Write-Host 'To undo this action, use Remove-Migration.'
 
     if (!(IsCpsProject $dteProject) -or (GetCpsProperty $dteProject 'EnableDefaultItems') -ne 'true' -or (GetCpsProperty $dteProject 'EnableDefaultCompileItems') -ne 'true')
@@ -208,6 +212,9 @@ Register-TabExpansion Drop-Database @{
 .DESCRIPTION
     Drops the database.
 
+.PARAMETER Connection
+    The connection string to the database. Defaults to the one specified in AddDbContext or OnConfiguring.
+
 .PARAMETER Context
     The DbContext to use.
 
@@ -228,6 +235,7 @@ function Drop-Database
 {
     [CmdletBinding(PositionalBinding = $false, SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     param(
+        [string] $Connection,
         [string] $Context,
         [string] $Project,
         [string] $StartupProject,
@@ -241,6 +249,12 @@ function Drop-Database
     if ($PSCmdlet.ShouldProcess("database '$($info.databaseName)' on server '$($info.dataSource)'"))
     {
         $params = 'database', 'drop', '--force'
+
+        if ($Connection)
+        {
+            $params += '--connection', $Connection
+        }
+
         $params += GetParams $Context
 
         EF $dteProject $dteStartupProject $params $Args -skipBuild
@@ -412,6 +426,12 @@ Register-TabExpansion Remove-Migration @{
 .PARAMETER Force
     Revert the migration if it has been applied to the database.
 
+.PARAMETER Offline
+    Remove the migration without connecting to the database.
+
+.PARAMETER Connection
+    The connection string to the database. Defaults to the one specified in AddDbContext or OnConfiguring.
+
 .PARAMETER Context
     The DbContext to use.
 
@@ -434,6 +454,8 @@ function Remove-Migration
     [CmdletBinding(PositionalBinding = $false)]
     param(
         [switch] $Force,
+        [switch] $Offline,
+        [string] $Connection,
         [string] $Context,
         [string] $Project,
         [string] $StartupProject,
@@ -447,6 +469,16 @@ function Remove-Migration
     if ($Force)
     {
         $params += '--force'
+    }
+
+    if ($Offline)
+    {
+        $params += '--offline'
+    }
+
+    if ($Connection)
+    {
+        $params += '--connection', $Connection
     }
 
     $params += GetParams $Context
@@ -493,6 +525,12 @@ Register-TabExpansion Optimize-DbContext @{
 .PARAMETER Context
     The DbContext to use.
 
+.PARAMETER PrecompileQueries
+    Generate precompiled queries.
+
+.PARAMETER NativeAot
+    Generate additional code in the compiled model required for NativeAOT compilation and precompiled queries (experimental).
+
 .PARAMETER Project
     The project to use.
 
@@ -512,6 +550,8 @@ function Optimize-DbContext
         [string] $OutputDir,
         [string] $Namespace,
         [string] $Context,
+        [switch] $PrecompileQueries,
+        [switch] $NativeAot,
         [string] $Project,
         [string] $StartupProject,
         [string] $Args)
@@ -534,6 +574,16 @@ function Optimize-DbContext
     if ($Context)
     {
         $params += '--context', $Context
+    }
+
+    if ($PrecompileQueries)
+    {
+        $params += '--precompile-queries'
+    }
+
+    if ($NativeAot)
+    {
+        $params += '--nativeaot'
     }
 
     EF $dteProject $dteStartupProject $params $Args
@@ -574,16 +624,16 @@ Register-TabExpansion Scaffold-DbContext @{
     The name of the DbContext. Defaults to the database name.
 
 .PARAMETER Schemas
-    The schemas of tables to generate entity types for.
+    The schemas of tables and views to generate entity types for. All tables and views in the schemas will be included in the model, even if they are not explicitly included with the 'Tables' parameter.
 
 .PARAMETER Tables
-    The tables to generate entity types for.
+    The tables and views to generate entity types for. Tables or views in a specific schema can be included using the 'schema.table' or 'schema.view' format.
 
 .PARAMETER DataAnnotations
     Use attributes to configure the model (where possible). If omitted, only the fluent API is used.
 
 .PARAMETER UseDatabaseNames
-    Use table and column names directly from the database.
+    Use table, view, sequence, and column names directly from the database.
 
 .PARAMETER Force
     Overwrite existing files.
@@ -906,6 +956,7 @@ function Script-Migration
 
 Register-TabExpansion Update-Database @{
     Migration = { param($x) GetMigrations $x.Context $x.Project $x.StartupProject }
+    OutputDir = { <# Disabled. Otherwise, paths would be relative to the solution directory. #> }
     Context = { param($x) GetContextTypes $x.Project $x.StartupProject }
     Project = { GetProjects }
     StartupProject = { GetProjects }
@@ -920,6 +971,16 @@ Register-TabExpansion Update-Database @{
 
 .PARAMETER Migration
     The target migration. If '0', all migrations will be reverted. Defaults to the last migration.
+    When used with -Add, this is the name of the new migration to create.
+
+.PARAMETER Add
+    Create a new migration with the given name and apply it immediately.
+
+.PARAMETER OutputDir
+    The directory to put files in. Paths are relative to the project directory. Requires -Add.
+
+.PARAMETER Namespace
+    The namespace to use for the migration. Matches the directory by default. Requires -Add.
 
 .PARAMETER Connection
     The connection string to the database. Defaults to the one specified in AddDbContext or OnConfiguring.
@@ -932,6 +993,9 @@ Register-TabExpansion Update-Database @{
 
 .PARAMETER StartupProject
     The startup project to use. Defaults to the solution's startup project.
+
+.PARAMETER NoBuild
+    Don't build the project. Intended to be used when the build is up-to-date.
 
 .PARAMETER Args
     Arguments passed to the application.
@@ -946,11 +1010,27 @@ function Update-Database
     param(
         [Parameter(Position = 0)]
         [string] $Migration,
+        [switch] $Add,
+        [string] $OutputDir,
+        [string] $Namespace,
         [string] $Connection,
         [string] $Context,
         [string] $Project,
         [string] $StartupProject,
+        [switch] $NoBuild,
         [string] $Args)
+
+    if (-not $Add)
+    {
+        if ($OutputDir)
+        {
+            throw "The '-OutputDir' parameter requires the '-Add' parameter to be specified."
+        }
+        if ($Namespace)
+        {
+            throw "The '-Namespace' parameter requires the '-Add' parameter to be specified."
+        }
+    }
 
     WarnIfEF6 'Update-Database'
 
@@ -964,6 +1044,21 @@ function Update-Database
         $params += $Migration
     }
 
+    if ($Add)
+    {
+        $params += '--add'
+    }
+
+    if ($OutputDir)
+    {
+        $params += '--output-dir', $OutputDir
+    }
+
+    if ($Namespace)
+    {
+        $params += '--namespace', $Namespace
+    }
+
     if ($Connection)
     {
         $params += '--connection', $Connection
@@ -972,7 +1067,7 @@ function Update-Database
     $params += GetParams $Context
 
 
-    EF $dteProject $dteStartupProject $params $Args
+    EF $dteProject $dteStartupProject $params $Args -skipBuild:$NoBuild
 }
 
 #
@@ -1185,17 +1280,103 @@ function EF($project, $startupProject, $params, $applicationArgs, [switch] $skip
 
     if (!$skipBuild)
     {
-        Write-Host 'Build started...'
+        $projectsToRevert = @()
 
-        # TODO: Only build startup project. Don't use BuildProject, you can't specify platform
-        $solutionBuild = $DTE.Solution.SolutionBuild
-        $solutionBuild.Build(<# WaitForBuildToFinish: #> $true)
-        if ($solutionBuild.LastBuildInfo)
+        try
         {
-            throw 'Build failed.'
-        }
+            $projectsToAdjust = @()
+            try
+            {
+                $projectsToAdjust = GetSolutionProjects
+            }
+            catch
+            {
+            }
 
-        Write-Host 'Build succeeded.'
+            if (!$projectsToAdjust -or $projectsToAdjust.Count -eq 0)
+            {
+                $projectsToAdjust = @($startupProject, $project)
+            }
+
+            foreach ($p in $projectsToAdjust)
+            {
+                try
+                {
+                    if ($p -and (IsCpsProject $p))
+                    {
+                        $publishAot = GetCpsProperty $p 'PublishAot'
+                        if ($publishAot -and [string]::Equals($publishAot.Trim(), 'true', [StringComparison]::OrdinalIgnoreCase))
+                        {
+                            $unevaluated = GetUnevaluatedCpsProperty $p 'PublishAot'
+                            SetCpsProperty $p 'PublishAot' 'false'
+                            $projectsToRevert += [pscustomobject]@{
+                                Project = $p
+                                OriginalValue = $unevaluated
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    Write-Verbose "Unable to set PublishAot=false on project '$($p.ProjectName)': $_"
+                }
+            }
+
+            Write-Host 'Build started...'
+
+            # TODO: Only build startup project. Don't use BuildProject, you can't specify platform
+            $solutionBuild = $DTE.Solution.SolutionBuild
+            $solutionBuild.Build(<# WaitForBuildToFinish: #> $true)
+            if ($solutionBuild.LastBuildInfo)
+            {
+                throw 'Build failed.'
+            }
+
+            Write-Host 'Build succeeded.'
+        }
+        finally
+        {
+            $restorationErrors = @()
+            foreach ($item in $projectsToRevert)
+            {
+                $restored = $false
+                for ($attempt = 1; $attempt -le 2; $attempt++)
+                {
+                    try
+                    {
+                        if (![string]::IsNullOrEmpty($item.OriginalValue))
+                        {
+                            SetCpsProperty $item.Project 'PublishAot' $item.OriginalValue
+                        }
+                        else
+                        {
+                            SetCpsProperty $item.Project 'PublishAot' $null
+                        }
+
+                        $restored = $true
+                        break
+                    }
+                    catch
+                    {
+                        if ($attempt -eq 1)
+                        {
+                            Start-Sleep -Milliseconds 100
+                        }
+                        else
+                        {
+                            $msg = "Unable to restore original PublishAot property on project '$($item.Project.ProjectName)'. Please verify PublishAot in your project file. Error: $_"
+                            Write-Warning $msg
+                            $restorationErrors += $msg
+                        }
+                    }
+                }
+            }
+
+            if ($restorationErrors.Count -gt 0)
+            {
+                Write-Verbose ($restorationErrors -join "`n")
+            }
+        }
     }
 
     $activeConfiguration = $startupProject.ConfigurationManager.ActiveConfiguration
@@ -1217,24 +1398,23 @@ function EF($project, $startupProject, $params, $applicationArgs, [switch] $skip
 
     if ($targetFramework -in '.NETFramework')
     {
-        $platformTarget = GetPlatformTarget $startupProject
-        if ($platformTarget -eq 'x86')
-        {
-            $exePath = Join-Path $PSScriptRoot 'net461\win-x86\ef.exe'
-        }
-        elseif ($platformTarget -in 'AnyCPU', 'x64')
-        {
-            $exePath = Join-Path $PSScriptRoot 'net461\any\ef.exe'
-        }
-        else
-        {
-            throw "Startup project '$($startupProject.ProjectName)' has an active platform of '$platformTarget'. Select " +
-                'a different platform and try again.'
-        }
+        throw "Startup project '$($startupProject.ProjectName)' targets framework '.NETFramework'. The Entity Framework Core Package " +
+            'Manager Console Tools don''t support .NET Framework projects. Consider updating the project to target .NET.'
     }
     elseif ($targetFramework -eq '.NETCoreApp')
     {
         $targetPlatformIdentifier = GetCpsProperty $startupProject 'TargetPlatformIdentifier'
+        $targetFrameworkValue = GetCpsProperty $startupProject 'TargetFramework'
+        $dashIndex = if ($targetFrameworkValue) { $targetFrameworkValue.IndexOf('-') } else { -1 }
+        if ($targetPlatformIdentifier -or $dashIndex -gt 0)
+        {
+            Write-Warning ("Startup project '$($startupProject.ProjectName)' targets a platform-specific" +
+                " framework: '$targetFrameworkValue'. The Entity Framework Core Package Manager Console" +
+                ' Tools might not function correctly. Implement IDesignTimeDbContextFactory<> to ensure' +
+                ' design-time tools work correctly with this project.' +
+                ' See https://aka.ms/efcore-docs-migrations-projects for more information.')
+        }
+
         if ($targetPlatformIdentifier -and $targetPlatformIdentifier -ne 'Windows')
         {
             throw "Startup project '$($startupProject.ProjectName)' targets platform '$targetPlatformIdentifier'. The Entity Framework " +
@@ -1249,7 +1429,7 @@ function EF($project, $startupProject, $params, $applicationArgs, [switch] $skip
         $projectAssetsFile = GetCpsProperty $startupProject 'ProjectAssetsFile'
         $runtimeConfig = Join-Path $targetDir ($startupTargetName + '.runtimeconfig.json')
         $runtimeFrameworkVersion = GetCpsProperty $startupProject 'RuntimeFrameworkVersion'
-        $efPath = Join-Path $PSScriptRoot 'netcoreapp2.0\any\ef.dll'
+        $efPath = Join-Path $PSScriptRoot 'net\ef.dll'
 
         $dotnetParams = 'exec', '--depsfile', $depsFile
 
@@ -1323,6 +1503,45 @@ function EF($project, $startupProject, $params, $applicationArgs, [switch] $skip
     if ($nullable -in 'enable', 'annotations')
     {
         $params += '--nullable'
+    }
+
+    # NB: -join is here to support ConvertFrom-Json on PowerShell 3.0
+    $previousErrorActionPreference = $ErrorActionPreference
+    try
+    {
+        if ($previousErrorActionPreference -eq 'Stop')
+        {
+            $ErrorActionPreference = 'Continue'
+        }
+        $references = (dotnet build $startupProject.FullName /t:ResolvePackageAssets /getItem:RuntimeCopyLocalItems) -join "`n" | ConvertFrom-Json
+    }
+    finally
+    {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    $designReference = $references.Items.RuntimeCopyLocalItems | ? { $_.FullPath.EndsWith('Microsoft.EntityFrameworkCore.Design.dll') }
+    if ($designReference -ne $null)
+    {
+        $params += '--design-assembly', $designReference.FullPath
+    }
+
+    $msbuildWorkspacesItem = $references.Items.RuntimeCopyLocalItems | ? { 
+        $_.Filename -eq 'Microsoft.CodeAnalysis.Workspaces.MSBuild' 
+    } | Select-Object -First 1
+
+    if ($msbuildWorkspacesItem -ne $null -and $msbuildWorkspacesItem.CopyLocal -eq 'true')
+    {
+        $itemDirectory = [IO.Path]::GetDirectoryName($msbuildWorkspacesItem.FullPath)
+        if ($itemDirectory)
+        {
+            $contentFilesPath = [IO.Path]::GetFullPath([IO.Path]::Combine($itemDirectory, '..', '..', 'contentFiles', 'any', 'any'))
+            
+            if ([IO.Directory]::Exists($contentFilesPath))
+            {
+                Copy-Item "$contentFilesPath\*" $targetDir -Recurse -ErrorAction SilentlyContinue
+            }
+        }
     }
 
     $arguments = ToArguments $params
@@ -1518,14 +1737,71 @@ function GetProperty($properties, $propertyName)
     }
 }
 
+function GetCpsCommonProperties($project)
+{
+    try
+    {
+        $browseObjectContext = Get-Interface $project 'Microsoft.VisualStudio.ProjectSystem.Properties.IVsBrowseObjectContext'
+        if (!$browseObjectContext)
+        {
+            return $null
+        }
+
+        $unconfiguredProject = $browseObjectContext.UnconfiguredProject
+        $configuredProject = $unconfiguredProject.GetSuggestedConfiguredProjectAsync().Result
+        return $configuredProject.Services.ProjectPropertiesProvider.GetCommonProperties()
+    }
+    catch
+    {
+        return $null
+    }
+}
+
 function GetCpsProperty($project, $propertyName)
 {
-    $browseObjectContext = Get-Interface $project 'Microsoft.VisualStudio.ProjectSystem.Properties.IVsBrowseObjectContext'
-    $unconfiguredProject = $browseObjectContext.UnconfiguredProject
-    $configuredProject = $unconfiguredProject.GetSuggestedConfiguredProjectAsync().Result
-    $properties = $configuredProject.Services.ProjectPropertiesProvider.GetCommonProperties()
+    $properties = GetCpsCommonProperties $project
+    if (!$properties)
+    {
+        return $null
+    }
 
     return $properties.GetEvaluatedPropertyValueAsync($propertyName).Result
+}
+
+function GetUnevaluatedCpsProperty($project, $propertyName)
+{
+    $properties = GetCpsCommonProperties $project
+    if (!$properties)
+    {
+        return $null
+    }
+
+    return $properties.GetUnevaluatedPropertyValueAsync($propertyName).Result
+}
+
+function SetCpsProperty($project, $propertyName, $value)
+{
+    $properties = GetCpsCommonProperties $project
+    if (!$properties)
+    {
+        return
+    }
+
+    if ($value -ne $null)
+    {
+        $properties.SetPropertyValueAsync($propertyName, $value, $null).GetAwaiter().GetResult()
+    }
+    else
+    {
+        try
+        {
+            $properties.DeletePropertyAsync($propertyName, $null).GetAwaiter().GetResult()
+        }
+        catch
+        {
+            $properties.SetPropertyValueAsync($propertyName, '', $null).GetAwaiter().GetResult()
+        }
+    }
 }
 
 function GetMSBuildProperty($project, $propertyName)

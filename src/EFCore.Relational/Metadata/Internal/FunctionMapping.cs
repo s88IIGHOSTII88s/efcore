@@ -9,7 +9,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
-public class FunctionMapping : TableMappingBase<FunctionColumnMapping>, IFunctionMapping
+public class FunctionMapping : TableMappingBase<FunctionColumnMapping>, IFunctionMapping, IComparable<FunctionMapping>
 {
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -17,11 +17,9 @@ public class FunctionMapping : TableMappingBase<FunctionColumnMapping>, IFunctio
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public FunctionMapping(IEntityType entityType, StoreFunction storeFunction, IDbFunction dbFunction, bool includesDerivedTypes)
+    public FunctionMapping(IEntityType entityType, StoreFunction storeFunction, IDbFunction dbFunction, bool? includesDerivedTypes)
         : base(entityType, storeFunction, includesDerivedTypes)
-    {
-        DbFunction = dbFunction;
-    }
+        => DbFunction = dbFunction;
 
     /// <inheritdoc />
     public virtual bool IsDefaultFunctionMapping { get; set; }
@@ -32,6 +30,10 @@ public class FunctionMapping : TableMappingBase<FunctionColumnMapping>, IFunctio
 
     /// <inheritdoc />
     public virtual IDbFunction DbFunction { get; }
+
+    /// <inheritdoc />
+    public int CompareTo(FunctionMapping? other)
+        => CompareTo((ITableMappingBase?)other);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -47,5 +49,72 @@ public class FunctionMapping : TableMappingBase<FunctionColumnMapping>, IFunctio
     {
         [DebuggerStepThrough]
         get => ColumnMappings;
+    }
+
+    /// <inheritdoc />
+    protected override int CompareTableDetails(ITableMappingBase other)
+    {
+        if (other is not IFunctionMapping otherFunctionMapping)
+        {
+            return 1;
+        }
+
+        if (Table is StoreFunction storeFunction
+            && otherFunctionMapping.Table is StoreFunction otherStoreFunction)
+        {
+            var xParams = storeFunction.Parameters;
+            var yParams = otherStoreFunction.Parameters;
+            var result = xParams.Length.CompareTo(yParams.Length);
+            if (result != 0)
+            {
+                return result;
+            }
+
+            for (var i = 0; i < xParams.Length; i++)
+            {
+                var xp = xParams[i];
+                var yp = yParams[i];
+                result = StringComparer.Ordinal.Compare(xp.StoreType, yp.StoreType);
+                if (result != 0)
+                {
+                    return result;
+                }
+
+                result = StringComparer.Ordinal.Compare(xp.Name, yp.Name);
+                if (result != 0)
+                {
+                    return result;
+                }
+            }
+
+            return 0;
+        }
+
+        var xList = StoreFunction.Parameters.ToList();
+        var yList = otherFunctionMapping.StoreFunction.Parameters.ToList();
+        var countResult = xList.Count.CompareTo(yList.Count);
+        if (countResult != 0)
+        {
+            return countResult;
+        }
+
+        for (var i = 0; i < xList.Count; i++)
+        {
+            var xp = xList[i];
+            var yp = yList[i];
+            var result = StringComparer.Ordinal.Compare(xp.StoreType, yp.StoreType);
+            if (result != 0)
+            {
+                return result;
+            }
+
+            result = StringComparer.Ordinal.Compare(xp.Name, yp.Name);
+            if (result != 0)
+            {
+                return result;
+            }
+        }
+
+        return 0;
     }
 }

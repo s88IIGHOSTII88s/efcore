@@ -8,6 +8,6 @@ public class JoinOneToTwo
     public virtual int OneId { get; set; }
     public virtual int TwoId { get; set; }
 
-    public virtual EntityOne One { get; set; }
-    public virtual EntityTwo Two { get; set; }
+    public virtual EntityOne One { get; set; } = null!;
+    public virtual EntityTwo Two { get; set; } = null!;
 }

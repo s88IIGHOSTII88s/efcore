@@ -9,7 +9,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 public class SqlServerValueGenerationStrategyConventionTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Annotations_are_added_when_conventional_model_builder_is_used()
     {
         var model = SqlServerTestHelpers.Instance.CreateConventionBuilder().Model;
@@ -22,7 +22,7 @@ public class SqlServerValueGenerationStrategyConventionTest
         Assert.Equal(SqlServerValueGenerationStrategy.IdentityColumn, annotations.Last().Value);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Annotations_are_added_when_conventional_model_builder_is_used_with_sequences()
     {
         var model = SqlServerTestHelpers.Instance.CreateConventionBuilder()
@@ -46,5 +46,26 @@ public class SqlServerValueGenerationStrategyConventionTest
 
         Assert.Equal(SqlServerAnnotationNames.ValueGenerationStrategy, annotations[3].Name);
         Assert.Equal(SqlServerValueGenerationStrategy.SequenceHiLo, annotations[3].Value);
+    }
+
+    [Fact]
+    public void Annotations_are_added_when_conventional_model_builder_is_used_with_key_sequences()
+    {
+        var model = SqlServerTestHelpers.Instance.CreateConventionBuilder()
+            .UseKeySequences()
+            .Model;
+
+        model.RemoveAnnotation(CoreAnnotationNames.ProductVersion);
+
+        var annotations = model.GetAnnotations().OrderBy(a => a.Name).ToList();
+        Assert.Equal(3, annotations.Count);
+
+        Assert.Equal(RelationalAnnotationNames.MaxIdentifierLength, annotations[0].Name);
+
+        Assert.Equal(SqlServerAnnotationNames.SequenceNameSuffix, annotations[1].Name);
+        Assert.Equal(SqlServerModelExtensions.DefaultSequenceNameSuffix, annotations[1].Value);
+
+        Assert.Equal(SqlServerAnnotationNames.ValueGenerationStrategy, annotations[2].Name);
+        Assert.Equal(SqlServerValueGenerationStrategy.Sequence, annotations[2].Value);
     }
 }

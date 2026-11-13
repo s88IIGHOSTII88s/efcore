@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.ObjectModel;
@@ -7,42 +7,37 @@ using Microsoft.EntityFrameworkCore.TestModels.ManyToManyModel;
 
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixture>
+public abstract partial class ManyToManyTrackingTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : ManyToManyTrackingTestBase<TFixture>.ManyToManyTrackingFixtureBase
 {
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many_composite_with_navs(bool async)
     {
-        List<int> keys = null;
+        List<int> keys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
             {
                 var leftEntities = new[]
                 {
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Key2 = "7711";
-                            e.Key3 = new DateTime(7711, 1, 1);
-                        }),
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Key2 = "7712";
-                            e.Key3 = new DateTime(7712, 1, 1);
-                        }),
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Key2 = "7713";
-                            e.Key3 = new DateTime(7713, 1, 1);
-                        }),
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Key2 = "7711";
+                        e.Key3 = new DateTime(7711, 1, 1);
+                    }),
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Key2 = "7712";
+                        e.Key3 = new DateTime(7712, 1, 1);
+                    }),
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Key2 = "7713";
+                        e.Key3 = new DateTime(7713, 1, 1);
+                    }),
                 };
                 var rightEntities = new[]
                 {
@@ -91,7 +86,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             },
             async context =>
             {
-                var queryable = context.Set<EntityCompositeKey>().Where(e => keys.Contains(e.Key1)).Include(e => e.LeafSkipFull);
+                var queryable = context.Set<EntityCompositeKey>().Where(e => keys!.Contains(e.Key1)).Include(e => e.LeafSkipFull);
                 var results = async ? await queryable.ToListAsync() : queryable.ToList();
                 Assert.Equal(3, results.Count);
 
@@ -104,7 +99,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 ValidateFixup(context, leftEntities, rightEntities);
             });
 
-        void ValidateFixup(DbContext context, IList<EntityCompositeKey> leftEntities, IList<EntityLeaf> rightEntities)
+        static void ValidateFixup(DbContext context, IList<EntityCompositeKey> leftEntities, IList<EntityLeaf> rightEntities)
         {
             Assert.Equal(11, context.ChangeTracker.Entries().Count());
             Assert.Equal(3, context.ChangeTracker.Entries<EntityCompositeKey>().Count());
@@ -137,87 +132,79 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_update_many_to_many_composite_with_navs()
+    [Fact]
+    public virtual Task Can_update_many_to_many_composite_with_navs()
     {
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var leftEntities = context.Set<EntityCompositeKey>().Include(e => e.LeafSkipFull).OrderBy(e => e.Key2).ToList();
-                var rightEntities = context.Set<EntityLeaf>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityCompositeKey>().Include(e => e.LeafSkipFull).OrderBy(e => e.Key2).ToListAsync();
+                var rightEntities = await context.Set<EntityLeaf>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToListAsync();
 
                 leftEntities[0].LeafSkipFull.Add(
-                    context.Set<EntityLeaf>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
-                            e.Name = "Z7721";
-                        }));
+                    context.Set<EntityLeaf>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
+                        e.Name = "Z7721";
+                    }));
                 leftEntities[0].LeafSkipFull.Add(
-                    context.Set<EntityLeaf>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
-                            e.Name = "Z7722";
-                        }));
+                    context.Set<EntityLeaf>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
+                        e.Name = "Z7722";
+                    }));
                 leftEntities[0].LeafSkipFull.Add(
-                    context.Set<EntityLeaf>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
-                            e.Name = "Z7723";
-                        }));
+                    context.Set<EntityLeaf>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
+                        e.Name = "Z7723";
+                    }));
 
                 rightEntities[0].CompositeKeySkipFull.Add(
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Key2 = "7711";
-                            e.Key3 = new DateTime(7711, 1, 1);
-                            e.Name = "Z7711";
-                        }));
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Key2 = "7711";
+                        e.Key3 = new DateTime(7711, 1, 1);
+                        e.Name = "Z7711";
+                    }));
                 rightEntities[0].CompositeKeySkipFull.Add(
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Key2 = "7712";
-                            e.Key3 = new DateTime(7712, 1, 1);
-                            e.Name = "Z7712";
-                        }));
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Key2 = "7712";
+                        e.Key3 = new DateTime(7712, 1, 1);
+                        e.Name = "Z7712";
+                    }));
                 rightEntities[0].CompositeKeySkipFull.Add(
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Key2 = "7713";
-                            e.Key3 = new DateTime(7713, 1, 1);
-                            e.Name = "Z7713";
-                        }));
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Key2 = "7713";
+                        e.Key3 = new DateTime(7713, 1, 1);
+                        e.Name = "Z7713";
+                    }));
 
                 leftEntities[0].LeafSkipFull.Remove(leftEntities[0].LeafSkipFull.Single(e => e.Name == "Leaf 1"));
                 rightEntities[1].CompositeKeySkipFull.Remove(rightEntities[1].CompositeKeySkipFull.Single(e => e.Key2 == "3_1"));
 
                 leftEntities[2].LeafSkipFull.Remove(leftEntities[2].LeafSkipFull.Single(e => e.Name == "Leaf 3"));
                 leftEntities[2].LeafSkipFull.Add(
-                    context.Set<EntityLeaf>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
-                            e.Name = "Z7724";
-                        }));
+                    context.Set<EntityLeaf>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
+                        e.Name = "Z7724";
+                    }));
 
                 rightEntities[2].CompositeKeySkipFull.Remove(rightEntities[2].CompositeKeySkipFull.Single(e => e.Key2 == "8_3"));
                 rightEntities[2].CompositeKeySkipFull.Add(
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7714;
-                            e.Key2 = "7714";
-                            e.Key3 = new DateTime(7714, 1, 1);
-                            e.Name = "Z7714";
-                        }));
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7714;
+                        e.Key2 = "7714";
+                        e.Key3 = new DateTime(7714, 1, 1);
+                        e.Name = "Z7714";
+                    }));
 
                 if (RequiresDetectChanges)
                 {
@@ -226,19 +213,18 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 8, 39);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 8, 39 - 4);
-            },
-            context =>
+            }, async context =>
             {
-                var leftEntities = context.Set<EntityCompositeKey>().Include(e => e.LeafSkipFull).OrderBy(e => e.Key2).ToList();
-                var rightEntities = context.Set<EntityLeaf>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityCompositeKey>().Include(e => e.LeafSkipFull).OrderBy(e => e.Key2).ToListAsync();
+                var rightEntities = await context.Set<EntityLeaf>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 8, 39 - 4);
             });
 
-        void ValidateFixup(
+        static void ValidateFixup(
             DbContext context,
             List<EntityCompositeKey> leftEntities,
             List<EntityLeaf> rightEntities,
@@ -296,13 +282,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 {
                     if (left.LeafSkipFull?.Contains(right) == true)
                     {
-                        Assert.Contains(left, right.CompositeKeySkipFull);
+                        Assert.Contains(left, right.CompositeKeySkipFull!);
                         count++;
                     }
 
                     if (right.CompositeKeySkipFull?.Contains(left) == true)
                     {
-                        Assert.Contains(right, left.LeafSkipFull);
+                        Assert.Contains(right, left.LeafSkipFull!);
                         count++;
                     }
                 }
@@ -313,22 +299,22 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_delete_with_many_to_many_composite_with_navs()
+    [Fact]
+    public virtual Task Can_delete_with_many_to_many_composite_with_navs()
     {
         var key1 = 0;
         var key2 = "";
         var key3 = default(DateTime);
         var id = 0;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var ones = context.Set<EntityCompositeKey>().Include(e => e.RootSkipShared).OrderBy(e => e.Key2).ToList();
-                var threes = context.Set<EntityLeaf>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToList();
+                var ones = await context.Set<EntityCompositeKey>().Include(e => e.RootSkipShared).OrderBy(e => e.Key2).ToListAsync();
+                var threes = await context.Set<EntityLeaf>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToListAsync();
 
                 // Make sure other related entities are loaded for delete fixup
-                context.Set<JoinThreeToCompositeKeyFull>().Load();
+                await context.Set<JoinThreeToCompositeKeyFull>().LoadAsync();
 
                 var toRemoveOne = context.EntityCompositeKeys.Single(e => e.Name == "Composite 6");
                 key1 = toRemoveOne.Key1;
@@ -377,7 +363,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                             ? EntityState.Deleted
                             : EntityState.Unchanged, e.State));
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 Assert.Equal(0, threes.SelectMany(e => e.CompositeKeySkipFull).Count(e => e == toRemoveOne));
                 Assert.Equal(0, ones.SelectMany(e => e.RootSkipShared).Count(e => e == toRemoveThree));
@@ -396,11 +382,10 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                             && e.Entity.CompositeId2 == key2
                             && e.Entity.CompositeId3 == key3)
                         || e.Entity.LeafId == id);
-            },
-            context =>
+            }, async context =>
             {
-                var ones = context.Set<EntityCompositeKey>().Include(e => e.RootSkipShared).OrderBy(e => e.Key2).ToList();
-                var threes = context.Set<EntityLeaf>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToList();
+                var ones = await context.Set<EntityCompositeKey>().Include(e => e.RootSkipShared).OrderBy(e => e.Key2).ToListAsync();
+                var threes = await context.Set<EntityLeaf>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateNavigations(ones, threes);
 
@@ -472,39 +457,34 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many_composite_shared_with_navs(bool async)
     {
-        List<int> keys = null;
+        List<int> keys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
             {
                 var leftEntities = new[]
                 {
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Key2 = "7711";
-                            e.Key3 = new DateTime(7711, 1, 1);
-                        }),
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Key2 = "7712";
-                            e.Key3 = new DateTime(7712, 1, 1);
-                        }),
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Key2 = "7713";
-                            e.Key3 = new DateTime(7713, 1, 1);
-                        }),
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Key2 = "7711";
+                        e.Key3 = new DateTime(7711, 1, 1);
+                    }),
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Key2 = "7712";
+                        e.Key3 = new DateTime(7712, 1, 1);
+                    }),
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Key2 = "7713";
+                        e.Key3 = new DateTime(7713, 1, 1);
+                    }),
                 };
                 var rightEntities = new[]
                 {
@@ -553,7 +533,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             },
             async context =>
             {
-                var queryable = context.Set<EntityCompositeKey>().Where(e => keys.Contains(e.Key1)).Include(e => e.RootSkipShared);
+                var queryable = context.Set<EntityCompositeKey>().Where(e => keys!.Contains(e.Key1)).Include(e => e.RootSkipShared);
                 var results = async ? await queryable.ToListAsync() : queryable.ToList();
                 Assert.Equal(3, results.Count);
 
@@ -566,7 +546,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 ValidateFixup(context, leftEntities, rightEntities);
             });
 
-        void ValidateFixup(DbContext context, IList<EntityCompositeKey> leftEntities, IList<EntityRoot> rightEntities)
+        static void ValidateFixup(DbContext context, IList<EntityCompositeKey> leftEntities, IList<EntityRoot> rightEntities)
         {
             Assert.Equal(11, context.ChangeTracker.Entries().Count());
             Assert.Equal(3, context.ChangeTracker.Entries<EntityCompositeKey>().Count());
@@ -586,44 +566,42 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_update_many_to_many_composite_shared_with_navs()
+    [Fact]
+    public virtual Task Can_update_many_to_many_composite_shared_with_navs()
     {
-        List<int> rootKeys = null;
+        List<int> rootKeys = null!;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var leftEntities = context.Set<EntityCompositeKey>().Include(e => e.RootSkipShared).OrderBy(e => e.Key2).ToList();
-                var rightEntities = context.Set<EntityRoot>().Include(e => e.CompositeKeySkipShared).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityCompositeKey>().Include(e => e.RootSkipShared).OrderBy(e => e.Key2)
+                    .ToListAsync();
+                var rightEntities = await context.Set<EntityRoot>().Include(e => e.CompositeKeySkipShared).OrderBy(e => e.Name)
+                    .ToListAsync();
 
                 var roots = new[]
                 {
-                    context.Set<EntityRoot>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
-                            e.Name = "Z7721";
-                        }),
-                    context.Set<EntityRoot>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
-                            e.Name = "Z7722";
-                        }),
-                    context.Set<EntityRoot>().CreateInstance(
-                        (e, p) =>
-                        {
-                            Assert.True(e != null, nameof(e) + " != null");
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
-                            e.Name = "Z7723";
-                        }),
-                    context.Set<EntityRoot>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
-                            e.Name = "Z7724";
-                        })
+                    context.Set<EntityRoot>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
+                        e.Name = "Z7721";
+                    }),
+                    context.Set<EntityRoot>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
+                        e.Name = "Z7722";
+                    }),
+                    context.Set<EntityRoot>().CreateInstance((e, p) =>
+                    {
+                        Assert.True(e != null, nameof(e) + " != null");
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
+                        e.Name = "Z7723";
+                    }),
+                    context.Set<EntityRoot>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
+                        e.Name = "Z7724";
+                    })
                 };
 
                 leftEntities[0].RootSkipShared.Add(roots[0]);
@@ -631,29 +609,26 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 leftEntities[0].RootSkipShared.Add(roots[2]);
 
                 rightEntities[0].CompositeKeySkipShared.Add(
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Key2 = "Z7711";
-                            e.Key3 = new DateTime(7711, 1, 1);
-                        }));
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Key2 = "Z7711";
+                        e.Key3 = new DateTime(7711, 1, 1);
+                    }));
                 rightEntities[0].CompositeKeySkipShared.Add(
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Key2 = "Z7712";
-                            e.Key3 = new DateTime(7712, 1, 1);
-                        }));
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Key2 = "Z7712";
+                        e.Key3 = new DateTime(7712, 1, 1);
+                    }));
                 rightEntities[0].CompositeKeySkipShared.Add(
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Key2 = "Z7713";
-                            e.Key3 = new DateTime(7713, 1, 1);
-                        }));
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Key2 = "Z7713";
+                        e.Key3 = new DateTime(7713, 1, 1);
+                    }));
 
                 leftEntities[0].RootSkipShared.Remove(leftEntities[0].RootSkipShared.Single(e => e.Name == "Root 9"));
                 rightEntities[1].CompositeKeySkipShared.Remove(rightEntities[1].CompositeKeySkipShared.Single(e => e.Key2 == "8_2"));
@@ -663,13 +638,12 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 rightEntities[3].CompositeKeySkipShared.Remove(rightEntities[3].CompositeKeySkipShared.Single(e => e.Key2 == "8_5"));
                 rightEntities[3].CompositeKeySkipShared.Add(
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7714;
-                            e.Key2 = "Z7714";
-                            e.Key3 = new DateTime(7714, 1, 1);
-                        }));
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7714;
+                        e.Key2 = "Z7714";
+                        e.Key3 = new DateTime(7714, 1, 1);
+                    }));
 
                 if (RequiresDetectChanges)
                 {
@@ -680,16 +654,17 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 47);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 rootKeys = roots.Select(e => e.Id).ToList();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 47 - 4);
-            },
-            context =>
+            }, async context =>
             {
-                var leftEntities = context.Set<EntityCompositeKey>().Include(e => e.RootSkipShared).OrderBy(e => e.Key2).ToList();
-                var rightEntities = context.Set<EntityRoot>().Include(e => e.CompositeKeySkipShared).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityCompositeKey>().Include(e => e.RootSkipShared).OrderBy(e => e.Key2)
+                    .ToListAsync();
+                var rightEntities = await context.Set<EntityRoot>().Include(e => e.CompositeKeySkipShared).OrderBy(e => e.Name)
+                    .ToListAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 47 - 4);
             });
@@ -707,9 +682,9 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             Assert.Equal(joinCount, context.ChangeTracker.Entries<Dictionary<string, object>>().Count());
             Assert.Equal(leftCount + rightCount + joinCount, context.ChangeTracker.Entries().Count());
 
-            Assert.Contains(leftEntities[0].RootSkipShared, e => context.Entry(e).Property(e => e.Id).CurrentValue == rootKeys[0]);
-            Assert.Contains(leftEntities[0].RootSkipShared, e => context.Entry(e).Property(e => e.Id).CurrentValue == rootKeys[1]);
-            Assert.Contains(leftEntities[0].RootSkipShared, e => context.Entry(e).Property(e => e.Id).CurrentValue == rootKeys[2]);
+            Assert.Contains(leftEntities[0].RootSkipShared, e => context.Entry(e).Property(e => e.Id).CurrentValue == rootKeys![0]);
+            Assert.Contains(leftEntities[0].RootSkipShared, e => context.Entry(e).Property(e => e.Id).CurrentValue == rootKeys![1]);
+            Assert.Contains(leftEntities[0].RootSkipShared, e => context.Entry(e).Property(e => e.Id).CurrentValue == rootKeys![2]);
 
             Assert.Contains(rightEntities[0].CompositeKeySkipShared, e => e.Key2 == "Z7711");
             Assert.Contains(rightEntities[0].CompositeKeySkipShared, e => e.Key2 == "Z7712");
@@ -719,7 +694,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             Assert.DoesNotContain(rightEntities[1].CompositeKeySkipShared, e => e.Key2 == "8_2");
 
             Assert.DoesNotContain(leftEntities[2].RootSkipShared, e => e.Name == "Branch 6");
-            Assert.Contains(leftEntities[2].RootSkipShared, e => context.Entry(e).Property(e => e.Id).CurrentValue == rootKeys[3]);
+            Assert.Contains(leftEntities[2].RootSkipShared, e => context.Entry(e).Property(e => e.Id).CurrentValue == rootKeys![3]);
 
             Assert.DoesNotContain(rightEntities[3].CompositeKeySkipShared, e => e.Key2 == "8_5");
             Assert.Contains(rightEntities[3].CompositeKeySkipShared, e => e.Key2 == "Z7714");
@@ -737,13 +712,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 {
                     if (left.RootSkipShared?.Contains(right) == true)
                     {
-                        Assert.Contains(left, right.CompositeKeySkipShared);
+                        Assert.Contains(left, right.CompositeKeySkipShared!);
                         count++;
                     }
 
                     if (right.CompositeKeySkipShared?.Contains(left) == true)
                     {
-                        Assert.Contains(right, left.RootSkipShared);
+                        Assert.Contains(right, left.RootSkipShared!);
                         count++;
                     }
                 }
@@ -754,19 +729,19 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_delete_with_many_to_many_composite_shared_with_navs()
+    [Fact]
+    public virtual Task Can_delete_with_many_to_many_composite_shared_with_navs()
     {
         var key1 = 0;
         var key2 = "";
         var key3 = default(DateTime);
         var id = 0;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var ones = context.Set<EntityCompositeKey>().Include(e => e.RootSkipShared).OrderBy(e => e.Key2).ToList();
-                var threes = context.Set<EntityRoot>().Include(e => e.CompositeKeySkipShared).OrderBy(e => e.Name).ToList();
+                var ones = await context.Set<EntityCompositeKey>().Include(e => e.RootSkipShared).OrderBy(e => e.Key2).ToListAsync();
+                var threes = await context.Set<EntityRoot>().Include(e => e.CompositeKeySkipShared).OrderBy(e => e.Name).ToListAsync();
 
                 // Make sure other related entities are loaded for delete fixup
                 context.Set<JoinThreeToCompositeKeyFull>().Load();
@@ -804,7 +779,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                             ? EntityState.Deleted
                             : EntityState.Unchanged, e.State));
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 Assert.Equal(0, threes.SelectMany(e => e.CompositeKeySkipShared).Count(e => e == toRemoveOne));
                 Assert.Equal(0, ones.SelectMany(e => e.RootSkipShared).Count(e => e == toRemoveThree));
@@ -821,11 +796,10 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                             && (string)e.Entity["CompositeKeySkipSharedKey2"] == key2
                             && (DateTime)e.Entity["CompositeKeySkipSharedKey3"] == key3)
                         || (int)e.Entity["RootSkipSharedId"] == id);
-            },
-            context =>
+            }, async context =>
             {
-                var ones = context.Set<EntityCompositeKey>().Include(e => e.RootSkipShared).OrderBy(e => e.Key2).ToList();
-                var threes = context.Set<EntityRoot>().Include(e => e.CompositeKeySkipShared).OrderBy(e => e.Name).ToList();
+                var ones = await context.Set<EntityCompositeKey>().Include(e => e.RootSkipShared).OrderBy(e => e.Key2).ToListAsync();
+                var threes = await context.Set<EntityRoot>().Include(e => e.CompositeKeySkipShared).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateNavigations(ones, threes);
 
@@ -863,60 +837,52 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many_composite_additional_pk_with_navs(bool async)
     {
-        List<string> keys = null;
+        List<string> keys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
             {
                 var leftEntities = new[]
                 {
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Key2 = "7711";
-                            e.Key3 = new DateTime(7711, 1, 1);
-                        }),
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Key2 = "7712";
-                            e.Key3 = new DateTime(7712, 1, 1);
-                        }),
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Key2 = "7713";
-                            e.Key3 = new DateTime(7713, 1, 1);
-                        }),
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Key2 = "7711";
+                        e.Key3 = new DateTime(7711, 1, 1);
+                    }),
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Key2 = "7712";
+                        e.Key3 = new DateTime(7712, 1, 1);
+                    }),
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Key2 = "7713";
+                        e.Key3 = new DateTime(7713, 1, 1);
+                    }),
                 };
                 var rightEntities = new[]
                 {
-                    context.Set<EntityThree>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
-                            e.Name = "Z7721";
-                        }),
-                    context.Set<EntityThree>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
-                            e.Name = "Z7722";
-                        }),
-                    context.Set<EntityThree>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
-                            e.Name = "Z7723";
-                        })
+                    context.Set<EntityThree>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
+                        e.Name = "Z7721";
+                    }),
+                    context.Set<EntityThree>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
+                        e.Name = "Z7722";
+                    }),
+                    context.Set<EntityThree>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
+                        e.Name = "Z7723";
+                    })
                 };
 
                 leftEntities[0].ThreeSkipFull = CreateCollection<EntityThree>();
@@ -959,7 +925,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             },
             async context =>
             {
-                var queryable = context.Set<EntityCompositeKey>().Where(e => keys.Contains(e.Key2)).Include(e => e.ThreeSkipFull);
+                var queryable = context.Set<EntityCompositeKey>().Where(e => keys!.Contains(e.Key2)).Include(e => e.ThreeSkipFull);
                 var results = async ? await queryable.ToListAsync() : queryable.ToList();
                 Assert.Equal(3, results.Count);
 
@@ -972,7 +938,11 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 ValidateFixup(context, leftEntities, rightEntities, postSave: true);
             });
 
-        void ValidateFixup(DbContext context, IList<EntityCompositeKey> leftEntities, IList<EntityThree> rightEntities, bool postSave)
+        static void ValidateFixup(
+            DbContext context,
+            IList<EntityCompositeKey> leftEntities,
+            IList<EntityThree> rightEntities,
+            bool postSave)
         {
             var entries = context.ChangeTracker.Entries();
             Assert.Equal(11, entries.Count());
@@ -1011,75 +981,68 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_update_many_to_many_composite_additional_pk_with_navs()
+    [Fact]
+    public virtual Task Can_update_many_to_many_composite_additional_pk_with_navs()
     {
-        List<int> threeIds = null;
+        List<int> threeIds = null!;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var leftEntities = context.Set<EntityCompositeKey>().Include(e => e.ThreeSkipFull).OrderBy(e => e.Key2).ToList();
-                var rightEntities = context.Set<EntityThree>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityCompositeKey>().Include(e => e.ThreeSkipFull).OrderBy(e => e.Key2).ToListAsync();
+                var rightEntities =
+                    await context.Set<EntityThree>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToListAsync();
 
                 var threes = new[]
                 {
-                    context.Set<EntityThree>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
-                            e.Name = "Z7721";
-                        }),
-                    context.Set<EntityThree>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
-                            e.Name = "Z7722";
-                        }),
-                    context.Set<EntityThree>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
-                            e.Name = "Z7723";
-                        }),
-                    context.Set<EntityThree>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
-                            e.Name = "Z7724";
-                        })
+                    context.Set<EntityThree>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
+                        e.Name = "Z7721";
+                    }),
+                    context.Set<EntityThree>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
+                        e.Name = "Z7722";
+                    }),
+                    context.Set<EntityThree>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
+                        e.Name = "Z7723";
+                    }),
+                    context.Set<EntityThree>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
+                        e.Name = "Z7724";
+                    })
                 };
 
                 var composites = new[]
                 {
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Key2 = "Z7711";
-                            e.Key3 = new DateTime(7711, 1, 1);
-                        }),
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Key2 = "Z7712";
-                            e.Key3 = new DateTime(7712, 1, 1);
-                        }),
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Key2 = "Z7713";
-                            e.Key3 = new DateTime(7713, 1, 1);
-                        }),
-                    context.EntityCompositeKeys.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7714;
-                            e.Key2 = "Z7714";
-                            e.Key3 = new DateTime(7714, 1, 1);
-                        })
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Key2 = "Z7711";
+                        e.Key3 = new DateTime(7711, 1, 1);
+                    }),
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Key2 = "Z7712";
+                        e.Key3 = new DateTime(7712, 1, 1);
+                    }),
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Key2 = "Z7713";
+                        e.Key3 = new DateTime(7713, 1, 1);
+                    }),
+                    context.EntityCompositeKeys.CreateInstance((e, p) =>
+                    {
+                        e.Key1 = Fixture.UseGeneratedKeys ? 0 : 7714;
+                        e.Key2 = "Z7714";
+                        e.Key3 = new DateTime(7714, 1, 1);
+                    })
                 };
 
                 leftEntities[0].ThreeSkipFull.Add(threes[0]);
@@ -1110,16 +1073,16 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 53);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 threeIds = threes.Select(e => e.Id).ToList();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 53 - 4);
-            },
-            context =>
+            }, async context =>
             {
-                var leftEntities = context.Set<EntityCompositeKey>().Include(e => e.ThreeSkipFull).OrderBy(e => e.Key2).ToList();
-                var rightEntities = context.Set<EntityThree>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityCompositeKey>().Include(e => e.ThreeSkipFull).OrderBy(e => e.Key2).ToListAsync();
+                var rightEntities =
+                    await context.Set<EntityThree>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 53 - 4);
             });
@@ -1137,9 +1100,9 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             Assert.Equal(joinCount, context.ChangeTracker.Entries<JoinThreeToCompositeKeyFull>().Count());
             Assert.Equal(leftCount + rightCount + joinCount, context.ChangeTracker.Entries().Count());
 
-            Assert.Contains(leftEntities[0].ThreeSkipFull, e => context.Entry(e).Property(e => e.Id).CurrentValue == threeIds[0]);
-            Assert.Contains(leftEntities[0].ThreeSkipFull, e => context.Entry(e).Property(e => e.Id).CurrentValue == threeIds[1]);
-            Assert.Contains(leftEntities[0].ThreeSkipFull, e => context.Entry(e).Property(e => e.Id).CurrentValue == threeIds[2]);
+            Assert.Contains(leftEntities[0].ThreeSkipFull, e => context.Entry(e).Property(e => e.Id).CurrentValue == threeIds![0]);
+            Assert.Contains(leftEntities[0].ThreeSkipFull, e => context.Entry(e).Property(e => e.Id).CurrentValue == threeIds![1]);
+            Assert.Contains(leftEntities[0].ThreeSkipFull, e => context.Entry(e).Property(e => e.Id).CurrentValue == threeIds![2]);
 
             Assert.Contains(rightEntities[0].CompositeKeySkipFull, e => e.Key2 == "Z7711");
             Assert.Contains(rightEntities[0].CompositeKeySkipFull, e => e.Key2 == "Z7712");
@@ -1149,7 +1112,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             Assert.DoesNotContain(rightEntities[1].CompositeKeySkipFull, e => e.Key2 == "9_2");
 
             Assert.DoesNotContain(leftEntities[3].ThreeSkipFull, e => e.Name == "EntityThree 23");
-            Assert.Contains(leftEntities[3].ThreeSkipFull, e => context.Entry(e).Property(e => e.Id).CurrentValue == threeIds[3]);
+            Assert.Contains(leftEntities[3].ThreeSkipFull, e => context.Entry(e).Property(e => e.Id).CurrentValue == threeIds![3]);
 
             Assert.DoesNotContain(rightEntities[2].CompositeKeySkipFull, e => e.Key2 == "6_1");
             Assert.Contains(rightEntities[2].CompositeKeySkipFull, e => e.Key2 == "Z7714");
@@ -1182,13 +1145,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 {
                     if (left.ThreeSkipFull?.Contains(right) == true)
                     {
-                        Assert.Contains(left, right.CompositeKeySkipFull);
+                        Assert.Contains(left, right.CompositeKeySkipFull!);
                         count++;
                     }
 
                     if (right.CompositeKeySkipFull?.Contains(left) == true)
                     {
-                        Assert.Contains(right, left.ThreeSkipFull);
+                        Assert.Contains(right, left.ThreeSkipFull!);
                         count++;
                     }
                 }
@@ -1199,19 +1162,19 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_delete_with_many_to_many_composite_additional_pk_with_navs()
+    [Fact]
+    public virtual Task Can_delete_with_many_to_many_composite_additional_pk_with_navs()
     {
         var threeId = 0;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var ones = context.Set<EntityCompositeKey>().Include(e => e.ThreeSkipFull).OrderBy(e => e.Key2).ToList();
-                var threes = context.Set<EntityThree>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToList();
+                var ones = await context.Set<EntityCompositeKey>().Include(e => e.ThreeSkipFull).OrderBy(e => e.Key2).ToListAsync();
+                var threes = await context.Set<EntityThree>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToListAsync();
 
                 // Make sure other related entities are loaded for delete fixup
-                context.Set<JoinThreeToCompositeKeyFull>().Load();
+                await context.Set<JoinThreeToCompositeKeyFull>().LoadAsync();
 
                 var toRemoveOne = context.EntityCompositeKeys.Single(e => e.Name == "Composite 6");
                 var refCountOnes = threes.SelectMany(e => e.CompositeKeySkipFull).Count(e => e == toRemoveOne);
@@ -1256,7 +1219,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                             ? EntityState.Deleted
                             : EntityState.Unchanged, e.State));
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 Assert.Equal(0, threes.SelectMany(e => e.CompositeKeySkipFull).Count(e => e == toRemoveOne));
                 Assert.Equal(0, ones.SelectMany(e => e.ThreeSkipFull).Count(e => e == toRemoveThree));
@@ -1274,11 +1237,10 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                     e => (e.Entity.CompositeId2 == "6_1"
                             && e.Entity.CompositeId3 == new DateTime(2006, 1, 1))
                         || e.Entity.ThreeId == threeId);
-            },
-            context =>
+            }, async context =>
             {
-                var ones = context.Set<EntityCompositeKey>().Include(e => e.ThreeSkipFull).OrderBy(e => e.Key2).ToList();
-                var threes = context.Set<EntityThree>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToList();
+                var ones = await context.Set<EntityCompositeKey>().Include(e => e.ThreeSkipFull).OrderBy(e => e.Key2).ToListAsync();
+                var threes = await context.Set<EntityThree>().Include(e => e.CompositeKeySkipFull).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateNavigations(ones, threes);
 
@@ -1346,13 +1308,11 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many_self_shared(bool async)
     {
-        List<int> leftKeys = null;
-        List<int> rightKeys = null;
+        List<int> leftKeys = null!;
+        List<int> rightKeys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
@@ -1412,7 +1372,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             async context =>
             {
                 var queryable = context.Set<EntityTwo>()
-                    .Where(e => leftKeys.Contains(e.Id) || rightKeys.Contains(e.Id))
+                    .Where(e => leftKeys!.Contains(e.Id) || rightKeys!.Contains(e.Id))
                     .Include(e => e.SelfSkipSharedLeft);
 
                 var results = async ? await queryable.ToListAsync() : queryable.ToList();
@@ -1420,20 +1380,20 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 var leftEntities = context.ChangeTracker.Entries<EntityTwo>()
                     .Select(e => e.Entity)
-                    .Where(e => leftKeys.Contains(e.Id))
+                    .Where(e => leftKeys!.Contains(e.Id))
                     .OrderBy(e => e.Name)
                     .ToList();
 
                 var rightEntities = context.ChangeTracker.Entries<EntityTwo>()
                     .Select(e => e.Entity)
-                    .Where(e => rightKeys.Contains(e.Id))
+                    .Where(e => rightKeys!.Contains(e.Id))
                     .OrderBy(e => e.Name)
                     .ToList();
 
                 ValidateFixup(context, leftEntities, rightEntities);
             });
 
-        void ValidateFixup(DbContext context, IList<EntityTwo> leftEntities, IList<EntityTwo> rightEntities)
+        static void ValidateFixup(DbContext context, IList<EntityTwo> leftEntities, IList<EntityTwo> rightEntities)
         {
             Assert.Equal(11, context.ChangeTracker.Entries().Count());
             Assert.Equal(6, context.ChangeTracker.Entries<EntityTwo>().Count());
@@ -1452,67 +1412,59 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_update_many_to_many_self()
+    [Fact]
+    public virtual Task Can_update_many_to_many_self()
     {
-        List<int> ids = null;
+        List<int> ids = null!;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var leftEntities = context.Set<EntityTwo>().Include(e => e.SelfSkipSharedRight).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityTwo>().Include(e => e.SelfSkipSharedLeft).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityTwo>().Include(e => e.SelfSkipSharedRight).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityTwo>().Include(e => e.SelfSkipSharedLeft).OrderBy(e => e.Name).ToListAsync();
 
                 var twos = new[]
                 {
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
-                            e.Name = "Z7721";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
-                            e.Name = "Z7722";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
-                            e.Name = "Z7723";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
-                            e.Name = "Z7724";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Name = "Z7711";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Name = "Z7712";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Name = "Z7713";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
-                            e.Name = "Z7714";
-                        })
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
+                        e.Name = "Z7721";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
+                        e.Name = "Z7722";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
+                        e.Name = "Z7723";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
+                        e.Name = "Z7724";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Name = "Z7711";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Name = "Z7712";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Name = "Z7713";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
+                        e.Name = "Z7714";
+                    })
                 };
 
                 leftEntities[0].SelfSkipSharedRight.Add(twos[0]);
@@ -1541,16 +1493,15 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 ValidateFixup(context, leftEntities, rightEntities, 28, 42);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 ids = twos.Select(e => e.Id).ToList();
 
                 ValidateFixup(context, leftEntities, rightEntities, 28, 42 - 4);
-            },
-            context =>
+            }, async context =>
             {
-                var leftEntities = context.Set<EntityTwo>().Include(e => e.SelfSkipSharedRight).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityTwo>().Include(e => e.SelfSkipSharedLeft).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityTwo>().Include(e => e.SelfSkipSharedRight).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityTwo>().Include(e => e.SelfSkipSharedLeft).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 28, 42 - 4);
             });
@@ -1566,22 +1517,22 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             Assert.Equal(joinCount, context.ChangeTracker.Entries<Dictionary<string, object>>().Count());
             Assert.Equal(count + joinCount, context.ChangeTracker.Entries().Count());
 
-            Assert.Contains(leftEntities[0].SelfSkipSharedRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids[0]);
-            Assert.Contains(leftEntities[0].SelfSkipSharedRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids[1]);
-            Assert.Contains(leftEntities[0].SelfSkipSharedRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids[2]);
+            Assert.Contains(leftEntities[0].SelfSkipSharedRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids![0]);
+            Assert.Contains(leftEntities[0].SelfSkipSharedRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids![1]);
+            Assert.Contains(leftEntities[0].SelfSkipSharedRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids![2]);
 
-            Assert.Contains(rightEntities[0].SelfSkipSharedLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids[4]);
-            Assert.Contains(rightEntities[0].SelfSkipSharedLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids[5]);
-            Assert.Contains(rightEntities[0].SelfSkipSharedLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids[6]);
+            Assert.Contains(rightEntities[0].SelfSkipSharedLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids![4]);
+            Assert.Contains(rightEntities[0].SelfSkipSharedLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids![5]);
+            Assert.Contains(rightEntities[0].SelfSkipSharedLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids![6]);
 
             Assert.DoesNotContain(leftEntities[0].SelfSkipSharedRight, e => e.Name == "EntityTwo 9");
             Assert.DoesNotContain(rightEntities[1].SelfSkipSharedLeft, e => e.Name == "EntityTwo 1");
 
             Assert.DoesNotContain(leftEntities[4].SelfSkipSharedRight, e => e.Name == "EntityTwo 18");
-            Assert.Contains(leftEntities[4].SelfSkipSharedRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids[3]);
+            Assert.Contains(leftEntities[4].SelfSkipSharedRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids![3]);
 
             Assert.DoesNotContain(rightEntities[5].SelfSkipSharedLeft, e => e.Name == "EntityTwo 12");
-            Assert.Contains(rightEntities[5].SelfSkipSharedLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids[7]);
+            Assert.Contains(rightEntities[5].SelfSkipSharedLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == ids![7]);
 
             var allLeft = context.ChangeTracker.Entries<EntityTwo>().Select(e => e.Entity).OrderBy(e => e.Name).ToList();
             var allRight = context.ChangeTracker.Entries<EntityTwo>().Select(e => e.Entity).OrderBy(e => e.Name).ToList();
@@ -1596,13 +1547,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 {
                     if (left.SelfSkipSharedRight?.Contains(right) == true)
                     {
-                        Assert.Contains(left, right.SelfSkipSharedLeft);
+                        Assert.Contains(left, right.SelfSkipSharedLeft!);
                         joins++;
                     }
 
                     if (right.SelfSkipSharedLeft?.Contains(left) == true)
                     {
-                        Assert.Contains(right, left.SelfSkipSharedRight);
+                        Assert.Contains(right, left.SelfSkipSharedRight!);
                         joins++;
                     }
                 }
@@ -1613,12 +1564,10 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many_with_navs(bool async)
     {
-        List<int> keys = null;
+        List<int> keys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
@@ -1676,7 +1625,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             },
             async context =>
             {
-                var queryable = context.Set<EntityTwo>().Where(e => keys.Contains(e.Id)).Include(e => e.ThreeSkipFull);
+                var queryable = context.Set<EntityTwo>().Where(e => keys!.Contains(e.Id)).Include(e => e.ThreeSkipFull);
                 var results = async ? await queryable.ToListAsync() : queryable.ToList();
                 Assert.Equal(3, results.Count);
 
@@ -1686,7 +1635,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 ValidateFixup(context, leftEntities, rightEntities);
             });
 
-        void ValidateFixup(DbContext context, IList<EntityTwo> leftEntities, IList<EntityThree> rightEntities)
+        static void ValidateFixup(DbContext context, IList<EntityTwo> leftEntities, IList<EntityThree> rightEntities)
         {
             Assert.Equal(11, context.ChangeTracker.Entries().Count());
             Assert.Equal(3, context.ChangeTracker.Entries<EntityTwo>().Count());
@@ -1716,79 +1665,71 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_update_many_to_many_with_navs()
+    [Fact]
+    public virtual Task Can_update_many_to_many_with_navs()
     {
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var leftEntities = context.Set<EntityTwo>().Include(e => e.ThreeSkipFull).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityThree>().Include(e => e.TwoSkipFull).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityTwo>().Include(e => e.ThreeSkipFull).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityThree>().Include(e => e.TwoSkipFull).OrderBy(e => e.Name).ToListAsync();
 
                 leftEntities[0].ThreeSkipFull.Add(
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
-                            e.Name = "Z7721";
-                        }));
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
+                        e.Name = "Z7721";
+                    }));
                 leftEntities[0].ThreeSkipFull.Add(
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
-                            e.Name = "Z7722";
-                        }));
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
+                        e.Name = "Z7722";
+                    }));
                 leftEntities[0].ThreeSkipFull.Add(
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
-                            e.Name = "Z7723";
-                        }));
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
+                        e.Name = "Z7723";
+                    }));
 
                 rightEntities[0].TwoSkipFull.Add(
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Name = "Z7711";
-                        }));
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Name = "Z7711";
+                    }));
                 rightEntities[0].TwoSkipFull.Add(
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Name = "Z7712";
-                        }));
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Name = "Z7712";
+                    }));
                 rightEntities[0].TwoSkipFull.Add(
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Name = "Z7713";
-                        }));
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Name = "Z7713";
+                    }));
 
                 leftEntities[1].ThreeSkipFull.Remove(leftEntities[1].ThreeSkipFull.Single(e => e.Name == "EntityThree 17"));
                 rightEntities[1].TwoSkipFull.Remove(rightEntities[1].TwoSkipFull.Single(e => e.Name == "EntityTwo 6"));
 
                 leftEntities[2].ThreeSkipFull.Remove(leftEntities[2].ThreeSkipFull.Single(e => e.Name == "EntityThree 13"));
                 leftEntities[2].ThreeSkipFull.Add(
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
-                            e.Name = "Z7724";
-                        }));
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
+                        e.Name = "Z7724";
+                    }));
 
                 rightEntities[2].TwoSkipFull.Remove(rightEntities[2].TwoSkipFull.Single(e => e.Name == "EntityTwo 3"));
                 rightEntities[2].TwoSkipFull.Add(
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
-                            e.Name = "Z7714";
-                        }));
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
+                        e.Name = "Z7714";
+                    }));
 
                 if (RequiresDetectChanges)
                 {
@@ -1797,19 +1738,18 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 60);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 60 - 4);
-            },
-            context =>
+            }, async context =>
             {
-                var leftEntities = context.Set<EntityTwo>().Include(e => e.ThreeSkipFull).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityThree>().Include(e => e.TwoSkipFull).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityTwo>().Include(e => e.ThreeSkipFull).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityThree>().Include(e => e.TwoSkipFull).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 60 - 4);
             });
 
-        void ValidateFixup(
+        static void ValidateFixup(
             DbContext context,
             List<EntityTwo> leftEntities,
             List<EntityThree> rightEntities,
@@ -1863,13 +1803,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 {
                     if (left.ThreeSkipFull?.Contains(right) == true)
                     {
-                        Assert.Contains(left, right.TwoSkipFull);
+                        Assert.Contains(left, right.TwoSkipFull!);
                         count++;
                     }
 
                     if (right.TwoSkipFull?.Contains(left) == true)
                     {
-                        Assert.Contains(right, left.ThreeSkipFull);
+                        Assert.Contains(right, left.ThreeSkipFull!);
                         count++;
                     }
                 }
@@ -1880,12 +1820,10 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many_with_inheritance(bool async)
     {
-        List<int> keys = null;
+        List<int> keys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
@@ -1943,7 +1881,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             },
             async context =>
             {
-                var queryable = context.Set<EntityOne>().Where(e => keys.Contains(e.Id)).Include(e => e.BranchSkip);
+                var queryable = context.Set<EntityOne>().Where(e => keys!.Contains(e.Id)).Include(e => e.BranchSkip);
                 var results = async ? await queryable.ToListAsync() : queryable.ToList();
                 Assert.Equal(3, results.Count);
 
@@ -1953,7 +1891,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 ValidateFixup(context, leftEntities, rightEntities);
             });
 
-        void ValidateFixup(DbContext context, IList<EntityOne> leftEntities, IList<EntityBranch> rightEntities)
+        static void ValidateFixup(DbContext context, IList<EntityOne> leftEntities, IList<EntityBranch> rightEntities)
         {
             Assert.Equal(11, context.ChangeTracker.Entries().Count());
             Assert.Equal(3, context.ChangeTracker.Entries<EntityOne>().Count());
@@ -1973,79 +1911,71 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_update_many_to_many_with_inheritance()
+    [Fact]
+    public virtual Task Can_update_many_to_many_with_inheritance()
     {
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var leftEntities = context.Set<EntityOne>().Include(e => e.BranchSkip).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityBranch>().Include(e => e.OneSkip).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityOne>().Include(e => e.BranchSkip).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityBranch>().Include(e => e.OneSkip).OrderBy(e => e.Name).ToListAsync();
 
                 leftEntities[0].BranchSkip.Add(
-                    context.Set<EntityBranch>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
-                            e.Name = "Z7721";
-                        }));
+                    context.Set<EntityBranch>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
+                        e.Name = "Z7721";
+                    }));
                 leftEntities[0].BranchSkip.Add(
-                    context.Set<EntityBranch>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
-                            e.Name = "Z7722";
-                        }));
+                    context.Set<EntityBranch>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
+                        e.Name = "Z7722";
+                    }));
                 leftEntities[0].BranchSkip.Add(
-                    context.Set<EntityBranch>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
-                            e.Name = "Z7723";
-                        }));
+                    context.Set<EntityBranch>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
+                        e.Name = "Z7723";
+                    }));
 
                 rightEntities[0].OneSkip.Add(
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Name = "Z7711";
-                        }));
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Name = "Z7711";
+                    }));
                 rightEntities[0].OneSkip.Add(
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Name = "Z7712";
-                        }));
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Name = "Z7712";
+                    }));
                 rightEntities[0].OneSkip.Add(
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Name = "Z7713";
-                        }));
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Name = "Z7713";
+                    }));
 
                 leftEntities[1].BranchSkip.Remove(leftEntities[1].BranchSkip.Single(e => e.Name == "Branch 4"));
                 rightEntities[1].OneSkip.Remove(rightEntities[1].OneSkip.Single(e => e.Name == "EntityOne 9"));
 
                 leftEntities[4].BranchSkip.Remove(leftEntities[4].BranchSkip.Single(e => e.Name == "Branch 5"));
                 leftEntities[2].BranchSkip.Add(
-                    context.Set<EntityBranch>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
-                            e.Name = "Z7724";
-                        }));
+                    context.Set<EntityBranch>().CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
+                        e.Name = "Z7724";
+                    }));
 
                 rightEntities[2].OneSkip.Remove(rightEntities[2].OneSkip.Single(e => e.Name == "EntityOne 8"));
                 rightEntities[2].OneSkip.Add(
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
-                            e.Name = "Z7714";
-                        }));
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
+                        e.Name = "Z7714";
+                    }));
 
                 if (RequiresDetectChanges)
                 {
@@ -2054,19 +1984,18 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 14, 55);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 14, 55 - 4);
-            },
-            context =>
+            }, async context =>
             {
-                var leftEntities = context.Set<EntityOne>().Include(e => e.BranchSkip).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityBranch>().Include(e => e.OneSkip).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityOne>().Include(e => e.BranchSkip).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityBranch>().Include(e => e.OneSkip).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 14, 55 - 4);
             });
 
-        void ValidateFixup(
+        static void ValidateFixup(
             DbContext context,
             List<EntityOne> leftEntities,
             List<EntityBranch> rightEntities,
@@ -2109,13 +2038,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 {
                     if (left.BranchSkip?.Contains(right) == true)
                     {
-                        Assert.Contains(left, right.OneSkip);
+                        Assert.Contains(left, right.OneSkip!);
                         count++;
                     }
 
                     if (right.OneSkip?.Contains(left) == true)
                     {
-                        Assert.Contains(right, left.BranchSkip);
+                        Assert.Contains(right, left.BranchSkip!);
                         count++;
                     }
                 }
@@ -2126,13 +2055,11 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many_self_with_payload(bool async)
     {
-        List<int> leftKeys = null;
-        List<int> rightKeys = null;
+        List<int> leftKeys = null!;
+        List<int> rightKeys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
@@ -2192,7 +2119,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             async context =>
             {
                 var queryable = context.Set<EntityOne>()
-                    .Where(e => leftKeys.Contains(e.Id) || rightKeys.Contains(e.Id))
+                    .Where(e => leftKeys!.Contains(e.Id) || rightKeys!.Contains(e.Id))
                     .Include(e => e.SelfSkipPayloadLeft);
 
                 var results = async ? await queryable.ToListAsync() : queryable.ToList();
@@ -2200,13 +2127,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 var leftEntities = context.ChangeTracker.Entries<EntityOne>()
                     .Select(e => e.Entity)
-                    .Where(e => leftKeys.Contains(e.Id))
+                    .Where(e => leftKeys!.Contains(e.Id))
                     .OrderBy(e => e.Name)
                     .ToList();
 
                 var rightEntities = context.ChangeTracker.Entries<EntityOne>()
                     .Select(e => e.Entity)
-                    .Where(e => rightKeys.Contains(e.Id))
+                    .Where(e => rightKeys!.Contains(e.Id))
                     .OrderBy(e => e.Name)
                     .ToList();
 
@@ -2252,67 +2179,59 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_update_many_to_many_self_with_payload()
+    [Fact]
+    public virtual Task Can_update_many_to_many_self_with_payload()
     {
-        List<int> keys = null;
+        List<int> keys = null!;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var leftEntities = context.Set<EntityOne>().Include(e => e.SelfSkipPayloadRight).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityOne>().Include(e => e.SelfSkipPayloadLeft).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityOne>().Include(e => e.SelfSkipPayloadRight).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityOne>().Include(e => e.SelfSkipPayloadLeft).OrderBy(e => e.Name).ToListAsync();
 
                 var ones = new[]
                 {
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
-                            e.Name = "Z7721";
-                        }),
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
-                            e.Name = "Z7722";
-                        }),
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
-                            e.Name = "Z7723";
-                        }),
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
-                            e.Name = "Z7724";
-                        }),
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Name = "Z7711";
-                        }),
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Name = "Z7712";
-                        }),
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Name = "Z7713";
-                        }),
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
-                            e.Name = "Z7714";
-                        })
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
+                        e.Name = "Z7721";
+                    }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
+                        e.Name = "Z7722";
+                    }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
+                        e.Name = "Z7723";
+                    }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
+                        e.Name = "Z7724";
+                    }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Name = "Z7711";
+                    }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Name = "Z7712";
+                    }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Name = "Z7713";
+                    }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
+                        e.Name = "Z7714";
+                    })
                 };
 
                 leftEntities[0].SelfSkipPayloadRight.Add(ones[0]);
@@ -2340,28 +2259,27 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 keys = ones.Select(e => context.Entry(e).Property(e => e.Id).CurrentValue).ToList();
 
-                context.Find<JoinOneSelfPayload>(
+                (await context.FindAsync<JoinOneSelfPayload>(
                         keys[5],
-                        context.Entry(context.EntityOnes.Local.Single(e => e.Name == "EntityOne 1")).Property(e => e.Id).CurrentValue)
+                        context.Entry(context.EntityOnes.Local.Single(e => e.Name == "EntityOne 1")).Property(e => e.Id).CurrentValue))!
                     .Payload = new DateTime(1973, 9, 3);
 
-                context.Find<JoinOneSelfPayload>(
+                (await context.FindAsync<JoinOneSelfPayload>(
                         context.Entry(context.EntityOnes.Local.Single(e => e.Name == "EntityOne 20")).Property(e => e.Id).CurrentValue,
-                        context.Entry(context.EntityOnes.Local.Single(e => e.Name == "EntityOne 16")).Property(e => e.Id).CurrentValue)
+                        context.Entry(context.EntityOnes.Local.Single(e => e.Name == "EntityOne 16")).Property(e => e.Id).CurrentValue))!
                     .Payload = new DateTime(1969, 8, 3);
 
                 ValidateFixup(context, leftEntities, rightEntities, 28, 37, postSave: false);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 keys = ones.Select(e => e.Id).ToList();
 
                 ValidateFixup(context, leftEntities, rightEntities, 28, 37 - 4, postSave: true);
-            },
-            context =>
+            }, async context =>
             {
-                var leftEntities = context.Set<EntityOne>().Include(e => e.SelfSkipPayloadRight).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityOne>().Include(e => e.SelfSkipPayloadLeft).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityOne>().Include(e => e.SelfSkipPayloadRight).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityOne>().Include(e => e.SelfSkipPayloadLeft).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 28, 37 - 4, postSave: true);
             });
@@ -2378,22 +2296,22 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             Assert.Equal(joinCount, context.ChangeTracker.Entries<JoinOneSelfPayload>().Count());
             Assert.Equal(count + joinCount, context.ChangeTracker.Entries().Count());
 
-            Assert.Contains(leftEntities[0].SelfSkipPayloadRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys[0]);
-            Assert.Contains(leftEntities[0].SelfSkipPayloadRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys[1]);
-            Assert.Contains(leftEntities[0].SelfSkipPayloadRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys[2]);
+            Assert.Contains(leftEntities[0].SelfSkipPayloadRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys![0]);
+            Assert.Contains(leftEntities[0].SelfSkipPayloadRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys![1]);
+            Assert.Contains(leftEntities[0].SelfSkipPayloadRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys![2]);
 
-            Assert.Contains(rightEntities[0].SelfSkipPayloadLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys[4]);
-            Assert.Contains(rightEntities[0].SelfSkipPayloadLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys[5]);
-            Assert.Contains(rightEntities[0].SelfSkipPayloadLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys[6]);
+            Assert.Contains(rightEntities[0].SelfSkipPayloadLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys![4]);
+            Assert.Contains(rightEntities[0].SelfSkipPayloadLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys![5]);
+            Assert.Contains(rightEntities[0].SelfSkipPayloadLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys![6]);
 
             Assert.DoesNotContain(leftEntities[7].SelfSkipPayloadRight, e => e.Name == "EntityOne 6");
             Assert.DoesNotContain(rightEntities[11].SelfSkipPayloadLeft, e => e.Name == "EntityOne 13");
 
             Assert.DoesNotContain(leftEntities[4].SelfSkipPayloadRight, e => e.Name == "EntityOne 2");
-            Assert.Contains(leftEntities[4].SelfSkipPayloadRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys[3]);
+            Assert.Contains(leftEntities[4].SelfSkipPayloadRight, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys![3]);
 
             Assert.DoesNotContain(rightEntities[4].SelfSkipPayloadLeft, e => e.Name == "EntityOne 6");
-            Assert.Contains(rightEntities[4].SelfSkipPayloadLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys[7]);
+            Assert.Contains(rightEntities[4].SelfSkipPayloadLeft, e => context.Entry(e).Property(e => e.Id).CurrentValue == keys![7]);
 
             var joinEntries = context.ChangeTracker.Entries<JoinOneSelfPayload>().ToList();
             foreach (var joinEntry in joinEntries)
@@ -2404,7 +2322,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 Assert.Contains(joinEntity, joinEntity.Left.JoinSelfPayloadLeft);
                 Assert.Contains(joinEntity, joinEntity.Right.JoinSelfPayloadRight);
 
-                if (joinEntity.LeftId == keys[5]
+                if (joinEntity.LeftId == keys![5]
                     && joinEntity.RightId == 1)
                 {
                     Assert.Equal(postSave ? EntityState.Unchanged : EntityState.Added, joinEntry.State);
@@ -2433,13 +2351,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 {
                     if (left.SelfSkipPayloadRight?.Contains(right) == true)
                     {
-                        Assert.Contains(left, right.SelfSkipPayloadLeft);
+                        Assert.Contains(left, right.SelfSkipPayloadLeft!);
                         joins++;
                     }
 
                     if (right.SelfSkipPayloadLeft?.Contains(left) == true)
                     {
-                        Assert.Contains(right, left.SelfSkipPayloadRight);
+                        Assert.Contains(right, left.SelfSkipPayloadRight!);
                         joins++;
                     }
                 }
@@ -2450,12 +2368,10 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many_shared_with_payload(bool async)
     {
-        List<int> keys = null;
+        List<int> keys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
@@ -2513,7 +2429,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             },
             async context =>
             {
-                var queryable = context.Set<EntityOne>().Where(e => keys.Contains(e.Id)).Include(e => e.ThreeSkipPayloadFullShared);
+                var queryable = context.Set<EntityOne>().Where(e => keys!.Contains(e.Id)).Include(e => e.ThreeSkipPayloadFullShared);
                 var results = async ? await queryable.ToListAsync() : queryable.ToList();
                 Assert.Equal(3, results.Count);
 
@@ -2553,58 +2469,54 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_update_many_to_many_shared_with_payload()
+    [Fact]
+    public virtual Task Can_update_many_to_many_shared_with_payload()
     {
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var leftEntities = context.Set<EntityOne>().Include(e => e.ThreeSkipPayloadFullShared).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityThree>().Include(e => e.OneSkipPayloadFullShared).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityOne>().Include(e => e.ThreeSkipPayloadFullShared).OrderBy(e => e.Name)
+                    .ToListAsync();
+                var rightEntities = await context.Set<EntityThree>().Include(e => e.OneSkipPayloadFullShared).OrderBy(e => e.Name)
+                    .ToListAsync();
 
                 leftEntities[0].ThreeSkipPayloadFullShared.Add(
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
-                            e.Name = "Z7721";
-                        }));
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
+                        e.Name = "Z7721";
+                    }));
                 leftEntities[0].ThreeSkipPayloadFullShared.Add(
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
-                            e.Name = "Z7722";
-                        }));
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
+                        e.Name = "Z7722";
+                    }));
                 leftEntities[0].ThreeSkipPayloadFullShared.Add(
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
-                            e.Name = "Z7723";
-                        }));
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
+                        e.Name = "Z7723";
+                    }));
 
                 rightEntities[0].OneSkipPayloadFullShared.Add(
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Name = "Z7711";
-                        }));
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Name = "Z7711";
+                    }));
                 rightEntities[0].OneSkipPayloadFullShared.Add(
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Name = "Z7712";
-                        }));
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Name = "Z7712";
+                    }));
                 rightEntities[0].OneSkipPayloadFullShared.Add(
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Name = "Z7713";
-                        }));
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Name = "Z7713";
+                    }));
 
                 leftEntities[2].ThreeSkipPayloadFullShared
                     .Remove(leftEntities[2].ThreeSkipPayloadFullShared.Single(e => e.Name == "EntityThree 10"));
@@ -2615,23 +2527,21 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                     .Remove(leftEntities[3].ThreeSkipPayloadFullShared.Single(e => e.Name == "EntityThree 17"));
                 leftEntities[3].ThreeSkipPayloadFullShared
                     .Add(
-                        context.EntityThrees.CreateInstance(
-                            (e, p) =>
-                            {
-                                e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
-                                e.Name = "Z7724";
-                            }));
+                        context.EntityThrees.CreateInstance((e, p) =>
+                        {
+                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
+                            e.Name = "Z7724";
+                        }));
 
                 rightEntities[2].OneSkipPayloadFullShared
                     .Remove(rightEntities[2].OneSkipPayloadFullShared.Single(e => e.Name == "EntityOne 12"));
                 rightEntities[2].OneSkipPayloadFullShared
                     .Add(
-                        context.EntityOnes.CreateInstance(
-                            (e, p) =>
-                            {
-                                e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
-                                e.Name = "Z7714";
-                            }));
+                        context.EntityOnes.CreateInstance((e, p) =>
+                        {
+                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
+                            e.Name = "Z7714";
+                        }));
 
                 if (RequiresDetectChanges)
                 {
@@ -2639,21 +2549,22 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 }
 
                 var joinSet = context.Set<Dictionary<string, object>>("JoinOneToThreePayloadFullShared");
-                joinSet.Find(
-                    GetEntityOneId(context, "Z7712"), GetEntityThreeId(context, "EntityThree 1"))["Payload"] = "Set!";
-                joinSet.Find(
-                    GetEntityOneId(context, "EntityOne 20"), GetEntityThreeId(context, "EntityThree 16"))["Payload"] = "Changed!";
+                (await joinSet.FindAsync(
+                    GetEntityOneId(context, "Z7712"), GetEntityThreeId(context, "EntityThree 1")))!["Payload"] = "Set!";
+                (await joinSet.FindAsync(
+                    GetEntityOneId(context, "EntityOne 20"), GetEntityThreeId(context, "EntityThree 16")))!["Payload"] = "Changed!";
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 48, postSave: false);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 48 - 4, postSave: true);
-            },
-            context =>
+            }, async context =>
             {
-                var leftEntities = context.Set<EntityOne>().Include(e => e.ThreeSkipPayloadFullShared).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityThree>().Include(e => e.OneSkipPayloadFullShared).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityOne>().Include(e => e.ThreeSkipPayloadFullShared).OrderBy(e => e.Name)
+                    .ToListAsync();
+                var rightEntities = await context.Set<EntityThree>().Include(e => e.OneSkipPayloadFullShared).OrderBy(e => e.Name)
+                    .ToListAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 48 - 4, postSave: true);
             });
@@ -2664,7 +2575,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         static int GetEntityThreeId(ManyToManyContext context, string name)
             => context.Entry(context.EntityThrees.Local.Single(e => e.Name == name)).Property(e => e.Id).CurrentValue;
 
-        void ValidateFixup(
+        static void ValidateFixup(
             ManyToManyContext context,
             List<EntityOne> leftEntities,
             List<EntityThree> rightEntities,
@@ -2734,13 +2645,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 {
                     if (left.ThreeSkipPayloadFullShared?.Contains(right) == true)
                     {
-                        Assert.Contains(left, right.OneSkipPayloadFullShared);
+                        Assert.Contains(left, right.OneSkipPayloadFullShared!);
                         count++;
                     }
 
                     if (right.OneSkipPayloadFullShared?.Contains(left) == true)
                     {
-                        Assert.Contains(right, left.ThreeSkipPayloadFullShared);
+                        Assert.Contains(right, left.ThreeSkipPayloadFullShared!);
                         count++;
                     }
                 }
@@ -2751,12 +2662,10 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many_shared(bool async)
     {
-        List<int> keys = null;
+        List<int> keys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
@@ -2814,7 +2723,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             },
             async context =>
             {
-                var queryable = context.Set<EntityOne>().Where(e => keys.Contains(e.Id)).Include(e => e.TwoSkipShared);
+                var queryable = context.Set<EntityOne>().Where(e => keys!.Contains(e.Id)).Include(e => e.TwoSkipShared);
                 var results = async ? await queryable.ToListAsync() : queryable.ToList();
                 Assert.Equal(3, results.Count);
 
@@ -2824,7 +2733,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 ValidateFixup(context, leftEntities, rightEntities);
             });
 
-        void ValidateFixup(DbContext context, IList<EntityOne> leftEntities, IList<EntityTwo> rightEntities)
+        static void ValidateFixup(DbContext context, IList<EntityOne> leftEntities, IList<EntityTwo> rightEntities)
         {
             Assert.Equal(11, context.ChangeTracker.Entries().Count());
             Assert.Equal(3, context.ChangeTracker.Entries<EntityOne>().Count());
@@ -2844,69 +2753,61 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_update_many_to_many_shared()
+    [Fact]
+    public virtual Task Can_update_many_to_many_shared()
     {
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var leftEntities = context.Set<EntityOne>().Include(e => e.TwoSkipShared).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityTwo>().Include(e => e.OneSkipShared).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityOne>().Include(e => e.TwoSkipShared).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityTwo>().Include(e => e.OneSkipShared).OrderBy(e => e.Name).ToListAsync();
 
                 var twos = new[]
                 {
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
-                            e.Name = "Z7721";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
-                            e.Name = "Z7722";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
-                            e.Name = "Z7723";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
-                            e.Name = "Z7724";
-                        }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
+                        e.Name = "Z7721";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
+                        e.Name = "Z7722";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
+                        e.Name = "Z7723";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
+                        e.Name = "Z7724";
+                    }),
                 };
 
                 var ones = new[]
                 {
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Name = "Z7711";
-                        }),
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Name = "Z7712";
-                        }),
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Name = "Z7713";
-                        }),
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
-                            e.Name = "Z7714";
-                        }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Name = "Z7711";
+                    }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Name = "Z7712";
+                    }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Name = "Z7713";
+                    }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
+                        e.Name = "Z7714";
+                    }),
                 };
 
                 leftEntities[0].TwoSkipShared.Add(twos[0]);
@@ -2933,19 +2834,18 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 53);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 49);
-            },
-            context =>
+            }, async context =>
             {
-                var leftEntities = context.Set<EntityOne>().Include(e => e.TwoSkipShared).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityTwo>().Include(e => e.OneSkipShared).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityOne>().Include(e => e.TwoSkipShared).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityTwo>().Include(e => e.OneSkipShared).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 49);
             });
 
-        void ValidateFixup(
+        static void ValidateFixup(
             DbContext context,
             List<EntityOne> leftEntities,
             List<EntityTwo> rightEntities,
@@ -2988,13 +2888,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 {
                     if (left.TwoSkipShared?.Contains(right) == true)
                     {
-                        Assert.Contains(left, right.OneSkipShared);
+                        Assert.Contains(left, right.OneSkipShared!);
                         count++;
                     }
 
                     if (right.OneSkipShared?.Contains(left) == true)
                     {
-                        Assert.Contains(right, left.TwoSkipShared);
+                        Assert.Contains(right, left.TwoSkipShared!);
                         count++;
                     }
                 }
@@ -3005,12 +2905,10 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many_with_payload(bool async)
     {
-        List<int> keys = null;
+        List<int> keys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
@@ -3068,7 +2966,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             },
             async context =>
             {
-                var queryable = context.Set<EntityOne>().Where(e => keys.Contains(e.Id)).Include(e => e.ThreeSkipPayloadFull);
+                var queryable = context.Set<EntityOne>().Where(e => keys!.Contains(e.Id)).Include(e => e.ThreeSkipPayloadFull);
                 var results = async ? await queryable.ToListAsync() : queryable.ToList();
                 Assert.Equal(3, results.Count);
 
@@ -3113,58 +3011,52 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_update_many_to_many_with_payload()
+    [Fact]
+    public virtual Task Can_update_many_to_many_with_payload()
     {
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var leftEntities = context.Set<EntityOne>().Include(e => e.ThreeSkipPayloadFull).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityThree>().Include(e => e.OneSkipPayloadFull).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityOne>().Include(e => e.ThreeSkipPayloadFull).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityThree>().Include(e => e.OneSkipPayloadFull).OrderBy(e => e.Name).ToListAsync();
 
                 leftEntities[0].ThreeSkipPayloadFull.Add(
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
-                            e.Name = "Z7721";
-                        }));
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
+                        e.Name = "Z7721";
+                    }));
                 leftEntities[0].ThreeSkipPayloadFull.Add(
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
-                            e.Name = "Z7722";
-                        }));
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
+                        e.Name = "Z7722";
+                    }));
                 leftEntities[0].ThreeSkipPayloadFull.Add(
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
-                            e.Name = "Z7723";
-                        }));
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
+                        e.Name = "Z7723";
+                    }));
 
                 rightEntities[0].OneSkipPayloadFull.Add(
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Name = "Z7711";
-                        }));
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Name = "Z7711";
+                    }));
                 rightEntities[0].OneSkipPayloadFull.Add(
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Name = "Z7712";
-                        }));
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Name = "Z7712";
+                    }));
                 rightEntities[0].OneSkipPayloadFull.Add(
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Name = "Z7713";
-                        }));
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Name = "Z7713";
+                    }));
 
                 leftEntities[1].ThreeSkipPayloadFull
                     .Remove(leftEntities[1].ThreeSkipPayloadFull.Single(e => e.Name == "EntityThree 10"));
@@ -3173,34 +3065,32 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 leftEntities[2].ThreeSkipPayloadFull
                     .Remove(leftEntities[2].ThreeSkipPayloadFull.Single(e => e.Name == "EntityThree 13"));
                 leftEntities[2].ThreeSkipPayloadFull.Add(
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
-                            e.Name = "Z7724";
-                        }));
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
+                        e.Name = "Z7724";
+                    }));
 
                 rightEntities[2].OneSkipPayloadFull.Remove(rightEntities[2].OneSkipPayloadFull.Single(e => e.Name == "EntityOne 15"));
                 rightEntities[2].OneSkipPayloadFull.Add(
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
-                            e.Name = "Z7714";
-                        }));
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
+                        e.Name = "Z7714";
+                    }));
 
                 if (RequiresDetectChanges)
                 {
                     context.ChangeTracker.DetectChanges();
                 }
 
-                context.Find<JoinOneToThreePayloadFull>(
+                (await context.FindAsync<JoinOneToThreePayloadFull>(
                     GetEntityOneId(context, "Z7712"),
-                    GetEntityThreeId(context, "EntityThree 1")).Payload = "Set!";
+                    GetEntityThreeId(context, "EntityThree 1")))!.Payload = "Set!";
 
-                context.Find<JoinOneToThreePayloadFull>(
+                (await context.FindAsync<JoinOneToThreePayloadFull>(
                     GetEntityOneId(context, "EntityOne 20"),
-                    GetEntityThreeId(context, "EntityThree 20")).Payload = "Changed!";
+                    GetEntityThreeId(context, "EntityThree 20")))!.Payload = "Changed!";
 
                 if (RequiresDetectChanges)
                 {
@@ -3209,14 +3099,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 123, postSave: false);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 123 - 4, postSave: true);
-            },
-            context =>
+            }, async context =>
             {
-                var leftEntities = context.Set<EntityOne>().Include(e => e.ThreeSkipPayloadFull).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityThree>().Include(e => e.OneSkipPayloadFull).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityOne>().Include(e => e.ThreeSkipPayloadFull).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityThree>().Include(e => e.OneSkipPayloadFull).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 123 - 4, postSave: true);
             });
@@ -3227,7 +3116,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         static int GetEntityThreeId(ManyToManyContext context, string name)
             => context.Entry(context.EntityThrees.Local.Single(e => e.Name == name)).Property(e => e.Id).CurrentValue;
 
-        void ValidateFixup(
+        static void ValidateFixup(
             ManyToManyContext context,
             List<EntityOne> leftEntities,
             List<EntityThree> rightEntities,
@@ -3301,13 +3190,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 {
                     if (left.ThreeSkipPayloadFull?.Contains(right) == true)
                     {
-                        Assert.Contains(left, right.OneSkipPayloadFull);
+                        Assert.Contains(left, right.OneSkipPayloadFull!);
                         count++;
                     }
 
                     if (right.OneSkipPayloadFull?.Contains(left) == true)
                     {
-                        Assert.Contains(right, left.ThreeSkipPayloadFull);
+                        Assert.Contains(right, left.ThreeSkipPayloadFull!);
                         count++;
                     }
                 }
@@ -3318,19 +3207,19 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_delete_with_many_to_many_with_navs()
+    [Fact]
+    public virtual Task Can_delete_with_many_to_many_with_navs()
     {
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var ones = context.Set<EntityOne>().Include(e => e.ThreeSkipPayloadFull).OrderBy(e => e.Name).ToList();
-                var threes = context.Set<EntityThree>().Include(e => e.OneSkipPayloadFull).OrderBy(e => e.Name).ToList();
+                var ones = await context.Set<EntityOne>().Include(e => e.ThreeSkipPayloadFull).OrderBy(e => e.Name).ToListAsync();
+                var threes = await context.Set<EntityThree>().Include(e => e.OneSkipPayloadFull).OrderBy(e => e.Name).ToListAsync();
 
                 // Make sure other related entities are loaded for delete fixup
-                context.Set<EntityTwo>().Load();
-                context.Set<JoinOneSelfPayload>().Load();
-                context.Set<JoinOneToTwo>().Load();
+                await context.Set<EntityTwo>().LoadAsync();
+                await context.Set<JoinOneSelfPayload>().LoadAsync();
+                await context.Set<JoinOneToTwo>().LoadAsync();
 
                 var toRemoveOne = context.EntityOnes.Single(e => e.Name == "EntityOne 1");
                 var refCountOnes = threes.SelectMany(e => e.OneSkipPayloadFull).Count(e => e == toRemoveOne);
@@ -3371,7 +3260,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                             ? EntityState.Deleted
                             : EntityState.Unchanged, e.State));
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 Assert.Equal(0, threes.SelectMany(e => e.OneSkipPayloadFull).Count(e => e == toRemoveOne));
                 Assert.Equal(0, ones.SelectMany(e => e.ThreeSkipPayloadFull).Count(e => e == toRemoveThree));
@@ -3387,11 +3276,10 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 Assert.DoesNotContain(
                     context.ChangeTracker.Entries<JoinOneToThreePayloadFull>(),
                     e => e.Entity.OneId == 1 || e.Entity.ThreeId == 1);
-            },
-            context =>
+            }, async context =>
             {
-                var ones = context.Set<EntityOne>().Include(e => e.ThreeSkipPayloadFull).OrderBy(e => e.Name).ToList();
-                var threes = context.Set<EntityThree>().Include(e => e.OneSkipPayloadFull).OrderBy(e => e.Name).ToList();
+                var ones = await context.Set<EntityOne>().Include(e => e.ThreeSkipPayloadFull).OrderBy(e => e.Name).ToListAsync();
+                var threes = await context.Set<EntityThree>().Include(e => e.OneSkipPayloadFull).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateNavigations(ones, threes);
 
@@ -3443,12 +3331,10 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many(bool async)
     {
-        List<int> keys = null;
+        List<int> keys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
@@ -3506,7 +3392,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             },
             async context =>
             {
-                var queryable = context.Set<EntityOne>().Where(e => keys.Contains(e.Id)).Include(e => e.TwoSkip);
+                var queryable = context.Set<EntityOne>().Where(e => keys!.Contains(e.Id)).Include(e => e.TwoSkip);
                 var results = async ? await queryable.ToListAsync() : queryable.ToList();
                 Assert.Equal(3, results.Count);
 
@@ -3516,7 +3402,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 ValidateFixup(context, leftEntities, rightEntities);
             });
 
-        void ValidateFixup(DbContext context, IList<EntityOne> leftEntities, IList<EntityTwo> rightEntities)
+        static void ValidateFixup(DbContext context, IList<EntityOne> leftEntities, IList<EntityTwo> rightEntities)
         {
             Assert.Equal(11, context.ChangeTracker.Entries().Count());
             Assert.Equal(3, context.ChangeTracker.Entries<EntityOne>().Count());
@@ -3536,21 +3422,15 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false, false)]
-    [InlineData(true, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, true)]
-    [InlineData(true, false, true)]
-    [InlineData(false, true, true)]
-    [InlineData(true, true, true)]
+    [Theory, InlineData(false, false, false), InlineData(true, false, false), InlineData(false, true, false),
+     InlineData(true, true, false), InlineData(false, false, true), InlineData(true, false, true), InlineData(false, true, true),
+     InlineData(true, true, true)]
     public virtual async Task Can_insert_many_to_many_with_suspected_dangling_join(
         bool async,
         bool useTrackGraph,
         bool useDetectChanges)
     {
-        List<int> keys = null;
+        List<int> keys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
@@ -3583,49 +3463,41 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 var joinEntities = new[]
                 {
-                    context.Set<JoinOneToTwo>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.One = leftEntities[0];
-                            e.Two = rightEntities[0];
-                        }),
-                    context.Set<JoinOneToTwo>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.One = leftEntities[0];
-                            e.Two = rightEntities[1];
-                        }),
-                    context.Set<JoinOneToTwo>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.One = leftEntities[0];
-                            e.Two = rightEntities[2];
-                        }),
-                    context.Set<JoinOneToTwo>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.One = leftEntities[1];
-                            e.Two = rightEntities[0];
-                        }),
-                    context.Set<JoinOneToTwo>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.One = leftEntities[2];
-                            e.Two = rightEntities[0];
-                        }),
+                    context.Set<JoinOneToTwo>().CreateInstance((e, p) =>
+                    {
+                        e.One = leftEntities[0];
+                        e.Two = rightEntities[0];
+                    }),
+                    context.Set<JoinOneToTwo>().CreateInstance((e, p) =>
+                    {
+                        e.One = leftEntities[0];
+                        e.Two = rightEntities[1];
+                    }),
+                    context.Set<JoinOneToTwo>().CreateInstance((e, p) =>
+                    {
+                        e.One = leftEntities[0];
+                        e.Two = rightEntities[2];
+                    }),
+                    context.Set<JoinOneToTwo>().CreateInstance((e, p) =>
+                    {
+                        e.One = leftEntities[1];
+                        e.Two = rightEntities[0];
+                    }),
+                    context.Set<JoinOneToTwo>().CreateInstance((e, p) =>
+                    {
+                        e.One = leftEntities[2];
+                        e.Two = rightEntities[0];
+                    }),
                 };
 
-                var extra = context.Set<JoinOneToTwoExtra>().CreateInstance(
-                    (e, p) =>
+                var extra = context.Set<JoinOneToTwoExtra>().CreateInstance((e, p) => e.JoinEntities =
+                    new ObservableCollection<JoinOneToTwo>
                     {
-                        e.JoinEntities = new ObservableCollection<JoinOneToTwo>
-                        {
-                            joinEntities[0],
-                            joinEntities[1],
-                            joinEntities[2],
-                            joinEntities[3],
-                            joinEntities[4],
-                        };
+                        joinEntities[0],
+                        joinEntities[1],
+                        joinEntities[2],
+                        joinEntities[3],
+                        joinEntities[4],
                     });
 
                 rightEntities[0].Extra = extra;
@@ -3679,7 +3551,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             async context =>
             {
                 var queryable = context.Set<EntityOne>()
-                    .Where(e => keys.Contains(e.Id))
+                    .Where(e => keys!.Contains(e.Id))
                     .Include(e => e.TwoSkip)
                     .ThenInclude(e => e.Extra);
 
@@ -3692,7 +3564,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 ValidateFixup(context, leftEntities, rightEntities);
             });
 
-        void ValidateFixup(DbContext context, IList<EntityOne> leftEntities, IList<EntityTwo> rightEntities)
+        static void ValidateFixup(DbContext context, IList<EntityOne> leftEntities, IList<EntityTwo> rightEntities)
         {
             Assert.Equal(12, context.ChangeTracker.Entries().Count());
             Assert.Equal(3, context.ChangeTracker.Entries<EntityOne>().Count());
@@ -3722,18 +3594,12 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false, false)]
-    [InlineData(true, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, true)]
-    [InlineData(true, false, true)]
-    [InlineData(false, true, true)]
-    [InlineData(true, true, true)]
+    [Theory, InlineData(false, false, false), InlineData(true, false, false), InlineData(false, true, false),
+     InlineData(true, true, false), InlineData(false, false, true), InlineData(true, false, true), InlineData(false, true, true),
+     InlineData(true, true, true)]
     public virtual async Task Can_insert_many_to_many_with_dangling_join(bool async, bool useTrackGraph, bool useDetectChanges)
     {
-        List<int> keys = null;
+        List<int> keys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
@@ -3815,7 +3681,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             async context =>
             {
                 var queryable = context.Set<EntityOne>()
-                    .Where(e => keys.Contains(e.Id))
+                    .Where(e => keys!.Contains(e.Id))
                     .Include(e => e.TwoSkip)
                     .ThenInclude(e => e.Extra);
 
@@ -3828,7 +3694,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 ValidateFixup(context, leftEntities, rightEntities);
             });
 
-        void ValidateFixup(DbContext context, IList<EntityOne> leftEntities, IList<EntityTwo> rightEntities)
+        static void ValidateFixup(DbContext context, IList<EntityOne> leftEntities, IList<EntityTwo> rightEntities)
         {
             Assert.Equal(11, context.ChangeTracker.Entries().Count());
             Assert.Equal(3, context.ChangeTracker.Entries<EntityOne>().Count());
@@ -3857,72 +3723,64 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_update_many_to_many()
+    [Fact]
+    public virtual Task Can_update_many_to_many()
     {
-        List<int> oneIds = null;
-        List<int> twoIds = null;
+        List<int> oneIds = null!;
+        List<int> twoIds = null!;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var leftEntities = context.Set<EntityOne>().Include(e => e.TwoSkip).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityTwo>().Include(e => e.OneSkip).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityOne>().Include(e => e.TwoSkip).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityTwo>().Include(e => e.OneSkip).OrderBy(e => e.Name).ToListAsync();
 
                 var twos = new[]
                 {
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
-                            e.Name = "Z7721";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
-                            e.Name = "Z7722";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
-                            e.Name = "Z7723";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
-                            e.Name = "Z7724";
-                        })
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
+                        e.Name = "Z7721";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
+                        e.Name = "Z7722";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
+                        e.Name = "Z7723";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7724;
+                        e.Name = "Z7724";
+                    })
                 };
 
                 var ones = new[]
                 {
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Name = "Z7711";
-                        }),
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Name = "Z7712";
-                        }),
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Name = "Z7713";
-                        }),
-                    context.EntityOnes.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
-                            e.Name = "Z7714";
-                        }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Name = "Z7711";
+                    }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Name = "Z7712";
+                    }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Name = "Z7713";
+                    }),
+                    context.EntityOnes.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7714;
+                        e.Name = "Z7714";
+                    }),
                 };
 
                 leftEntities[0].TwoSkip.Add(twos[0]);
@@ -3952,17 +3810,16 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 120);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 oneIds = ones.Select(e => e.Id).ToList();
                 twoIds = twos.Select(e => e.Id).ToList();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 116);
-            },
-            context =>
+            }, async context =>
             {
-                var leftEntities = context.Set<EntityOne>().Include(e => e.TwoSkip).OrderBy(e => e.Name).ToList();
-                var rightEntities = context.Set<EntityTwo>().Include(e => e.OneSkip).OrderBy(e => e.Name).ToList();
+                var leftEntities = await context.Set<EntityOne>().Include(e => e.TwoSkip).OrderBy(e => e.Name).ToListAsync();
+                var rightEntities = await context.Set<EntityTwo>().Include(e => e.OneSkip).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateFixup(context, leftEntities, rightEntities, 24, 24, 116);
             });
@@ -3980,22 +3837,22 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             Assert.Equal(joinCount, context.ChangeTracker.Entries<JoinOneToTwo>().Count());
             Assert.Equal(leftCount + rightCount + joinCount, context.ChangeTracker.Entries().Count());
 
-            Assert.Contains(leftEntities[0].TwoSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == twoIds[0]);
-            Assert.Contains(leftEntities[0].TwoSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == twoIds[1]);
-            Assert.Contains(leftEntities[0].TwoSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == twoIds[2]);
+            Assert.Contains(leftEntities[0].TwoSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == twoIds![0]);
+            Assert.Contains(leftEntities[0].TwoSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == twoIds![1]);
+            Assert.Contains(leftEntities[0].TwoSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == twoIds![2]);
 
-            Assert.Contains(rightEntities[0].OneSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == oneIds[0]);
-            Assert.Contains(rightEntities[0].OneSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == oneIds[1]);
-            Assert.Contains(rightEntities[0].OneSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == oneIds[2]);
+            Assert.Contains(rightEntities[0].OneSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == oneIds![0]);
+            Assert.Contains(rightEntities[0].OneSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == oneIds![1]);
+            Assert.Contains(rightEntities[0].OneSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == oneIds![2]);
 
             Assert.DoesNotContain(leftEntities[1].TwoSkip, e => e.Name == "EntityTwo 1");
             Assert.DoesNotContain(rightEntities[1].OneSkip, e => e.Name == "EntityOne 1");
 
             Assert.DoesNotContain(leftEntities[2].TwoSkip, e => e.Name == "EntityTwo 1");
-            Assert.Contains(leftEntities[2].TwoSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == twoIds[3]);
+            Assert.Contains(leftEntities[2].TwoSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == twoIds![3]);
 
             Assert.DoesNotContain(rightEntities[2].OneSkip, e => e.Name == "EntityOne 1");
-            Assert.Contains(rightEntities[2].OneSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == oneIds[3]);
+            Assert.Contains(rightEntities[2].OneSkip, e => context.Entry(e).Property(e => e.Id).CurrentValue == oneIds![3]);
 
             var allLeft = context.ChangeTracker.Entries<EntityOne>().Select(e => e.Entity).OrderBy(e => e.Name).ToList();
             var allRight = context.ChangeTracker.Entries<EntityTwo>().Select(e => e.Entity).OrderBy(e => e.Name).ToList();
@@ -4010,13 +3867,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 {
                     if (left.TwoSkip?.Contains(right) == true)
                     {
-                        Assert.Contains(left, right.OneSkip);
+                        Assert.Contains(left, right.OneSkip!);
                         count++;
                     }
 
                     if (right.OneSkip?.Contains(left) == true)
                     {
-                        Assert.Contains(right, left.TwoSkip);
+                        Assert.Contains(right, left.TwoSkip!);
                         count++;
                     }
                 }
@@ -4027,28 +3884,28 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalFact]
-    public virtual void Can_delete_with_many_to_many()
+    [Fact]
+    public virtual Task Can_delete_with_many_to_many()
     {
         var oneId = 0;
         var twoId = 0;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var ones = context.Set<EntityOne>().Include(e => e.TwoSkip).OrderBy(e => e.Name).ToList();
-                var twos = context.Set<EntityTwo>().Include(e => e.OneSkip).OrderBy(e => e.Name).ToList();
+                var ones = await context.Set<EntityOne>().Include(e => e.TwoSkip).OrderBy(e => e.Name).ToListAsync();
+                var twos = await context.Set<EntityTwo>().Include(e => e.OneSkip).OrderBy(e => e.Name).ToListAsync();
 
                 // Make sure other related entities are loaded for delete fixup
                 context.Set<EntityThree>().Load();
                 context.Set<JoinOneToThreePayloadFull>().Load();
                 context.Set<JoinOneSelfPayload>().Load();
 
-                var toRemoveOne = context.EntityOnes.Single(e => e.Name == "EntityOne 1");
+                var toRemoveOne = await context.EntityOnes.SingleAsync(e => e.Name == "EntityOne 1");
                 oneId = toRemoveOne.Id;
                 var refCountOnes = twos.SelectMany(e => e.OneSkip).Count(e => e == toRemoveOne);
 
-                var toRemoveTwo = context.EntityTwos.Single(e => e.Name == "EntityTwo 1");
+                var toRemoveTwo = await context.EntityTwos.SingleAsync(e => e.Name == "EntityTwo 1");
                 twoId = toRemoveTwo.Id;
                 var refCountTwos = ones.SelectMany(e => e.TwoSkip).Count(e => e == toRemoveTwo);
 
@@ -4073,7 +3930,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                             ? EntityState.Deleted
                             : EntityState.Unchanged, e.State));
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 Assert.Equal(1, twos.SelectMany(e => e.OneSkip).Count(e => e == toRemoveOne));
                 Assert.Equal(1, ones.SelectMany(e => e.TwoSkip).Count(e => e == toRemoveTwo));
@@ -4088,11 +3945,10 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 Assert.DoesNotContain(
                     context.ChangeTracker.Entries<JoinOneToTwo>(), e => e.Entity.OneId == oneId || e.Entity.TwoId == twoId);
-            },
-            context =>
+            }, async context =>
             {
-                var ones = context.Set<EntityOne>().Include(e => e.TwoSkip).OrderBy(e => e.Name).ToList();
-                var twos = context.Set<EntityTwo>().Include(e => e.OneSkip).OrderBy(e => e.Name).ToList();
+                var ones = await context.Set<EntityOne>().Include(e => e.TwoSkip).OrderBy(e => e.Name).ToListAsync();
+                var twos = await context.Set<EntityTwo>().Include(e => e.OneSkip).OrderBy(e => e.Name).ToListAsync();
 
                 ValidateNavigations(ones, twos);
                 Assert.DoesNotContain(
@@ -4119,12 +3975,10 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many_fully_by_convention(bool async)
     {
-        List<int> keys = null;
+        List<int> keys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
@@ -4178,7 +4032,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             },
             async context =>
             {
-                var queryable = context.Set<ImplicitManyToManyA>().Where(e => keys.Contains(e.Id)).Include(e => e.Bs);
+                var queryable = context.Set<ImplicitManyToManyA>().Where(e => keys!.Contains(e.Id)).Include(e => e.Bs);
                 var results = async ? await queryable.ToListAsync() : queryable.ToList();
                 Assert.Equal(3, results.Count);
 
@@ -4201,7 +4055,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 Assert.Single(rightEntities[2].As);
             });
 
-        void ValidateFixup(DbContext context, IList<ImplicitManyToManyA> leftEntities, IList<ImplicitManyToManyB> rightEntities)
+        static void ValidateFixup(DbContext context, IList<ImplicitManyToManyA> leftEntities, IList<ImplicitManyToManyB> rightEntities)
         {
             Assert.Equal(11, context.ChangeTracker.Entries().Count());
             Assert.Equal(3, context.ChangeTracker.Entries<ImplicitManyToManyA>().Count());
@@ -4221,9 +4075,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many_fully_by_convention_generated_keys(bool async)
     {
         await ExecuteWithStrategyInTransactionAsync(
@@ -4299,7 +4151,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 Assert.Single(rightEntities[2].Lefts);
             });
 
-        void ValidateFixup(DbContext context, IList<GeneratedKeysLeft> leftEntities, IList<GeneratedKeysRight> rightEntities)
+        static void ValidateFixup(DbContext context, IList<GeneratedKeysLeft> leftEntities, IList<GeneratedKeysRight> rightEntities)
         {
             Assert.Equal(11, context.ChangeTracker.Entries().Count());
             Assert.Equal(3, context.ChangeTracker.Entries<GeneratedKeysLeft>().Count());
@@ -4319,11 +4171,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(true, false)]
-    [InlineData(false, false)]
-    [InlineData(true, true)]
-    [InlineData(false, true)]
+    [Theory, InlineData(true, false), InlineData(false, false), InlineData(true, true), InlineData(false, true)]
     public virtual async Task Can_Attach_or_Update_a_many_to_many_with_mixed_set_and_unset_keys(bool useUpdate, bool async)
     {
         var existingLeftId = -1;
@@ -4454,7 +4302,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 Assert.Single(rightEntities[2].Lefts);
             });
 
-        void ValidateFixup(DbContext context, IList<GeneratedKeysLeft> leftEntities, IList<GeneratedKeysRight> rightEntities)
+        static void ValidateFixup(DbContext context, IList<GeneratedKeysLeft> leftEntities, IList<GeneratedKeysRight> rightEntities)
         {
             Assert.Equal(11, context.ChangeTracker.Entries().Count());
             Assert.Equal(3, context.ChangeTracker.Entries<GeneratedKeysLeft>().Count());
@@ -4474,12 +4322,10 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Initial_tracking_uses_skip_navigations(bool async)
     {
-        List<int> keys = null;
+        List<int> keys = null!;
 
         await ExecuteWithStrategyInTransactionAsync(
             async context =>
@@ -4527,7 +4373,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             },
             async context =>
             {
-                var queryable = context.Set<ImplicitManyToManyA>().Where(e => keys.Contains(e.Id)).Include(e => e.Bs);
+                var queryable = context.Set<ImplicitManyToManyA>().Where(e => keys!.Contains(e.Id)).Include(e => e.Bs);
                 var results = async ? await queryable.ToListAsync() : queryable.ToList();
                 Assert.Equal(3, results.Count);
 
@@ -4539,7 +4385,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 ValidateFixup(context, leftEntities, rightEntities);
             });
 
-        void ValidateFixup(DbContext context, IList<ImplicitManyToManyA> leftEntities, IList<ImplicitManyToManyB> rightEntities)
+        static void ValidateFixup(DbContext context, IList<ImplicitManyToManyA> leftEntities, IList<ImplicitManyToManyB> rightEntities)
         {
             Assert.Equal(9, context.ChangeTracker.Entries().Count());
             Assert.Equal(3, context.ChangeTracker.Entries<ImplicitManyToManyA>().Count());
@@ -4559,13 +4405,8 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(new[] { 1, 2, 3 })]
-    [InlineData(new[] { 2, 1, 3 })]
-    [InlineData(new[] { 3, 1, 2 })]
-    [InlineData(new[] { 3, 2, 1 })]
-    [InlineData(new[] { 1, 3, 2 })]
-    [InlineData(new[] { 2, 3, 1 })]
+    [Theory, InlineData(new[] { 1, 2, 3 }), InlineData(new[] { 2, 1, 3 }), InlineData(new[] { 3, 1, 2 }),
+     InlineData(new[] { 3, 2, 1 }), InlineData(new[] { 1, 3, 2 }), InlineData(new[] { 2, 3, 1 })]
     public virtual void Can_load_entities_in_any_order(int[] order)
     {
         using var context = CreateContext();
@@ -4597,13 +4438,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             {
                 if (left.TwoSkip?.Contains(right) == true)
                 {
-                    Assert.Contains(left, right.OneSkip);
+                    Assert.Contains(left, right.OneSkip!);
                     joinCount++;
                 }
 
                 if (right.OneSkip?.Contains(left) == true)
                 {
-                    Assert.Contains(right, left.TwoSkip);
+                    Assert.Contains(right, left.TwoSkip!);
                     joinCount++;
                 }
             }
@@ -4613,26 +4454,24 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         Assert.Equal(112, (joinCount / 2) + deleted);
     }
 
-    [ConditionalFact]
-    public virtual void Can_insert_update_delete_shared_type_entity_type()
-        => ExecuteWithStrategyInTransaction(
+    [Fact]
+    public virtual Task Can_insert_update_delete_shared_type_entity_type()
+        => ExecuteWithStrategyInTransactionAsync(
             context =>
             {
-                var entity = context.Set<Dictionary<string, object>>("JoinOneToThreePayloadFullShared").CreateInstance(
-                    (e, p) =>
-                    {
-                        e["OneId"] = 1;
-                        e["ThreeId"] = 1;
-                        e["Payload"] = "NewlyAdded";
-                    });
+                var entity = context.Set<Dictionary<string, object>>("JoinOneToThreePayloadFullShared").CreateInstance((e, p) =>
+                {
+                    e["OneId"] = 1;
+                    e["ThreeId"] = 1;
+                    e["Payload"] = "NewlyAdded";
+                });
                 context.Set<Dictionary<string, object>>("JoinOneToThreePayloadFullShared").Add(entity);
 
-                context.SaveChanges();
-            },
-            context =>
+                return context.SaveChangesAsync();
+            }, async context =>
             {
-                var entity = context.Set<Dictionary<string, object>>("JoinOneToThreePayloadFullShared")
-                    .Single(e => (int)e["OneId"] == 1 && (int)e["ThreeId"] == 1);
+                var entity = await context.Set<Dictionary<string, object>>("JoinOneToThreePayloadFullShared")
+                    .SingleAsync(e => (int)e["OneId"] == 1 && (int)e["ThreeId"] == 1);
 
                 Assert.Equal("NewlyAdded", (string)entity["Payload"]);
 
@@ -4640,50 +4479,47 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 context.Set<Dictionary<string, object>>("JoinOneToThreePayloadFullShared").Update(entity);
 
-                context.SaveChanges();
-            },
-            context =>
+                await context.SaveChangesAsync();
+            }, async context =>
             {
-                var entity = context.Set<Dictionary<string, object>>("JoinOneToThreePayloadFullShared")
-                    .Single(e => (int)e["OneId"] == 1 && (int)e["ThreeId"] == 1);
+                var entity = await context.Set<Dictionary<string, object>>("JoinOneToThreePayloadFullShared")
+                    .SingleAsync(e => (int)e["OneId"] == 1 && (int)e["ThreeId"] == 1);
 
                 Assert.Equal("AlreadyUpdated", (string)entity["Payload"]);
 
                 context.Set<Dictionary<string, object>>("JoinOneToThreePayloadFullShared").Remove(entity);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 Assert.False(
-                    context.Set<Dictionary<string, object>>("JoinOneToThreePayloadFullShared")
-                        .Any(e => (int)e["OneId"] == 1 && (int)e["ThreeId"] == 1));
+                    await context.Set<Dictionary<string, object>>("JoinOneToThreePayloadFullShared")
+                        .AnyAsync(e => (int)e["OneId"] == 1 && (int)e["ThreeId"] == 1));
             });
 
-    [ConditionalFact]
-    public virtual void Can_insert_update_delete_proxyable_shared_type_entity_type()
+    [Fact]
+    public virtual Task Can_insert_update_delete_proxyable_shared_type_entity_type()
     {
         var id = 0;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var entity = context.Set<ProxyableSharedType>("PST").CreateInstance(
-                    (e, p) =>
-                    {
-                        e["Id"] = Fixture.UseGeneratedKeys ? null : 1;
-                        e["Payload"] = "NewlyAdded";
-                    });
+                var entity = context.Set<ProxyableSharedType>("PST").CreateInstance((e, p) =>
+                {
+                    e["Id"] = Fixture.UseGeneratedKeys ? null : 1;
+                    e["Payload"] = "NewlyAdded";
+                });
 
                 context.Set<ProxyableSharedType>("PST").Add(entity);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
-                id = (int)entity["Id"];
-            },
-            context =>
+                id = (int)entity["Id"]!;
+            }, async context =>
             {
-                var entity = context.Set<ProxyableSharedType>("PST").Single(e => (int)e["Id"] == id);
+                var entity = await context.Set<ProxyableSharedType>("PST").SingleAsync(e => (int)e["Id"]! == id);
 
-                Assert.Equal("NewlyAdded", (string)entity["Payload"]);
+                Assert.Equal("NewlyAdded", (string)entity["Payload"]!);
 
                 entity["Payload"] = "AlreadyUpdated";
 
@@ -4692,25 +4528,22 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                     context.ChangeTracker.DetectChanges();
                 }
 
-                context.SaveChanges();
-            },
-            context =>
+                await context.SaveChangesAsync();
+            }, async context =>
             {
-                var entity = context.Set<ProxyableSharedType>("PST").Single(e => (int)e["Id"] == id);
+                var entity = await context.Set<ProxyableSharedType>("PST").SingleAsync(e => (int)e["Id"]! == id);
 
-                Assert.Equal("AlreadyUpdated", (string)entity["Payload"]);
+                Assert.Equal("AlreadyUpdated", (string)entity["Payload"]!);
 
                 context.Set<ProxyableSharedType>("PST").Remove(entity);
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
-                Assert.False(context.Set<ProxyableSharedType>("PST").Any(e => (int)e["Id"] == id));
+                Assert.False(await context.Set<ProxyableSharedType>("PST").AnyAsync(e => (int)e["Id"]! == id));
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual async Task Can_insert_many_to_many_with_navs_by_join_entity(bool async)
     {
         await ExecuteWithStrategyInTransactionAsync(
@@ -4718,79 +4551,68 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             {
                 var leftEntities = new[]
                 {
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
-                            e.Name = "Z7711";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
-                            e.Name = "Z7712";
-                        }),
-                    context.EntityTwos.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
-                            e.Name = "Z7713";
-                        })
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7711;
+                        e.Name = "Z7711";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7712;
+                        e.Name = "Z7712";
+                    }),
+                    context.EntityTwos.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7713;
+                        e.Name = "Z7713";
+                    })
                 };
                 var rightEntities = new[]
                 {
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
-                            e.Name = "Z7721";
-                        }),
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
-                            e.Name = "Z7722";
-                        }),
-                    context.EntityThrees.CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
-                            e.Name = "Z7723";
-                        })
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7721;
+                        e.Name = "Z7721";
+                    }),
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7722;
+                        e.Name = "Z7722";
+                    }),
+                    context.EntityThrees.CreateInstance((e, p) =>
+                    {
+                        e.Id = Fixture.UseGeneratedKeys ? 0 : 7723;
+                        e.Name = "Z7723";
+                    })
                 };
 
                 var joinEntities = new[]
                 {
-                    context.Set<JoinTwoToThree>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Two = leftEntities[0];
-                            e.Three = rightEntities[0];
-                        }),
-                    context.Set<JoinTwoToThree>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Two = leftEntities[0];
-                            e.Three = rightEntities[1];
-                        }),
-                    context.Set<JoinTwoToThree>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Two = leftEntities[0];
-                            e.Three = rightEntities[2];
-                        }),
-                    context.Set<JoinTwoToThree>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Two = leftEntities[1];
-                            e.Three = rightEntities[0];
-                        }),
-                    context.Set<JoinTwoToThree>().CreateInstance(
-                        (e, p) =>
-                        {
-                            e.Two = leftEntities[2];
-                            e.Three = rightEntities[0];
-                        })
+                    context.Set<JoinTwoToThree>().CreateInstance((e, p) =>
+                    {
+                        e.Two = leftEntities[0];
+                        e.Three = rightEntities[0];
+                    }),
+                    context.Set<JoinTwoToThree>().CreateInstance((e, p) =>
+                    {
+                        e.Two = leftEntities[0];
+                        e.Three = rightEntities[1];
+                    }),
+                    context.Set<JoinTwoToThree>().CreateInstance((e, p) =>
+                    {
+                        e.Two = leftEntities[0];
+                        e.Three = rightEntities[2];
+                    }),
+                    context.Set<JoinTwoToThree>().CreateInstance((e, p) =>
+                    {
+                        e.Two = leftEntities[1];
+                        e.Three = rightEntities[0];
+                    }),
+                    context.Set<JoinTwoToThree>().CreateInstance((e, p) =>
+                    {
+                        e.Two = leftEntities[2];
+                        e.Three = rightEntities[0];
+                    })
                 };
 
                 if (async)
@@ -4818,7 +4640,7 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             async context =>
             {
                 var queryable = context.Set<EntityTwo>()
-                    .Where(e => e.Name.StartsWith("Z"))
+                    .Where(e => e.Name!.StartsWith("Z"))
                     .OrderBy(e => e.Name)
                     .Include(e => e.ThreeSkipFull);
 
@@ -4856,29 +4678,21 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false, false, false)]
-    [InlineData(false, true, false, false)]
-    [InlineData(true, false, false, false)]
-    [InlineData(true, true, false, false)]
-    [InlineData(false, false, true, false)]
-    [InlineData(false, true, true, false)]
-    [InlineData(true, false, true, false)]
-    [InlineData(true, true, true, false)]
-    [InlineData(false, false, true, true)]
-    [InlineData(false, true, true, true)]
-    [InlineData(true, false, true, true)]
-    [InlineData(true, true, true, true)]
-    public virtual void Can_add_and_remove_a_new_relationship(bool modifyLeft, bool modifyRight, bool useJoin, bool useNavs)
+    [Theory, InlineData(false, false, false, false), InlineData(false, true, false, false),
+     InlineData(true, false, false, false), InlineData(true, true, false, false), InlineData(false, false, true, false),
+     InlineData(false, true, true, false), InlineData(true, false, true, false), InlineData(true, true, true, false),
+     InlineData(false, false, true, true), InlineData(false, true, true, true), InlineData(true, false, true, true),
+     InlineData(true, true, true, true)]
+    public virtual Task Can_add_and_remove_a_new_relationship(bool modifyLeft, bool modifyRight, bool useJoin, bool useNavs)
     {
         var leftId = -1;
         var rightId = -1;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var left = context.Set<EntityOne>().Where(e => !e.TwoSkip.Any()).OrderBy(e => e.Id).First();
-                var right = context.Set<EntityTwo>().OrderBy(e => e.Id).First();
+                var left = await context.Set<EntityOne>().Where(e => !e.TwoSkip.Any()).OrderBy(e => e.Id).FirstAsync();
+                var right = await context.Set<EntityTwo>().OrderBy(e => e.Id).FirstAsync();
 
                 if (modifyLeft)
                 {
@@ -4901,18 +4715,16 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                                 ? new JoinOneToTwo { One = left, Two = right }
                                 : new JoinOneToTwo { OneId = leftId, TwoId = rightId }
                             : useNavs
-                                ? context.CreateProxy<JoinOneToTwo>(
-                                    e =>
-                                    {
-                                        e.One = left;
-                                        e.Two = right;
-                                    })
-                                : context.CreateProxy<JoinOneToTwo>(
-                                    e =>
-                                    {
-                                        e.OneId = leftId;
-                                        e.TwoId = rightId;
-                                    }));
+                                ? context.CreateProxy<JoinOneToTwo>(e =>
+                                {
+                                    e.One = left;
+                                    e.Two = right;
+                                })
+                                : context.CreateProxy<JoinOneToTwo>(e =>
+                                {
+                                    e.OneId = leftId;
+                                    e.TwoId = rightId;
+                                }));
                 }
                 else
                 {
@@ -4958,37 +4770,30 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 Assert.Same(left, joinEntry.Entity.One);
                 Assert.Same(right, joinEntry.Entity.Two);
 
-                context.SaveChanges();
-            },
-            context =>
+                await context.SaveChangesAsync();
+            }, async context =>
             {
-                var left = context.Set<EntityOne>().Where(e => !e.TwoSkip.Any()).OrderBy(e => e.Id).First();
-                var right = context.Set<EntityTwo>().OrderBy(e => e.Id).First();
+                var left = await context.Set<EntityOne>().Where(e => !e.TwoSkip.Any()).OrderBy(e => e.Id).FirstAsync();
+                var right = await context.Set<EntityTwo>().OrderBy(e => e.Id).FirstAsync();
 
                 Assert.Equal(leftId, left.Id);
                 Assert.Equal(rightId, right.Id);
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(true, false, false)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, true)]
-    public virtual void Can_add_and_remove_a_new_relationship_self(bool modifyLeft, bool modifyRight, bool useJoin)
+    [Theory, InlineData(false, false, false), InlineData(false, true, false), InlineData(true, false, false),
+     InlineData(true, true, false), InlineData(false, false, true), InlineData(false, true, true), InlineData(true, false, true),
+     InlineData(true, true, true)]
+    public virtual Task Can_add_and_remove_a_new_relationship_self(bool modifyLeft, bool modifyRight, bool useJoin)
     {
         var leftId = -1;
         var rightId = -1;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var left = context.Set<EntityTwo>().Where(e => !e.SelfSkipSharedRight.Any()).OrderBy(e => e.Id).First();
-                var right = context.Set<EntityTwo>().Where(e => !e.SelfSkipSharedLeft.Any()).OrderBy(e => e.Id).First();
+                var left = await context.Set<EntityTwo>().Where(e => !e.SelfSkipSharedRight.Any()).OrderBy(e => e.Id).FirstAsync();
+                var right = await context.Set<EntityTwo>().Where(e => !e.SelfSkipSharedLeft.Any()).OrderBy(e => e.Id).FirstAsync();
 
                 if (modifyLeft)
                 {
@@ -5048,32 +4853,23 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 Assert.Equal(left.Id, joinEntry.Entity["SelfSkipSharedLeftId"]);
                 Assert.Equal(right.Id, joinEntry.Entity["SelfSkipSharedRightId"]);
 
-                context.SaveChanges();
-            },
-            context =>
+                await context.SaveChangesAsync();
+            }, async context =>
             {
-                var left = context.Set<EntityTwo>().Where(e => !e.SelfSkipSharedRight.Any()).OrderBy(e => e.Id).First();
-                var right = context.Set<EntityTwo>().Where(e => !e.SelfSkipSharedLeft.Any()).OrderBy(e => e.Id).First();
+                var left = await context.Set<EntityTwo>().Where(e => !e.SelfSkipSharedRight.Any()).OrderBy(e => e.Id).FirstAsync();
+                var right = await context.Set<EntityTwo>().Where(e => !e.SelfSkipSharedLeft.Any()).OrderBy(e => e.Id).FirstAsync();
 
                 Assert.Equal(leftId, left.Id);
                 Assert.Equal(rightId, right.Id);
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false, false, false)]
-    [InlineData(false, true, false, false)]
-    [InlineData(true, false, false, false)]
-    [InlineData(true, true, false, false)]
-    [InlineData(false, false, true, false)]
-    [InlineData(false, true, true, false)]
-    [InlineData(true, false, true, false)]
-    [InlineData(true, true, true, false)]
-    [InlineData(false, false, true, true)]
-    [InlineData(false, true, true, true)]
-    [InlineData(true, false, true, true)]
-    [InlineData(true, true, true, true)]
-    public virtual void Can_add_and_remove_a_new_relationship_composite_with_navs(
+    [Theory, InlineData(false, false, false, false), InlineData(false, true, false, false),
+     InlineData(true, false, false, false), InlineData(true, true, false, false), InlineData(false, false, true, false),
+     InlineData(false, true, true, false), InlineData(true, false, true, false), InlineData(true, true, true, false),
+     InlineData(false, false, true, true), InlineData(false, true, true, true), InlineData(true, false, true, true),
+     InlineData(true, true, true, true)]
+    public virtual Task Can_add_and_remove_a_new_relationship_composite_with_navs(
         bool modifyLeft,
         bool modifyRight,
         bool useJoin,
@@ -5084,17 +4880,17 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         var leftKey3 = new DateTime();
         var rightId = -1;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var left = context.Set<EntityCompositeKey>()
+                var left = await context.Set<EntityCompositeKey>()
                     .Where(e => !e.LeafSkipFull.Any())
                     .OrderBy(e => e.Key1)
                     .ThenBy(e => e.Key2)
                     .ThenBy(e => e.Key3)
-                    .First();
+                    .FirstAsync();
 
-                var right = context.Set<EntityLeaf>().OrderBy(e => e.Id).First();
+                var right = await context.Set<EntityLeaf>().OrderBy(e => e.Id).FirstAsync();
 
                 if (modifyLeft)
                 {
@@ -5125,20 +4921,18 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                                     LeafId = rightId
                                 }
                             : useNavs
-                                ? context.CreateProxy<JoinCompositeKeyToLeaf>(
-                                    e =>
-                                    {
-                                        e.Composite = left;
-                                        e.Leaf = right;
-                                    })
-                                : context.CreateProxy<JoinCompositeKeyToLeaf>(
-                                    e =>
-                                    {
-                                        e.CompositeId1 = leftKey1;
-                                        e.CompositeId2 = leftKey2;
-                                        e.CompositeId3 = leftKey3;
-                                        e.LeafId = rightId;
-                                    }));
+                                ? context.CreateProxy<JoinCompositeKeyToLeaf>(e =>
+                                {
+                                    e.Composite = left;
+                                    e.Leaf = right;
+                                })
+                                : context.CreateProxy<JoinCompositeKeyToLeaf>(e =>
+                                {
+                                    e.CompositeId1 = leftKey1;
+                                    e.CompositeId2 = leftKey2;
+                                    e.CompositeId3 = leftKey3;
+                                    e.LeafId = rightId;
+                                }));
                 }
                 else
                 {
@@ -5192,18 +4986,17 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 Assert.DoesNotContain(joinEntry.Entity, left.JoinLeafFull);
                 Assert.DoesNotContain(joinEntry.Entity, right.JoinCompositeKeyFull);
 
-                context.SaveChanges();
-            },
-            context =>
+                await context.SaveChangesAsync();
+            }, async context =>
             {
-                var left = context.Set<EntityCompositeKey>()
+                var left = await context.Set<EntityCompositeKey>()
                     .Where(e => !e.LeafSkipFull.Any())
                     .OrderBy(e => e.Key1)
                     .ThenBy(e => e.Key2)
                     .ThenBy(e => e.Key3)
-                    .First();
+                    .FirstAsync();
 
-                var right = context.Set<EntityLeaf>().OrderBy(e => e.Id).First();
+                var right = await context.Set<EntityLeaf>().OrderBy(e => e.Id).FirstAsync();
 
                 Assert.Equal(leftKey1, left.Key1);
                 Assert.Equal(leftKey2, left.Key2);
@@ -5212,20 +5005,12 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false, false, false)]
-    [InlineData(false, true, false, false)]
-    [InlineData(true, false, false, false)]
-    [InlineData(true, true, false, false)]
-    [InlineData(false, false, true, false)]
-    [InlineData(false, true, true, false)]
-    [InlineData(true, false, true, false)]
-    [InlineData(true, true, true, false)]
-    [InlineData(false, false, true, true)]
-    [InlineData(false, true, true, true)]
-    [InlineData(true, false, true, true)]
-    [InlineData(true, true, true, true)]
-    public virtual void Can_add_and_remove_a_new_relationship_composite_additional_pk_with_navs(
+    [Theory, InlineData(false, false, false, false), InlineData(false, true, false, false),
+     InlineData(true, false, false, false), InlineData(true, true, false, false), InlineData(false, false, true, false),
+     InlineData(false, true, true, false), InlineData(true, false, true, false), InlineData(true, true, true, false),
+     InlineData(false, false, true, true), InlineData(false, true, true, true), InlineData(true, false, true, true),
+     InlineData(true, true, true, true)]
+    public virtual Task Can_add_and_remove_a_new_relationship_composite_additional_pk_with_navs(
         bool modifyLeft,
         bool modifyRight,
         bool useJoin,
@@ -5236,17 +5021,17 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         var leftKey3 = new DateTime();
         var rightId = -1;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var left = context.Set<EntityCompositeKey>()
+                var left = await context.Set<EntityCompositeKey>()
                     .Where(e => !e.ThreeSkipFull.Any())
                     .OrderBy(e => e.Key1)
                     .ThenBy(e => e.Key2)
                     .ThenBy(e => e.Key3)
-                    .First();
+                    .FirstAsync();
 
-                var right = context.Set<EntityThree>().OrderBy(e => e.Id).First();
+                var right = await context.Set<EntityThree>().OrderBy(e => e.Id).FirstAsync();
 
                 if (modifyLeft)
                 {
@@ -5277,20 +5062,18 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                                     ThreeId = rightId
                                 }
                             : useNavs
-                                ? context.CreateProxy<JoinThreeToCompositeKeyFull>(
-                                    e =>
-                                    {
-                                        e.Composite = left;
-                                        e.Three = right;
-                                    })
-                                : context.CreateProxy<JoinThreeToCompositeKeyFull>(
-                                    e =>
-                                    {
-                                        e.CompositeId1 = leftKey1;
-                                        e.CompositeId2 = leftKey2;
-                                        e.CompositeId3 = leftKey3;
-                                        e.ThreeId = rightId;
-                                    }));
+                                ? context.CreateProxy<JoinThreeToCompositeKeyFull>(e =>
+                                {
+                                    e.Composite = left;
+                                    e.Three = right;
+                                })
+                                : context.CreateProxy<JoinThreeToCompositeKeyFull>(e =>
+                                {
+                                    e.CompositeId1 = leftKey1;
+                                    e.CompositeId2 = leftKey2;
+                                    e.CompositeId3 = leftKey3;
+                                    e.ThreeId = rightId;
+                                }));
                 }
                 else
                 {
@@ -5344,18 +5127,17 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 Assert.DoesNotContain(joinEntry.Entity, left.JoinThreeFull);
                 Assert.DoesNotContain(joinEntry.Entity, right.JoinCompositeKeyFull);
 
-                context.SaveChanges();
-            },
-            context =>
+                await context.SaveChangesAsync();
+            }, async context =>
             {
-                var left = context.Set<EntityCompositeKey>()
+                var left = await context.Set<EntityCompositeKey>()
                     .Where(e => !e.ThreeSkipFull.Any())
                     .OrderBy(e => e.Key1)
                     .ThenBy(e => e.Key2)
                     .ThenBy(e => e.Key3)
-                    .First();
+                    .FirstAsync();
 
-                var right = context.Set<EntityThree>().OrderBy(e => e.Id).First();
+                var right = await context.Set<EntityThree>().OrderBy(e => e.Id).FirstAsync();
 
                 Assert.Equal(leftKey1, left.Key1);
                 Assert.Equal(leftKey2, left.Key2);
@@ -5364,25 +5146,19 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(true, false, false)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, true)]
-    public virtual void Can_add_and_remove_a_new_relationship_with_inheritance(bool modifyLeft, bool modifyRight, bool useJoin)
+    [Theory, InlineData(false, false, false), InlineData(false, true, false), InlineData(true, false, false),
+     InlineData(true, true, false), InlineData(false, false, true), InlineData(false, true, true), InlineData(true, false, true),
+     InlineData(true, true, true)]
+    public virtual Task Can_add_and_remove_a_new_relationship_with_inheritance(bool modifyLeft, bool modifyRight, bool useJoin)
     {
         var leftId = -1;
         var rightId = -1;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var left = context.Set<EntityOne>().Where(e => !e.BranchSkip.Any()).OrderBy(e => e.Id).First();
-                var right = context.Set<EntityBranch>().OrderBy(e => e.Id).First();
+                var left = await context.Set<EntityOne>().Where(e => !e.BranchSkip.Any()).OrderBy(e => e.Id).FirstAsync();
+                var right = await context.Set<EntityBranch>().OrderBy(e => e.Id).FirstAsync();
 
                 if (modifyLeft)
                 {
@@ -5402,12 +5178,11 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                     context.Add(
                         RequiresDetectChanges
                             ? new JoinOneToBranch { EntityOneId = leftId, EntityBranchId = rightId }
-                            : context.CreateProxy<JoinOneToBranch>(
-                                e =>
-                                {
-                                    e.EntityOneId = leftId;
-                                    e.EntityBranchId = rightId;
-                                }));
+                            : context.CreateProxy<JoinOneToBranch>(e =>
+                            {
+                                e.EntityOneId = leftId;
+                                e.EntityBranchId = rightId;
+                            }));
                 }
                 else
                 {
@@ -5449,37 +5224,30 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 Assert.Equal(leftId, joinEntry.Entity.EntityOneId);
                 Assert.Equal(rightId, joinEntry.Entity.EntityBranchId);
 
-                context.SaveChanges();
-            },
-            context =>
+                await context.SaveChangesAsync();
+            }, async context =>
             {
-                var left = context.Set<EntityOne>().Where(e => !e.BranchSkip.Any()).OrderBy(e => e.Id).First();
-                var right = context.Set<EntityBranch>().OrderBy(e => e.Id).First();
+                var left = await context.Set<EntityOne>().Where(e => !e.BranchSkip.Any()).OrderBy(e => e.Id).FirstAsync();
+                var right = await context.Set<EntityBranch>().OrderBy(e => e.Id).FirstAsync();
 
                 Assert.Equal(leftId, left.Id);
                 Assert.Equal(rightId, right.Id);
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(true, false, false)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, true)]
-    public virtual void Can_add_and_remove_a_new_relationship_shared_with_payload(bool modifyLeft, bool modifyRight, bool useJoin)
+    [Theory, InlineData(false, false, false), InlineData(false, true, false), InlineData(true, false, false),
+     InlineData(true, true, false), InlineData(false, false, true), InlineData(false, true, true), InlineData(true, false, true),
+     InlineData(true, true, true)]
+    public virtual Task Can_add_and_remove_a_new_relationship_shared_with_payload(bool modifyLeft, bool modifyRight, bool useJoin)
     {
         var leftId = -1;
         var rightId = -1;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var left = context.Set<EntityOne>().Where(e => !e.ThreeSkipPayloadFullShared.Any()).OrderBy(e => e.Id).First();
-                var right = context.Set<EntityThree>().OrderBy(e => e.Id).First();
+                var left = await context.Set<EntityOne>().Where(e => !e.ThreeSkipPayloadFullShared.Any()).OrderBy(e => e.Id).FirstAsync();
+                var right = await context.Set<EntityThree>().OrderBy(e => e.Id).FirstAsync();
 
                 if (modifyLeft)
                 {
@@ -5543,37 +5311,30 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 Assert.Equal(EntityState.Detached, joinEntry.State);
 
-                context.SaveChanges();
-            },
-            context =>
+                await context.SaveChangesAsync();
+            }, async context =>
             {
-                var left = context.Set<EntityOne>().Where(e => !e.ThreeSkipPayloadFullShared.Any()).OrderBy(e => e.Id).First();
-                var right = context.Set<EntityThree>().OrderBy(e => e.Id).First();
+                var left = await context.Set<EntityOne>().Where(e => !e.ThreeSkipPayloadFullShared.Any()).OrderBy(e => e.Id).FirstAsync();
+                var right = await context.Set<EntityThree>().OrderBy(e => e.Id).FirstAsync();
 
                 Assert.Equal(leftId, left.Id);
                 Assert.Equal(rightId, right.Id);
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(true, false, false)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, true)]
-    public virtual void Can_add_and_remove_a_new_relationship_shared(bool modifyLeft, bool modifyRight, bool useJoin)
+    [Theory, InlineData(false, false, false), InlineData(false, true, false), InlineData(true, false, false),
+     InlineData(true, true, false), InlineData(false, false, true), InlineData(false, true, true), InlineData(true, false, true),
+     InlineData(true, true, true)]
+    public virtual Task Can_add_and_remove_a_new_relationship_shared(bool modifyLeft, bool modifyRight, bool useJoin)
     {
         var leftId = -1;
         var rightId = -1;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var left = context.Set<EntityOne>().Where(e => !e.TwoSkipShared.Any()).OrderBy(e => e.Id).First();
-                var right = context.Set<EntityTwo>().OrderBy(e => e.Id).First();
+                var left = await context.Set<EntityOne>().Where(e => !e.TwoSkipShared.Any()).OrderBy(e => e.Id).FirstAsync();
+                var right = await context.Set<EntityTwo>().OrderBy(e => e.Id).FirstAsync();
 
                 if (modifyLeft)
                 {
@@ -5633,32 +5394,23 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 Assert.Equal(left.Id, (int)joinEntry.Entity["OneSkipSharedId"]);
                 Assert.Equal(right.Id, (int)joinEntry.Entity["TwoSkipSharedId"]);
 
-                context.SaveChanges();
-            },
-            context =>
+                await context.SaveChangesAsync();
+            }, async context =>
             {
-                var left = context.Set<EntityOne>().Where(e => !e.TwoSkipShared.Any()).OrderBy(e => e.Id).First();
-                var right = context.Set<EntityTwo>().OrderBy(e => e.Id).First();
+                var left = await context.Set<EntityOne>().Where(e => !e.TwoSkipShared.Any()).OrderBy(e => e.Id).FirstAsync();
+                var right = await context.Set<EntityTwo>().OrderBy(e => e.Id).FirstAsync();
 
                 Assert.Equal(leftId, left.Id);
                 Assert.Equal(rightId, right.Id);
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false, false, false)]
-    [InlineData(false, true, false, false)]
-    [InlineData(true, false, false, false)]
-    [InlineData(true, true, false, false)]
-    [InlineData(false, false, true, false)]
-    [InlineData(false, true, true, false)]
-    [InlineData(true, false, true, false)]
-    [InlineData(true, true, true, false)]
-    [InlineData(false, false, true, true)]
-    [InlineData(false, true, true, true)]
-    [InlineData(true, false, true, true)]
-    [InlineData(true, true, true, true)]
-    public virtual void Can_add_and_remove_a_new_relationship_with_payload(
+    [Theory, InlineData(false, false, false, false), InlineData(false, true, false, false),
+     InlineData(true, false, false, false), InlineData(true, true, false, false), InlineData(false, false, true, false),
+     InlineData(false, true, true, false), InlineData(true, false, true, false), InlineData(true, true, true, false),
+     InlineData(false, false, true, true), InlineData(false, true, true, true), InlineData(true, false, true, true),
+     InlineData(true, true, true, true)]
+    public virtual Task Can_add_and_remove_a_new_relationship_with_payload(
         bool modifyLeft,
         bool modifyRight,
         bool useJoin,
@@ -5667,11 +5419,11 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
         var leftId = -1;
         var rightId = -1;
 
-        ExecuteWithStrategyInTransaction(
-            context =>
+        return ExecuteWithStrategyInTransactionAsync(
+            async context =>
             {
-                var left = context.Set<EntityOne>().Where(e => !e.ThreeSkipPayloadFull.Any()).OrderBy(e => e.Id).First();
-                var right = context.Set<EntityThree>().OrderBy(e => e.Id).First();
+                var left = await context.Set<EntityOne>().Where(e => !e.ThreeSkipPayloadFull.Any()).OrderBy(e => e.Id).FirstAsync();
+                var right = await context.Set<EntityThree>().OrderBy(e => e.Id).FirstAsync();
 
                 if (modifyLeft)
                 {
@@ -5694,18 +5446,16 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                                 ? new JoinOneToThreePayloadFull { One = left, Three = right }
                                 : new JoinOneToThreePayloadFull { OneId = leftId, ThreeId = rightId }
                             : useNavs
-                                ? context.CreateProxy<JoinOneToThreePayloadFull>(
-                                    e =>
-                                    {
-                                        e.One = left;
-                                        e.Three = right;
-                                    })
-                                : context.CreateProxy<JoinOneToThreePayloadFull>(
-                                    e =>
-                                    {
-                                        e.OneId = leftId;
-                                        e.ThreeId = rightId;
-                                    }));
+                                ? context.CreateProxy<JoinOneToThreePayloadFull>(e =>
+                                {
+                                    e.One = left;
+                                    e.Three = right;
+                                })
+                                : context.CreateProxy<JoinOneToThreePayloadFull>(e =>
+                                {
+                                    e.OneId = leftId;
+                                    e.ThreeId = rightId;
+                                }));
                 }
                 else
                 {
@@ -5755,22 +5505,19 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
                 Assert.DoesNotContain(joinEntry.Entity, left.JoinThreePayloadFull);
                 Assert.DoesNotContain(joinEntry.Entity, right.JoinOnePayloadFull);
 
-                context.SaveChanges();
-            },
-            context =>
+                await context.SaveChangesAsync();
+            }, async context =>
             {
-                var left = context.Set<EntityOne>().Where(e => !e.ThreeSkipPayloadFull.Any()).OrderBy(e => e.Id).First();
-                var right = context.Set<EntityThree>().OrderBy(e => e.Id).First();
+                var left = await context.Set<EntityOne>().Where(e => !e.ThreeSkipPayloadFull.Any()).OrderBy(e => e.Id).FirstAsync();
+                var right = await context.Set<EntityThree>().OrderBy(e => e.Id).FirstAsync();
 
                 Assert.Equal(leftId, left.Id);
                 Assert.Equal(rightId, right.Id);
             });
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public virtual async Task Can_replace_dependent_with_many_to_many(bool async)
+    [Theory, InlineData(false, false), InlineData(false, true), InlineData(true, false), InlineData(true, true)]
+    public virtual async Task Can_replace_dependent_with_many_to_many(bool createNewCollection, bool async)
     {
         var principalKey = 0;
         var newRightKey = 0;
@@ -5784,7 +5531,11 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 principal.Reference = leftEntity;
 
-                leftEntity.ThreeSkipFull ??= CreateCollection<EntityThree>();
+                if (leftEntity.ThreeSkipFull == null || createNewCollection)
+                {
+                    leftEntity.ThreeSkipFull = CreateCollection<EntityThree>();
+                }
+
                 leftEntity.ThreeSkipFull.Add(rightEntity);
 
                 _ = async
@@ -5816,7 +5567,11 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                 principal.Reference = newLeftEntity;
 
-                newLeftEntity.ThreeSkipFull ??= CreateCollection<EntityThree>();
+                if (newLeftEntity.ThreeSkipFull == null || createNewCollection)
+                {
+                    newLeftEntity.ThreeSkipFull = CreateCollection<EntityThree>();
+                }
+
                 newLeftEntity.ThreeSkipFull.Add(newRightEntity);
 
                 if (RequiresDetectChanges)
@@ -5861,9 +5616,9 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             Assert.Same(rightEntity, leftEntity.ThreeSkipFull.Single());
             Assert.Same(leftEntity, rightEntity.TwoSkipFull.Single());
 
-            VerifyRelationshipSnapshots(context, new[] { principal });
-            VerifyRelationshipSnapshots(context, new[] { leftEntity });
-            VerifyRelationshipSnapshots(context, new[] { rightEntity });
+            VerifyRelationshipSnapshots(context, [principal]);
+            VerifyRelationshipSnapshots(context, [leftEntity]);
+            VerifyRelationshipSnapshots(context, [rightEntity]);
         }
     }
 
@@ -5899,20 +5654,20 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
 
                             if (navigation.IsCollection)
                             {
-                                var currentCollection = ((IEnumerable<object>)current)?.ToList();
-                                var snapshotCollection = ((IEnumerable<object>)snapshot)?.ToList();
+                                var currentCollection = ((IEnumerable<object>)current!)?.ToList();
+                                var snapshotCollection = ((IEnumerable<object>)snapshot!)?.ToList();
 
                                 if (snapshot == null)
                                 {
-                                    Assert.True(current == null || !currentCollection.Any());
+                                    Assert.True(current == null || !currentCollection!.Any());
                                 }
                                 else if (current == null)
                                 {
-                                    Assert.True(snapshot == null || !snapshotCollection.Any());
+                                    Assert.True(snapshot == null || !snapshotCollection!.Any());
                                 }
                                 else
                                 {
-                                    Assert.Equal(snapshotCollection.Count, currentCollection.Count);
+                                    Assert.Equal(snapshotCollection!.Count, currentCollection!.Count);
 
                                     foreach (var related in snapshotCollection)
                                     {
@@ -5938,27 +5693,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
     private ICollection<TEntity> CreateCollection<TEntity>()
         => RequiresDetectChanges ? new List<TEntity>() : new ObservableCollection<TEntity>();
 
-    protected ManyToManyTrackingTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
-
-    protected TFixture Fixture { get; }
-
-    protected virtual void ExecuteWithStrategyInTransaction(
-        Action<ManyToManyContext> testOperation,
-        Action<ManyToManyContext> nestedTestOperation1 = null,
-        Action<ManyToManyContext> nestedTestOperation2 = null,
-        Action<ManyToManyContext> nestedTestOperation3 = null)
-        => TestHelpers.ExecuteWithStrategyInTransaction(
-            CreateContext, UseTransaction,
-            testOperation, nestedTestOperation1, nestedTestOperation2, nestedTestOperation3);
+    protected TFixture Fixture { get; } = fixture;
 
     protected virtual Task ExecuteWithStrategyInTransactionAsync(
         Func<ManyToManyContext, Task> testOperation,
-        Func<ManyToManyContext, Task> nestedTestOperation1 = null,
-        Func<ManyToManyContext, Task> nestedTestOperation2 = null,
-        Func<ManyToManyContext, Task> nestedTestOperation3 = null)
+        Func<ManyToManyContext, Task>? nestedTestOperation1 = null,
+        Func<ManyToManyContext, Task>? nestedTestOperation2 = null,
+        Func<ManyToManyContext, Task>? nestedTestOperation3 = null)
         => TestHelpers.ExecuteWithStrategyInTransactionAsync(
             CreateContext, UseTransaction,
             testOperation, nestedTestOperation1, nestedTestOperation2, nestedTestOperation3);
@@ -5986,6 +5727,13 @@ public abstract class ManyToManyTrackingTestBase<TFixture> : IClassFixture<TFixt
             return context;
         }
 
-        protected override string StoreName { get; } = "ManyToManyTracking";
+        public override DbContextOptionsBuilder AddOptions(DbContextOptionsBuilder builder)
+            => base.AddOptions(builder).ConfigureWarnings(w => w.Ignore(
+                CoreEventId.MappedEntityTypeIgnoredWarning,
+                CoreEventId.MappedPropertyIgnoredWarning,
+                CoreEventId.MappedNavigationIgnoredWarning));
+
+        protected override string StoreName
+            => "ManyToManyTracking";
     }
 }

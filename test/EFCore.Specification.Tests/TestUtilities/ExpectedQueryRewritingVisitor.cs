@@ -1,48 +1,36 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace Microsoft.EntityFrameworkCore.TestUtilities;
 
-public class ExpectedQueryRewritingVisitor : ExpressionVisitor
+public class ExpectedQueryRewritingVisitor(Dictionary<(Type, string), Func<object, object>>? shadowPropertyMappings = null)
+    : ExpressionVisitor
 {
     private static readonly MethodInfo _maybeDefaultIfEmpty
-        = typeof(QueryTestExtensions).GetMethod(nameof(QueryTestExtensions.MaybeDefaultIfEmpty));
+        = typeof(TestExtensions).GetMethod(nameof(TestExtensions.MaybeDefaultIfEmpty))!;
 
     private static readonly MethodInfo _maybeMethod
-        = typeof(QueryTestExtensions).GetMethod(nameof(QueryTestExtensions.Maybe));
-
-    private static readonly MethodInfo _containsMethodInfo
-        = typeof(string).GetRuntimeMethod(nameof(string.Contains), new[] { typeof(string) });
-
-    private static readonly MethodInfo _startsWithMethodInfo
-        = typeof(string).GetRuntimeMethod(nameof(string.StartsWith), new[] { typeof(string) });
-
-    private static readonly MethodInfo _endsWithMethodInfo
-        = typeof(string).GetRuntimeMethod(nameof(string.EndsWith), new[] { typeof(string) });
+        = typeof(TestExtensions).GetMethod(nameof(TestExtensions.Maybe))!;
 
     private static readonly MethodInfo _getShadowPropertyValueMethodInfo
-        = typeof(ExpectedQueryRewritingVisitor).GetMethod(nameof(GetShadowPropertyValue));
+        = typeof(ExpectedQueryRewritingVisitor).GetMethod(nameof(GetShadowPropertyValue))!;
 
     private static readonly MethodInfo _maybeScalarNullableMethod;
     private static readonly MethodInfo _maybeScalarNonNullableMethod;
 
-    private readonly Dictionary<(Type, string), Func<object, object>> _shadowPropertyMappings;
+    private readonly Dictionary<(Type, string), Func<object, object>> _shadowPropertyMappings =
+        shadowPropertyMappings ?? [];
 
     private bool _negated;
 
     static ExpectedQueryRewritingVisitor()
     {
-        var maybeScalarMethods = typeof(QueryTestExtensions).GetMethods()
-            .Where(m => m.Name == nameof(QueryTestExtensions.MaybeScalar))
+        var maybeScalarMethods = typeof(TestExtensions).GetMethods()
+            .Where(m => m.Name == nameof(TestExtensions.MaybeScalar))
             .Select(m => new { method = m, argument = m.GetParameters()[1].ParameterType.GetGenericArguments()[1] });
 
         _maybeScalarNullableMethod = maybeScalarMethods.Single(x => x.argument.IsNullableValueType()).method;
         _maybeScalarNonNullableMethod = maybeScalarMethods.Single(x => !x.argument.IsNullableValueType()).method;
-    }
-
-    public ExpectedQueryRewritingVisitor(Dictionary<(Type, string), Func<object, object>> shadowPropertyMappings = null)
-    {
-        _shadowPropertyMappings = shadowPropertyMappings ?? new Dictionary<(Type, string), Func<object, object>>();
     }
 
     protected override Expression VisitMember(MemberExpression memberExpression)
@@ -81,11 +69,15 @@ public class ExpectedQueryRewritingVisitor : ExpressionVisitor
     protected override Expression VisitMethodCall(MethodCallExpression methodCallExpression)
     {
         if (methodCallExpression.Method.DeclaringType == typeof(Queryable)
-            && methodCallExpression.Method.IsGenericMethod
-            && (methodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.Join
-                || methodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.GroupJoin))
+            && methodCallExpression.Method.IsGenericMethod)
         {
-            return RewriteJoinGroupJoin(methodCallExpression);
+            var genericMethod = methodCallExpression.Method.GetGenericMethodDefinition();
+
+            if (genericMethod == QueryableMethods.Join
+                || genericMethod == QueryableMethods.GroupJoin)
+            {
+                return RewriteJoinGroupJoin(methodCallExpression);
+            }
         }
 
         if (methodCallExpression.Method.IsEFPropertyMethod())
@@ -93,14 +85,6 @@ public class ExpectedQueryRewritingVisitor : ExpressionVisitor
             var rewritten = TryConvertEFPropertyToMemberAccess(methodCallExpression);
 
             return Visit(rewritten);
-        }
-
-        if (!_negated
-            && (methodCallExpression.Method == _containsMethodInfo
-                || methodCallExpression.Method == _startsWithMethodInfo
-                || methodCallExpression.Method == _endsWithMethodInfo))
-        {
-            return RewriteStartsWithEndsWithContains(methodCallExpression);
         }
 
         if (methodCallExpression.Method.IsGenericMethod
@@ -187,43 +171,8 @@ public class ExpectedQueryRewritingVisitor : ExpressionVisitor
             resultSelector);
     }
 
-    private Expression RewriteStartsWithEndsWithContains(MethodCallExpression methodCallExpression)
-    {
-        // c.FirstName.StartsWith(c.Nickname)
-        // gets converted to:
-        // c.Maybe(x => x.FirstName).MaybeScalar(x => c.Maybe(xx => xx.Nickname).MaybeScalar(xx => x.StartsWith(xx)))
-        var caller = Visit(methodCallExpression.Object);
-        var argument = Visit(methodCallExpression.Arguments[0]);
-        var outerMaybeScalarMethod = _maybeScalarNullableMethod.MakeGenericMethod(typeof(string), typeof(bool));
-        var innerMaybeScalarMethod = _maybeScalarNonNullableMethod.MakeGenericMethod(typeof(string), typeof(bool));
-
-        var outerMaybeScalarLambdaParameter = Expression.Parameter(typeof(string), "x");
-        var innerMaybeScalarLambdaParameter = Expression.Parameter(typeof(string), "xx");
-        var innerMaybeScalarLambda = Expression.Lambda(
-            methodCallExpression.Update(
-                outerMaybeScalarLambdaParameter,
-                new[] { innerMaybeScalarLambdaParameter }),
-            innerMaybeScalarLambdaParameter);
-
-        var innerMaybeScalar = Expression.Call(
-            innerMaybeScalarMethod,
-            argument,
-            innerMaybeScalarLambda);
-
-        var outerMaybeScalarLambda = Expression.Lambda(
-            innerMaybeScalar,
-            outerMaybeScalarLambdaParameter);
-
-        var outerMaybeScalar = Expression.Call(
-            outerMaybeScalarMethod,
-            caller,
-            outerMaybeScalarLambda);
-
-        return Expression.Equal(outerMaybeScalar, Expression.Constant(true, typeof(bool?)));
-    }
-
     public static TResult GetShadowPropertyValue<TEntity, TResult>(TEntity entity, Func<object, object> shadowPropertyAccessor)
-        => (TResult)shadowPropertyAccessor(entity);
+        => (TResult)shadowPropertyAccessor(entity!);
 
     private Expression TryConvertEFPropertyToMemberAccess(Expression expression)
     {
@@ -232,7 +181,7 @@ public class ExpectedQueryRewritingVisitor : ExpressionVisitor
         {
             var caller = RemoveConvertToObject(methodCallExpression.Arguments[0]);
             var propertyName = (methodCallExpression.Arguments[1] as ConstantExpression)?.Value as string
-                ?? Expression.Lambda<Func<string>>(methodCallExpression.Arguments[1]).Compile().Invoke();
+                ?? Expression.Lambda<Func<string?>>(methodCallExpression.Arguments[1]).Compile().Invoke();
 
             if (propertyName != null)
             {
@@ -246,7 +195,7 @@ public class ExpectedQueryRewritingVisitor : ExpressionVisitor
                     var methodInfo = _getShadowPropertyValueMethodInfo.MakeGenericMethod(caller.Type, methodCallExpression.Type);
                     result = Expression.Call(methodInfo, caller, Expression.Constant(shadowPropertyMapping));
                 }
-                else if (caller.Type.GetMembers().Where(m => m.Name == propertyName).SingleOrDefault() is MemberInfo matchingMember)
+                else if (caller.Type.GetMembers().SingleOrDefault(m => m.Name == propertyName) is not null)
                 {
                     result = Expression.Property(caller, propertyName);
                 }
@@ -268,9 +217,7 @@ public class ExpectedQueryRewritingVisitor : ExpressionVisitor
         return expression;
 
         static Expression RemoveConvertToObject(Expression expression)
-            => expression is UnaryExpression unaryExpression
-                && (expression.NodeType == ExpressionType.Convert
-                    || expression.NodeType == ExpressionType.ConvertChecked)
+            => expression is UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } unaryExpression
                 && expression.Type == typeof(object)
                     ? RemoveConvertToObject(unaryExpression.Operand)
                     : expression;
@@ -296,7 +243,7 @@ public class ExpectedQueryRewritingVisitor : ExpressionVisitor
 
             var maybeMethodCall = Expression.Call(methodInfo, instance, maybeLambda);
 
-            return memberExpression.Member.DeclaringType.IsNullableType()
+            return memberExpression.Member.DeclaringType!.IsNullableType()
                 && memberExpression.Member.Name == "HasValue"
                     ? Expression.Coalesce(maybeMethodCall, Expression.Constant(false))
                     : maybeMethodCall;
@@ -307,13 +254,16 @@ public class ExpectedQueryRewritingVisitor : ExpressionVisitor
 
     protected override Expression VisitUnary(UnaryExpression unaryExpression)
     {
-        if ((unaryExpression.NodeType == ExpressionType.Convert
-                || unaryExpression.NodeType == ExpressionType.ConvertChecked
-                || unaryExpression.NodeType == ExpressionType.TypeAs)
-            && unaryExpression.Operand is MemberExpression memberOperand
-            && memberOperand.Type.IsValueType
+        if (unaryExpression is
+            {
+                NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked or ExpressionType.TypeAs,
+                Operand: MemberExpression
+                {
+                    Type.IsValueType: true,
+                    Expression: not null
+                } memberOperand
+            }
             && !memberOperand.Type.IsNullableValueType()
-            && memberOperand.Expression != null
             && unaryExpression.Type.IsNullableValueType()
             && unaryExpression.Type.UnwrapNullableType() == memberOperand.Type)
         {
@@ -342,12 +292,12 @@ public class ExpectedQueryRewritingVisitor : ExpressionVisitor
 
     protected override Expression VisitBinary(BinaryExpression binaryExpression)
     {
-        if (binaryExpression.NodeType == ExpressionType.Equal
-            || binaryExpression.NodeType == ExpressionType.NotEqual
-            || binaryExpression.NodeType == ExpressionType.GreaterThan
-            || binaryExpression.NodeType == ExpressionType.GreaterThanOrEqual
-            || binaryExpression.NodeType == ExpressionType.LessThan
-            || binaryExpression.NodeType == ExpressionType.LessThanOrEqual)
+        if (binaryExpression.NodeType is ExpressionType.Equal
+            or ExpressionType.NotEqual
+            or ExpressionType.GreaterThan
+            or ExpressionType.GreaterThanOrEqual
+            or ExpressionType.LessThan
+            or ExpressionType.LessThanOrEqual)
         {
             var left = AddNullProtectionForNonNullableMemberAccess(binaryExpression.Left);
             var right = AddNullProtectionForNonNullableMemberAccess(binaryExpression.Right);

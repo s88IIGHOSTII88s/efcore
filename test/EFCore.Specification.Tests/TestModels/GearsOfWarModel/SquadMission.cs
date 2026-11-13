@@ -5,9 +5,9 @@ namespace Microsoft.EntityFrameworkCore.TestModels.GearsOfWarModel;
 
 public class SquadMission
 {
-    public Squad Squad { get; set; }
+    public Squad Squad { get; set; } = null!;
     public int MissionId { get; set; }
 
     public int SquadId { get; set; }
-    public Mission Mission { get; set; }
+    public Mission Mission { get; set; } = null!;
 }

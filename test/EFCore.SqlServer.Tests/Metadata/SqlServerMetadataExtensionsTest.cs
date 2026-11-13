@@ -1,14 +1,13 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Microsoft.EntityFrameworkCore.SqlServer.Internal;
-
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore.Metadata;
 
 public class SqlServerMetadataExtensionsTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_MaxSize()
     {
         var modelBuilder = GetModelBuilder();
@@ -35,7 +34,7 @@ public class SqlServerMetadataExtensionsTest
         Assert.Null(((IConventionModel)model).GetDatabaseMaxSizeConfigurationSource());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_ServiceTier()
     {
         var modelBuilder = GetModelBuilder();
@@ -62,7 +61,7 @@ public class SqlServerMetadataExtensionsTest
         Assert.Null(((IConventionModel)model).GetServiceTierSqlConfigurationSource());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_PerformanceLevel()
     {
         var modelBuilder = GetModelBuilder();
@@ -89,7 +88,7 @@ public class SqlServerMetadataExtensionsTest
         Assert.Null(((IConventionModel)model).GetPerformanceLevelSqlConfigurationSource());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_column_name()
     {
         var modelBuilder = GetModelBuilder();
@@ -99,27 +98,27 @@ public class SqlServerMetadataExtensionsTest
             .Property(e => e.Name)
             .Metadata;
 
-        Assert.Equal("Name", property.GetColumnBaseName());
+        Assert.Equal("Name", property.GetColumnName());
         Assert.Null(((IConventionProperty)property).GetColumnNameConfigurationSource());
 
         ((IConventionProperty)property).SetColumnName("Eman", fromDataAnnotation: true);
 
-        Assert.Equal("Eman", property.GetColumnBaseName());
+        Assert.Equal("Eman", property.GetColumnName());
         Assert.Equal(ConfigurationSource.DataAnnotation, ((IConventionProperty)property).GetColumnNameConfigurationSource());
 
         property.SetColumnName("MyNameIs");
 
         Assert.Equal("Name", property.Name);
-        Assert.Equal("MyNameIs", property.GetColumnBaseName());
+        Assert.Equal("MyNameIs", property.GetColumnName());
         Assert.Equal(ConfigurationSource.Explicit, ((IConventionProperty)property).GetColumnNameConfigurationSource());
 
         property.SetColumnName(null);
 
-        Assert.Equal("Name", property.GetColumnBaseName());
+        Assert.Equal("Name", property.GetColumnName());
         Assert.Null(((IConventionProperty)property).GetColumnNameConfigurationSource());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_key_name()
     {
         var modelBuilder = GetModelBuilder();
@@ -144,7 +143,7 @@ public class SqlServerMetadataExtensionsTest
         Assert.Equal("PK_Customer", key.GetName());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_index_clustering()
     {
         var modelBuilder = GetModelBuilder();
@@ -158,14 +157,14 @@ public class SqlServerMetadataExtensionsTest
 
         index.SetIsClustered(true);
 
-        Assert.True(index.IsClustered().Value);
+        Assert.True(index.IsClustered()!.Value);
 
         index.SetIsClustered(null);
 
         Assert.Null(index.IsClustered());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_key_clustering()
     {
         var modelBuilder = GetModelBuilder();
@@ -179,14 +178,14 @@ public class SqlServerMetadataExtensionsTest
 
         key.SetIsClustered(true);
 
-        Assert.True(key.IsClustered().Value);
+        Assert.True(key.IsClustered()!.Value);
 
         key.SetIsClustered(null);
 
         Assert.Null(key.IsClustered());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_value_generation_on_model()
     {
         var modelBuilder = GetModelBuilder();
@@ -203,7 +202,7 @@ public class SqlServerMetadataExtensionsTest
         Assert.Null(model.GetValueGenerationStrategy());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_default_sequence_name_on_model()
     {
         var modelBuilder = GetModelBuilder();
@@ -218,7 +217,7 @@ public class SqlServerMetadataExtensionsTest
         Assert.Equal(SqlServerModelExtensions.DefaultHiLoSequenceName, model.GetHiLoSequenceName());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_default_sequence_schema_on_model()
     {
         var modelBuilder = GetModelBuilder();
@@ -235,7 +234,7 @@ public class SqlServerMetadataExtensionsTest
         Assert.Null(model.GetHiLoSequenceSchema());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_value_generation_on_property()
     {
         var modelBuilder = GetModelBuilder();
@@ -260,7 +259,7 @@ public class SqlServerMetadataExtensionsTest
         Assert.Equal(ValueGenerated.OnAdd, property.ValueGenerated);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_value_generation_on_nullable_property()
     {
         var modelBuilder = GetModelBuilder();
@@ -281,39 +280,7 @@ public class SqlServerMetadataExtensionsTest
         Assert.Equal(SqlServerValueGenerationStrategy.IdentityColumn, property.GetValueGenerationStrategy());
     }
 
-    [ConditionalFact]
-    public void Throws_setting_sequence_generation_for_invalid_type()
-    {
-        var modelBuilder = GetModelBuilder();
-
-        var property = modelBuilder
-            .Entity<Customer>()
-            .Property(e => e.Name)
-            .Metadata;
-
-        Assert.Equal(
-            SqlServerStrings.SequenceBadType("Name", nameof(Customer), "string"),
-            Assert.Throws<ArgumentException>(
-                () => property.SetValueGenerationStrategy(SqlServerValueGenerationStrategy.SequenceHiLo)).Message);
-    }
-
-    [ConditionalFact]
-    public void Throws_setting_identity_generation_for_invalid_type()
-    {
-        var modelBuilder = GetModelBuilder();
-
-        var property = modelBuilder
-            .Entity<Customer>()
-            .Property(e => e.Name)
-            .Metadata;
-
-        Assert.Equal(
-            SqlServerStrings.IdentityBadType("Name", nameof(Customer), "string"),
-            Assert.Throws<ArgumentException>(
-                () => property.SetValueGenerationStrategy(SqlServerValueGenerationStrategy.IdentityColumn)).Message);
-    }
-
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_sequence_name_on_property()
     {
         var modelBuilder = GetModelBuilder();
@@ -335,7 +302,7 @@ public class SqlServerMetadataExtensionsTest
         Assert.Null(property.GetHiLoSequenceName());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_and_set_sequence_schema_on_property()
     {
         var modelBuilder = GetModelBuilder();
@@ -356,7 +323,7 @@ public class SqlServerMetadataExtensionsTest
         Assert.Null(property.GetHiLoSequenceSchema());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TryGetSequence_returns_sequence_property_is_marked_for_sequence_generation()
     {
         var modelBuilder = GetModelBuilder();
@@ -371,10 +338,10 @@ public class SqlServerMetadataExtensionsTest
         property.SetHiLoSequenceName("DaneelOlivaw");
         property.SetValueGenerationStrategy(SqlServerValueGenerationStrategy.SequenceHiLo);
 
-        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence().Name);
+        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence()!.Name);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TryGetSequence_returns_sequence_property_is_marked_for_default_generation_and_model_is_marked_for_sequence_generation()
     {
         var modelBuilder = GetModelBuilder();
@@ -389,10 +356,10 @@ public class SqlServerMetadataExtensionsTest
         modelBuilder.Model.SetValueGenerationStrategy(SqlServerValueGenerationStrategy.SequenceHiLo);
         property.SetHiLoSequenceName("DaneelOlivaw");
 
-        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence().Name);
+        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence()!.Name);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TryGetSequence_returns_sequence_property_is_marked_for_sequence_generation_and_model_has_name()
     {
         var modelBuilder = GetModelBuilder();
@@ -407,10 +374,10 @@ public class SqlServerMetadataExtensionsTest
         modelBuilder.Model.SetHiLoSequenceName("DaneelOlivaw");
         property.SetValueGenerationStrategy(SqlServerValueGenerationStrategy.SequenceHiLo);
 
-        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence().Name);
+        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence()!.Name);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void
         TryGetSequence_returns_sequence_property_is_marked_for_default_generation_and_model_is_marked_for_sequence_generation_and_model_has_name()
     {
@@ -426,10 +393,10 @@ public class SqlServerMetadataExtensionsTest
         modelBuilder.Model.SetValueGenerationStrategy(SqlServerValueGenerationStrategy.SequenceHiLo);
         modelBuilder.Model.SetHiLoSequenceName("DaneelOlivaw");
 
-        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence().Name);
+        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence()!.Name);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TryGetSequence_with_schema_returns_sequence_property_is_marked_for_sequence_generation()
     {
         var modelBuilder = GetModelBuilder();
@@ -445,11 +412,11 @@ public class SqlServerMetadataExtensionsTest
         property.SetHiLoSequenceSchema("R");
         property.SetValueGenerationStrategy(SqlServerValueGenerationStrategy.SequenceHiLo);
 
-        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence().Name);
-        Assert.Equal("R", property.FindHiLoSequence().Schema);
+        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence()!.Name);
+        Assert.Equal("R", property.FindHiLoSequence()!.Schema);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TryGetSequence_with_schema_returns_sequence_model_is_marked_for_sequence_generation()
     {
         var modelBuilder = GetModelBuilder();
@@ -465,11 +432,11 @@ public class SqlServerMetadataExtensionsTest
         property.SetHiLoSequenceName("DaneelOlivaw");
         property.SetHiLoSequenceSchema("R");
 
-        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence().Name);
-        Assert.Equal("R", property.FindHiLoSequence().Schema);
+        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence()!.Name);
+        Assert.Equal("R", property.FindHiLoSequence()!.Schema);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TryGetSequence_with_schema_returns_sequence_property_is_marked_for_sequence_generation_and_model_has_name()
     {
         var modelBuilder = GetModelBuilder();
@@ -485,11 +452,11 @@ public class SqlServerMetadataExtensionsTest
         modelBuilder.Model.SetHiLoSequenceSchema("R");
         property.SetValueGenerationStrategy(SqlServerValueGenerationStrategy.SequenceHiLo);
 
-        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence().Name);
-        Assert.Equal("R", property.FindHiLoSequence().Schema);
+        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence()!.Name);
+        Assert.Equal("R", property.FindHiLoSequence()!.Schema);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void TryGetSequence_with_schema_returns_sequence_model_is_marked_for_sequence_generation_and_model_has_name()
     {
         var modelBuilder = GetModelBuilder();
@@ -505,8 +472,8 @@ public class SqlServerMetadataExtensionsTest
         modelBuilder.Model.SetHiLoSequenceName("DaneelOlivaw");
         modelBuilder.Model.SetHiLoSequenceSchema("R");
 
-        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence().Name);
-        Assert.Equal("R", property.FindHiLoSequence().Schema);
+        Assert.Equal("DaneelOlivaw", property.FindHiLoSequence()!.Name);
+        Assert.Equal("R", property.FindHiLoSequence()!.Schema);
     }
 
     private static ModelBuilder GetModelBuilder()
@@ -517,10 +484,10 @@ public class SqlServerMetadataExtensionsTest
     {
         public int Id { get; set; }
         public int? NullableInt { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         public byte Byte { get; set; }
         public byte? NullableByte { get; set; }
-        public byte[] ByteArray { get; set; }
+        public byte[] ByteArray { get; set; } = null!;
     }
 
     private class Order

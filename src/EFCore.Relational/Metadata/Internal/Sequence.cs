@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Globalization;
-using System.Text;
 
 namespace Microsoft.EntityFrameworkCore.Metadata.Internal;
 
@@ -130,9 +129,9 @@ public class Sequence : ConventionAnnotatable, IMutableSequence, IConventionSequ
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public static IEnumerable<ISequence> GetSequences(IReadOnlyModel model)
-        => ((SortedDictionary<(string, string?), ISequence>?)model[RelationalAnnotationNames.Sequences])
-            ?.Values
-            ?? Enumerable.Empty<ISequence>();
+        => ((Dictionary<(string, string?), ISequence>?)model[RelationalAnnotationNames.Sequences])
+            ?.OrderBy(t => t.Key).Select(t => t.Value)
+            ?? [];
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -142,14 +141,11 @@ public class Sequence : ConventionAnnotatable, IMutableSequence, IConventionSequ
     /// </summary>
     public static ISequence? FindSequence(IReadOnlyModel model, string name, string? schema)
     {
-        var sequences = (SortedDictionary<(string, string?), ISequence>?)model[RelationalAnnotationNames.Sequences];
-        if (sequences == null
-            || !sequences.TryGetValue((name, schema), out var sequence))
-        {
-            return null;
-        }
-
-        return sequence;
+        var sequences = (Dictionary<(string, string?), ISequence>?)model[RelationalAnnotationNames.Sequences];
+        return sequences == null
+            || !sequences.TryGetValue((name, schema), out var sequence)
+                ? null
+                : sequence;
     }
 
     /// <summary>
@@ -165,10 +161,10 @@ public class Sequence : ConventionAnnotatable, IMutableSequence, IConventionSequ
         ConfigurationSource configurationSource)
     {
         var sequence = new Sequence(name, schema, model, configurationSource);
-        var sequences = (SortedDictionary<(string, string?), ISequence>?)model[RelationalAnnotationNames.Sequences];
+        var sequences = (Dictionary<(string, string?), ISequence>?)model[RelationalAnnotationNames.Sequences];
         if (sequences == null)
         {
-            sequences = new SortedDictionary<(string, string?), ISequence>();
+            sequences = [];
             model[RelationalAnnotationNames.Sequences] = sequences;
         }
 
@@ -189,8 +185,8 @@ public class Sequence : ConventionAnnotatable, IMutableSequence, IConventionSequ
     {
         sequence.EnsureMutable();
 
-        var sequences = (SortedDictionary<(string, string?), ISequence>?)model[RelationalAnnotationNames.Sequences];
-        var tuple = (sequence.Name, sequence.Schema);
+        var sequences = (Dictionary<(string, string?), ISequence>?)model[RelationalAnnotationNames.Sequences];
+        var tuple = (sequence.Name, sequence.ModelSchema);
         if (sequences == null
             || !sequences.ContainsKey(tuple))
         {
@@ -201,7 +197,7 @@ public class Sequence : ConventionAnnotatable, IMutableSequence, IConventionSequ
 
         sequence.Name = name;
 
-        sequences.Add((name, sequence.Schema), sequence);
+        sequences.Add((name, sequence.ModelSchema), sequence);
 
         return sequence;
     }
@@ -214,7 +210,7 @@ public class Sequence : ConventionAnnotatable, IMutableSequence, IConventionSequ
     /// </summary>
     public static Sequence? RemoveSequence(IMutableModel model, string name, string? schema)
     {
-        var sequences = (SortedDictionary<(string, string?), ISequence>?)model[RelationalAnnotationNames.Sequences];
+        var sequences = (Dictionary<(string, string?), ISequence>?)model[RelationalAnnotationNames.Sequences];
         if (sequences == null
             || !sequences.TryGetValue((name, schema), out var sequence))
         {
@@ -237,7 +233,7 @@ public class Sequence : ConventionAnnotatable, IMutableSequence, IConventionSequ
     public virtual InternalSequenceBuilder Builder
     {
         [DebuggerStepThrough]
-        get => _builder ?? throw new InvalidOperationException(CoreStrings.ObjectRemovedFromModel);
+        get => _builder ?? throw new InvalidOperationException(CoreStrings.ObjectRemovedFromModel(Name));
     }
 
     /// <summary>
@@ -279,6 +275,15 @@ public class Sequence : ConventionAnnotatable, IMutableSequence, IConventionSequ
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual string Name { get; set; }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual string? ModelSchema
+        => _schema;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -474,7 +479,7 @@ public class Sequence : ConventionAnnotatable, IMutableSequence, IConventionSequ
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public static IReadOnlyCollection<Type> SupportedTypes { get; }
-        = new[] { typeof(byte), typeof(long), typeof(int), typeof(short), typeof(decimal) };
+        = [typeof(byte), typeof(long), typeof(int), typeof(short), typeof(decimal)];
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -747,29 +752,16 @@ public class Sequence : ConventionAnnotatable, IMutableSequence, IConventionSequ
             => value == null ? null : long.Parse(value, CultureInfo.InvariantCulture);
 
         private static Type AsType(string value)
-            => value == nameof(Int64)
-                ? typeof(long)
-                : value == nameof(Int32)
-                    ? typeof(int)
-                    : value == nameof(Int16)
-                        ? typeof(short)
-                        : value == nameof(Decimal)
-                            ? typeof(decimal)
-                            : typeof(byte);
+            => value switch
+            {
+                nameof(Int64) => typeof(long),
+                nameof(Int32) => typeof(int),
+                nameof(Int16) => typeof(short),
+                nameof(Decimal) => typeof(decimal),
+                _ => typeof(byte)
+            };
 
         private static bool AsBool(string? value)
             => value != null && bool.Parse(value);
-
-        private static void EscapeAndQuote(StringBuilder builder, object? value)
-        {
-            builder.Append('\'');
-
-            if (value != null)
-            {
-                builder.Append(value.ToString()!.Replace("'", "''"));
-            }
-
-            builder.Append('\'');
-        }
     }
 }

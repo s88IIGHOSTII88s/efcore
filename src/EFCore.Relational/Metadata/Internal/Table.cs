@@ -21,9 +21,7 @@ public class Table : TableBase, ITable
     /// </summary>
     public Table(string name, string? schema, RelationalModel model)
         : base(name, schema, model)
-    {
-        Columns = new(new ColumnNameComparer(this));
-    }
+        => Columns = [with(new ColumnNameComparer(this))];
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -32,7 +30,7 @@ public class Table : TableBase, ITable
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual SortedSet<ForeignKeyConstraint> ForeignKeyConstraints { get; }
-        = new(ForeignKeyConstraintComparer.Instance);
+        = [with(ForeignKeyConstraintComparer.Instance)];
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -41,7 +39,7 @@ public class Table : TableBase, ITable
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual SortedSet<ForeignKeyConstraint> ReferencingForeignKeyConstraints { get; }
-        = new(ForeignKeyConstraintComparer.Instance);
+        = [with(ForeignKeyConstraintComparer.Instance)];
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -98,7 +96,7 @@ public class Table : TableBase, ITable
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual SortedDictionary<string, UniqueConstraint> UniqueConstraints { get; }
-        = new();
+        = [];
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -109,9 +107,7 @@ public class Table : TableBase, ITable
     public virtual UniqueConstraint? FindUniqueConstraint(string name)
         => PrimaryKey != null && PrimaryKey.Name == name
             ? PrimaryKey
-            : UniqueConstraints.TryGetValue(name, out var constraint)
-                ? constraint
-                : null;
+            : UniqueConstraints.GetValueOrDefault(name);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -120,7 +116,7 @@ public class Table : TableBase, ITable
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual SortedDictionary<string, TableIndex> Indexes { get; }
-        = new();
+        = [];
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -129,7 +125,7 @@ public class Table : TableBase, ITable
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual SortedDictionary<string, CheckConstraint> CheckConstraints { get; }
-        = new();
+        = [];
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -138,17 +134,28 @@ public class Table : TableBase, ITable
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual SortedDictionary<string, ITrigger> Triggers { get; }
-        = new();
+        = [];
 
     /// <inheritdoc />
     public virtual bool IsExcludedFromMigrations
-        => EntityTypeMappings.First().EntityType.IsTableExcludedFromMigrations();
+        => ((IEntityType)EntityTypeMappings.First().TypeBase)
+            .IsTableExcludedFromMigrations(StoreObjectIdentifier.Table(Name, Schema));
 
     /// <inheritdoc />
-    public override IColumnBase? FindColumn(IProperty property)
+    protected override IColumnBase? FindColumn(IProperty property)
         => property.GetTableColumnMappings()
-            .FirstOrDefault(cm => cm.TableMapping.Table == this)
-            ?.Column;
+                .FirstOrDefault(cm => cm.TableMapping.Table == this)?.Column
+            ?? property.GetJsonElementMappings()
+                .FirstOrDefault(m => m.TableMapping.Table == this)?.Element.ContainingColumn;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public new virtual Column? FindColumn(string name)
+        => (Column?)base.FindColumn(name);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -211,7 +218,7 @@ public class Table : TableBase, ITable
     IEnumerable<ICheckConstraint> ITable.CheckConstraints
     {
         [DebuggerStepThrough]
-        get => EntityTypeMappings.First().EntityType is RuntimeEntityType
+        get => EntityTypeMappings.First().TypeBase is RuntimeEntityType
             ? throw new InvalidOperationException(CoreStrings.RuntimeModelMissingData)
             : CheckConstraints.Values;
     }
@@ -230,6 +237,6 @@ public class Table : TableBase, ITable
 
     /// <inheritdoc />
     [DebuggerStepThrough]
-    IColumn? ITable.FindColumn(IProperty property)
-        => (IColumn?)FindColumn(property);
+    IColumn? ITable.FindColumn(IPropertyBase propertyBase)
+        => (IColumn?)FindColumn(propertyBase);
 }

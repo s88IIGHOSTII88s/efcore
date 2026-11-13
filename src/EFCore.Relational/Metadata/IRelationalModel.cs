@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Text;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Metadata;
 
@@ -47,6 +48,11 @@ public interface IRelationalModel : IAnnotatable
     IEnumerable<IStoreFunction> Functions { get; }
 
     /// <summary>
+    ///     Returns all stored procedures contained in the model.
+    /// </summary>
+    IEnumerable<IStoreStoredProcedure> StoredProcedures { get; }
+
+    /// <summary>
     ///     Returns the database collation.
     /// </summary>
     string? Collation
@@ -59,6 +65,13 @@ public interface IRelationalModel : IAnnotatable
     /// <param name="schema">The schema of the table.</param>
     /// <returns>The table with a given name or <see langword="null" /> if no table with the given name is defined.</returns>
     ITable? FindTable(string name, string? schema);
+
+    /// <summary>
+    ///     Gets the default table with the given name. Returns <see langword="null" /> if no table with the given name is defined.
+    /// </summary>
+    /// <param name="name">The name of the table.</param>
+    /// <returns>The default table with a given name or <see langword="null" /> if no table with the given name is defined.</returns>
+    TableBase? FindDefaultTable(string name);
 
     /// <summary>
     ///     Gets the view with the given name. Returns <see langword="null" /> if no view with the given name is defined.
@@ -93,8 +106,16 @@ public interface IRelationalModel : IAnnotatable
     /// <param name="name">The name of the function.</param>
     /// <param name="schema">The schema of the function.</param>
     /// <param name="parameters">A list of parameter types.</param>
-    /// <returns>The <see cref="IStoreFunction" /> or <see langword="null" /> if no function with the given name was defined.</returns>
+    /// <returns>The <see cref="IStoreFunction" /> or <see langword="null" /> if no function with the given name was found.</returns>
     IStoreFunction? FindFunction(string name, string? schema, IReadOnlyList<string> parameters);
+
+    /// <summary>
+    ///     Finds a <see cref="IStoreStoredProcedure" /> with the name.
+    /// </summary>
+    /// <param name="name">The name of the stored procedure.</param>
+    /// <param name="schema">The schema of the stored procedure.</param>
+    /// <returns>The <see cref="IStoreStoredProcedure" /> or <see langword="null" /> if no stored procedure with the given name was found.</returns>
+    IStoreStoredProcedure? FindStoredProcedure(string name, string? schema);
 
     /// <summary>
     ///     <para>
@@ -113,41 +134,48 @@ public interface IRelationalModel : IAnnotatable
         var builder = new StringBuilder();
         var indentString = new string(' ', indent);
 
-        builder.Append(indentString).Append("RelationalModel: ");
-
-        if (Collation != null)
+        try
         {
-            builder.AppendLine().Append(indentString).Append("Collation: ").Append(Collation);
+            builder.Append(indentString).Append("RelationalModel: ");
+
+            if ((Model is Model) && Collation != null)
+            {
+                builder.AppendLine().Append(indentString).Append("Collation: ").Append(Collation);
+            }
+
+            foreach (var table in Tables)
+            {
+                builder.AppendLine().Append(table.ToDebugString(options, indent + 2));
+            }
+
+            foreach (var view in Views)
+            {
+                builder.AppendLine().Append(view.ToDebugString(options, indent + 2));
+            }
+
+            foreach (var function in Functions)
+            {
+                builder.AppendLine().Append(function.ToDebugString(options, indent + 2));
+            }
+
+            foreach (var query in Queries)
+            {
+                builder.AppendLine().Append(query.ToDebugString(options, indent + 2));
+            }
+
+            foreach (var sequence in Sequences)
+            {
+                builder.AppendLine().Append(sequence.ToDebugString(options, indent + 2));
+            }
+
+            if ((options & MetadataDebugStringOptions.IncludeAnnotations) != 0)
+            {
+                builder.Append(AnnotationsToDebugString(indent));
+            }
         }
-
-        foreach (var table in Tables)
+        catch (Exception exception)
         {
-            builder.AppendLine().Append(table.ToDebugString(options, indent + 2));
-        }
-
-        foreach (var view in Views)
-        {
-            builder.AppendLine().Append(view.ToDebugString(options, indent + 2));
-        }
-
-        foreach (var function in Functions)
-        {
-            builder.AppendLine().Append(function.ToDebugString(options, indent + 2));
-        }
-
-        foreach (var query in Queries)
-        {
-            builder.AppendLine().Append(query.ToDebugString(options, indent + 2));
-        }
-
-        foreach (var sequence in Sequences)
-        {
-            builder.AppendLine().Append(sequence.ToDebugString(options, indent + 2));
-        }
-
-        if ((options & MetadataDebugStringOptions.IncludeAnnotations) != 0)
-        {
-            builder.Append(AnnotationsToDebugString(indent));
+            builder.AppendLine().AppendLine(CoreStrings.DebugViewError(exception.Message));
         }
 
         return builder.ToString();

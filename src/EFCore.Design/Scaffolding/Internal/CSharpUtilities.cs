@@ -14,8 +14,8 @@ namespace Microsoft.EntityFrameworkCore.Scaffolding.Internal;
 /// </summary>
 public class CSharpUtilities : ICSharpUtilities
 {
-    private static readonly HashSet<string> CSharpKeywords = new()
-    {
+    private static readonly HashSet<string> CSharpKeywords =
+    [
         "abstract",
         "as",
         "base",
@@ -93,7 +93,7 @@ public class CSharpUtilities : ICSharpUtilities
         "void",
         "volatile",
         "while"
-    };
+    ];
 
     private static readonly Regex InvalidCharsRegex
         = new(
@@ -143,6 +143,11 @@ public class CSharpUtilities : ICSharpUtilities
             proposedIdentifier = "_";
         }
 
+        if (singularizePluralizer != null)
+        {
+            proposedIdentifier = singularizePluralizer(proposedIdentifier);
+        }
+
         var firstChar = proposedIdentifier[0];
         if (!char.IsLetter(firstChar)
             && firstChar != '_'
@@ -153,11 +158,6 @@ public class CSharpUtilities : ICSharpUtilities
         else if (IsCSharpKeyword(proposedIdentifier))
         {
             proposedIdentifier = "_" + proposedIdentifier;
-        }
-
-        if (singularizePluralizer != null)
-        {
-            proposedIdentifier = singularizePluralizer(proposedIdentifier);
         }
 
         return uniquifier(proposedIdentifier, existingIdentifiers);
@@ -220,30 +220,17 @@ public class CSharpUtilities : ICSharpUtilities
     }
 
     private static bool IsIdentifierStartCharacter(char ch)
-    {
-        if (ch < 'a')
-        {
-            return ch >= 'A' && (ch <= 'Z'
-                || ch == '_');
-        }
-
-        if (ch <= 'z')
-        {
-            return true;
-        }
-
-        return ch > '\u007F' && IsLetterChar(CharUnicodeInfo.GetUnicodeCategory(ch));
-    }
+        => ch < 'a'
+            ? ch is >= 'A' and (<= 'Z' or '_')
+            : ch <= 'z' || (ch > '\u007F' && IsLetterChar(CharUnicodeInfo.GetUnicodeCategory(ch)));
 
     private static bool IsIdentifierPartCharacter(char ch)
     {
         if (ch < 'a')
         {
             return ch < 'A'
-                ? ch >= '0'
-                && ch <= '9'
-                : ch <= 'Z'
-                || ch == '_';
+                ? ch is >= '0' and <= '9'
+                : ch is <= 'Z' or '_';
         }
 
         if (ch <= 'z')
@@ -257,37 +244,20 @@ public class CSharpUtilities : ICSharpUtilities
         }
 
         var cat = CharUnicodeInfo.GetUnicodeCategory(ch);
-        if (IsLetterChar(cat))
-        {
-            return true;
-        }
-
-        switch (cat)
-        {
-            case UnicodeCategory.DecimalDigitNumber:
-            case UnicodeCategory.ConnectorPunctuation:
-            case UnicodeCategory.NonSpacingMark:
-            case UnicodeCategory.SpacingCombiningMark:
-            case UnicodeCategory.Format:
-                return true;
-        }
-
-        return false;
+        return IsLetterChar(cat)
+            || cat switch
+            {
+                UnicodeCategory.DecimalDigitNumber or UnicodeCategory.ConnectorPunctuation or UnicodeCategory.NonSpacingMark
+                    or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.Format => true,
+                _ => false,
+            };
     }
 
     private static bool IsLetterChar(UnicodeCategory cat)
-    {
-        switch (cat)
+        => cat switch
         {
-            case UnicodeCategory.UppercaseLetter:
-            case UnicodeCategory.LowercaseLetter:
-            case UnicodeCategory.TitlecaseLetter:
-            case UnicodeCategory.ModifierLetter:
-            case UnicodeCategory.OtherLetter:
-            case UnicodeCategory.LetterNumber:
-                return true;
-        }
-
-        return false;
-    }
+            UnicodeCategory.UppercaseLetter or UnicodeCategory.LowercaseLetter or UnicodeCategory.TitlecaseLetter
+                or UnicodeCategory.ModifierLetter or UnicodeCategory.OtherLetter or UnicodeCategory.LetterNumber => true,
+            _ => false,
+        };
 }

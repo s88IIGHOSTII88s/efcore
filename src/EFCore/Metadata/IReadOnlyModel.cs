@@ -45,6 +45,13 @@ public interface IReadOnlyModel : IReadOnlyAnnotatable
     PropertyAccessMode GetPropertyAccessMode();
 
     /// <summary>
+    ///     Gets the name to use for discriminator properties embedded in JSON documents. The default is "$type".
+    /// </summary>
+    /// <returns>The name.</returns>
+    [DebuggerStepThrough]
+    string GetEmbeddedDiscriminatorName();
+
+    /// <summary>
     ///     Gets the EF Core assembly version used to build this model.
     /// </summary>
     /// <remarks>
@@ -61,7 +68,7 @@ public interface IReadOnlyModel : IReadOnlyAnnotatable
     /// </remarks>
     /// <param name="type">The CLR type.</param>
     /// <returns>Whether the CLR type is used by shared type entities in the model.</returns>
-    bool IsShared(Type type);
+    bool IsShared([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type);
 
     /// <summary>
     ///     Gets all entity types defined in the model.
@@ -172,7 +179,7 @@ public interface IReadOnlyModel : IReadOnlyAnnotatable
             }
         }
 
-        return Enumerable.Empty<IReadOnlyEntityType>();
+        return [];
     }
 
     private static int GetDerivedLevel(Type? derivedType, Dictionary<Type, int> derivedLevels)
@@ -195,6 +202,15 @@ public interface IReadOnlyModel : IReadOnlyAnnotatable
     }
 
     /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [EntityFrameworkInternal]
+    public Guid ModelId { get; }
+
+    /// <summary>
     ///     <para>
     ///         Creates a human-readable representation of the given metadata.
     ///     </para>
@@ -215,22 +231,42 @@ public interface IReadOnlyModel : IReadOnlyAnnotatable
         var builder = new StringBuilder();
         var indentString = new string(' ', indent);
 
-        builder.Append(indentString).Append("Model: ");
-
-        if (this is Model
-            && GetChangeTrackingStrategy() != ChangeTrackingStrategy.Snapshot)
+        try
         {
-            builder.Append(" ChangeTrackingStrategy.").Append(GetChangeTrackingStrategy());
+            builder.Append(indentString).Append("Model: ");
+
+            if (this is Model
+                && GetChangeTrackingStrategy() != ChangeTrackingStrategy.Snapshot)
+            {
+                builder.Append(" ChangeTrackingStrategy.").Append(GetChangeTrackingStrategy());
+            }
+
+            foreach (var entityType in GetEntityTypes())
+            {
+                builder.AppendLine().Append(entityType.ToDebugString(options, indent + 2));
+            }
+
+            if (this is RuntimeModel runtimeModel)
+            {
+                var adHocEntityTypes = runtimeModel.GetAdHocEntityTypes().ToList();
+                if (adHocEntityTypes.Count > 0)
+                {
+                    builder.AppendLine().Append(indentString + "  ").Append("Ad-hoc entity types:");
+                    foreach (var entityType in adHocEntityTypes)
+                    {
+                        builder.AppendLine().Append(entityType.ToDebugString(options, indent + 4));
+                    }
+                }
+            }
+
+            if ((options & MetadataDebugStringOptions.IncludeAnnotations) != 0)
+            {
+                builder.Append(AnnotationsToDebugString(indent));
+            }
         }
-
-        foreach (var entityType in GetEntityTypes())
+        catch (Exception exception)
         {
-            builder.AppendLine().Append(entityType.ToDebugString(options, indent + 2));
-        }
-
-        if ((options & MetadataDebugStringOptions.IncludeAnnotations) != 0)
-        {
-            builder.Append(AnnotationsToDebugString(indent));
+            builder.AppendLine().AppendLine(CoreStrings.DebugViewError(exception.Message));
         }
 
         return builder.ToString();

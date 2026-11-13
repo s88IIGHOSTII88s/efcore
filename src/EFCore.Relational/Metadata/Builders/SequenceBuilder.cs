@@ -19,9 +19,7 @@ public class SequenceBuilder : IInfrastructure<IConventionSequenceBuilder>
     /// </summary>
     /// <param name="sequence">The <see cref="IMutableSequence" /> to configure.</param>
     public SequenceBuilder(IMutableSequence sequence)
-    {
-        Builder = ((Sequence)sequence).Builder;
-    }
+        => Builder = ((Sequence)sequence).Builder;
 
     private InternalSequenceBuilder Builder { [DebuggerStepThrough] get; }
 
@@ -110,6 +108,22 @@ public class SequenceBuilder : IInfrastructure<IConventionSequenceBuilder>
     public virtual SequenceBuilder IsCyclic(bool cyclic = true)
     {
         Builder.IsCyclic(cyclic, ConfigurationSource.Explicit);
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Adds or updates an annotation on the sequence. If an annotation with the key specified in <paramref name="annotation" />
+    ///     already exists, its value will be updated.
+    /// </summary>
+    /// <param name="annotation">The key of the annotation to be added or updated.</param>
+    /// <param name="value">The value to be stored in the annotation.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public virtual SequenceBuilder HasAnnotation(string annotation, object? value)
+    {
+        Check.NotEmpty(annotation);
+
+        Builder.HasAnnotation(annotation, value, ConfigurationSource.Explicit);
 
         return this;
     }

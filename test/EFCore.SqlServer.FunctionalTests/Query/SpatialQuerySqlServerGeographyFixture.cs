@@ -1,6 +1,7 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.SqlServer.Infrastructure.Internal;
 using Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal;
 using Microsoft.EntityFrameworkCore.TestModels.SpatialModel;
 using NetTopologySuite;
@@ -10,12 +11,11 @@ namespace Microsoft.EntityFrameworkCore.Query;
 
 public class SpatialQuerySqlServerGeographyFixture : SpatialQuerySqlServerFixture
 {
-    private NtsGeometryServices _geometryServices;
-    private GeometryFactory _geometryFactory;
+    private GeometryFactory _geometryFactory = null!;
 
     public NtsGeometryServices GeometryServices
         => LazyInitializer.EnsureInitialized(
-            ref _geometryServices,
+            ref field,
             () => CreateGeometryServices());
 
     protected static NtsGeometryServices CreateGeometryServices()
@@ -35,20 +35,17 @@ public class SpatialQuerySqlServerGeographyFixture : SpatialQuerySqlServerFixtur
         => base.AddServices(serviceCollection.AddSingleton(GeometryServices))
             .AddSingleton<IRelationalTypeMappingSource, ReplacementTypeMappingSource>();
 
-    protected class ReplacementTypeMappingSource : SqlServerTypeMappingSource
+    protected class ReplacementTypeMappingSource(
+        TypeMappingSourceDependencies dependencies,
+        RelationalTypeMappingSourceDependencies relationalDependencies,
+        ISqlServerSingletonOptions sqlServerSingletonOptions)
+        : SqlServerTypeMappingSource(dependencies, relationalDependencies, sqlServerSingletonOptions)
     {
-        public ReplacementTypeMappingSource(
-            TypeMappingSourceDependencies dependencies,
-            RelationalTypeMappingSourceDependencies relationalDependencies)
-            : base(dependencies, relationalDependencies)
-        {
-        }
-
-        protected override RelationalTypeMapping FindMapping(in RelationalTypeMappingInfo mappingInfo)
+        protected override RelationalTypeMapping? FindMapping(in RelationalTypeMappingInfo mappingInfo)
             => mappingInfo.ClrType == typeof(GeoPoint)
-                ? ((RelationalTypeMapping)base.FindMapping(typeof(Point))
-                    .Clone(new GeoPointConverter(CreateGeometryServices().CreateGeometryFactory())))
-                .Clone("geography", null)
+                ? ((RelationalTypeMapping)base.FindMapping(typeof(Point))!
+                    .WithComposedConverter(new GeoPointConverter(CreateGeometryServices().CreateGeometryFactory())))
+                .WithStoreTypeAndSize("geography", null)
                 : base.FindMapping(mappingInfo);
     }
 }

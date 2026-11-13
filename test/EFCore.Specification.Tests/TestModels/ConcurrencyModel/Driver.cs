@@ -5,8 +5,26 @@ namespace Microsoft.EntityFrameworkCore.TestModels.ConcurrencyModel;
 
 public class Driver
 {
-    private readonly ILazyLoader _loader;
-    private Team _team;
+    public class DriverProxy(
+        ILazyLoader loader,
+        int id,
+        string name,
+        int? carNumber,
+        int championships,
+        int races,
+        int wins,
+        int podiums,
+        int poles,
+        int fastestLaps,
+        int teamId) : Driver(loader, id, name, carNumber, championships, races, wins, podiums, poles, fastestLaps, teamId), IF1Proxy
+    {
+        public bool CreatedCalled { get; set; }
+        public bool InitializingCalled { get; set; }
+        public bool InitializedCalled { get; set; }
+    }
+
+    private readonly ILazyLoader _loader = null!;
+    private Team? _team;
 
     public Driver()
     {
@@ -37,10 +55,12 @@ public class Driver
         Poles = poles;
         FastestLaps = fastestLaps;
         TeamId = teamId;
+
+        Assert.True(this is DriverProxy or TestDriver);
     }
 
     public int Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public int? CarNumber { get; set; }
     public int Championships { get; set; }
     public int Races { get; set; }
@@ -51,7 +71,7 @@ public class Driver
 
     public virtual Team Team
     {
-        get => _loader.Load(this, ref _team);
+        get => _loader.Load(this, ref _team)!;
         set => _team = value;
     }
 

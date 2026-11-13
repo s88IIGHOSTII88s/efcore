@@ -4,21 +4,18 @@
 using System;
 using System.Collections.Generic;
 
-namespace Microsoft.EntityFrameworkCore.Benchmarks.Models.AdventureWorks
+namespace Microsoft.EntityFrameworkCore.Benchmarks.Models.AdventureWorks;
+
+public class Shift
 {
-    public class Shift
-    {
-        public Shift()
-        {
-            EmployeeDepartmentHistory = new HashSet<EmployeeDepartmentHistory>();
-        }
+    public Shift()
+        => EmployeeDepartmentHistory = new HashSet<EmployeeDepartmentHistory>();
 
-        public byte ShiftID { get; set; }
-        public DateTime EndTime { get; set; }
-        public DateTime ModifiedDate { get; set; }
-        public string Name { get; set; }
-        public DateTime StartTime { get; set; }
+    public byte ShiftID { get; set; }
+    public DateTime EndTime { get; set; }
+    public DateTime ModifiedDate { get; set; }
+    public string Name { get; set; } = null!;
+    public DateTime StartTime { get; set; }
 
-        public virtual ICollection<EmployeeDepartmentHistory> EmployeeDepartmentHistory { get; set; }
-    }
+    public virtual ICollection<EmployeeDepartmentHistory> EmployeeDepartmentHistory { get; set; }
 }

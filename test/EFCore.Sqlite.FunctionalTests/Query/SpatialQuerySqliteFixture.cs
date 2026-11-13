@@ -31,31 +31,25 @@ public class SpatialQuerySqliteFixture : SpatialQueryRelationalFixture
         base.OnModelCreating(modelBuilder, context);
 
         modelBuilder.HasDbFunction(
-            typeof(GeoExtensions).GetMethod(nameof(GeoExtensions.Distance)),
-            b => b.HasTranslation(
-                e => new SqlFunctionExpression(
-                    "Distance",
-                    arguments: e,
-                    nullable: true,
-                    argumentsPropagateNullability: e.Select(a => true).ToList(),
-                    typeof(double),
-                    null)));
+            typeof(GeoExtensions).GetMethod(nameof(GeoExtensions.Distance))!,
+            b => b.HasTranslation(e => new SqlFunctionExpression(
+                "Distance",
+                arguments: e,
+                nullable: true,
+                argumentsPropagateNullability: e.Select(a => true).ToList(),
+                typeof(double),
+                null)));
     }
 
-    private class ReplacementTypeMappingSource : SqliteTypeMappingSource
+    private class ReplacementTypeMappingSource(
+        TypeMappingSourceDependencies dependencies,
+        RelationalTypeMappingSourceDependencies relationalDependencies) : SqliteTypeMappingSource(dependencies, relationalDependencies)
     {
-        public ReplacementTypeMappingSource(
-            TypeMappingSourceDependencies dependencies,
-            RelationalTypeMappingSourceDependencies relationalDependencies)
-            : base(dependencies, relationalDependencies)
-        {
-        }
-
-        protected override RelationalTypeMapping FindMapping(in RelationalTypeMappingInfo mappingInfo)
+        protected override RelationalTypeMapping? FindMapping(in RelationalTypeMappingInfo mappingInfo)
             => mappingInfo.ClrType == typeof(GeoPoint)
-                ? ((RelationalTypeMapping)base.FindMapping(typeof(Point))
-                    .Clone(new GeoPointConverter()))
-                .Clone("geometry", null)
+                ? ((RelationalTypeMapping)base.FindMapping(typeof(Point))!
+                    .WithComposedConverter(new GeoPointConverter()))
+                .WithStoreTypeAndSize("geometry", null)
                 : base.FindMapping(mappingInfo);
     }
 }

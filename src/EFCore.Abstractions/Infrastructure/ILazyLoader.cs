@@ -20,7 +20,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure;
 ///         See <see href="https://aka.ms/efcore-docs-lazy-loading">Lazy loading</see> for more information and examples.
 ///     </para>
 /// </remarks>
-public interface ILazyLoader : IDisposable
+public interface ILazyLoader
 {
     /// <summary>
     ///     Sets the given navigation as known to be completely loaded or known to be
@@ -33,6 +33,17 @@ public interface ILazyLoader : IDisposable
         object entity,
         [CallerMemberName] string navigationName = "",
         bool loaded = true);
+
+    /// <summary>
+    ///     Gets whether or not the given navigation as known to be completely loaded or known to be
+    ///     no longer completely loaded.
+    /// </summary>
+    /// <param name="entity">The entity on which the navigation property is located.</param>
+    /// <param name="navigationName">The navigation property name.</param>
+    /// <returns><see langword="true" /> if the navigation is known to be loaded.</returns>
+    bool IsLoaded(
+        object entity,
+        [CallerMemberName] string navigationName = "");
 
     /// <summary>
     ///     Loads a navigation property if it has not already been loaded.
@@ -49,10 +60,13 @@ public interface ILazyLoader : IDisposable
     /// <param name="navigationName">The navigation property name.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="OperationCanceledException">If the <see cref="CancellationToken" /> is canceled.</exception>
-#pragma warning disable CA1068 // CancellationToken parameters must come last
     Task LoadAsync(
-#pragma warning restore CA1068 // CancellationToken parameters must come last
         object entity,
         CancellationToken cancellationToken = default,
         [CallerMemberName] string navigationName = "");
+
+    /// <summary>
+    ///     Disposes the loader.
+    /// </summary>
+    void Dispose();
 }

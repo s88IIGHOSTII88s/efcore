@@ -253,7 +253,7 @@ public static class RelationalLoggerExtensions
             }
         }
 
-        return new ValueTask<DbTransaction>(transaction);
+        return ValueTask.FromResult(transaction);
     }
 
     private static TransactionEndEventData BroadcastTransactionStarted(
@@ -388,7 +388,7 @@ public static class RelationalLoggerExtensions
             }
         }
 
-        return new ValueTask<DbTransaction>(transaction);
+        return ValueTask.FromResult(transaction);
     }
 
     private static TransactionEventData BroadcastTransactionUsed(
@@ -1721,6 +1721,40 @@ public static class RelationalLoggerExtensions
     ///     Logs for the <see cref="RelationalEventId.TransactionError" /> event.
     /// </summary>
     /// <param name="diagnostics">The diagnostics logger to use.</param>
+    /// <param name="entityType">The entity type.</param>
+    public static void TriggerOnNonRootTphEntity(
+        this IDiagnosticsLogger<DbLoggerCategory.Model.Validation> diagnostics,
+        IEntityType entityType)
+    {
+        var definition = RelationalResources.LogTriggerOnNonRootTphEntity(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(diagnostics, entityType.DisplayName(), entityType.GetRootType().DisplayName());
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new EntityTypeEventData(
+                definition,
+                TriggerOnNonRootTphEntity,
+                entityType);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string TriggerOnNonRootTphEntity(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition<string, string>)definition;
+        var e = (EntityTypeEventData)payload;
+        return d.GenerateMessage(e.EntityType.DisplayName(), e.EntityType.GetRootType().DisplayName());
+    }
+
+    /// <summary>
+    ///     Logs for the <see cref="RelationalEventId.TransactionError" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
     /// <param name="connection">The connection.</param>
     /// <param name="transaction">The transaction.</param>
     /// <param name="transactionId">The correlation ID associated with the <see cref="DbTransaction" />.</param>
@@ -2276,6 +2310,260 @@ public static class RelationalLoggerExtensions
     }
 
     /// <summary>
+    ///     Logs for the <see cref="RelationalEventId.PendingModelChangesWarning" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    /// <param name="contextType">The <see cref="DbContext" /> type being used.</param>
+    public static void PendingModelChangesWarning(
+        this IDiagnosticsLogger<DbLoggerCategory.Migrations> diagnostics,
+        Type contextType)
+    {
+        var definition = RelationalResources.LogPendingModelChanges(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(diagnostics, contextType.ShortDisplayName());
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new DbContextTypeEventData(
+                definition,
+                PendingModelChanges,
+                contextType);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string PendingModelChanges(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition<string>)definition;
+        var p = (DbContextTypeEventData)payload;
+        return d.GenerateMessage(p.ContextType.ShortDisplayName());
+    }
+
+    /// <summary>
+    ///     Logs for the <see cref="RelationalEventId.PendingModelChangesWarning" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    /// <param name="contextType">The <see cref="DbContext" /> type being used.</param>
+    public static void NonDeterministicModel(
+        this IDiagnosticsLogger<DbLoggerCategory.Migrations> diagnostics,
+        Type contextType)
+    {
+        var definition = RelationalResources.LogNonDeterministicModel(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(diagnostics, contextType.ShortDisplayName());
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new DbContextTypeEventData(
+                definition,
+                NonDeterministicModel,
+                contextType);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string NonDeterministicModel(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition<string>)definition;
+        var p = (DbContextTypeEventData)payload;
+        return d.GenerateMessage(p.ContextType.ShortDisplayName());
+    }
+
+    /// <summary>
+    ///     Logs for the <see cref="RelationalEventId.MigrationsNotFound" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    /// <param name="migrator">The migrator.</param>
+    /// <param name="migrationsAssembly">The assembly in which migrations are stored.</param>
+    public static void ModelSnapshotNotFound(
+        this IDiagnosticsLogger<DbLoggerCategory.Migrations> diagnostics,
+        IMigrator migrator,
+        IMigrationsAssembly migrationsAssembly)
+    {
+        var definition = RelationalResources.LogNoModelSnapshotFound(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(diagnostics, migrationsAssembly.Assembly.GetName().Name!);
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new MigrationAssemblyEventData(
+                definition,
+                ModelSnapshotNotFound,
+                migrator,
+                migrationsAssembly);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string ModelSnapshotNotFound(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition<string>)definition;
+        var p = (MigrationAssemblyEventData)payload;
+        return d.GenerateMessage(p.MigrationsAssembly.Assembly.GetName().Name!);
+    }
+
+    /// <summary>
+    ///     Logs for the <see cref="RelationalEventId.OldMigrationVersionWarning" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    /// <param name="contextType">The <see cref="DbContext" /> type being used.</param>
+    /// <param name="migrationVersion">The EF Core version the model snapshot was created with.</param>
+    public static void OldMigrationVersionWarning(
+        this IDiagnosticsLogger<DbLoggerCategory.Migrations> diagnostics,
+        Type contextType,
+        string? migrationVersion)
+    {
+        var definition = RelationalResources.LogOldMigrationVersion(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(diagnostics, contextType.ShortDisplayName(), migrationVersion ?? "(unknown)");
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new MigrationVersionEventData(
+                definition,
+                OldMigrationVersionWarning,
+                contextType,
+                migrationVersion);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string OldMigrationVersionWarning(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition<string, string>)definition;
+        var p = (MigrationVersionEventData)payload;
+        return d.GenerateMessage(p.ContextType.ShortDisplayName(), p.MigrationVersion ?? "(unknown)");
+    }
+
+    /// <summary>
+    ///     Logs for the <see cref="RelationalEventId.NonTransactionalMigrationOperationWarning" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    /// <param name="migrator">The <see cref="IMigrator" /> in use.</param>
+    /// <param name="migration">The <see cref="Migration" /> being processed.</param>
+    /// <param name="command">The <see cref="MigrationCommand" /> being processed.</param>
+    public static void NonTransactionalMigrationOperationWarning(
+        this IDiagnosticsLogger<DbLoggerCategory.Migrations> diagnostics,
+        IMigrator migrator,
+        Migration migration,
+        MigrationCommand command)
+    {
+        var definition = RelationalResources.LogNonTransactionalMigrationOperationWarning(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            var commandText = command.CommandText;
+            if (commandText.Length > 100)
+            {
+                commandText = commandText[..100] + "...";
+            }
+
+            definition.Log(diagnostics, commandText, migration.GetType().ShortDisplayName());
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new MigrationCommandEventData(
+                definition,
+                NonTransactionalMigrationOperationWarning,
+                migrator,
+                migration,
+                command);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string NonTransactionalMigrationOperationWarning(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition<string, string>)definition;
+        var p = (MigrationCommandEventData)payload;
+        var commandText = p.MigrationCommand.CommandText;
+        if (commandText.Length > 100)
+        {
+            commandText = commandText[..100] + "...";
+        }
+
+        return d.GenerateMessage(commandText, p.Migration.GetType().ShortDisplayName());
+    }
+
+    /// <summary>
+    ///     Logs for the <see cref="RelationalEventId.AcquiringMigrationLock" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    public static void AcquiringMigrationLock(
+        this IDiagnosticsLogger<DbLoggerCategory.Migrations> diagnostics)
+    {
+        var definition = RelationalResources.LogAcquiringMigrationLock(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(diagnostics);
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new EventData(
+                definition,
+                AcquiringMigrationLock);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string AcquiringMigrationLock(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition)definition;
+        return d.GenerateMessage();
+    }
+
+    /// <summary>
+    ///     Logs for the <see cref="RelationalEventId.MigrationsUserTransactionWarning" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    public static void MigrationsUserTransactionWarning(
+        this IDiagnosticsLogger<DbLoggerCategory.Migrations> diagnostics)
+    {
+        var definition = RelationalResources.LogMigrationsUserTransaction(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(diagnostics);
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new EventData(
+                definition,
+                MigrationsUserTransactionWarning);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string MigrationsUserTransactionWarning(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition)definition;
+        return d.GenerateMessage();
+    }
+
+    /// <summary>
     ///     Logs for the <see cref="RelationalEventId.QueryPossibleUnintendedUseOfEqualsWarning" /> event.
     /// </summary>
     /// <param name="diagnostics">The diagnostics logger to use.</param>
@@ -2310,6 +2598,126 @@ public static class RelationalLoggerExtensions
         var d = (EventDefinition<string, string>)definition;
         var p = (TwoSqlExpressionsEventData)payload;
         return d.GenerateMessage(p.Left.Print(), p.Right.Print());
+    }
+
+    /// <summary>
+    ///     Logs for the <see cref="RelationalEventId.ExecuteDeleteFailed" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    /// <param name="contextType">The <see cref="DbContext" /> type being used.</param>
+    /// <param name="exception">The exception that caused this failure.</param>
+    public static void ExecuteDeleteFailed(
+        this IDiagnosticsLogger<DbLoggerCategory.Query> diagnostics,
+        Type contextType,
+        Exception exception)
+    {
+        var definition = RelationalResources.LogExceptionDuringExecuteDelete(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(
+                diagnostics,
+                contextType, Environment.NewLine, exception,
+                exception);
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new DbContextTypeErrorEventData(
+                definition,
+                ExecuteDeleteFailed,
+                contextType,
+                exception);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string ExecuteDeleteFailed(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition<Type, string, Exception>)definition;
+        var p = (DbContextTypeErrorEventData)payload;
+        return d.GenerateMessage(p.ContextType, Environment.NewLine, p.Exception);
+    }
+
+    /// <summary>
+    ///     Logs for the <see cref="RelationalEventId.ExecuteUpdateFailed" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    /// <param name="contextType">The <see cref="DbContext" /> type being used.</param>
+    /// <param name="exception">The exception that caused this failure.</param>
+    public static void ExecuteUpdateFailed(
+        this IDiagnosticsLogger<DbLoggerCategory.Query> diagnostics,
+        Type contextType,
+        Exception exception)
+    {
+        var definition = RelationalResources.LogExceptionDuringExecuteUpdate(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(
+                diagnostics,
+                contextType, Environment.NewLine, exception,
+                exception);
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new DbContextTypeErrorEventData(
+                definition,
+                ExecuteUpdateFailed,
+                contextType,
+                exception);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string ExecuteUpdateFailed(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition<Type, string, Exception>)definition;
+        var p = (DbContextTypeErrorEventData)payload;
+        return d.GenerateMessage(p.ContextType, Environment.NewLine, p.Exception);
+    }
+
+    /// <summary>
+    ///     Logs for the <see cref="RelationalEventId.NonQueryOperationFailed" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    /// <param name="contextType">The <see cref="DbContext" /> type being used.</param>
+    /// <param name="exception">The exception that caused this failure.</param>
+    public static void NonQueryOperationFailed(
+        this IDiagnosticsLogger<DbLoggerCategory.Query> diagnostics,
+        Type contextType,
+        Exception exception)
+    {
+        var definition = RelationalResources.LogExceptionDuringNonQueryOperation(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(
+                diagnostics,
+                contextType, Environment.NewLine, exception,
+                exception);
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new DbContextTypeErrorEventData(
+                definition,
+                NonQueryOperationFailed,
+                contextType,
+                exception);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string NonQueryOperationFailed(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition<Type, string, Exception>)definition;
+        var p = (DbContextTypeErrorEventData)payload;
+        return d.GenerateMessage(p.ContextType, Environment.NewLine, p.Exception);
     }
 
     /// <summary>
@@ -2349,7 +2757,7 @@ public static class RelationalLoggerExtensions
 
         if (diagnostics.ShouldLog(definition))
         {
-            definition.Log(diagnostics, property.Name, property.DeclaringEntityType.DisplayName());
+            definition.Log(diagnostics, property.Name, property.DeclaringType.DisplayName());
         }
 
         if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
@@ -2369,7 +2777,7 @@ public static class RelationalLoggerExtensions
         var p = (PropertyEventData)payload;
         return d.GenerateMessage(
             p.Property.Name,
-            p.Property.DeclaringEntityType.DisplayName());
+            p.Property.DeclaringType.DisplayName());
     }
 
     /// <summary>
@@ -2385,7 +2793,14 @@ public static class RelationalLoggerExtensions
 
         if (diagnostics.ShouldLog(definition))
         {
-            definition.Log(diagnostics, property.Name, property.DeclaringEntityType.DisplayName());
+            var defaultValue = property.ClrType.GetDefaultValue();
+            definition.Log(
+                diagnostics,
+                property.ClrType.ShortDisplayName(),
+                property.Name,
+                property.DeclaringType.DisplayName(),
+                defaultValue == null ? "null" : defaultValue.ToString()!,
+                property.ClrType.ShortDisplayName());
         }
 
         if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
@@ -2401,9 +2816,15 @@ public static class RelationalLoggerExtensions
 
     private static string BoolWithDefaultWarning(EventDefinitionBase definition, EventData payload)
     {
-        var d = (EventDefinition<string, string>)definition;
+        var d = (EventDefinition<string, string, string, string, string>)definition;
         var p = (PropertyEventData)payload;
-        return d.GenerateMessage(p.Property.Name, p.Property.DeclaringEntityType.DisplayName());
+        var defaultValue = p.Property.ClrType.GetDefaultValue();
+        return d.GenerateMessage(
+            p.Property.ClrType.ShortDisplayName(),
+            p.Property.Name,
+            p.Property.DeclaringType.DisplayName(),
+            defaultValue == null ? "null" : defaultValue.ToString()!,
+            p.Property.ClrType.ShortDisplayName());
     }
 
     /// <summary>
@@ -2484,19 +2905,19 @@ public static class RelationalLoggerExtensions
     }
 
     /// <summary>
-    ///     Logs the <see cref="RelationalEventId.AllIndexPropertiesNotToMappedToAnyTable" /> event.
+    ///     Logs the <see cref="RelationalEventId.AllIndexPropertiesNotMappedToAnyTable" /> event.
     /// </summary>
     /// <param name="diagnostics">The diagnostics logger to use.</param>
     /// <param name="entityType">The entity type on which the index is defined.</param>
     /// <param name="index">The index on the entity type.</param>
-    public static void AllIndexPropertiesNotToMappedToAnyTable(
+    public static void AllIndexPropertiesNotMappedToAnyTable(
         this IDiagnosticsLogger<DbLoggerCategory.Model.Validation> diagnostics,
         IEntityType entityType,
         IIndex index)
     {
         if (index.Name == null)
         {
-            var definition = RelationalResources.LogUnnamedIndexAllPropertiesNotToMappedToAnyTable(diagnostics);
+            var definition = RelationalResources.LogUnnamedIndexAllPropertiesNotMappedToAnyTable(diagnostics);
 
             if (diagnostics.ShouldLog(definition))
             {
@@ -2520,7 +2941,7 @@ public static class RelationalLoggerExtensions
         }
         else
         {
-            var definition = RelationalResources.LogNamedIndexAllPropertiesNotToMappedToAnyTable(diagnostics);
+            var definition = RelationalResources.LogNamedIndexAllPropertiesNotMappedToAnyTable(diagnostics);
 
             if (diagnostics.ShouldLog(definition))
             {
@@ -2760,18 +3181,58 @@ public static class RelationalLoggerExtensions
     {
         var d = (FallbackEventDefinition)definition;
         var p = (IndexWithPropertiesEventData)payload;
+        return d.GenerateMessage(l => l.Log(
+            d.Level,
+            d.EventId,
+            d.MessageFormat,
+            p.Name,
+            p.EntityType.DisplayName(),
+            p.PropertyNames.Format(),
+            p.Property1Name,
+            p.TablesMappedToProperty1.FormatTables(),
+            p.Property2Name,
+            p.TablesMappedToProperty2.FormatTables()));
+    }
+
+    /// <summary>
+    ///     Logs the <see cref="RelationalEventId.KeyPropertiesNotMappedToTable" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    /// <param name="key">The foreign key.</param>
+    public static void KeyPropertiesNotMappedToTable(
+        this IDiagnosticsLogger<DbLoggerCategory.Model.Validation> diagnostics,
+        IKey key)
+    {
+        var definition = RelationalResources.LogKeyPropertiesNotMappedToTable(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(
+                diagnostics,
+                key.Properties.Format(),
+                key.DeclaringEntityType.DisplayName(),
+                key.DeclaringEntityType.GetSchemaQualifiedTableName()!);
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new KeyEventData(
+                definition,
+                KeyPropertiesNotMappedToTable,
+                key);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string KeyPropertiesNotMappedToTable(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition<string, string, string>)definition;
+        var p = (KeyEventData)payload;
         return d.GenerateMessage(
-            l => l.Log(
-                d.Level,
-                d.EventId,
-                d.MessageFormat,
-                p.Name,
-                p.EntityType.DisplayName(),
-                p.PropertyNames.Format(),
-                p.Property1Name,
-                p.TablesMappedToProperty1.FormatTables(),
-                p.Property2Name,
-                p.TablesMappedToProperty2.FormatTables()));
+            p.Key.Properties.Format(),
+            p.Key.DeclaringEntityType.DisplayName(),
+            p.Key.DeclaringEntityType.GetSchemaQualifiedTableName()!);
     }
 
     /// <summary>
@@ -2817,18 +3278,17 @@ public static class RelationalLoggerExtensions
     {
         var d = (FallbackEventDefinition)definition;
         var p = (ForeignKeyEventData)payload;
-        return d.GenerateMessage(
-            l => l.Log(
-                d.Level,
-                d.EventId,
-                d.MessageFormat,
-                p.ForeignKey.Properties.Format(),
-                p.ForeignKey.DeclaringEntityType.DisplayName(),
-                p.ForeignKey.PrincipalEntityType.DisplayName(),
-                p.ForeignKey.Properties.Format(),
-                p.ForeignKey.DeclaringEntityType.GetSchemaQualifiedTableName(),
-                p.ForeignKey.PrincipalKey.Properties.Format(),
-                p.ForeignKey.PrincipalEntityType.GetSchemaQualifiedTableName()));
+        return d.GenerateMessage(l => l.Log(
+            d.Level,
+            d.EventId,
+            d.MessageFormat,
+            p.ForeignKey.Properties.Format(),
+            p.ForeignKey.DeclaringEntityType.DisplayName(),
+            p.ForeignKey.PrincipalEntityType.DisplayName(),
+            p.ForeignKey.Properties.Format(),
+            p.ForeignKey.DeclaringEntityType.GetSchemaQualifiedTableName(),
+            p.ForeignKey.PrincipalKey.Properties.Format(),
+            p.ForeignKey.PrincipalEntityType.GetSchemaQualifiedTableName()));
     }
 
     /// <summary>
@@ -2874,18 +3334,17 @@ public static class RelationalLoggerExtensions
     {
         var d = (FallbackEventDefinition)definition;
         var p = (ForeignKeyEventData)payload;
-        return d.GenerateMessage(
-            l => l.Log(
-                d.Level,
-                d.EventId,
-                d.MessageFormat,
-                p.ForeignKey.Properties.Format(),
-                p.ForeignKey.DeclaringEntityType.DisplayName(),
-                p.ForeignKey.PrincipalEntityType.DisplayName(),
-                p.ForeignKey.PrincipalEntityType.GetSchemaQualifiedTableName()!,
-                p.ForeignKey.PrincipalEntityType.DisplayName(),
-                p.ForeignKey.DeclaringEntityType.DisplayName(),
-                p.ForeignKey.PrincipalEntityType.DisplayName()));
+        return d.GenerateMessage(l => l.Log(
+            d.Level,
+            d.EventId,
+            d.MessageFormat,
+            p.ForeignKey.Properties.Format(),
+            p.ForeignKey.DeclaringEntityType.DisplayName(),
+            p.ForeignKey.PrincipalEntityType.DisplayName(),
+            p.ForeignKey.PrincipalEntityType.GetSchemaQualifiedTableName()!,
+            p.ForeignKey.PrincipalEntityType.DisplayName(),
+            p.ForeignKey.DeclaringEntityType.DisplayName(),
+            p.ForeignKey.PrincipalEntityType.DisplayName()));
     }
 
     /// <summary>
@@ -2903,8 +3362,8 @@ public static class RelationalLoggerExtensions
         {
             definition.Log(
                 diagnostics,
-                property.Name,
-                property.DeclaringEntityType.DisplayName());
+                property.DeclaringType.DisplayName(),
+                property.Name);
         }
 
         if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
@@ -2923,8 +3382,42 @@ public static class RelationalLoggerExtensions
         var d = (EventDefinition<string, string>)definition;
         var p = (PropertyEventData)payload;
         return d.GenerateMessage(
-            p.Property.Name,
-            p.Property.DeclaringEntityType.DisplayName());
+            p.Property.DeclaringType.DisplayName(),
+            p.Property.Name);
+    }
+
+    /// <summary>
+    ///     Logs the <see cref="RelationalEventId.OwnedEntityMappedToJsonCollectionWarning" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    /// <param name="entityType">The owned entity type mapped to JSON as a collection.</param>
+    public static void OwnedEntityMappedToJsonCollectionWarning(
+        this IDiagnosticsLogger<DbLoggerCategory.Model.Validation> diagnostics,
+        IEntityType entityType)
+    {
+        var definition = RelationalResources.LogOwnedEntityMappedToJsonCollection(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(diagnostics, entityType.DisplayName());
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new EntityTypeEventData(
+                definition,
+                OwnedEntityMappedToJsonCollectionWarning,
+                entityType);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string OwnedEntityMappedToJsonCollectionWarning(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition<string>)definition;
+        var p = (EntityTypeEventData)payload;
+        return d.GenerateMessage(p.EntityType.DisplayName());
     }
 
     /// <summary>
@@ -2959,6 +3452,46 @@ public static class RelationalLoggerExtensions
         var d = (EventDefinition<string>)definition;
         var p = (EntityTypeEventData)payload;
         return d.GenerateMessage(p.EntityType.DisplayName());
+    }
+
+    /// <summary>
+    ///     Logs the <see cref="RelationalEventId.StoredProcedureConcurrencyTokenNotMapped" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    /// <param name="entityType">The entity type that the stored procedure is mapped to.</param>
+    /// <param name="concurrencyProperty">The property which represents the concurrency token.</param>
+    /// <param name="storedProcedureName">The stored procedure name.</param>
+    public static void StoredProcedureConcurrencyTokenNotMapped(
+        this IDiagnosticsLogger<DbLoggerCategory.Model.Validation> diagnostics,
+        IEntityType entityType,
+        IProperty concurrencyProperty,
+        string storedProcedureName)
+    {
+        var definition = RelationalResources.LogStoredProcedureConcurrencyTokenNotMapped(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(diagnostics, entityType.DisplayName(), storedProcedureName, concurrencyProperty.Name);
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new StoredProcedurePropertyEventData(
+                definition,
+                StoredProcedureConcurrencyTokenNotMapped,
+                entityType,
+                concurrencyProperty,
+                storedProcedureName);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string StoredProcedureConcurrencyTokenNotMapped(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition<string, string, string>)definition;
+        var p = (StoredProcedurePropertyEventData)payload;
+        return d.GenerateMessage(p.EntityType.DisplayName(), p.StoredProcedureName, p.Property.Name);
     }
 
     /// <summary>
@@ -3165,5 +3698,78 @@ public static class RelationalLoggerExtensions
         var d = (EventDefinition<string, string>)definition;
         var p = (MigrationColumnOperationEventData)payload;
         return d.GenerateMessage((p.ColumnOperation.Table, p.ColumnOperation.Schema).FormatTable(), p.ColumnOperation.Name);
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public static void EntitySplittingFragmentOptionalityChangedWarning(
+        this IDiagnosticsLogger<DbLoggerCategory.Migrations> diagnostics,
+        IEntityType entityType,
+        StoreObjectIdentifier storeObject,
+        bool optional)
+    {
+        var definition = RelationalResources.LogEntitySplittingFragmentOptionalityChangedWarning(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(
+                diagnostics,
+                storeObject.DisplayName(),
+                entityType.DisplayName(),
+                optional ? "optional" : "required");
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new EntityTypeMappingFragmentEventData(
+                definition,
+                EntitySplittingFragmentOptionalityChangedWarning,
+                entityType,
+                storeObject,
+                optional);
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
+    }
+
+    private static string EntitySplittingFragmentOptionalityChangedWarning(EventDefinitionBase definition, EventData payload)
+    {
+        var d = (EventDefinition<string, string, string>)definition;
+        var p = (EntityTypeMappingFragmentEventData)payload;
+        return d.GenerateMessage(
+            p.StoreObject.DisplayName(),
+            p.EntityType.DisplayName(),
+            p.IsOptional ? "optional" : "required");
+    }
+
+    /// <summary>
+    ///     Logs for the <see cref="RelationalEventId.UnexpectedTrailingResultSetWhenSaving" /> event.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics logger to use.</param>
+    public static void UnexpectedTrailingResultSetWhenSaving(this IDiagnosticsLogger<DbLoggerCategory.Update> diagnostics)
+    {
+        var definition = RelationalResources.LogUnexpectedTrailingResultSetWhenSaving(diagnostics);
+
+        if (diagnostics.ShouldLog(definition))
+        {
+            definition.Log(diagnostics);
+        }
+
+        if (diagnostics.NeedsEventData(definition, out var diagnosticSourceEnabled, out var simpleLogEnabled))
+        {
+            var eventData = new EventData(
+                definition,
+                static (definition, _) =>
+                {
+                    var d = (EventDefinition)definition;
+                    return d.GenerateMessage();
+                });
+
+            diagnostics.DispatchEventData(definition, eventData, diagnosticSourceEnabled, simpleLogEnabled);
+        }
     }
 }

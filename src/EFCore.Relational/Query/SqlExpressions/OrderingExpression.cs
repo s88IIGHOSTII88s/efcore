@@ -12,8 +12,11 @@ namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 ///         not used in application code.
 ///     </para>
 /// </summary>
-public class OrderingExpression : Expression, IPrintableExpression
+[DebuggerDisplay("{Microsoft.EntityFrameworkCore.Query.ExpressionPrinter.Print(this), nq}")]
+public class OrderingExpression : Expression, IRelationalQuotableExpression, IPrintableExpression
 {
+    private static ConstructorInfo? _quotingConstructor;
+
     /// <summary>
     ///     Creates a new instance of the <see cref="OrderingExpression" /> class.
     /// </summary>
@@ -59,6 +62,13 @@ public class OrderingExpression : Expression, IPrintableExpression
             : this;
 
     /// <inheritdoc />
+    public Expression Quote()
+        => New(
+            _quotingConstructor ??= typeof(OrderingExpression).GetConstructor([typeof(SqlExpression), typeof(bool)])!,
+            Expression.Quote(),
+            Constant(IsAscending));
+
+    /// <inheritdoc />
     void IPrintableExpression.Print(ExpressionPrinter expressionPrinter)
     {
         expressionPrinter.Visit(Expression);
@@ -70,8 +80,8 @@ public class OrderingExpression : Expression, IPrintableExpression
     public override bool Equals(object? obj)
         => obj != null
             && (ReferenceEquals(this, obj)
-                || obj is OrderingExpression orderingExpression
-                && Equals(orderingExpression));
+                || (obj is OrderingExpression orderingExpression
+                    && Equals(orderingExpression)));
 
     private bool Equals(OrderingExpression orderingExpression)
         => Expression.Equals(orderingExpression.Expression)

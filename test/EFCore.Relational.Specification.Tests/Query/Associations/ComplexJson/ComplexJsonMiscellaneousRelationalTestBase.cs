@@ -1,0 +1,33 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+using Microsoft.EntityFrameworkCore.Query.Associations.ComplexProperties;
+
+namespace Microsoft.EntityFrameworkCore.Query.Associations.ComplexJson;
+
+public abstract class ComplexJsonMiscellaneousRelationalTestBase<TFixture> : ComplexPropertiesMiscellaneousTestBase<TFixture>
+    where TFixture : ComplexJsonRelationalFixtureBase, new()
+{
+    public ComplexJsonMiscellaneousRelationalTestBase(TFixture fixture, ITestOutputHelper testOutputHelper)
+        : base(fixture)
+    {
+        Fixture.TestSqlLoggerFactory.Clear();
+        Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
+    }
+
+    [Fact]
+    public virtual Task FromSql_on_root()
+        => RelationalAssociationsTests.FromSql_on_root(this, Fixture);
+
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task FromSql_on_root_composed(bool async)
+        => AssertQuery(
+            async,
+            ss => ((DbSet<RootEntity>)ss.Set<RootEntity>())
+                .FromSqlRaw(((RelationalTestStore)Fixture.TestStore).NormalizeDelimitersInRawString("SELECT * FROM [RootEntity]"))
+                .Where(e => e.RequiredAssociate.Int == 8),
+            ss => ss.Set<RootEntity>().Where(e => e.RequiredAssociate.Int == 8));
+
+    protected void AssertSql(params string[] expected)
+        => Fixture.TestSqlLoggerFactory.AssertBaseline(expected);
+}

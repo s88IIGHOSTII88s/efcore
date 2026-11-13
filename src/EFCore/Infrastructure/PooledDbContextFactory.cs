@@ -20,7 +20,8 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure;
 ///         <see href="https://aka.ms/efcore-docs-dbcontext-pooling">Using DbContext pooling</see> for more information and examples.
 ///     </para>
 /// </remarks>
-public class PooledDbContextFactory<TContext> : IDbContextFactory<TContext>
+public class PooledDbContextFactory<[DynamicallyAccessedMembers(DbContext.DynamicallyAccessedMemberTypes)] TContext>
+    : IDbContextFactory<TContext>
     where TContext : DbContext
 {
     private readonly IDbContextPool<TContext> _pool;
@@ -33,9 +34,7 @@ public class PooledDbContextFactory<TContext> : IDbContextFactory<TContext>
     /// </summary>
     [EntityFrameworkInternal]
     public PooledDbContextFactory(IDbContextPool<TContext> pool)
-    {
-        _pool = pool;
-    }
+        => _pool = pool;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="PooledDbContextFactory{TContext}" /> class.

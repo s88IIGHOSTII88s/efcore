@@ -1,14 +1,13 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore;
 
-public class SequenceEndToEndTest : IDisposable
+public class SequenceEndToEndTest : IAsyncLifetime
 {
-    [ConditionalFact]
+    [Fact]
     public void Can_use_sequence_end_to_end()
     {
         var serviceProvider = new ServiceCollection()
@@ -57,8 +56,7 @@ public class SequenceEndToEndTest : IDisposable
         context.SaveChanges();
     }
 
-    [ConditionalFact]
-    [SqlServerCondition(SqlServerCondition.IsNotCI)]
+    [Fact, SkipOnCI("Flaky on CI")]
     public void Can_use_sequence_end_to_end_on_multiple_databases()
     {
         var serviceProvider = new ServiceCollection()
@@ -125,7 +123,7 @@ public class SequenceEndToEndTest : IDisposable
         context2.SaveChanges();
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_use_sequence_end_to_end_async()
     {
         var serviceProvider = new ServiceCollection()
@@ -174,7 +172,7 @@ public class SequenceEndToEndTest : IDisposable
         await context.SaveChangesAsync();
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_use_sequence_end_to_end_from_multiple_contexts_concurrently_async()
     {
         var serviceProvider = new ServiceCollection()
@@ -214,7 +212,7 @@ public class SequenceEndToEndTest : IDisposable
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_use_explicit_values()
     {
         var serviceProvider = new ServiceCollection()
@@ -248,7 +246,7 @@ public class SequenceEndToEndTest : IDisposable
 
                 for (var j = 0; j < 6; j++)
                 {
-                    pegasuses.Single(p => p.Identifier == i * 100 + j);
+                    pegasuses.Single(p => p.Identifier == (i * 100) + j);
                 }
             }
         }
@@ -260,26 +258,21 @@ public class SequenceEndToEndTest : IDisposable
         for (var i = 1; i < 11; i++)
         {
             context.Add(
-                new Pegasus { Name = "Rainbow Dash " + i, Identifier = i * 100 + idOffset });
+                new Pegasus { Name = "Rainbow Dash " + i, Identifier = (i * 100) + idOffset });
             context.Add(
-                new Pegasus { Name = "Fluttershy " + i, Identifier = i * 100 + idOffset + 1 });
+                new Pegasus { Name = "Fluttershy " + i, Identifier = (i * 100) + idOffset + 1 });
         }
 
         context.SaveChanges();
     }
 
-    private class BronieContext : DbContext
+    private class BronieContext(IServiceProvider serviceProvider, string databaseName) : DbContext
     {
-        private readonly IServiceProvider _serviceProvider;
-        private readonly string _databaseName;
+        private readonly IServiceProvider _serviceProvider = serviceProvider;
+        private readonly string _databaseName = databaseName;
 
-        public BronieContext(IServiceProvider serviceProvider, string databaseName)
-        {
-            _serviceProvider = serviceProvider;
-            _databaseName = databaseName;
-        }
-
-        public DbSet<Pegasus> Pegasuses { get; set; }
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        public DbSet<Pegasus> Pegasuses { get; set; } = null!;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder
@@ -287,21 +280,20 @@ public class SequenceEndToEndTest : IDisposable
                 .UseSqlServer(SqlServerTestStore.CreateConnectionString(_databaseName), b => b.ApplyConfiguration());
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<Pegasus>(
-                b =>
-                {
-                    b.HasKey(e => e.Identifier);
-                    b.Property(e => e.Identifier).UseHiLo();
-                });
+            => modelBuilder.Entity<Pegasus>(b =>
+            {
+                b.HasKey(e => e.Identifier);
+                b.Property(e => e.Identifier).UseHiLo();
+            });
     }
 
     private class Pegasus
     {
         public int Identifier { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 
-    [ConditionalFact] // Issue #478
+    [Fact] // Issue #478
     public void Can_use_sequence_with_nullable_key_end_to_end()
     {
         var serviceProvider = new ServiceCollection()
@@ -329,7 +321,7 @@ public class SequenceEndToEndTest : IDisposable
         }
     }
 
-    [ConditionalFact] // Issue #478
+    [Fact] // Issue #478
     public void Can_use_identity_with_nullable_key_end_to_end()
     {
         var serviceProvider = new ServiceCollection()
@@ -371,20 +363,14 @@ public class SequenceEndToEndTest : IDisposable
         context.SaveChanges();
     }
 
-    private class NullableBronieContext : DbContext
+    private class NullableBronieContext(IServiceProvider serviceProvider, string databaseName, bool useSequence) : DbContext
     {
-        private readonly IServiceProvider _serviceProvider;
-        private readonly string _databaseName;
-        private readonly bool _useSequence;
+        private readonly IServiceProvider _serviceProvider = serviceProvider;
+        private readonly string _databaseName = databaseName;
+        private readonly bool _useSequence = useSequence;
 
-        public NullableBronieContext(IServiceProvider serviceProvider, string databaseName, bool useSequence)
-        {
-            _serviceProvider = serviceProvider;
-            _databaseName = databaseName;
-            _useSequence = useSequence;
-        }
-
-        public DbSet<Unicon> Unicons { get; set; }
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        public DbSet<Unicon> Unicons { get; set; } = null!;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder
@@ -392,34 +378,31 @@ public class SequenceEndToEndTest : IDisposable
                 .UseSqlServer(SqlServerTestStore.CreateConnectionString(_databaseName), b => b.ApplyConfiguration());
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<Unicon>(
-                b =>
+            => modelBuilder.Entity<Unicon>(b =>
+            {
+                b.HasKey(e => e.Identifier);
+                if (_useSequence)
                 {
-                    b.HasKey(e => e.Identifier);
-                    if (_useSequence)
-                    {
-                        b.Property(e => e.Identifier).UseHiLo();
-                    }
-                    else
-                    {
-                        b.Property(e => e.Identifier).UseIdentityColumn();
-                    }
-                });
+                    b.Property(e => e.Identifier).UseHiLo();
+                }
+                else
+                {
+                    b.Property(e => e.Identifier).UseIdentityColumn();
+                }
+            });
     }
 
     private class Unicon
     {
         public int? Identifier { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 
-    public SequenceEndToEndTest()
-    {
-        TestStore = SqlServerTestStore.CreateInitialized("SequenceEndToEndTest");
-    }
+    protected SqlServerTestStore TestStore { get; private set; } = null!;
 
-    protected SqlServerTestStore TestStore { get; }
+    public async ValueTask InitializeAsync()
+        => TestStore = await SqlServerTestStore.CreateInitializedAsync("SequenceEndToEndTest");
 
-    public void Dispose()
-        => TestStore.Dispose();
+    public async ValueTask DisposeAsync()
+        => await TestStore.DisposeAsync();
 }

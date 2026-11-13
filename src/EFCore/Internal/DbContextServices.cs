@@ -1,7 +1,9 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Internal;
 
@@ -16,8 +18,6 @@ public class DbContextServices : IDbContextServices
     private IServiceProvider? _scopedProvider;
     private DbContextOptions? _contextOptions;
     private ICurrentDbContext? _currentContext;
-    private IModel? _model;
-    private IModel? _designTimeModel;
     private bool _inOnModelCreating;
 
     /// <summary>
@@ -38,18 +38,12 @@ public class DbContextServices : IDbContextServices
         var providers = _scopedProvider.GetService<IEnumerable<IDatabaseProvider>>()?.ToList();
         var providerCount = providers?.Count ?? 0;
 
-        if (providerCount > 1)
-        {
-            throw new InvalidOperationException(CoreStrings.MultipleProvidersConfigured(BuildDatabaseNamesString(providers!)));
-        }
-
-        if (providerCount == 0
-            || !providers![0].IsConfigured(contextOptions))
-        {
-            throw new InvalidOperationException(CoreStrings.NoProviderConfigured);
-        }
-
-        return this;
+        return providerCount > 1
+            ? throw new InvalidOperationException(CoreStrings.MultipleProvidersConfigured(BuildDatabaseNamesString(providers!)))
+            : providerCount == 0
+            || !providers![0].IsConfigured(contextOptions)
+                ? throw new InvalidOperationException(CoreStrings.NoProviderConfigured)
+                : (IDbContextServices)this;
     }
 
     private static string BuildDatabaseNamesString(IEnumerable<IDatabaseProvider> available)
@@ -67,7 +61,22 @@ public class DbContextServices : IDbContextServices
             _inOnModelCreating = true;
 
             var dependencies = _scopedProvider!.GetRequiredService<ModelCreationDependencies>();
+
+            string? mismatchedProviderName = null;
             var modelFromOptions = CoreOptions?.Model;
+            if (modelFromOptions == null)
+            {
+                var providers = _scopedProvider!.GetService<IEnumerable<IDatabaseProvider>>()?.ToList();
+                var providerName = providers is [var provider] ? provider.Name : null;
+
+                modelFromOptions = FindCompiledModel(_currentContext!.Context.GetType(), providerName, out mismatchedProviderName);
+
+                if (mismatchedProviderName != null)
+                {
+                    var logger = _scopedProvider!.GetRequiredService<IDiagnosticsLogger<DbLoggerCategory.Infrastructure>>();
+                    logger.CompiledModelProviderMismatchWarning(mismatchedProviderName, providerName!);
+                }
+            }
 
             var modelVersion = modelFromOptions?.GetProductVersion();
             if (modelVersion != null)
@@ -83,14 +92,74 @@ public class DbContextServices : IDbContextServices
                 }
             }
 
-            return modelFromOptions == null
-                || (designTime && modelFromOptions is not Metadata.Internal.Model)
+            if (modelFromOptions == null
+                || (designTime && modelFromOptions is not Metadata.Internal.Model))
+            {
+                return RuntimeFeature.IsDynamicCodeSupported
                     ? dependencies.ModelSource.GetModel(_currentContext!.Context, dependencies, designTime)
-                    : dependencies.ModelRuntimeInitializer.Initialize(modelFromOptions, designTime, dependencies.ValidationLogger);
+                    : designTime
+                        ? throw new InvalidOperationException(CoreStrings.NativeAotDesignTimeModel)
+                        : throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel);
+            }
+
+            var designTimeModel = dependencies.ModelRuntimeInitializer.Initialize(
+                modelFromOptions, designTime: modelFromOptions is Model, dependencies.ValidationLogger);
+
+            var runtimeModel = (IModel)designTimeModel.FindRuntimeAnnotationValue(CoreAnnotationNames.ReadOnlyModel)!;
+
+            return designTime ? designTimeModel : runtimeModel;
         }
         finally
         {
             _inOnModelCreating = false;
+        }
+
+        static IModel? FindCompiledModel(Type contextType, string? providerName, out string? mismatchedProviderName)
+        {
+            mismatchedProviderName = null;
+            var contextAssembly = contextType.Assembly;
+            IModel? model = null;
+            string? firstMismatchedProvider = null;
+            foreach (var modelAttribute in contextAssembly.GetCustomAttributes<DbContextModelAttribute>())
+            {
+                if (modelAttribute.ContextType != contextType)
+                {
+                    continue;
+                }
+
+                if (modelAttribute.ProviderName != null
+                    && providerName != null
+                    && modelAttribute.ProviderName != providerName)
+                {
+                    firstMismatchedProvider ??= modelAttribute.ProviderName;
+                    continue;
+                }
+
+                var modelType = modelAttribute.ModelType;
+
+                var instanceProperty = modelType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
+                if (instanceProperty == null
+                    || instanceProperty.PropertyType != typeof(IModel))
+                {
+                    throw new InvalidOperationException(CoreStrings.CompiledModelMissingInstance(modelType.DisplayName()));
+                }
+
+                if (model != null)
+                {
+                    throw new InvalidOperationException(
+                        CoreStrings.CompiledModelDuplicateAttribute(
+                            contextAssembly.FullName, contextType.DisplayName()));
+                }
+
+                model = (IModel)instanceProperty.GetValue(null)!;
+            }
+
+            if (model == null)
+            {
+                mismatchedProviderName = firstMismatchedProvider;
+            }
+
+            return model;
         }
     }
 
@@ -109,8 +178,9 @@ public class DbContextServices : IDbContextServices
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    [field: AllowNull, MaybeNull]
     public virtual IModel Model
-        => _model ??= CreateModel(designTime: false);
+        => field ??= CreateModel(designTime: false);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -118,8 +188,9 @@ public class DbContextServices : IDbContextServices
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    [field: AllowNull, MaybeNull]
     public virtual IModel DesignTimeModel
-        => _designTimeModel ??= CreateModel(designTime: true);
+        => field ??= CreateModel(designTime: true);
 
     private CoreOptionsExtension? CoreOptions
         => _contextOptions?.FindExtension<CoreOptionsExtension>();

@@ -10,7 +10,7 @@ namespace Microsoft.EntityFrameworkCore;
 ///     See <see href="https://aka.ms/efcore-docs-dbcontext-factory">Using DbContextFactory</see> for more information and examples.
 /// </remarks>
 /// <typeparam name="TContext">The <see cref="DbContext" /> type to create.</typeparam>
-public interface IDbContextFactory<TContext>
+public interface IDbContextFactory<[DynamicallyAccessedMembers(DbContext.DynamicallyAccessedMemberTypes)] TContext>
     where TContext : DbContext
 {
     /// <summary>

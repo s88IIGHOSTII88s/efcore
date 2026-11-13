@@ -1,7 +1,7 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Microsoft.EntityFrameworkCore.Migrations.Internal;
+using Microsoft.EntityFrameworkCore.Diagnostics.Internal;
 using Microsoft.EntityFrameworkCore.Storage.Internal;
 using Microsoft.EntityFrameworkCore.TestUtilities.FakeProvider;
 
@@ -9,9 +9,7 @@ namespace Microsoft.EntityFrameworkCore.Migrations;
 
 public class MigrationCommandExecutorTest
 {
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task Executes_migration_commands_in_same_transaction(bool async)
     {
         var fakeConnection = CreateConnection();
@@ -22,7 +20,7 @@ public class MigrationCommandExecutorTest
             new(CreateRelationalCommand(), null, logger), new(CreateRelationalCommand(), null, logger)
         };
 
-        var migrationCommandExecutor = new MigrationCommandExecutor();
+        var migrationCommandExecutor = CreateMigrationCommandExecutor();
 
         if (async)
         {
@@ -50,9 +48,7 @@ public class MigrationCommandExecutorTest
             fakeConnection.DbConnections[0].DbCommands[1].Transaction);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task Executes_migration_commands_in_user_transaction(bool async)
     {
         var fakeConnection = CreateConnection();
@@ -63,7 +59,7 @@ public class MigrationCommandExecutorTest
             new(CreateRelationalCommand(), null, logger), new(CreateRelationalCommand(), null, logger)
         };
 
-        var migrationCommandExecutor = new MigrationCommandExecutor();
+        var migrationCommandExecutor = CreateMigrationCommandExecutor();
 
         IDbContextTransaction tx;
         using (tx = fakeConnection.BeginTransaction())
@@ -100,9 +96,7 @@ public class MigrationCommandExecutorTest
             fakeConnection.DbConnections[0].DbTransactions[0]);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task Executes_transaction_suppressed_migration_commands_in_user_transaction(bool async)
     {
         var fakeConnection = CreateConnection();
@@ -113,7 +107,7 @@ public class MigrationCommandExecutorTest
             new(CreateRelationalCommand(), null, logger), new(CreateRelationalCommand(), null, logger, transactionSuppressed: true)
         };
 
-        var migrationCommandExecutor = new MigrationCommandExecutor();
+        var migrationCommandExecutor = CreateMigrationCommandExecutor();
 
         IDbContextTransaction tx;
         using (tx = fakeConnection.BeginTransaction())
@@ -122,17 +116,15 @@ public class MigrationCommandExecutorTest
             {
                 Assert.Equal(
                     RelationalStrings.TransactionSuppressedMigrationInUserTransaction,
-                    (await Assert.ThrowsAsync<NotSupportedException>(
-                        async ()
-                            => await migrationCommandExecutor.ExecuteNonQueryAsync(commandList, fakeConnection))).Message);
+                    (await Assert.ThrowsAsync<NotSupportedException>(async ()
+                        => await migrationCommandExecutor.ExecuteNonQueryAsync(commandList, fakeConnection))).Message);
             }
             else
             {
                 Assert.Equal(
                     RelationalStrings.TransactionSuppressedMigrationInUserTransaction,
-                    Assert.Throws<NotSupportedException>(
-                        ()
-                            => migrationCommandExecutor.ExecuteNonQuery(commandList, fakeConnection)).Message);
+                    Assert.Throws<NotSupportedException>(() => migrationCommandExecutor.ExecuteNonQuery(commandList, fakeConnection))
+                        .Message);
             }
 
             tx.Rollback();
@@ -152,9 +144,7 @@ public class MigrationCommandExecutorTest
             fakeConnection.DbConnections[0].DbTransactions[0]);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task Executes_migration_commands_with_transaction_suppressed_outside_of_transaction(bool async)
     {
         var fakeConnection = CreateConnection();
@@ -166,7 +156,7 @@ public class MigrationCommandExecutorTest
             new(CreateRelationalCommand(), null, logger, transactionSuppressed: true)
         };
 
-        var migrationCommandExecutor = new MigrationCommandExecutor();
+        var migrationCommandExecutor = CreateMigrationCommandExecutor();
 
         if (async)
         {
@@ -188,9 +178,7 @@ public class MigrationCommandExecutorTest
         Assert.Null(fakeConnection.DbConnections[0].DbCommands[1].Transaction);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task Ends_transaction_when_transaction_is_suppressed(bool async)
     {
         var fakeConnection = CreateConnection();
@@ -201,7 +189,7 @@ public class MigrationCommandExecutorTest
             new(CreateRelationalCommand(), null, logger), new(CreateRelationalCommand(), null, logger, transactionSuppressed: true)
         };
 
-        var migrationCommandExecutor = new MigrationCommandExecutor();
+        var migrationCommandExecutor = CreateMigrationCommandExecutor();
 
         if (async)
         {
@@ -228,9 +216,7 @@ public class MigrationCommandExecutorTest
             fakeConnection.DbConnections[0].DbCommands[1].Transaction);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task Begins_new_transaction_when_transaction_nolonger_suppressed(bool async)
     {
         var fakeConnection = CreateConnection();
@@ -241,7 +227,7 @@ public class MigrationCommandExecutorTest
             new(CreateRelationalCommand(), null, logger, transactionSuppressed: true), new(CreateRelationalCommand(), null, logger)
         };
 
-        var migrationCommandExecutor = new MigrationCommandExecutor();
+        var migrationCommandExecutor = CreateMigrationCommandExecutor();
 
         if (async)
         {
@@ -268,9 +254,7 @@ public class MigrationCommandExecutorTest
             fakeConnection.DbConnections[0].DbCommands[1].Transaction);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task Executes_commands_in_order_regardless_of_transaction_suppression(bool async)
     {
         var fakeConnection = CreateConnection();
@@ -283,7 +267,7 @@ public class MigrationCommandExecutorTest
             new(CreateRelationalCommand(commandText: "Third"), null, logger)
         };
 
-        var migrationCommandExecutor = new MigrationCommandExecutor();
+        var migrationCommandExecutor = CreateMigrationCommandExecutor();
 
         if (async)
         {
@@ -332,9 +316,7 @@ public class MigrationCommandExecutorTest
             command.CommandText);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task Disposes_transaction_on_exception(bool async)
     {
         var fakeDbConnection =
@@ -353,19 +335,17 @@ public class MigrationCommandExecutorTest
 
         var commandList = new List<MigrationCommand> { new(CreateRelationalCommand(), null, logger) };
 
-        var migrationCommandExecutor = new MigrationCommandExecutor();
+        var migrationCommandExecutor = CreateMigrationCommandExecutor();
 
         if (async)
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                async ()
-                    => await migrationCommandExecutor.ExecuteNonQueryAsync(commandList, fakeConnection));
+            await Assert.ThrowsAsync<InvalidOperationException>(async ()
+                => await migrationCommandExecutor.ExecuteNonQueryAsync(commandList, fakeConnection));
         }
         else
         {
-            Assert.Throws<InvalidOperationException>(
-                ()
-                    => migrationCommandExecutor.ExecuteNonQuery(commandList, fakeConnection));
+            Assert.Throws<InvalidOperationException>(()
+                => migrationCommandExecutor.ExecuteNonQuery(commandList, fakeConnection));
         }
 
         Assert.Equal(1, fakeDbConnection.OpenCount);
@@ -377,12 +357,15 @@ public class MigrationCommandExecutorTest
         Assert.Equal(0, fakeDbConnection.DbTransactions[0].RollbackCount);
     }
 
+    private static IMigrationCommandExecutor CreateMigrationCommandExecutor()
+        => FakeRelationalTestHelpers.Instance.CreateContextServices().GetRequiredService<IMigrationCommandExecutor>();
+
     private const string ConnectionString = "Fake Connection String";
 
-    private static FakeRelationalConnection CreateConnection(IDbContextOptions options = null)
+    private static FakeRelationalConnection CreateConnection(IDbContextOptions? options = null)
         => new(options ?? CreateOptions());
 
-    private static IDbContextOptions CreateOptions(RelationalOptionsExtension optionsExtension = null)
+    private static IDbContextOptions CreateOptions(RelationalOptionsExtension? optionsExtension = null)
     {
         var optionsBuilder = new DbContextOptionsBuilder();
 
@@ -396,13 +379,16 @@ public class MigrationCommandExecutorTest
 
     private IRelationalCommand CreateRelationalCommand(
         string commandText = "Command Text",
-        IReadOnlyList<IRelationalParameter> parameters = null)
+        string logCommandText = "Log Command Text",
+        IReadOnlyList<IRelationalParameter>? parameters = null)
         => new RelationalCommand(
             new RelationalCommandBuilderDependencies(
                 new TestRelationalTypeMappingSource(
                     TestServiceFactory.Instance.Create<TypeMappingSourceDependencies>(),
                     TestServiceFactory.Instance.Create<RelationalTypeMappingSourceDependencies>()),
-                new ExceptionDetector()),
+                new ExceptionDetector(),
+                new LoggingOptions()),
             commandText,
-            parameters ?? Array.Empty<IRelationalParameter>());
+            logCommandText,
+            parameters ?? []);
 }

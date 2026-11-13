@@ -7,8 +7,8 @@ public class JoinOneToThreePayloadFull
 {
     public int OneId;
     public int ThreeId;
-    public EntityOne One;
-    public EntityThree Three;
+    public EntityOne One = null!;
+    public EntityThree Three = null!;
 
-    public string Payload;
+    public string? Payload;
 }

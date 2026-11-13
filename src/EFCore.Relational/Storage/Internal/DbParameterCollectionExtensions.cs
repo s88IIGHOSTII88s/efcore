@@ -27,7 +27,7 @@ public static class DbParameterCollectionExtensions
         bool logParameterValues)
         => parameters
             .Cast<DbParameter>()
-            .Select(p => FormatParameter(p, logParameterValues)).Join();
+            .Select(p => p.FormatParameter(logParameterValues)).Join();
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -164,20 +164,25 @@ public static class DbParameterCollectionExtensions
             case IList list:
                 builder.Append("{ ");
 
-                for (var i = 0; i < list.Count; i++)
+                // Note: multi-dimensional arrays implement non-generic IList. They do not support indexing, but do support enumeration.
+                var isFirst = true;
+                foreach (var element in list.Cast<object>().Take(5))
                 {
-                    if (i > 4)
+                    if (isFirst)
                     {
-                        builder.Append("...");
-                        break;
+                        isFirst = false;
                     }
-
-                    FormatParameterValue(builder, list[i]);
-
-                    if (i < list.Count - 1)
+                    else
                     {
                         builder.Append(", ");
                     }
+
+                    FormatParameterValue(builder, element);
+                }
+
+                if (list.Count > 5)
+                {
+                    builder.Append(", ...");
                 }
 
                 builder.Append(" }");
@@ -191,8 +196,7 @@ public static class DbParameterCollectionExtensions
                 {
                     var isNullProperty = type.GetRuntimeProperty("IsNull");
                     if (isNullProperty != null
-                        && isNullProperty.GetValue(parameterValue) is bool isNull
-                        && isNull)
+                        && isNullProperty.GetValue(parameterValue) is true)
                     {
                         builder.Append("''");
                     }
@@ -224,56 +228,36 @@ public static class DbParameterCollectionExtensions
 
         type = type.UnwrapNullableType().UnwrapEnumType();
 
-        switch (dbType)
+        return dbType switch
         {
-            case DbType.Binary:
-                return type != typeof(byte[]);
-            case DbType.Byte:
-                return type != typeof(byte);
-            case DbType.Boolean:
-                return type != typeof(bool);
-            case DbType.Decimal:
-                return type != typeof(decimal);
-            case DbType.Double:
-                return type != typeof(double);
-            case DbType.Guid:
-                return type != typeof(Guid);
-            case DbType.Int16:
-                return type != typeof(short);
-            case DbType.Int32:
-                return type != typeof(int);
-            case DbType.Int64:
-                return type != typeof(long);
-            case DbType.Object:
-                return type != typeof(object);
-            case DbType.SByte:
-                return type != typeof(sbyte);
-            case DbType.Single:
-                return type != typeof(float);
-            case DbType.String:
-                return type != typeof(string);
-            case DbType.Time:
-                return type != typeof(TimeSpan);
-            case DbType.UInt16:
-                return type != typeof(ushort);
-            case DbType.UInt32:
-                return type != typeof(uint);
-            case DbType.UInt64:
-                return type != typeof(ulong);
-            case DbType.DateTime2:
-                return type != typeof(DateTime);
-            case DbType.DateTimeOffset:
-                return type != typeof(DateTimeOffset);
-            //case DbType.AnsiString:
-            //case DbType.VarNumeric:
-            //case DbType.AnsiStringFixedLength:
-            //case DbType.StringFixedLength:
-            //case DbType.Xml:
-            //case DbType.Currency:
-            //case DbType.Date:
-            //case DbType.DateTime:
-            default:
-                return true;
-        }
+            DbType.Binary => type != typeof(byte[]),
+            DbType.Byte => type != typeof(byte),
+            DbType.Boolean => type != typeof(bool),
+            DbType.Decimal => type != typeof(decimal),
+            DbType.Double => type != typeof(double),
+            DbType.Guid => type != typeof(Guid),
+            DbType.Int16 => type != typeof(short),
+            DbType.Int32 => type != typeof(int),
+            DbType.Int64 => type != typeof(long),
+            DbType.Object => type != typeof(object),
+            DbType.SByte => type != typeof(sbyte),
+            DbType.Single => type != typeof(float),
+            DbType.String => type != typeof(string),
+            DbType.Time => type != typeof(TimeSpan),
+            DbType.UInt16 => type != typeof(ushort),
+            DbType.UInt32 => type != typeof(uint),
+            DbType.UInt64 => type != typeof(ulong),
+            DbType.DateTime2 => type != typeof(DateTime),
+            DbType.DateTimeOffset => type != typeof(DateTimeOffset),
+            //DbType.AnsiString =>
+            //DbType.VarNumeric =>
+            //DbType.AnsiStringFixedLength =>
+            //DbType.StringFixedLength =>
+            //DbType.Xml =>
+            //DbType.Currency =>
+            //DbType.Date =>
+            //DbType.DateTime =>
+            _ => true,
+        };
     }
 }

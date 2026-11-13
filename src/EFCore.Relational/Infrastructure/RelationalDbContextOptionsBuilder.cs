@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Microsoft.EntityFrameworkCore.Infrastructure;
 
@@ -26,9 +27,7 @@ public abstract class RelationalDbContextOptionsBuilder<TBuilder, TExtension> : 
     /// </summary>
     /// <param name="optionsBuilder">The core options builder.</param>
     protected RelationalDbContextOptionsBuilder(DbContextOptionsBuilder optionsBuilder)
-    {
-        OptionsBuilder = optionsBuilder;
-    }
+        => OptionsBuilder = optionsBuilder;
 
     /// <summary>
     ///     Gets the core options builder.
@@ -94,7 +93,18 @@ public abstract class RelationalDbContextOptionsBuilder<TBuilder, TExtension> : 
     /// <param name="assemblyName">The name of the assembly.</param>
     /// <returns>The same builder instance so that multiple calls can be chained.</returns>
     public virtual TBuilder MigrationsAssembly(string? assemblyName)
-        => WithOption(e => (TExtension)e.WithMigrationsAssembly(Check.NullButNotEmpty(assemblyName, nameof(assemblyName))));
+        => WithOption(e => (TExtension)e.WithMigrationsAssembly(Check.NullButNotEmpty(assemblyName)));
+
+    /// <summary>
+    ///     Configures the assembly where migrations are maintained for this context.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-migrations">Database migrations</see> for more information and examples.
+    /// </remarks>
+    /// <param name="assembly">The <see cref="Assembly" /> where the migrations are located.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public virtual TBuilder MigrationsAssembly(Assembly assembly)
+        => WithOption(e => (TExtension)e.WithMigrationsAssembly(assembly));
 
     /// <summary>
     ///     Configures the name of the table used to record which migrations have been applied to the database.
@@ -107,8 +117,8 @@ public abstract class RelationalDbContextOptionsBuilder<TBuilder, TExtension> : 
     /// <returns>The same builder instance so that multiple calls can be chained.</returns>
     public virtual TBuilder MigrationsHistoryTable(string tableName, string? schema = null)
     {
-        Check.NotEmpty(tableName, nameof(tableName));
-        Check.NullButNotEmpty(schema, nameof(schema));
+        Check.NotEmpty(tableName);
+        Check.NullButNotEmpty(schema);
 
         return WithOption(e => (TExtension)e.WithMigrationsHistoryTableName(tableName).WithMigrationsHistoryTableSchema(schema));
     }
@@ -145,8 +155,36 @@ public abstract class RelationalDbContextOptionsBuilder<TBuilder, TExtension> : 
     /// <param name="getExecutionStrategy">A function that returns a new instance of an execution strategy.</param>
     public virtual TBuilder ExecutionStrategy(
         Func<ExecutionStrategyDependencies, IExecutionStrategy> getExecutionStrategy)
-        => WithOption(
-            e => (TExtension)e.WithExecutionStrategyFactory(Check.NotNull(getExecutionStrategy, nameof(getExecutionStrategy))));
+        => WithOption(e => (TExtension)e.WithExecutionStrategyFactory(Check.NotNull(getExecutionStrategy)));
+
+    /// <summary>
+    ///     Configures the mode to use when translating parameterized collections.
+    /// </summary>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    public virtual TBuilder UseParameterizedCollectionMode(ParameterTranslationMode parameterizedCollectionMode)
+        => WithOption(e => (TExtension)e.WithUseParameterizedCollectionMode(parameterizedCollectionMode));
+
+    /// <summary>
+    ///     Configures the context to translate aggregates which are projected alongside the elements of a grouping as SQL window
+    ///     functions, e.g. <c>GroupBy(e =&gt; e.Key).Select(g =&gt; new { Elements = g.ToList(), Sum = g.Sum(e =&gt; e.Value) })</c>
+    ///     becomes <c>SUM(Value) OVER (PARTITION BY Key)</c> over the ungrouped rows.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Without this option such a projection groups on the server and then joins the source back to itself to get the elements
+    ///         back, reading everything twice. Projections which this option cannot translate keep that existing translation.
+    ///     </para>
+    ///     <para>
+    ///         This is an experimental API used to gather feedback on
+    ///         <see href="https://github.com/dotnet/efcore/issues/12747">window function support</see>; it may change or be removed in
+    ///         a future release.
+    ///     </para>
+    /// </remarks>
+    /// <param name="useWindowFunctionAggregates"><see langword="true" /> to enable the translation; <see langword="false" /> to disable it.</param>
+    /// <returns>The same builder instance so that multiple calls can be chained.</returns>
+    [Experimental(EFDiagnostics.ExperimentalApi)]
+    public virtual TBuilder UseWindowFunctionAggregates(bool useWindowFunctionAggregates = true)
+        => WithOption(e => (TExtension)e.WithUseWindowFunctionAggregates(useWindowFunctionAggregates));
 
     /// <summary>
     ///     Sets an option by cloning the extension used to store the settings. This ensures the builder

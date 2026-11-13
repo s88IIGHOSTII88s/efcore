@@ -1,10 +1,12 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>$(DefaultNetCoreTargetFramework)</TargetFramework>
     <AssemblyName>Microsoft.EntityFrameworkCore.Cosmos.Tests</AssemblyName>
     <RootNamespace>Microsoft.EntityFrameworkCore.Cosmos</RootNamespace>
     <ImplicitUsings>true</ImplicitUsings>
+    <!-- Avoid referencing EFCore.Relational -->
+    <DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,12 +34,17 @@
     <Using Include="Microsoft.Extensions.Logging" />
     <Using Include="Microsoft.Extensions.DependencyInjection" />
     <Using Include="Xunit" />
-    <Using Include="Xunit.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EFCore.Cosmos.FunctionalTests\EFCore.Cosmos.FunctionalTests.csproj" />
+    <ProjectReference Include="..\..\src\EFCore\EFCore.csproj" />
+    <ProjectReference Include="..\..\src\EFCore.Abstractions\EFCore.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\EFCore.Cosmos\EFCore.Cosmos.csproj" />
+    <ProjectReference Include="..\..\src\EFCore.Design\EFCore.Design.csproj" />
+    <ProjectReference Include="..\..\src\EFCore.Proxies\EFCore.Proxies.csproj" />
+    <ProjectReference Include="..\EFCore.Specification.Tests\EFCore.Specification.Tests.csproj" />
     <ProjectReference Include="..\EFCore.Tests\EFCore.Tests.csproj" />
+    <ProjectReference Include="..\EFCore.Cosmos.FunctionalTests\EFCore.Cosmos.FunctionalTests.csproj" />
   </ItemGroup>
 
 </Project>

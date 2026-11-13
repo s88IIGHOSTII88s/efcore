@@ -36,8 +36,8 @@ public static class InMemoryDbContextOptionsExtensions
         string databaseName,
         Action<InMemoryDbContextOptionsBuilder>? inMemoryOptionsAction = null)
         where TContext : DbContext
-        => (DbContextOptionsBuilder<TContext>)UseInMemoryDatabase(
-            (DbContextOptionsBuilder)optionsBuilder, databaseName, inMemoryOptionsAction);
+        => (DbContextOptionsBuilder<TContext>)((DbContextOptionsBuilder)optionsBuilder).UseInMemoryDatabase(
+            databaseName, inMemoryOptionsAction);
 
     /// <summary>
     ///     Configures the context to connect to a named in-memory database.
@@ -61,7 +61,7 @@ public static class InMemoryDbContextOptionsExtensions
         this DbContextOptionsBuilder optionsBuilder,
         string databaseName,
         Action<InMemoryDbContextOptionsBuilder>? inMemoryOptionsAction = null)
-        => UseInMemoryDatabase(optionsBuilder, databaseName, null, inMemoryOptionsAction);
+        => optionsBuilder.UseInMemoryDatabase(databaseName, null, inMemoryOptionsAction);
 
     /// <summary>
     ///     Configures the context to connect to an in-memory database.
@@ -91,8 +91,8 @@ public static class InMemoryDbContextOptionsExtensions
         InMemoryDatabaseRoot? databaseRoot,
         Action<InMemoryDbContextOptionsBuilder>? inMemoryOptionsAction = null)
         where TContext : DbContext
-        => (DbContextOptionsBuilder<TContext>)UseInMemoryDatabase(
-            (DbContextOptionsBuilder)optionsBuilder, databaseName, databaseRoot, inMemoryOptionsAction);
+        => (DbContextOptionsBuilder<TContext>)((DbContextOptionsBuilder)optionsBuilder).UseInMemoryDatabase(
+            databaseName, databaseRoot, inMemoryOptionsAction);
 
     /// <summary>
     ///     Configures the context to connect to a named in-memory database.
@@ -121,8 +121,8 @@ public static class InMemoryDbContextOptionsExtensions
         InMemoryDatabaseRoot? databaseRoot,
         Action<InMemoryDbContextOptionsBuilder>? inMemoryOptionsAction = null)
     {
-        Check.NotNull(optionsBuilder, nameof(optionsBuilder));
-        Check.NotEmpty(databaseName, nameof(databaseName));
+        Check.NotNull(optionsBuilder);
+        Check.NotEmpty(databaseName);
 
         var extension = optionsBuilder.Options.FindExtension<InMemoryOptionsExtension>()
             ?? new InMemoryOptionsExtension();

@@ -1,8 +1,7 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Castle.DynamicProxy;
-using Castle.DynamicProxy.Generators;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
@@ -10,7 +9,7 @@ namespace Microsoft.EntityFrameworkCore;
 
 public class ProxyTests
 {
-    [ConditionalFact]
+    [Fact]
     public void Materialization_uses_parameterless_constructor()
     {
         using (var context = new NeweyContext(nameof(Materialization_uses_parameterless_constructor)))
@@ -25,7 +24,7 @@ public class ProxyTests
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Materialization_uses_parameterized_constructor()
     {
         using (var context = new NeweyContext(nameof(Materialization_uses_parameterized_constructor)))
@@ -44,7 +43,7 @@ public class ProxyTests
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Materialization_uses_parameterized_constructor_taking_context()
     {
         using (var context = new NeweyContext(nameof(Materialization_uses_parameterized_constructor_taking_context)))
@@ -64,7 +63,7 @@ public class ProxyTests
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CreateProxy_works_for_shared_type_entity_types()
     {
         using var context = new NeweyContext();
@@ -73,7 +72,7 @@ public class ProxyTests
         Assert.Same(typeof(SharedTypeEntityType), context.Set<SharedTypeEntityType>("STET1").CreateProxy(_ => { }).GetType().BaseType);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CreateProxy_works_for_record_with_base_type_entity_types()
     {
         using var context = new NeweyContext();
@@ -82,7 +81,7 @@ public class ProxyTests
         Assert.Same(typeof(March86C), context.Set<March86C>().CreateProxy(_ => { }).GetType().BaseType);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CreateProxy_throws_for_shared_type_entity_types_when_entity_type_name_not_known()
     {
         using var context = new NeweyContext();
@@ -100,7 +99,7 @@ public class ProxyTests
             Assert.Throws<InvalidOperationException>(() => context.CreateProxy(typeof(SharedTypeEntityType))).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CreateProxy_works_for_owned_but_not_weak_entity_types()
     {
         using var context = new NeweyContext();
@@ -110,14 +109,14 @@ public class ProxyTests
         Assert.Same(typeof(IsOwnedButNotWeak), context.CreateProxy(typeof(IsOwnedButNotWeak)).GetType().BaseType);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CreateProxy_uses_parameterless_constructor()
     {
         using var context = new NeweyContext();
         Assert.Same(typeof(March82GGtp), context.CreateProxy<March82GGtp>().GetType().BaseType);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CreateProxy_uses_parameterized_constructor()
     {
         using var context = new NeweyContext();
@@ -128,7 +127,7 @@ public class ProxyTests
         Assert.Equal("Leyton House", proxy.Sponsor);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CreateProxy_uses_parameterized_constructor_taking_context()
     {
         using var context = new NeweyContext();
@@ -140,7 +139,7 @@ public class ProxyTests
         Assert.Equal("Canon", proxy.Sponsor);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Proxies_only_created_if_Use_called()
     {
         using (var context = new NeweyContext(nameof(Proxies_only_created_if_Use_called), false))
@@ -170,7 +169,7 @@ public class ProxyTests
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Proxy_services_must_be_available()
     {
         var withoutProxies = new ServiceCollection()
@@ -197,70 +196,66 @@ public class ProxyTests
         {
             Assert.Equal(
                 ProxiesStrings.ProxyServicesMissing,
-                Assert.Throws<InvalidOperationException>(
-                    () => context.Model).Message);
+                Assert.Throws<InvalidOperationException>(() => context.Model).Message);
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Throws_if_type_not_available_to_Castle()
     {
         using var context = new NeweyContextN4();
-        Assert.Throws<GeneratorException>(() => context.CreateProxy<McLarenMp421>());
+        Assert.Throws<ArgumentException>(() => context.CreateProxy<McLarenMp421>());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Throws_if_constructor_not_available_to_Castle()
     {
         using var context = new NeweyContextN5();
-        Assert.Throws<InvalidProxyConstructorArgumentsException>(() => context.CreateProxy<RedBullRb3>());
+        Assert.Throws<ArgumentException>(() => context.CreateProxy<RedBullRb3>());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CreateProxy_throws_if_constructor_args_do_not_match()
     {
         using var context = new NeweyContext();
-        Assert.Throws<InvalidProxyConstructorArgumentsException>(() => context.CreateProxy<March881>(77, 88));
+        Assert.Throws<ArgumentException>(() => context.CreateProxy<March881>(77, 88));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CreateProxy_throws_if_wrong_number_of_constructor_args()
     {
         using var context = new NeweyContext();
-        Assert.Throws<InvalidProxyConstructorArgumentsException>(() => context.CreateProxy<March881>(77, 88, 99));
+        Assert.Throws<ArgumentException>(() => context.CreateProxy<March881>(77, 88, 99));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Throws_if_create_proxy_for_non_mapped_type()
     {
         using var context = new NeweyContextN();
         Assert.Equal(
             CoreStrings.EntityTypeNotFound(nameof(RedBullRb3)),
-            Assert.Throws<InvalidOperationException>(
-                () => context.CreateProxy<RedBullRb3>()).Message);
+            Assert.Throws<InvalidOperationException>(() => context.CreateProxy<RedBullRb3>()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Throws_if_create_proxy_when_proxies_not_used()
     {
         using var context = new NeweyContextN6();
         Assert.Equal(
             ProxiesStrings.ProxiesNotEnabled(nameof(RedBullRb3)),
-            Assert.Throws<InvalidOperationException>(
-                () => context.CreateProxy<RedBullRb3>()).Message);
+            Assert.Throws<InvalidOperationException>(() => context.CreateProxy<RedBullRb3>()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Throws_if_create_proxy_when_proxies_not_enabled()
     {
         using var context = new NeweyContextN7();
         Assert.Equal(
             ProxiesStrings.ProxiesNotEnabled(nameof(RedBullRb3)),
-            Assert.Throws<InvalidOperationException>(
-                () => context.CreateProxy<RedBullRb3>()).Message);
+            Assert.Throws<InvalidOperationException>(() => context.CreateProxy<RedBullRb3>()).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Throws_if_attempt_to_create_EntityType_based_on_proxy_class()
     {
         var model = new Model();
@@ -269,54 +264,40 @@ public class ProxyTests
 
         Assert.Equal(
             CoreStrings.AddingProxyTypeAsEntityType("Castle.Proxies.ClassToBeProxiedProxy"),
-            Assert.Throws<ArgumentException>(
-                () => new EntityType(proxy.GetType(), model, owned: false, ConfigurationSource.Explicit)).Message);
+            Assert.Throws<ArgumentException>(() => new EntityType(proxy.GetType(), model, owned: false, ConfigurationSource.Explicit))
+                .Message);
     }
 
     // tests scenario in https://github.com/dotnet/efcore/issues/15958
-    [ConditionalFact]
+    [Fact]
     public void Throws_if_attempt_to_add_proxy_type_to_model_builder()
         => Assert.Equal(
             CoreStrings.AddingProxyTypeAsEntityType("Castle.Proxies.ClassToBeProxiedProxy"),
-            Assert.Throws<ArgumentException>(
-                () =>
-                {
-                    var context = new CannotAddProxyTypeToModel();
-                    context.Set<ClassToBeProxied>().Add(new ClassToBeProxied { Id = 0 });
-                }).Message);
+            Assert.Throws<ArgumentException>(() =>
+            {
+                var context = new CannotAddProxyTypeToModel();
+                context.Set<ClassToBeProxied>().Add(new ClassToBeProxied { Id = 0 });
+            }).Message);
 
     public class March82GGtp
     {
         public virtual int Id { get; set; }
     }
 
-    public class March881
+    public class March881(int id, string sponsor)
     {
-        public March881(int id, string sponsor)
-        {
-            Id = id;
-            Sponsor = sponsor;
-        }
+        public virtual int Id { get; set; } = id;
 
-        public virtual int Id { get; set; }
-
-        public virtual string Sponsor { get; set; }
+        public virtual string Sponsor { get; set; } = sponsor;
     }
 
-    public class WilliamsFw14
+    public class WilliamsFw14(DbContext context, int id, string sponsor)
     {
-        public WilliamsFw14(DbContext context, int id, string sponsor)
-        {
-            Context = context;
-            Id = id;
-            Sponsor = sponsor;
-        }
+        public DbContext Context { get; set; } = context;
 
-        public DbContext Context { get; set; }
+        public virtual int Id { get; set; } = id;
 
-        public virtual int Id { get; set; }
-
-        public virtual string Sponsor { get; set; }
+        public virtual string Sponsor { get; set; } = sponsor;
     }
 
     public class SharedTypeEntityType
@@ -328,61 +309,45 @@ public class ProxyTests
     {
         public virtual int Id { get; set; }
 
-        public virtual IsOwnedButNotWeak Owned { get; set; }
+        public virtual IsOwnedButNotWeak? Owned { get; set; }
 
-        public virtual IsWeak Weak1 { get; set; }
-        public virtual IsWeak Weak2 { get; set; }
+        public virtual IsWeak? Weak1 { get; set; }
+        public virtual IsWeak? Weak2 { get; set; }
     }
 
     [Owned]
-    public class IsWeak
-    {
-    }
+    public class IsWeak;
 
     [Owned]
-    public class IsOwnedButNotWeak
-    {
-    }
+    public class IsOwnedButNotWeak;
 
     public record March86C : IndyCar
     {
         public virtual int Id { get; init; }
     }
 
-    public record IndyCar
-    {
-    }
+    public record IndyCar;
 
-    private class NeweyContext : DbContext
+    private class NeweyContext(string? dbName = null, bool useLazyLoading = true, bool useChangeDetection = false) : DbContext
     {
-        private readonly IServiceProvider _internalServiceProvider;
+        private readonly IServiceProvider _internalServiceProvider
+            = new ServiceCollection()
+                .AddEntityFrameworkInMemoryDatabase()
+                .AddEntityFrameworkProxies()
+                .BuildServiceProvider(validateScopes: true);
+
         private static readonly InMemoryDatabaseRoot _dbRoot = new();
-        private readonly bool _useLazyLoadingProxies;
-        private readonly bool _useChangeDetectionProxies;
-        private readonly string _dbName;
-
-        public NeweyContext(string dbName = null, bool useLazyLoading = true, bool useChangeDetection = false)
-        {
-            _internalServiceProvider
-                = new ServiceCollection()
-                    .AddEntityFrameworkInMemoryDatabase()
-                    .AddEntityFrameworkProxies()
-                    .BuildServiceProvider(validateScopes: true);
-
-            _dbName = dbName;
-            _useLazyLoadingProxies = useLazyLoading;
-            _useChangeDetectionProxies = useChangeDetection;
-        }
+        private readonly bool _useLazyLoadingProxies = useLazyLoading;
+        private readonly bool _useChangeDetectionProxies = useChangeDetection;
+        private readonly string? _dbName = dbName;
 
         public NeweyContext(
             IServiceProvider internalServiceProvider,
-            string dbName = null,
+            string? dbName = null,
             bool useLazyLoading = true,
             bool useChangeDetection = false)
             : this(dbName, useLazyLoading, useChangeDetection)
-        {
-            _internalServiceProvider = internalServiceProvider;
-        }
+            => _internalServiceProvider = internalServiceProvider;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -408,19 +373,17 @@ public class ProxyTests
         {
             modelBuilder.Entity<March82GGtp>();
 
-            modelBuilder.Entity<March881>(
-                b =>
-                {
-                    b.Property(e => e.Id);
-                    b.Property(e => e.Sponsor);
-                });
+            modelBuilder.Entity<March881>(b =>
+            {
+                b.Property(e => e.Id);
+                b.Property(e => e.Sponsor);
+            });
 
-            modelBuilder.Entity<WilliamsFw14>(
-                b =>
-                {
-                    b.Property(e => e.Id);
-                    b.Property(e => e.Sponsor);
-                });
+            modelBuilder.Entity<WilliamsFw14>(b =>
+            {
+                b.Property(e => e.Id);
+                b.Property(e => e.Sponsor);
+            });
 
             modelBuilder.SharedTypeEntity<SharedTypeEntityType>("STET1");
             modelBuilder.SharedTypeEntity<SharedTypeEntityType>("STET2");
@@ -508,7 +471,7 @@ public class ProxyTests
 
     private class CannotAddProxyTypeToModel : DbContext
     {
-        public DbSet<ClassToBeProxied> _entityToBeProxied { get; set; }
+        public DbSet<ClassToBeProxied> _entityToBeProxied { get; set; } = null!;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder

@@ -10,21 +10,14 @@ using System.ComponentModel.DataAnnotations.Schema;
 // ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
+public abstract class FieldMappingTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : FieldMappingTestBase<TFixture>.FieldMappingFixtureBase, new()
 {
-    protected FieldMappingTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
-
-    protected TFixture Fixture { get; }
+    protected TFixture Fixture { get; } = fixture;
 
     protected static AsyncLocal<bool> _isSeeding = new();
 
-    protected interface IUser2
-    {
-    }
+    protected interface IUser2;
 
     protected class User2 : IUser2
     {
@@ -33,9 +26,9 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
 
     protected class LoginSession
     {
-        private object _id;
-        private IUser2 _user;
-        private object _users;
+        private object _id = null!;
+        private IUser2 _user = null!;
+        private object _users = null!;
 
         public int Id
         {
@@ -56,7 +49,7 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Field_mapping_with_conversion_does_not_throw()
     {
         using var context = CreateContext();
@@ -65,7 +58,7 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
         var entry = context.Entry(session);
 
         Assert.Same(session.User, entry.Reference(e => e.User).CurrentValue);
-        Assert.Same(session.Users.Single(), entry.Collection(e => e.Users).CurrentValue.Single());
+        Assert.Same(session.Users.Single(), entry.Collection(e => e.Users).CurrentValue!.Single());
         Assert.Equal(session.Id, entry.Property(e => e.Id).CurrentValue);
         Assert.Equal(session.Id, entry.Property(e => e.Id).OriginalValue);
 
@@ -87,669 +80,535 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
         Assert.Equal(78, newSession.Id);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Simple_query_auto_props(bool tracking)
     {
         using var context = CreateContext();
         AssertBlogs(context.Set<BlogAuto>().AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_collection_auto_props(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<BlogAuto>().Include(e => e.Posts).AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_reference_auto_props(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<PostAuto>().Include(e => e.Blog).AsTracking(tracking).ToList(), tracking);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_collection_auto_props()
         => Load_collection<BlogAuto>("Posts");
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_reference_auto_props()
         => Load_reference<PostAuto>("Blog");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_constant_auto_props(bool tracking)
         => Query_with_conditional_constant<PostAuto>("BlogId", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_param_auto_props(bool tracking)
         => Query_with_conditional_param<PostAuto>("Title", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Projection_auto_props(bool tracking)
         => Projection<PostAuto>("Id", "Title", tracking);
 
-    [ConditionalFact]
-    public virtual void Update_auto_props()
-        => Update<BlogAuto>("Posts");
+    [Fact]
+    public virtual Task Update_auto_props()
+        => UpdateAsync<BlogAuto>("Posts");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Simple_query_hiding_props(bool tracking)
     {
         using var context = CreateContext();
         AssertBlogs(context.Set<BlogHiding>().AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_collection_hiding_props(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<BlogHiding>().Include(e => e.Posts).AsTracking(tracking).ToList());
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Can_define_a_backing_field_for_a_navigation_and_query_and_update_it()
     {
-        using (var context = CreateContext())
+        using var context = CreateContext();
+        var principal = context.Set<OneToOneFieldNavPrincipal>().OrderBy(e => e.Id).First();
+        var dependent1 = new NavDependent
         {
-            var principal = context.Set<OneToOneFieldNavPrincipal>().OrderBy(e => e.Id).First();
-            var dependent1 = new NavDependent
-            {
-                Id = 1,
-                Name = "FirstName",
-                OneToOneFieldNavPrincipal = principal
-            };
-            context.Set<NavDependent>().Add(dependent1);
-            context.SaveChanges();
+            Id = 1,
+            Name = "FirstName",
+            OneToOneFieldNavPrincipal = principal
+        };
+        context.Set<NavDependent>().Add(dependent1);
+        context.SaveChanges();
 
-            var dependentName =
-                context.Set<OneToOneFieldNavPrincipal>().OrderBy(e => e.Id).Select(p => p.Dependent.Name).First();
+        var dependentName =
+            context.Set<OneToOneFieldNavPrincipal>().OrderBy(e => e.Id).Select(p => p.Dependent.Name).First();
 
-            Assert.Equal("FirstName", dependentName);
+        Assert.Equal("FirstName", dependentName);
 
-            // use the backing field directly
-            var dependent2 = new NavDependent
-            {
-                Id = 2,
-                Name = "SecondName",
-                OneToOneFieldNavPrincipal = principal
-            };
-            principal._unconventionalDependent = dependent2;
-            context.SaveChanges();
+        // use the backing field directly
+        var dependent2 = new NavDependent
+        {
+            Id = 2,
+            Name = "SecondName",
+            OneToOneFieldNavPrincipal = principal
+        };
+        principal._unconventionalDependent = dependent2;
+        context.SaveChanges();
 
-            dependentName =
-                context.Set<OneToOneFieldNavPrincipal>().OrderBy(e => e.Id).Select(p => p.Dependent.Name).First();
+        dependentName =
+            context.Set<OneToOneFieldNavPrincipal>().OrderBy(e => e.Id).Select(p => p.Dependent.Name).First();
 
-            Assert.Equal("SecondName", dependentName);
-        }
+        Assert.Equal("SecondName", dependentName);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_reference_hiding_props(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<PostHiding>().Include(e => e.Blog).AsTracking(tracking).ToList(), tracking);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_collection_hiding_props()
         => Load_collection<BlogHiding>("Posts");
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_reference_hiding_props()
         => Load_reference<PostHiding>("Blog");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_constant_hiding_props(bool tracking)
         => Query_with_conditional_constant<PostHiding>("BlogId", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_param_hiding_props(bool tracking)
         => Query_with_conditional_param<PostHiding>("Title", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Projection_hiding_props(bool tracking)
         => Projection<PostHiding>("Id", "Title", tracking);
 
-    [ConditionalFact]
-    public virtual void Update_hiding_props()
-        => Update<BlogHiding>("Posts");
+    [Fact]
+    public virtual Task Update_hiding_props()
+        => UpdateAsync<BlogHiding>("Posts");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Simple_query_full_props(bool tracking)
     {
         using var context = CreateContext();
         AssertBlogs(context.Set<BlogFull>().AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_collection_full_props(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<BlogFull>().Include(e => e.Posts).AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_reference_full_props(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<PostFull>().Include(e => e.Blog).AsTracking(tracking).ToList(), tracking);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_collection_full_props()
         => Load_collection<BlogFull>("Posts");
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_reference_full_props()
         => Load_reference<PostFull>("Blog");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_constant_full_props(bool tracking)
         => Query_with_conditional_constant<PostFull>("BlogId", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_param_full_props(bool tracking)
         => Query_with_conditional_param<PostFull>("Title", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Projection_full_props(bool tracking)
         => Projection<PostFull>("Id", "Title", tracking);
 
-    [ConditionalFact]
-    public virtual void Update_full_props()
-        => Update<BlogFull>("Posts");
+    [Fact]
+    public virtual Task Update_full_props()
+        => UpdateAsync<BlogFull>("Posts");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Simple_query_full_props_with_named_fields(bool tracking)
     {
         using var context = CreateContext();
         AssertBlogs(context.Set<BlogFullExplicit>().AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_collection_full_props_with_named_fields(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<BlogFullExplicit>().Include(e => e.Posts).AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_reference_full_props_with_named_fields(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<PostFullExplicit>().Include(e => e.Blog).AsTracking(tracking).ToList(), tracking);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_collection_full_props_with_named_fields()
         => Load_collection<BlogFullExplicit>("Posts");
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_reference_full_props_with_named_fields()
         => Load_reference<PostFullExplicit>("Blog");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_constant_full_props_with_named_fields(bool tracking)
         => Query_with_conditional_constant<PostFullExplicit>("BlogId", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_param_full_props_with_named_fields(bool tracking)
         => Query_with_conditional_param<PostFullExplicit>("Title", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Projection_full_props_with_named_fields(bool tracking)
         => Projection<PostFullExplicit>("Id", "Title", tracking);
 
-    [ConditionalFact]
-    public virtual void Update_full_props_with_named_fields()
-        => Update<BlogFullExplicit>("Posts");
+    [Fact]
+    public virtual Task Update_full_props_with_named_fields()
+        => UpdateAsync<BlogFullExplicit>("Posts");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Simple_query_read_only_props(bool tracking)
     {
         using var context = CreateContext();
         AssertBlogs(context.Set<BlogReadOnly>().AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_collection_read_only_props(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<BlogReadOnly>().Include(e => e.Posts).AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_reference_read_only_props(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<PostReadOnly>().Include(e => e.Blog).AsTracking(tracking).ToList(), tracking);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_collection_read_only_props()
         => Load_collection<BlogReadOnly>("Posts");
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_reference_read_only_props()
         => Load_reference<PostReadOnly>("Blog");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_constant_read_only_props(bool tracking)
         => Query_with_conditional_constant<PostReadOnly>("BlogId", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_param_read_only_props(bool tracking)
         => Query_with_conditional_param<PostReadOnly>("Title", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Projection_read_only_props(bool tracking)
         => Projection<PostReadOnly>("Id", "Title", tracking);
 
-    [ConditionalFact]
-    public virtual void Update_read_only_props()
-        => Update<BlogReadOnly>("Posts");
+    [Fact]
+    public virtual Task Update_read_only_props()
+        => UpdateAsync<BlogReadOnly>("Posts");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Simple_query_props_with_IReadOnlyCollection(bool tracking)
     {
         using var context = CreateContext();
         AssertBlogs(context.Set<BlogWithReadOnlyCollection>().AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_collection_props_with_IReadOnlyCollection(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<BlogWithReadOnlyCollection>().Include(e => e.Posts).AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_reference_props_with_IReadOnlyCollection(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<PostWithReadOnlyCollection>().Include(e => e.Blog).AsTracking(tracking).ToList(), tracking);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_collection_props_with_IReadOnlyCollection()
         => Load_collection<BlogWithReadOnlyCollection>("Posts");
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_reference_props_with_IReadOnlyCollection()
         => Load_reference<PostWithReadOnlyCollection>("Blog");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_constant_props_with_IReadOnlyCollection(bool tracking)
         => Query_with_conditional_constant<PostWithReadOnlyCollection>("BlogId", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_param_props_with_IReadOnlyCollection(bool tracking)
         => Query_with_conditional_param<PostWithReadOnlyCollection>("Title", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Projection_props_with_IReadOnlyCollection(bool tracking)
         => Projection<PostWithReadOnlyCollection>("Id", "Title", tracking);
 
-    [ConditionalFact]
-    public virtual void Update_props_with_IReadOnlyCollection()
-        => Update<BlogWithReadOnlyCollection>("Posts");
+    [Fact]
+    public virtual Task Update_props_with_IReadOnlyCollection()
+        => UpdateAsync<BlogWithReadOnlyCollection>("Posts");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Simple_query_read_only_props_with_named_fields(bool tracking)
     {
         using var context = CreateContext();
         AssertBlogs(context.Set<BlogReadOnlyExplicit>().AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_collection_read_only_props_with_named_fields(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<BlogReadOnlyExplicit>().Include(e => e.Posts).AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_reference_read_only_props_with_named_fields(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<PostReadOnlyExplicit>().Include(e => e.Blog).AsTracking(tracking).ToList(), tracking);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_collection_read_only_props_with_named_fields()
         => Load_collection<BlogReadOnlyExplicit>("Posts");
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_reference_read_only_props_with_named_fields()
         => Load_reference<PostReadOnlyExplicit>("Blog");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_constant_read_only_props_with_named_fields(bool tracking)
         => Query_with_conditional_constant<PostReadOnlyExplicit>("BlogId", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_param_read_only_props_with_named_fields(bool tracking)
         => Query_with_conditional_param<PostReadOnlyExplicit>("Title", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Projection_read_only_props_with_named_fields(bool tracking)
         => Projection<PostReadOnlyExplicit>("Id", "Title", tracking);
 
-    [ConditionalFact]
-    public virtual void Update_read_only_props_with_named_fields()
-        => Update<BlogReadOnlyExplicit>("Posts");
+    [Fact]
+    public virtual Task Update_read_only_props_with_named_fields()
+        => UpdateAsync<BlogReadOnlyExplicit>("Posts");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Simple_query_write_only_props(bool tracking)
     {
         using var context = CreateContext();
         AssertBlogs(context.Set<BlogWriteOnly>().AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_collection_write_only_props(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<BlogWriteOnly>().Include("Posts").AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_reference_write_only_props(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<PostWriteOnly>().Include("Blog").AsTracking(tracking).ToList(), tracking);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_collection_write_only_props()
         => Load_collection<BlogWriteOnly>("Posts");
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_reference_write_only_props()
         => Load_reference<PostWriteOnly>("Blog");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_constant_write_only_props(bool tracking)
         => Query_with_conditional_constant<PostWriteOnly>("BlogId", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_param_write_only_props(bool tracking)
         => Query_with_conditional_param<PostWriteOnly>("Title", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Projection_write_only_props(bool tracking)
         => Projection<PostWriteOnly>("Id", "Title", tracking);
 
-    [ConditionalFact]
-    public virtual void Update_write_only_props()
-        => Update<BlogWriteOnly>("Posts");
+    [Fact]
+    public virtual Task Update_write_only_props()
+        => UpdateAsync<BlogWriteOnly>("Posts");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Simple_query_write_only_props_with_named_fields(bool tracking)
     {
         using var context = CreateContext();
         AssertBlogs(context.Set<BlogWriteOnlyExplicit>().AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_collection_write_only_props_with_named_fields(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<BlogWriteOnlyExplicit>().Include("Posts").AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_reference_write_only_props_with_named_fields(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<PostWriteOnlyExplicit>().Include("Blog").AsTracking(tracking).ToList(), tracking);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_collection_write_only_props_with_named_fields()
         => Load_collection<BlogWriteOnlyExplicit>("Posts");
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_reference_write_only_props_with_named_fields()
         => Load_reference<PostWriteOnlyExplicit>("Blog");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_constant_write_only_props_with_named_fields(bool tracking)
         => Query_with_conditional_constant<PostWriteOnlyExplicit>("BlogId", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_param_write_only_props_with_named_fields(bool tracking)
         => Query_with_conditional_param<PostWriteOnlyExplicit>("Title", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Projection_write_only_props_with_named_fields(bool tracking)
         => Projection<PostWriteOnlyExplicit>("Id", "Title", tracking);
 
-    [ConditionalFact]
-    public virtual void Update_write_only_props_with_named_fields()
-        => Update<BlogWriteOnlyExplicit>("Posts");
+    [Fact]
+    public virtual Task Update_write_only_props_with_named_fields()
+        => UpdateAsync<BlogWriteOnlyExplicit>("Posts");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Simple_query_fields_only(bool tracking)
     {
         using var context = CreateContext();
         AssertBlogs(context.Set<BlogFields>().AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_collection_fields_only(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<BlogFields>().Include(e => e.Posts).AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_reference_fields_only(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<PostFields>().Include(e => e.Blog).AsTracking(tracking).ToList(), tracking);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_collection_fields_only()
         => Load_collection<BlogFields>("Posts");
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_reference_fields_only()
         => Load_reference<PostFields>("Blog");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_constant_fields_only(bool tracking)
         => Query_with_conditional_constant<PostFields>("_blogId", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_param_fields_only(bool tracking)
         => Query_with_conditional_param<PostFields>("_title", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Projection_fields_only(bool tracking)
         => Projection<PostFields>("_id", "_title", tracking);
 
-    [ConditionalFact]
-    public virtual void Update_fields_only()
-        => Update<BlogFields>("Posts");
+    [Fact]
+    public virtual Task Update_fields_only()
+        => UpdateAsync<BlogFields>("Posts");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Simple_query_fields_only_for_navs_too(bool tracking)
     {
         using var context = CreateContext();
         AssertBlogs(context.Set<BlogNavFields>().AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_collection_fields_only_for_navs_too(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<BlogNavFields>().Include("_posts").AsTracking(tracking).ToList());
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Include_reference_fields_only_only_for_navs_too(bool tracking)
     {
         using var context = CreateContext();
         AssertGraph(context.Set<PostNavFields>().Include("_blog").AsTracking(tracking).ToList(), tracking);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_collection_fields_only_only_for_navs_too()
         => Load_collection<BlogNavFields>("_posts");
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Load_reference_fields_only_only_for_navs_too()
         => Load_reference<PostNavFields>("_blog");
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_constant_fields_only_only_for_navs_too(bool tracking)
         => Query_with_conditional_constant<PostNavFields>("_blogId", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Query_with_conditional_param_fields_only_only_for_navs_too(bool tracking)
         => Query_with_conditional_param<PostNavFields>("_title", tracking);
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public virtual void Projection_fields_only_only_for_navs_too(bool tracking)
         => Projection<PostNavFields>("_id", "_title", tracking);
 
-    [ConditionalFact]
-    public virtual void Update_fields_only_only_for_navs_too()
-        => Update<BlogNavFields>("_posts");
+    [Fact]
+    public virtual Task Update_fields_only_only_for_navs_too()
+        => UpdateAsync<BlogNavFields>("_posts");
 
     protected virtual void Load_collection<TBlog>(string navigation)
         where TBlog : class, IBlogAccessor, new()
@@ -814,8 +673,8 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
         where TPost : class, IPostAccessor, new()
     {
         using var context = CreateContext();
-        var posts = context.Set<TPost>().Select(
-                p => new { Prop1 = EF.Property<int>(p, property1), Prop2 = EF.Property<string>(p, property2) }).AsTracking(tracking)
+        var posts = context.Set<TPost>()
+            .Select(p => new { Prop1 = EF.Property<int>(p, property1), Prop2 = EF.Property<string>(p, property2) }).AsTracking(tracking)
             .ToList();
 
         Assert.Equal(4, posts.Count);
@@ -826,17 +685,16 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
         Assert.Equal("Post21", posts.Single(e => e.Prop1 == 21).Prop2);
     }
 
-    protected virtual void Update<TBlog>(string navigation)
+    protected virtual Task UpdateAsync<TBlog>(string navigation)
         where TBlog : class, IBlogAccessor, new()
-        => TestHelpers.ExecuteWithStrategyInTransaction(
-            CreateContext, UseTransaction,
-            context =>
+        => TestHelpers.ExecuteWithStrategyInTransactionAsync(
+            CreateContext, UseTransaction, async context =>
             {
-                var blogs = context.Set<TBlog>().ToList();
+                var blogs = await context.Set<TBlog>().ToListAsync();
 
                 foreach (var blog in blogs)
                 {
-                    context.Entry(blog).Collection(navigation).Load();
+                    await context.Entry(blog).Collection(navigation).LoadAsync();
 
                     blog.AccessTitle += "Updated";
 
@@ -848,17 +706,16 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
 
                 AssertGraph(blogs, "Updated");
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
 
                 AssertGraph(blogs, "Updated");
-            },
-            context =>
+            }, async context =>
             {
                 var blogs = context.Set<TBlog>().ToList();
 
                 foreach (var blog in blogs)
                 {
-                    context.Entry(blog).Collection(navigation).Load();
+                    await context.Entry(blog).Collection(navigation).LoadAsync();
                 }
 
                 AssertGraph(blogs, "Updated");
@@ -939,8 +796,8 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id { get; set; }
 
-        public string Title { get; set; }
-        public IEnumerable<PostAuto> Posts { get; set; }
+        public string Title { get; set; } = null!;
+        public IEnumerable<PostAuto> Posts { get; set; } = null!;
 
         int IBlogAccessor.AccessId
         {
@@ -966,10 +823,10 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id { get; set; }
 
-        public string Title { get; set; }
+        public string Title { get; set; } = null!;
 
         public int BlogId { get; set; }
-        public BlogAuto Blog { get; set; }
+        public BlogAuto Blog { get; set; } = null!;
 
         int IPostAccessor.AccessId
         {
@@ -999,9 +856,9 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class BlogFull : IBlogAccessor
     {
         private int _id;
-        private string _title;
+        private string _title = null!;
 #pragma warning disable 649
-        private List<PostFull> _posts;
+        private List<PostFull> _posts = null!;
 #pragma warning restore 649
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
@@ -1053,10 +910,10 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class PostFull : IPostAccessor
     {
         private int _id;
-        private string _title;
+        private string _title = null!;
         private int _blogId;
 #pragma warning disable 649
-        private BlogFull _blog;
+        private BlogFull _blog = null!;
 #pragma warning restore 649
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
@@ -1122,8 +979,8 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         private int _id;
 
-        private string _title;
-        private IList<PostNavFields> _posts;
+        private string _title = null!;
+        private IList<PostNavFields> _posts = null!;
 
         int IBlogAccessor.AccessId
         {
@@ -1149,10 +1006,10 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         private int _id;
 
-        private string _title;
+        private string _title = null!;
         private int _blogId;
 
-        private BlogNavFields _blog;
+        private BlogNavFields _blog = null!;
 
         int IPostAccessor.AccessId
         {
@@ -1182,8 +1039,8 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class BlogFullExplicit : IBlogAccessor
     {
         private int _myid;
-        private string _mytitle;
-        private IList<PostFullExplicit> _myposts;
+        private string _mytitle = null!;
+        private IList<PostFullExplicit> _myposts = null!;
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id
@@ -1226,9 +1083,9 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class PostFullExplicit : IPostAccessor
     {
         private int _myid;
-        private string _mytitle;
+        private string _mytitle = null!;
         private int _myblogId;
-        private BlogFullExplicit _myblog;
+        private BlogFullExplicit _myblog = null!;
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id
@@ -1283,8 +1140,8 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class BlogReadOnly : IBlogAccessor
     {
         private int _id;
-        private string _title;
-        private ObservableCollection<PostReadOnly> _posts;
+        private string _title = null!;
+        private ObservableCollection<PostReadOnly> _posts = null!;
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id
@@ -1318,9 +1175,9 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class PostReadOnly : IPostAccessor
     {
         private int _id;
-        private string _title;
+        private string _title = null!;
         private int _blogId;
-        private BlogReadOnly _blog;
+        private BlogReadOnly _blog = null!;
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id
@@ -1363,8 +1220,8 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class BlogWithReadOnlyCollection : IBlogAccessor
     {
         private int _id;
-        private string _title;
-        private ICollection<PostWithReadOnlyCollection> _posts;
+        private string _title = null!;
+        private ICollection<PostWithReadOnlyCollection> _posts = null!;
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id
@@ -1398,9 +1255,9 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class PostWithReadOnlyCollection : IPostAccessor
     {
         private int _id;
-        private string _title;
+        private string _title = null!;
         private int _blogId;
-        private BlogWithReadOnlyCollection _blog;
+        private BlogWithReadOnlyCollection _blog = null!;
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id
@@ -1443,8 +1300,8 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class BlogReadOnlyExplicit : IBlogAccessor
     {
         private int _myid;
-        private string _mytitle;
-        private Collection<PostReadOnlyExplicit> _myposts;
+        private string _mytitle = null!;
+        private Collection<PostReadOnlyExplicit> _myposts = null!;
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id
@@ -1478,9 +1335,9 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class PostReadOnlyExplicit : IPostAccessor
     {
         private int _myid;
-        private string _mytitle;
+        private string _mytitle = null!;
         private int _myblogId;
-        private BlogReadOnlyExplicit _myblog;
+        private BlogReadOnlyExplicit _myblog = null!;
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id
@@ -1523,8 +1380,8 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class BlogWriteOnly : IBlogAccessor
     {
         private int _id;
-        private string _title;
-        private IEnumerable<PostWriteOnly> _posts;
+        private string _title = null!;
+        private IEnumerable<PostWriteOnly> _posts = null!;
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id
@@ -1565,9 +1422,9 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class PostWriteOnly : IPostAccessor
     {
         private int _id;
-        private string _title;
+        private string _title = null!;
         private int _blogId;
-        private BlogWriteOnly _blog;
+        private BlogWriteOnly _blog = null!;
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id
@@ -1618,8 +1475,8 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class BlogWriteOnlyExplicit : IBlogAccessor
     {
         private int _myid;
-        private string _mytitle;
-        private ICollection<PostWriteOnlyExplicit> _myposts;
+        private string _mytitle = null!;
+        private ICollection<PostWriteOnlyExplicit> _myposts = null!;
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id
@@ -1659,9 +1516,9 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     protected class PostWriteOnlyExplicit : IPostAccessor
     {
         private int _myid;
-        private string _mytitle;
+        private string _mytitle = null!;
         private int _myblogId;
-        private BlogWriteOnlyExplicit _myblog;
+        private BlogWriteOnlyExplicit _myblog = null!;
 
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id
@@ -1714,9 +1571,9 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         private int _id;
 
-        private string _title;
+        private string _title = null!;
 
-        public IEnumerable<PostFields> Posts { get; set; }
+        public IEnumerable<PostFields> Posts { get; set; } = null!;
 
         int IBlogAccessor.AccessId
         {
@@ -1742,10 +1599,10 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         private int _id;
 
-        private string _title;
+        private string _title = null!;
         private int _blogId;
 
-        public BlogFields Blog { get; set; }
+        public BlogFields Blog { get; set; } = null!;
 
         int IPostAccessor.AccessId
         {
@@ -1833,8 +1690,8 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     {
         public object Id { get; set; } = 0;
 
-        public object Title { get; set; }
-        public object Posts { get; set; }
+        public object Title { get; set; } = null!;
+        public object Posts { get; set; } = null!;
     }
 
     protected class BlogHiding : BlogHidingBase, IBlogAccessor
@@ -1848,13 +1705,13 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
 
         public new string Title
         {
-            get => base.Title is string value ? value : default;
+            get => base.Title is string value ? value : default!;
             set => base.Title = value;
         }
 
         public new IEnumerable<PostHiding> Posts
         {
-            get => base.Posts is IEnumerable<PostHiding> value ? value : default;
+            get => base.Posts is IEnumerable<PostHiding> value ? value : default!;
             set => base.Posts = value;
         }
 
@@ -1881,10 +1738,10 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
     {
         public object Id { get; set; } = 0;
 
-        public object Title { get; set; }
+        public object Title { get; set; } = null!;
 
         public object BlogId { get; set; } = 0;
-        public object Blog { get; set; }
+        public object Blog { get; set; } = null!;
     }
 
     protected class PostHiding : PostHidingBase, IPostAccessor
@@ -1898,7 +1755,7 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
 
         public new string Title
         {
-            get => base.Title is string value ? value : default;
+            get => base.Title is string value ? value : default!;
             set => base.Title = value;
         }
 
@@ -1910,7 +1767,7 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
 
         public new BlogHiding Blog
         {
-            get => base.Blog is BlogHiding value ? value : default;
+            get => base.Blog is BlogHiding value ? value : default!;
             set => base.Blog = value;
         }
 
@@ -1944,9 +1801,9 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id { get; set; }
 
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
-        public NavDependent _unconventionalDependent; // won't be picked up by convention
+        public NavDependent _unconventionalDependent = null!; // won't be picked up by convention
 
         public NavDependent Dependent
         {
@@ -1960,9 +1817,9 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int Id { get; set; }
 
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
-        public OneToOneFieldNavPrincipal OneToOneFieldNavPrincipal { get; set; }
+        public OneToOneFieldNavPrincipal OneToOneFieldNavPrincipal { get; set; } = null!;
     }
 
     protected DbContext CreateContext()
@@ -1970,7 +1827,8 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
 
     public abstract class FieldMappingFixtureBase : SharedStoreFixtureBase<PoolableDbContext>
     {
-        protected override string StoreName { get; } = "FieldMapping";
+        protected override string StoreName
+            => "FieldMapping";
 
         protected override void OnModelCreating(ModelBuilder modelBuilder, DbContext context)
         {
@@ -1983,24 +1841,22 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
             modelBuilder.Entity<PostFull>();
             modelBuilder.Entity<BlogFull>();
 
-            modelBuilder.Entity<PostFullExplicit>(
-                b =>
-                {
-                    b.Property(e => e.Id).HasField("_myid");
-                    b.Property(e => e.Title).HasField("_mytitle");
-                    b.Property(e => e.BlogId).HasField("_myblogId");
-                });
+            modelBuilder.Entity<PostFullExplicit>(b =>
+            {
+                b.Property(e => e.Id).HasField("_myid");
+                b.Property(e => e.Title).HasField("_mytitle");
+                b.Property(e => e.BlogId).HasField("_myblogId");
+            });
 
-            modelBuilder.Entity<BlogFullExplicit>(
-                b =>
-                {
-                    b.Property(e => e.Id).HasField("_myid");
-                    b.Property(e => e.Title).HasField("_mytitle");
-                    b.HasMany(e => e.Posts).WithOne(e => e.Blog).HasForeignKey(e => e.BlogId);
-                });
+            modelBuilder.Entity<BlogFullExplicit>(b =>
+            {
+                b.Property(e => e.Id).HasField("_myid");
+                b.Property(e => e.Title).HasField("_mytitle");
+                b.HasMany(e => e.Posts).WithOne(e => e.Blog).HasForeignKey(e => e.BlogId);
+            });
 
-            modelBuilder.Entity<PostFullExplicit>().Metadata.FindNavigation("Blog").SetField("_myblog");
-            modelBuilder.Entity<BlogFullExplicit>().Metadata.FindNavigation("Posts").SetField("_myposts");
+            modelBuilder.Entity<PostFullExplicit>().Metadata.FindNavigation("Blog")!.SetField("_myblog");
+            modelBuilder.Entity<BlogFullExplicit>().Metadata.FindNavigation("Posts")!.SetField("_myposts");
 
             modelBuilder.Entity<LoginSession>().UsePropertyAccessMode(PropertyAccessMode.Field);
 
@@ -2018,134 +1874,120 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
 
             if (modelBuilder.Model.GetPropertyAccessMode() != PropertyAccessMode.Property)
             {
-                modelBuilder.Entity<PostReadOnly>(
-                    b =>
-                    {
-                        b.HasKey(e => e.Id);
-                        b.Property(e => e.Title);
-                        b.Property(e => e.BlogId);
-                    });
+                modelBuilder.Entity<PostReadOnly>(b =>
+                {
+                    b.HasKey(e => e.Id);
+                    b.Property(e => e.Title);
+                    b.Property(e => e.BlogId);
+                });
 
-                modelBuilder.Entity<BlogReadOnly>(
-                    b =>
-                    {
-                        b.HasKey(e => e.Id);
-                        b.Property(e => e.Title);
-                        b.HasMany(e => e.Posts).WithOne(e => e.Blog).HasForeignKey(e => e.BlogId);
-                    });
+                modelBuilder.Entity<BlogReadOnly>(b =>
+                {
+                    b.HasKey(e => e.Id);
+                    b.Property(e => e.Title);
+                    b.HasMany(e => e.Posts).WithOne(e => e.Blog).HasForeignKey(e => e.BlogId);
+                });
 
-                modelBuilder.Entity<PostWithReadOnlyCollection>(
-                    b =>
-                    {
-                        b.HasKey(e => e.Id);
-                        b.Property(e => e.Title);
-                        b.Property(e => e.BlogId);
-                    });
+                modelBuilder.Entity<PostWithReadOnlyCollection>(b =>
+                {
+                    b.HasKey(e => e.Id);
+                    b.Property(e => e.Title);
+                    b.Property(e => e.BlogId);
+                });
 
-                modelBuilder.Entity<BlogWithReadOnlyCollection>(
-                    b =>
-                    {
-                        b.HasKey(e => e.Id);
-                        b.Property(e => e.Title);
-                        b.HasMany(e => e.Posts).WithOne(e => e.Blog).HasForeignKey(e => e.BlogId);
-                    });
+                modelBuilder.Entity<BlogWithReadOnlyCollection>(b =>
+                {
+                    b.HasKey(e => e.Id);
+                    b.Property(e => e.Title);
+                    b.HasMany(e => e.Posts).WithOne(e => e.Blog).HasForeignKey(e => e.BlogId);
+                });
 
-                modelBuilder.Entity<PostReadOnlyExplicit>(
-                    b =>
-                    {
-                        b.HasKey(e => e.Id);
-                        b.Property(e => e.Id).HasField("_myid");
-                        b.Property(e => e.Title).HasField("_mytitle");
-                        b.Property(e => e.BlogId).HasField("_myblogId");
-                    });
+                modelBuilder.Entity<PostReadOnlyExplicit>(b =>
+                {
+                    b.HasKey(e => e.Id);
+                    b.Property(e => e.Id).HasField("_myid");
+                    b.Property(e => e.Title).HasField("_mytitle");
+                    b.Property(e => e.BlogId).HasField("_myblogId");
+                });
 
-                modelBuilder.Entity<BlogReadOnlyExplicit>(
-                    b =>
-                    {
-                        b.HasKey(e => e.Id);
-                        b.Property(e => e.Id).HasField("_myid");
-                        b.Property(e => e.Title).HasField("_mytitle");
-                        b.HasMany(e => e.Posts).WithOne(e => e.Blog).HasForeignKey(e => e.BlogId);
-                    });
+                modelBuilder.Entity<BlogReadOnlyExplicit>(b =>
+                {
+                    b.HasKey(e => e.Id);
+                    b.Property(e => e.Id).HasField("_myid");
+                    b.Property(e => e.Title).HasField("_mytitle");
+                    b.HasMany(e => e.Posts).WithOne(e => e.Blog).HasForeignKey(e => e.BlogId);
+                });
 
-                modelBuilder.Entity<PostReadOnlyExplicit>().Metadata.FindNavigation("Blog").SetField("_myblog");
-                modelBuilder.Entity<BlogReadOnlyExplicit>().Metadata.FindNavigation("Posts").SetField("_myposts");
+                modelBuilder.Entity<PostReadOnlyExplicit>().Metadata.FindNavigation("Blog")!.SetField("_myblog");
+                modelBuilder.Entity<BlogReadOnlyExplicit>().Metadata.FindNavigation("Posts")!.SetField("_myposts");
 
-                modelBuilder.Entity<PostWriteOnly>(
-                    b =>
-                    {
-                        b.Property("Title");
-                        b.Property("BlogId");
-                    });
+                modelBuilder.Entity<PostWriteOnly>(b =>
+                {
+                    b.Property("Title");
+                    b.Property("BlogId");
+                });
 
-                modelBuilder.Entity<BlogWriteOnly>(
-                    b =>
-                    {
-                        b.HasKey("Id");
-                        b.Property("Title");
-                        b.HasMany(typeof(PostWriteOnly).DisplayName(), "Posts").WithOne("Blog").HasForeignKey("BlogId");
-                    });
+                modelBuilder.Entity<BlogWriteOnly>(b =>
+                {
+                    b.HasKey("Id");
+                    b.Property("Title");
+                    b.HasMany(typeof(PostWriteOnly).DisplayName(), "Posts").WithOne("Blog").HasForeignKey("BlogId");
+                });
 
-                modelBuilder.Entity<PostWriteOnlyExplicit>(
-                    b =>
-                    {
-                        b.HasKey("Id");
-                        b.Property("Id").HasField("_myid");
-                        b.Property("Title").HasField("_mytitle");
-                        b.Property("BlogId").HasField("_myblogId");
-                    });
+                modelBuilder.Entity<PostWriteOnlyExplicit>(b =>
+                {
+                    b.HasKey("Id");
+                    b.Property("Id").HasField("_myid");
+                    b.Property("Title").HasField("_mytitle");
+                    b.Property("BlogId").HasField("_myblogId");
+                });
 
-                modelBuilder.Entity<BlogWriteOnlyExplicit>(
-                    b =>
-                    {
-                        b.HasKey("Id");
-                        b.Property("Id").HasField("_myid");
-                        b.Property("Title").HasField("_mytitle");
-                        b.HasMany(typeof(PostWriteOnlyExplicit).DisplayName(), "Posts").WithOne("Blog").HasForeignKey("BlogId");
-                    });
+                modelBuilder.Entity<BlogWriteOnlyExplicit>(b =>
+                {
+                    b.HasKey("Id");
+                    b.Property("Id").HasField("_myid");
+                    b.Property("Title").HasField("_mytitle");
+                    b.HasMany(typeof(PostWriteOnlyExplicit).DisplayName(), "Posts").WithOne("Blog").HasForeignKey("BlogId");
+                });
 
-                modelBuilder.Entity<PostWriteOnlyExplicit>().Metadata.FindNavigation("Blog").SetField("_myblog");
-                modelBuilder.Entity<BlogWriteOnlyExplicit>().Metadata.FindNavigation("Posts").SetField("_myposts");
+                modelBuilder.Entity<PostWriteOnlyExplicit>().Metadata.FindNavigation("Blog")!.SetField("_myblog");
+                modelBuilder.Entity<BlogWriteOnlyExplicit>().Metadata.FindNavigation("Posts")!.SetField("_myposts");
 
-                modelBuilder.Entity<PostFields>(
-                    b =>
-                    {
-                        b.Property("_id");
-                        b.HasKey("_id");
-                        b.Property("_title");
-                        b.Property("_blogId");
-                    });
+                modelBuilder.Entity<PostFields>(b =>
+                {
+                    b.Property("_id");
+                    b.HasKey("_id");
+                    b.Property("_title");
+                    b.Property("_blogId");
+                });
 
-                modelBuilder.Entity<BlogFields>(
-                    b =>
-                    {
-                        b.Property("_id");
-                        b.HasKey("_id");
-                        b.Property("_title");
-                        b.HasMany(e => e.Posts).WithOne(e => e.Blog).HasForeignKey("_blogId");
-                    });
+                modelBuilder.Entity<BlogFields>(b =>
+                {
+                    b.Property("_id");
+                    b.HasKey("_id");
+                    b.Property("_title");
+                    b.HasMany(e => e.Posts).WithOne(e => e.Blog).HasForeignKey("_blogId");
+                });
 
-                modelBuilder.Entity<PostNavFields>(
-                    b =>
-                    {
-                        b.Property("_id");
-                        b.HasKey("_id");
-                        b.Property("_title");
-                        b.Property("_blogId");
-                    });
+                modelBuilder.Entity<PostNavFields>(b =>
+                {
+                    b.Property("_id");
+                    b.HasKey("_id");
+                    b.Property("_title");
+                    b.Property("_blogId");
+                });
 
-                modelBuilder.Entity<BlogNavFields>(
-                    b =>
-                    {
-                        b.Property("_id");
-                        b.HasKey("_id");
-                        b.Property("_title");
-                        b.HasMany(typeof(PostNavFields), "_posts").WithOne("_blog").HasForeignKey("_blogId");
-                    });
+                modelBuilder.Entity<BlogNavFields>(b =>
+                {
+                    b.Property("_id");
+                    b.HasKey("_id");
+                    b.Property("_title");
+                    b.HasMany(typeof(PostNavFields), "_posts").WithOne("_blog").HasForeignKey("_blogId");
+                });
             }
         }
 
-        protected override void Seed(PoolableDbContext context)
+        protected override async Task SeedAsync(PoolableDbContext context)
         {
             _isSeeding.Value = true;
             try
@@ -2193,7 +2035,7 @@ public abstract class FieldMappingTestBase<TFixture> : IClassFixture<TFixture>
 
                 context.Add(new OneToOneFieldNavPrincipal { Id = 1, Name = "OneToOneFieldNavPrincipal1" });
 
-                context.SaveChanges();
+                await context.SaveChangesAsync();
             }
             finally
             {

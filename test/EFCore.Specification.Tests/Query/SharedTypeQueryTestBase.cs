@@ -1,23 +1,20 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class SharedTypeQueryTestBase : NonSharedModelTestBase
+public abstract class SharedTypeQueryTestBase(NonSharedFixture fixture) : NonSharedModelTestBase(fixture), IClassFixture<NonSharedFixture>
 {
-    public static IEnumerable<object[]> IsAsyncData = new[] { new object[] { false }, new object[] { true } };
-
-    protected override string StoreName
+    protected override string NonSharedStoreName
         => "SharedTypeQueryTests";
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
+    [Theory, MemberData(nameof(IsAsyncData))]
     public virtual async Task Can_use_shared_type_entity_type_in_query_filter(bool async)
     {
-        var contextFactory = await InitializeAsync<MyContext24601>(
-            seed: c => c.Seed());
+        var contextFactory = await InitializeNonSharedTest<MyContext24601>(
+            seed: c => c.SeedAsync());
 
-        using var context = contextFactory.CreateContext();
+        using var context = contextFactory.CreateDbContext();
         var query = context.Set<ViewQuery24601>();
         var result = async
             ? await query.ToListAsync()
@@ -26,18 +23,13 @@ public abstract class SharedTypeQueryTestBase : NonSharedModelTestBase
         Assert.Empty(result);
     }
 
-    protected class MyContext24601 : DbContext
+    protected class MyContext24601(DbContextOptions options) : DbContext(options)
     {
-        public MyContext24601(DbContextOptions options)
-            : base(options)
-        {
-        }
-
-        public void Seed()
+        public Task SeedAsync()
         {
             Set<Dictionary<string, object>>("STET").Add(new Dictionary<string, object> { ["Value"] = "Maumar" });
 
-            SaveChanges();
+            return SaveChangesAsync();
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -57,6 +49,6 @@ public abstract class SharedTypeQueryTestBase : NonSharedModelTestBase
 
     protected class ViewQuery24601
     {
-        public string Value { get; set; }
+        public string? Value { get; set; }
     }
 }

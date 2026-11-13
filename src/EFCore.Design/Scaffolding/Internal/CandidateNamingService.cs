@@ -65,7 +65,13 @@ public class CandidateNamingService : ICandidateNamingService
             : foreignKey.DeclaringEntityType.ShortName();
     }
 
-    private static string GenerateCandidateIdentifier(string originalIdentifier)
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual string GenerateCandidateIdentifier(string originalIdentifier)
     {
         var candidateStringBuilder = new StringBuilder();
         var previousLetterCharInWordIsLowerCase = false;
@@ -98,37 +104,18 @@ public class CandidateNamingService : ICandidateNamingService
 
     private static string FindCandidateNavigationName(IEnumerable<IReadOnlyProperty> properties)
     {
-        var count = properties.Count();
-        if (count == 0)
+        var name = "";
+        foreach (var property in properties)
         {
-            return string.Empty;
-        }
-
-        var firstProperty = properties.First();
-        return StripId(
-            count == 1
-                ? firstProperty.Name
-                : FindCommonPrefix(firstProperty.Name, properties.Select(p => p.Name)));
-    }
-
-    private static string FindCommonPrefix(string firstName, IEnumerable<string> propertyNames)
-    {
-        var prefixLength = 0;
-        foreach (var c in firstName)
-        {
-            foreach (var s in propertyNames)
+            if (name != "")
             {
-                if (s.Length <= prefixLength
-                    || s[prefixLength] != c)
-                {
-                    return firstName[..prefixLength];
-                }
+                return "";
             }
 
-            prefixLength++;
+            name = property.Name;
         }
 
-        return firstName[..prefixLength];
+        return StripId(name);
     }
 
     private static string StripId(string commonPrefix)
@@ -139,8 +126,16 @@ public class CandidateNamingService : ICandidateNamingService
             return commonPrefix;
         }
 
+        var ignoredCharacterCount = 2;
+        if (commonPrefix.Length > 4
+            && (commonPrefix.EndsWith("guid", StringComparison.OrdinalIgnoreCase)
+                || commonPrefix.EndsWith("uuid", StringComparison.OrdinalIgnoreCase)))
+        {
+            ignoredCharacterCount = 4;
+        }
+
         int i;
-        for (i = commonPrefix.Length - 3; i >= 0; i--)
+        for (i = commonPrefix.Length - ignoredCharacterCount - 1; i >= 0; i--)
         {
             if (char.IsLetterOrDigit(commonPrefix[i]))
             {
@@ -148,7 +143,7 @@ public class CandidateNamingService : ICandidateNamingService
             }
         }
 
-        return i != 0
+        return i > 0
             ? commonPrefix[..(i + 1)]
             : commonPrefix;
     }

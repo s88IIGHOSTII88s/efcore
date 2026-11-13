@@ -61,13 +61,20 @@ public class MigrationsScaffolder : IMigrationsScaffolder
     ///     the sub-namespace should not both be empty.
     /// </param>
     /// <param name="language">The project's language.</param>
+    /// <param name="dryRun">If <see langword="true" />, then nothing is actually written to disk.</param>
     /// <returns>The scaffolded migration.</returns>
     public virtual ScaffoldedMigration ScaffoldMigration(
         string migrationName,
         string? rootNamespace,
         string? subNamespace = null,
-        string? language = null)
+        string? language = null,
+        bool dryRun = false)
     {
+        if (string.Equals(migrationName, "migration", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new OperationException(DesignStrings.CircularBaseClassDependency);
+        }
+
         if (Dependencies.MigrationsAssembly.FindMigrationId(migrationName) != null)
         {
             throw new OperationException(DesignStrings.DuplicateMigrationName(migrationName));
@@ -141,7 +148,7 @@ public class MigrationsScaffolder : IMigrationsScaffolder
             .GetDifferences(lastModel, Dependencies.Model.GetRelationalModel());
         var downOperations = upOperations.Count > 0
             ? Dependencies.MigrationsModelDiffer.GetDifferences(Dependencies.Model.GetRelationalModel(), lastModel)
-            : new List<MigrationOperation>();
+            : [];
         var migrationId = Dependencies.MigrationsIdGenerator.GenerateId(migrationName);
         var modelSnapshotNamespace = overrideNamespace
             ? migrationNamespace
@@ -167,20 +174,21 @@ public class MigrationsScaffolder : IMigrationsScaffolder
         var codeGenerator = Dependencies.MigrationsCodeGeneratorSelector.Select(language);
         var migrationCode = codeGenerator.GenerateMigration(
             migrationNamespace,
-            migrationName,
+            migrationId,
             upOperations,
             downOperations);
         var migrationMetadataCode = codeGenerator.GenerateMetadata(
             migrationNamespace,
             _contextType,
-            migrationName,
+            migrationId,
             migrationId,
             Dependencies.Model);
         var modelSnapshotCode = codeGenerator.GenerateSnapshot(
             modelSnapshotNamespace,
             _contextType,
             modelSnapshotName,
-            Dependencies.Model);
+            Dependencies.Model,
+            migrationId);
 
         return new ScaffoldedMigration(
             codeGenerator.FileExtension,
@@ -216,25 +224,29 @@ public class MigrationsScaffolder : IMigrationsScaffolder
     /// </summary>
     /// <param name="projectDir">The project's root directory.</param>
     /// <param name="rootNamespace">The project's root namespace.</param>
-    /// <param name="force">Don't check to see if the migration has been applied to the database.</param>
+    /// <param name="force">Revert the migration if it has been applied to the database.</param>
+    /// <param name="dryRun">If <see langword="true" />, then nothing is actually written to disk.</param>
     /// <returns>The removed migration files.</returns>
-    public virtual MigrationFiles RemoveMigration(string projectDir, string rootNamespace, bool force)
-        => RemoveMigration(projectDir, rootNamespace, force, language: null);
+    public virtual MigrationFiles RemoveMigration(string projectDir, string rootNamespace, bool force, bool dryRun)
+        => RemoveMigration(projectDir, rootNamespace, force, language: null, dryRun: dryRun, offline: false);
 
     /// <summary>
     ///     Removes the previous migration.
     /// </summary>
     /// <param name="projectDir">The project's root directory.</param>
     /// <param name="rootNamespace">The project's root namespace.</param>
-    /// <param name="force">Don't check to see if the migration has been applied to the database.</param>
+    /// <param name="force">Revert the migration if it has been applied to the database.</param>
     /// <param name="language">The project's language.</param>
+    /// <param name="dryRun">If <see langword="true" />, then nothing is actually written to disk.</param>
+    /// <param name="offline">Remove the migration without connecting to the database.</param>
     /// <returns>The removed migration files.</returns>
-    // TODO: DRY (file names)
     public virtual MigrationFiles RemoveMigration(
         string projectDir,
         string? rootNamespace,
         bool force,
-        string? language)
+        string? language,
+        bool dryRun = false,
+        bool offline = false)
     {
         var files = new MigrationFiles();
 
@@ -256,19 +268,24 @@ public class MigrationsScaffolder : IMigrationsScaffolder
             model = Dependencies.SnapshotModelProcessor.Process(migration.TargetModel);
 
             if (!Dependencies.MigrationsModelDiffer.HasDifferences(
-                    model.GetRelationalModel(), Dependencies.SnapshotModelProcessor.Process(modelSnapshot.Model).GetRelationalModel()))
+                    model.GetRelationalModel(),
+                    Dependencies.SnapshotModelProcessor.Process(modelSnapshot.Model, resetVersion: true).GetRelationalModel()))
             {
                 var applied = false;
-                try
+
+                if (!offline)
                 {
-                    applied = Dependencies.HistoryRepository.GetAppliedMigrations().Any(
-                        e => e.MigrationId.Equals(migration.GetId(), StringComparison.OrdinalIgnoreCase));
-                }
-                catch (Exception ex) when (force)
-                {
-                    Dependencies.OperationReporter.WriteVerbose(ex.ToString());
-                    Dependencies.OperationReporter.WriteWarning(
-                        DesignStrings.ForceRemoveMigration(migration.GetId(), ex.Message));
+                    try
+                    {
+                        applied = Dependencies.HistoryRepository.GetAppliedMigrations().Any(e => e.MigrationId.Equals(
+                            migration.GetId(), StringComparison.OrdinalIgnoreCase));
+                    }
+                    catch (Exception ex) when (force)
+                    {
+                        Dependencies.OperationReporter.WriteVerbose(ex.ToString());
+                        Dependencies.OperationReporter.WriteWarning(
+                            DesignStrings.ForceRemoveMigration(migration.GetId(), ex.Message));
+                    }
                 }
 
                 if (applied)
@@ -276,7 +293,7 @@ public class MigrationsScaffolder : IMigrationsScaffolder
                     if (force)
                     {
                         Dependencies.Migrator.Migrate(
-                            migrations.Count > 1
+                            targetMigration: migrations.Count > 1
                                 ? migrations[^2].GetId()
                                 : Migration.InitialDatabase);
                     }
@@ -291,7 +308,11 @@ public class MigrationsScaffolder : IMigrationsScaffolder
                 if (migrationFile != null)
                 {
                     Dependencies.OperationReporter.WriteInformation(DesignStrings.RemovingMigration(migration.GetId()));
-                    File.Delete(migrationFile);
+                    if (!dryRun)
+                    {
+                        File.Delete(migrationFile);
+                    }
+
                     files.MigrationFile = migrationFile;
                 }
                 else
@@ -304,7 +325,11 @@ public class MigrationsScaffolder : IMigrationsScaffolder
                 var migrationMetadataFile = TryGetProjectFile(projectDir, migrationMetadataFileName);
                 if (migrationMetadataFile != null)
                 {
-                    File.Delete(migrationMetadataFile);
+                    if (!dryRun)
+                    {
+                        File.Delete(migrationMetadataFile);
+                    }
+
                     files.MetadataFile = migrationMetadataFile;
                 }
                 else
@@ -314,7 +339,7 @@ public class MigrationsScaffolder : IMigrationsScaffolder
                 }
 
                 model = migrations.Count > 1
-                    ? Dependencies.SnapshotModelProcessor.Process(migrations[^2].TargetModel)
+                    ? Dependencies.SnapshotModelProcessor.Process(migrations[^2].TargetModel, resetVersion: true)
                     : null;
             }
             else
@@ -322,6 +347,8 @@ public class MigrationsScaffolder : IMigrationsScaffolder
                 Dependencies.OperationReporter.WriteVerbose(DesignStrings.ManuallyDeleted);
             }
         }
+
+        var latestMigrationId = migrations.Count > 1 ? migrations[^2].GetId() : null;
 
         var modelSnapshotName = modelSnapshot.GetType().Name;
         var modelSnapshotFileName = modelSnapshotName + codeGenerator.FileExtension;
@@ -331,7 +358,11 @@ public class MigrationsScaffolder : IMigrationsScaffolder
             if (modelSnapshotFile != null)
             {
                 Dependencies.OperationReporter.WriteInformation(DesignStrings.RemovingSnapshot);
-                File.Delete(modelSnapshotFile);
+                if (!dryRun)
+                {
+                    File.Delete(modelSnapshotFile);
+                }
+
                 files.SnapshotFile = modelSnapshotFile;
             }
             else
@@ -346,18 +377,24 @@ public class MigrationsScaffolder : IMigrationsScaffolder
         {
             var modelSnapshotNamespace = modelSnapshot.GetType().Namespace;
             Check.DebugAssert(!string.IsNullOrEmpty(modelSnapshotNamespace), "modelSnapshotNamespace is null or empty");
+
             var modelSnapshotCode = codeGenerator.GenerateSnapshot(
                 modelSnapshotNamespace,
                 _contextType,
                 modelSnapshotName,
-                model);
+                model,
+                latestMigrationId);
 
             modelSnapshotFile ??= Path.Combine(
                 GetDirectory(projectDir, null, GetSubNamespace(rootNamespace, modelSnapshotNamespace)),
                 modelSnapshotFileName);
 
             Dependencies.OperationReporter.WriteInformation(DesignStrings.RevertingSnapshot);
-            File.WriteAllText(modelSnapshotFile, modelSnapshotCode, Encoding.UTF8);
+
+            if (!dryRun)
+            {
+                File.WriteAllText(modelSnapshotFile, modelSnapshotCode, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            }
         }
 
         return files;
@@ -369,8 +406,9 @@ public class MigrationsScaffolder : IMigrationsScaffolder
     /// <param name="projectDir">The project's root directory.</param>
     /// <param name="migration">The scaffolded migration.</param>
     /// <param name="outputDir">The directory to put files in. Paths are relative to the project directory.</param>
+    /// <param name="dryRun">If <see langword="true" />, then nothing is actually written to disk.</param>
     /// <returns>The saved migrations files.</returns>
-    public virtual MigrationFiles Save(string projectDir, ScaffoldedMigration migration, string? outputDir)
+    public virtual MigrationFiles Save(string projectDir, ScaffoldedMigration migration, string? outputDir, bool dryRun)
     {
         var lastMigrationFileName = migration.PreviousMigrationId + migration.FileExtension;
         var migrationDirectory = outputDir ?? GetDirectory(projectDir, lastMigrationFileName, migration.MigrationSubNamespace);
@@ -381,19 +419,25 @@ public class MigrationsScaffolder : IMigrationsScaffolder
         var modelSnapshotFile = Path.Combine(modelSnapshotDirectory, modelSnapshotFileName);
 
         Dependencies.OperationReporter.WriteVerbose(DesignStrings.WritingMigration(migrationFile));
-        Directory.CreateDirectory(migrationDirectory);
-        File.WriteAllText(migrationFile, migration.MigrationCode, Encoding.UTF8);
-        File.WriteAllText(migrationMetadataFile, migration.MetadataCode, Encoding.UTF8);
 
-        Dependencies.OperationReporter.WriteVerbose(DesignStrings.WritingSnapshot(modelSnapshotFile));
-        Directory.CreateDirectory(modelSnapshotDirectory);
-        File.WriteAllText(modelSnapshotFile, migration.SnapshotCode, Encoding.UTF8);
+        if (!dryRun)
+        {
+            Directory.CreateDirectory(migrationDirectory);
+            Directory.CreateDirectory(modelSnapshotDirectory);
+
+            File.WriteAllText(migrationFile, migration.MigrationCode, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            File.WriteAllText(migrationMetadataFile, migration.MetadataCode, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+            Dependencies.OperationReporter.WriteVerbose(DesignStrings.WritingSnapshot(modelSnapshotFile));
+            File.WriteAllText(modelSnapshotFile, migration.SnapshotCode, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }
 
         return new MigrationFiles
         {
             MigrationFile = migrationFile,
             MetadataFile = migrationMetadataFile,
-            SnapshotFile = modelSnapshotFile
+            SnapshotFile = modelSnapshotFile,
+            Migration = migration
         };
     }
 
@@ -458,7 +502,9 @@ public class MigrationsScaffolder : IMigrationsScaffolder
     /// <param name="fileName">The filename.</param>
     /// <returns>The file path or null if none.</returns>
     protected virtual string? TryGetProjectFile(string projectDir, string fileName)
-        => Directory.EnumerateFiles(projectDir, fileName, SearchOption.AllDirectories).FirstOrDefault();
+        => Directory.Exists(projectDir)
+            ? Directory.EnumerateFiles(projectDir, fileName, SearchOption.AllDirectories).FirstOrDefault()
+            : null;
 
     private bool ContainsForeignMigrations(string migrationsNamespace)
         => (from t in Dependencies.MigrationsAssembly.Assembly.GetConstructibleTypes()

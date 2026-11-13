@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.TestModels.ConcurrencyModel;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 
 // ReSharper disable AccessToDisposedClosure
@@ -8,124 +9,150 @@ using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 // ReSharper disable ConvertToConstant.Local
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public abstract class SqlExecutorTestBase<TFixture> : IClassFixture<TFixture>
-    where TFixture : NorthwindQueryRelationalFixture<NoopModelCustomizer>, new()
+public abstract class SqlExecutorTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
+    where TFixture : NorthwindQueryRelationalFixture<SqlExecutorModelCustomizer>, new()
 {
-    protected SqlExecutorTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
+    protected TFixture Fixture { get; } = fixture;
 
-    protected TFixture Fixture { get; }
-
-    [ConditionalFact]
-    public virtual void Executes_stored_procedure()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Executes_stored_procedure(bool async)
     {
         using var context = CreateContext();
-        Assert.Equal(-1, context.Database.ExecuteSqlRaw(TenMostExpensiveProductsSproc));
+
+        Assert.Equal(
+            -1,
+            async
+                ? await context.Database.ExecuteSqlRawAsync(TenMostExpensiveProductsSproc)
+                : context.Database.ExecuteSqlRaw(TenMostExpensiveProductsSproc));
     }
 
-    [ConditionalFact]
-    public virtual void Executes_stored_procedure_with_parameter()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Executes_stored_procedure_with_parameter(bool async)
     {
         using var context = CreateContext();
         var parameter = CreateDbParameter("@CustomerID", "ALFKI");
 
-        Assert.Equal(-1, context.Database.ExecuteSqlRaw(CustomerOrderHistorySproc, parameter));
+        Assert.Equal(
+            -1, async
+                ? await context.Database.ExecuteSqlRawAsync(CustomerOrderHistorySproc, parameter)
+                : context.Database.ExecuteSqlRaw(CustomerOrderHistorySproc, parameter));
     }
 
-    [ConditionalFact]
-    public virtual void Executes_stored_procedure_with_generated_parameter()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Executes_stored_procedure_with_generated_parameter(bool async)
     {
         using var context = CreateContext();
-        Assert.Equal(-1, context.Database.ExecuteSqlRaw(CustomerOrderHistoryWithGeneratedParameterSproc, "ALFKI"));
+
+        Assert.Equal(
+            -1,
+            async
+                ? await context.Database.ExecuteSqlRawAsync(CustomerOrderHistoryWithGeneratedParameterSproc, "ALFKI")
+                : context.Database.ExecuteSqlRaw(CustomerOrderHistoryWithGeneratedParameterSproc, "ALFKI"));
     }
 
-    [ConditionalFact(Skip = "Issue#17019")]
-    public virtual void Throws_on_concurrent_command()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Throws_on_concurrent_command(bool async)
     {
         using var context = CreateContext();
         context.Database.EnsureCreatedResiliently();
 
         using var synchronizationEvent = new ManualResetEventSlim(false);
         using var blockingSemaphore = new SemaphoreSlim(0);
-        var blockingTask = Task.Run(
-            () =>
-                context.Customers.Select(
-                    c => Process(c, synchronizationEvent, blockingSemaphore)).ToList());
+        var blockingTask = Task.Run(() =>
+            context.Customers.Select(c => Process(c, synchronizationEvent, blockingSemaphore)).ToList());
 
-        var throwingTask = Task.Run(
-            () =>
+        if (async)
+        {
+            var throwingTask = Task.Run(async () =>
             {
                 synchronizationEvent.Wait();
                 Assert.Equal(
                     CoreStrings.ConcurrentMethodInvocation,
-                    Assert.Throws<InvalidOperationException>(
-                        () => context.Database.ExecuteSqlRaw(@"SELECT * FROM ""Customers""")).Message);
+                    (await Assert.ThrowsAsync<InvalidOperationException>(()
+                        => context.Database.ExecuteSqlRawAsync(@"SELECT * FROM ""Customers"""))).Message);
             });
 
-        throwingTask.Wait();
+            await throwingTask;
+        }
+        else
+        {
+            var throwingTask = Task.Run(() =>
+            {
+                synchronizationEvent.Wait();
+                Assert.Equal(
+                    CoreStrings.ConcurrentMethodInvocation,
+                    Assert.Throws<InvalidOperationException>(() => context.Database.ExecuteSqlRaw(@"SELECT * FROM ""Customers""")).Message);
+            });
+
+            throwingTask.Wait();
+        }
 
         blockingSemaphore.Release(1);
 
         blockingTask.Wait();
     }
 
-    [ConditionalFact]
-    public virtual void Query_with_parameters()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Query_with_parameters(bool async)
     {
         var city = "London";
         var contactTitle = "Sales Representative";
 
         using var context = CreateContext();
-        var actual = context.Database
-            .ExecuteSqlRaw(
+
+        var actual = async
+            ? await context.Database.ExecuteSqlRawAsync(
+                @"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {0} AND ""ContactTitle"" = {1}", city, contactTitle)
+            : context.Database.ExecuteSqlRaw(
                 @"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {0} AND ""ContactTitle"" = {1}", city, contactTitle);
 
         Assert.Equal(-1, actual);
     }
 
-    [ConditionalFact]
-    public virtual void Query_with_dbParameter_with_name()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Query_with_dbParameter_with_name(bool async)
     {
         var city = CreateDbParameter("@city", "London");
 
         using var context = CreateContext();
-        var actual = context.Database
-            .ExecuteSqlRaw(
-                @"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = @city", city);
+
+        var actual = async
+            ? await context.Database.ExecuteSqlRawAsync(@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = @city", city)
+            : context.Database.ExecuteSqlRaw(@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = @city", city);
 
         Assert.Equal(-1, actual);
     }
 
-    [ConditionalFact]
-    public virtual void Query_with_positional_dbParameter_with_name()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Query_with_positional_dbParameter_with_name(bool async)
     {
         var city = CreateDbParameter("@city", "London");
 
         using var context = CreateContext();
-        var actual = context.Database
-            .ExecuteSqlRaw(
-                @"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {0}", city);
+
+        var actual = async
+            ? await context.Database.ExecuteSqlRawAsync(@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {0}", city)
+            : context.Database.ExecuteSqlRaw(@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {0}", city);
 
         Assert.Equal(-1, actual);
     }
 
-    [ConditionalFact]
-    public virtual void Query_with_positional_dbParameter_without_name()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Query_with_positional_dbParameter_without_name(bool async)
     {
-        var city = CreateDbParameter(name: null, value: "London");
+        var city = CreateDbParameter(name: null!, value: "London");
 
         using var context = CreateContext();
-        var actual = context.Database
-            .ExecuteSqlRaw(
-                @"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {0}", city);
+
+        var actual = async
+            ? await context.Database.ExecuteSqlRawAsync(@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {0}", city)
+            : context.Database.ExecuteSqlRaw(@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {0}", city);
 
         Assert.Equal(-1, actual);
     }
 
-    [ConditionalFact]
-    public virtual void Query_with_dbParameters_mixed()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Query_with_dbParameters_mixed(bool async)
     {
         var city = "London";
         var contactTitle = "Sales Representative";
@@ -134,100 +161,109 @@ public abstract class SqlExecutorTestBase<TFixture> : IClassFixture<TFixture>
         var contactTitleParameter = CreateDbParameter("@contactTitle", contactTitle);
 
         using var context = CreateContext();
-        var actual = context.Database
-            .ExecuteSqlRaw(
+
+        var actual = async
+            ? await context.Database.ExecuteSqlRawAsync(
+                @"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {0} AND ""ContactTitle"" = @contactTitle", city,
+                contactTitleParameter)
+            : context.Database.ExecuteSqlRaw(
                 @"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {0} AND ""ContactTitle"" = @contactTitle", city,
                 contactTitleParameter);
 
         Assert.Equal(-1, actual);
 
-        actual = context.Database
-            .ExecuteSqlRaw(
-                @"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = @city AND ""ContactTitle"" = {1}", cityParameter,
-                contactTitle);
+        actual = async
+            ? await context.Database.ExecuteSqlRawAsync(
+                @"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = @city AND ""ContactTitle"" = {1}", cityParameter, contactTitle)
+            : context.Database.ExecuteSqlRaw(
+                @"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = @city AND ""ContactTitle"" = {1}", cityParameter, contactTitle);
 
         Assert.Equal(-1, actual);
     }
 
-    [ConditionalFact]
-    public virtual void Query_with_parameters_interpolated()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Query_with_parameters_interpolated(bool async)
     {
         var city = "London";
         var contactTitle = "Sales Representative";
 
         using var context = CreateContext();
-        var actual = context.Database
-            .ExecuteSqlInterpolated(
+
+        var actual = async
+            ? await context.Database.ExecuteSqlAsync(
+                $@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {city} AND ""ContactTitle"" = {contactTitle}")
+            : context.Database.ExecuteSql(
                 $@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {city} AND ""ContactTitle"" = {contactTitle}");
 
         Assert.Equal(-1, actual);
     }
 
-    [ConditionalFact]
-    public virtual void Query_with_DbParameters_interpolated()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Query_with_DbParameters_interpolated(bool async)
     {
         var city = CreateDbParameter("city", "London");
         var contactTitle = CreateDbParameter("contactTitle", "Sales Representative");
 
         using var context = CreateContext();
-        var actual = context.Database
-            .ExecuteSqlInterpolated(
+
+        var actual = async
+            ? await context.Database.ExecuteSqlAsync(
+                $@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {city} AND ""ContactTitle"" = {contactTitle}")
+            : context.Database.ExecuteSql(
                 $@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {city} AND ""ContactTitle"" = {contactTitle}");
 
         Assert.Equal(-1, actual);
     }
 
-    [ConditionalFact]
-    public virtual async Task Executes_stored_procedure_async()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Query_with_parameters_interpolated_2(bool async)
     {
+        var city = "London";
+        var contactTitle = "Sales Representative";
+
         using var context = CreateContext();
-        Assert.Equal(-1, await context.Database.ExecuteSqlRawAsync(TenMostExpensiveProductsSproc));
+
+        var actual = async
+            ? await context.Database.ExecuteSqlAsync(
+                $@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {city} AND ""ContactTitle"" = {contactTitle}")
+            : context.Database.ExecuteSql(
+                $@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {city} AND ""ContactTitle"" = {contactTitle}");
+
+        Assert.Equal(-1, actual);
     }
 
-    [ConditionalFact]
-    public virtual async Task Executes_stored_procedure_with_parameter_async()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Query_with_DbParameters_interpolated_2(bool async)
     {
-        using var context = CreateContext();
-        var parameter = CreateDbParameter("@CustomerID", "ALFKI");
+        var city = CreateDbParameter("city", "London");
+        var contactTitle = CreateDbParameter("contactTitle", "Sales Representative");
 
-        Assert.Equal(-1, await context.Database.ExecuteSqlRawAsync(CustomerOrderHistorySproc, parameter));
+        using var context = CreateContext();
+
+        var actual = async
+            ? await context.Database.ExecuteSqlAsync(
+                $@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {city} AND ""ContactTitle"" = {contactTitle}")
+            : context.Database.ExecuteSql(
+                $@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {city} AND ""ContactTitle"" = {contactTitle}");
+
+        Assert.Equal(-1, actual);
     }
 
-    [ConditionalFact]
-    public virtual async Task Executes_stored_procedure_with_generated_parameter_async()
+    [Theory, InlineData(false), InlineData(true)]
+    public virtual async Task Query_with_parameters_custom_converter(bool async)
     {
+        var city = new City { Name = "London" };
+        var contactTitle = "Sales Representative";
+
         using var context = CreateContext();
-        Assert.Equal(-1, await context.Database.ExecuteSqlRawAsync(CustomerOrderHistoryWithGeneratedParameterSproc, "ALFKI"));
-    }
 
-    [ConditionalFact(Skip = "Issue#17019")]
-    public virtual async Task Throws_on_concurrent_command_async()
-    {
-        using var context = CreateContext();
-        context.Database.EnsureCreatedResiliently();
+        var actual = async
+            ? await context.Database.ExecuteSqlAsync(
+                $@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {city} AND ""ContactTitle"" = {contactTitle}")
+            : context.Database.ExecuteSql(
+                $@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {city} AND ""ContactTitle"" = {contactTitle}");
 
-        using var synchronizationEvent = new ManualResetEventSlim(false);
-        using var blockingSemaphore = new SemaphoreSlim(0);
-        var blockingTask = Task.Run(
-            () =>
-                context.Customers.Select(
-                    c => Process(c, synchronizationEvent, blockingSemaphore)).ToList());
-
-        var throwingTask = Task.Run(
-            async () =>
-            {
-                synchronizationEvent.Wait();
-                Assert.Equal(
-                    CoreStrings.ConcurrentMethodInvocation,
-                    (await Assert.ThrowsAsync<InvalidOperationException>(
-                        () => context.Database.ExecuteSqlRawAsync(@"SELECT * FROM ""Customers"""))).Message);
-            });
-
-        await throwingTask;
-
-        blockingSemaphore.Release(1);
-
-        await blockingTask;
+        Assert.Equal(-1, actual);
     }
 
     private static Customer Process(Customer c, ManualResetEventSlim e, SemaphoreSlim s)
@@ -236,34 +272,6 @@ public abstract class SqlExecutorTestBase<TFixture> : IClassFixture<TFixture>
         s.Wait();
         s.Release(1);
         return c;
-    }
-
-    [ConditionalFact]
-    public virtual async Task Query_with_parameters_async()
-    {
-        var city = "London";
-        var contactTitle = "Sales Representative";
-
-        using var context = CreateContext();
-        var actual = await context.Database
-            .ExecuteSqlRawAsync(
-                @"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {0} AND ""ContactTitle"" = {1}", city, contactTitle);
-
-        Assert.Equal(-1, actual);
-    }
-
-    [ConditionalFact]
-    public virtual async Task Query_with_parameters_interpolated_async()
-    {
-        var city = "London";
-        var contactTitle = "Sales Representative";
-
-        using var context = CreateContext();
-        var actual = await context.Database
-            .ExecuteSqlInterpolatedAsync(
-                $@"SELECT COUNT(*) FROM ""Customers"" WHERE ""City"" = {city} AND ""ContactTitle"" = {contactTitle}");
-
-        Assert.Equal(-1, actual);
     }
 
     protected NorthwindContext CreateContext()
@@ -276,4 +284,12 @@ public abstract class SqlExecutorTestBase<TFixture> : IClassFixture<TFixture>
     protected abstract string CustomerOrderHistorySproc { get; }
 
     protected abstract string CustomerOrderHistoryWithGeneratedParameterSproc { get; }
+}
+
+public class SqlExecutorModelCustomizer : NoopModelCustomizer
+{
+    public override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+        => configurationBuilder.DefaultTypeMapping<City>().HasConversion<CityToStringConverter>();
+
+    private sealed class CityToStringConverter() : ValueConverter<City, string>(value => value.Name, value => new City { Name = value });
 }

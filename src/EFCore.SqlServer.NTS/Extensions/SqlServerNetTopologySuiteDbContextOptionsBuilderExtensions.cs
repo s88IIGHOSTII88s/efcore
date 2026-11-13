@@ -11,7 +11,7 @@ namespace Microsoft.EntityFrameworkCore;
 /// </summary>
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-spatial">Spatial data</see>, and
-///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
 ///     for more information and examples.
 /// </remarks>
 public static class SqlServerNetTopologySuiteDbContextOptionsBuilderExtensions
@@ -21,8 +21,9 @@ public static class SqlServerNetTopologySuiteDbContextOptionsBuilderExtensions
     /// </summary>
     /// <param name="optionsBuilder">The build being used to configure SQL Server.</param>
     /// <returns>The options builder so that further configuration can be chained.</returns>
-    public static SqlServerDbContextOptionsBuilder UseNetTopologySuite(
-        this SqlServerDbContextOptionsBuilder optionsBuilder)
+    public static T UseNetTopologySuite<T>(
+        this T optionsBuilder)
+        where T : SqlEngineDbContextOptionsBuilderBase<T>
     {
         var coreOptionsBuilder = ((IRelationalDbContextOptionsBuilderInfrastructure)optionsBuilder).OptionsBuilder;
 

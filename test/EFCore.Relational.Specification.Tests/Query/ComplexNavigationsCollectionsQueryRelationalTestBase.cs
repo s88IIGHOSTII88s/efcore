@@ -4,11 +4,6 @@
 namespace Microsoft.EntityFrameworkCore.Query;
 
 public abstract class
-    ComplexNavigationsCollectionsQueryRelationalTestBase<TFixture> : ComplexNavigationsCollectionsQueryTestBase<TFixture>
-    where TFixture : ComplexNavigationsQueryFixtureBase, new()
-{
-    protected ComplexNavigationsCollectionsQueryRelationalTestBase(TFixture fixture)
-        : base(fixture)
-    {
-    }
-}
+    ComplexNavigationsCollectionsQueryRelationalTestBase<TFixture>(TFixture fixture)
+    : ComplexNavigationsCollectionsQueryTestBase<TFixture>(fixture)
+    where TFixture : ComplexNavigationsQueryFixtureBase, new();

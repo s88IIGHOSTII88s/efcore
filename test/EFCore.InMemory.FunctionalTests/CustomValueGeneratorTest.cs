@@ -9,7 +9,7 @@ namespace Microsoft.EntityFrameworkCore;
 
 public class CustomValueGeneratorTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Can_use_custom_value_generators()
     {
         using var context = new CustomValueGeneratorContext();
@@ -43,21 +43,19 @@ public class CustomValueGeneratorTest
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder
-                .Entity<SomeEntity>(
-                    b =>
-                    {
-                        b.HasAlternateKey(
-                            e => new { e.SpecialId, e.SpecialString });
-                        b.Property(e => e.SpecialId)
-                            .HasAnnotation("SpecialGuid", true)
-                            .ValueGeneratedOnAdd();
+                .Entity<SomeEntity>(b =>
+                {
+                    b.HasAlternateKey(e => new { e.SpecialId, e.SpecialString });
+                    b.Property(e => e.SpecialId)
+                        .HasAnnotation("SpecialGuid", true)
+                        .ValueGeneratedOnAdd();
 
-                        b.Property(e => e.SpecialString)
-                            .ValueGeneratedOnAdd();
-                    });
+                    b.Property(e => e.SpecialString)
+                        .ValueGeneratedOnAdd();
+                });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_use_custom_value_generator_from_annotated_type()
     {
         using var context = new CustomValueGeneratorContextAnnotateType();
@@ -90,16 +88,15 @@ public class CustomValueGeneratorTest
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder
-                .Entity<SomeEntity>(
-                    b =>
-                    {
-                        b.Property(e => e.Id).HasValueGenerator<SequentialGuidValueGenerator>();
-                        b.Property(e => e.SpecialId).HasValueGenerator(typeof(CustomGuidValueGenerator));
-                        b.Property(e => e.SpecialString).HasValueGenerator<SomeEntityStringValueGenerator>();
-                    });
+                .Entity<SomeEntity>(b =>
+                {
+                    b.Property(e => e.Id).HasValueGenerator<SequentialGuidValueGenerator>();
+                    b.Property(e => e.SpecialId).HasValueGenerator(typeof(CustomGuidValueGenerator));
+                    b.Property(e => e.SpecialString).HasValueGenerator<SomeEntityStringValueGenerator>();
+                });
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_use_custom_value_generator_from_annotated_factory()
     {
         using var context = new CustomValueGeneratorContextAnnotateFactory();
@@ -132,34 +129,33 @@ public class CustomValueGeneratorTest
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder
-                .Entity<SomeEntity>(
-                    b =>
-                    {
-                        var factory = new CustomValueGeneratorFactory();
+                .Entity<SomeEntity>(b =>
+                {
+                    var factory = new CustomValueGeneratorFactory();
 
-                        b.Property(e => e.Id).HasValueGenerator(factory.Create);
+                    b.Property(e => e.Id).HasValueGenerator(factory.Create);
 
-                        b.Property(e => e.SpecialId)
-                            .Metadata.SetValueGeneratorFactory(factory.Create);
+                    b.Property(e => e.SpecialId)
+                        .Metadata.SetValueGeneratorFactory(factory.Create);
 
-                        b.Property(e => e.SpecialId)
-                            .HasAnnotation("SpecialGuid", true)
-                            .ValueGeneratedOnAdd();
+                    b.Property(e => e.SpecialId)
+                        .HasAnnotation("SpecialGuid", true)
+                        .ValueGeneratedOnAdd();
 
-                        b.Property(e => e.SpecialString).HasValueGenerator(factory.Create);
-                    });
+                    b.Property(e => e.SpecialString).HasValueGenerator(factory.Create);
+                });
     }
 
     private class SomeEntity
     {
         public Guid Id { get; set; }
         public Guid SpecialId { get; set; }
-        public string SpecialString { get; set; }
-        public string Name { get; set; }
+        public string SpecialString { get; set; } = null!;
+        public string Name { get; set; } = null!;
     }
 
     private readonly string[] _names =
-    {
+    [
         "Jamie Vardy",
         "Danny Drinkwater",
         "Andy King",
@@ -168,7 +164,7 @@ public class CustomValueGeneratorTest
         "Wes Morgan",
         "Robert Huth",
         "Leonardo Ulloa"
-    };
+    ];
 
     private static long ToCounter(Guid guid)
     {
@@ -192,25 +188,23 @@ public class CustomValueGeneratorTest
         return BitConverter.ToInt64(counterBytes, 0);
     }
 
-    private class CustomInMemoryValueGeneratorSelector : InMemoryValueGeneratorSelector
+    private class CustomInMemoryValueGeneratorSelector(
+        ValueGeneratorSelectorDependencies dependencies,
+        IInMemoryDatabase inMemoryDatabase) : InMemoryValueGeneratorSelector(dependencies, inMemoryDatabase)
     {
         private readonly ValueGeneratorFactory _factory = new CustomValueGeneratorFactory();
 
-        public CustomInMemoryValueGeneratorSelector(
-            ValueGeneratorSelectorDependencies dependencies,
-            IInMemoryDatabase inMemoryDatabase)
-            : base(dependencies, inMemoryDatabase)
+        public override bool TryCreate(IProperty property, ITypeBase typeBase, out ValueGenerator valueGenerator)
         {
+            valueGenerator = _factory.Create(property, typeBase);
+            return true;
         }
-
-        public override ValueGenerator Create(IProperty property, IEntityType entityType)
-            => _factory.Create(property, entityType);
     }
 
     private class CustomGuidValueGenerator : ValueGenerator<Guid>
     {
         public static Guid[] SpecialGuids { get; } =
-        {
+        [
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
@@ -219,7 +213,7 @@ public class CustomValueGeneratorTest
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid()
-        };
+        ];
 
         private int _counter = -1;
 
@@ -243,19 +237,14 @@ public class CustomValueGeneratorTest
 
     private class CustomValueGeneratorFactory : ValueGeneratorFactory
     {
-        public override ValueGenerator Create(IProperty property, IEntityType entityType)
-        {
-            if (property.ClrType == typeof(Guid))
-            {
-                return property["SpecialGuid"] != null
+        public override ValueGenerator Create(IProperty property, ITypeBase typeBase)
+            => property.ClrType == typeof(Guid)
+                ? property["SpecialGuid"] != null
                     ? new CustomGuidValueGenerator()
-                    : new SequentialGuidValueGenerator();
-            }
-
-            return property.ClrType == typeof(string)
-                && property.DeclaringEntityType.ClrType == typeof(SomeEntity)
+                    : new SequentialGuidValueGenerator()
+                : property.ClrType == typeof(string)
+                && property.DeclaringType.ClrType == typeof(SomeEntity)
                     ? new SomeEntityStringValueGenerator()
-                    : null;
-        }
+                    : null!;
     }
 }

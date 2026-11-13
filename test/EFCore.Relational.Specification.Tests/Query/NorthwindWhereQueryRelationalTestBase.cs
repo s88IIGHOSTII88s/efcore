@@ -1,26 +1,26 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+
+using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public abstract class NorthwindWhereQueryRelationalTestBase<TFixture> : NorthwindWhereQueryTestBase<TFixture>
+public abstract class NorthwindWhereQueryRelationalTestBase<TFixture>(TFixture fixture) : NorthwindWhereQueryTestBase<TFixture>(fixture)
     where TFixture : NorthwindQueryFixtureBase<NoopModelCustomizer>, new()
 {
-    protected NorthwindWhereQueryRelationalTestBase(TFixture fixture)
-        : base(fixture)
-    {
-    }
-
     public override Task Where_bool_client_side_negated(bool async)
         => AssertTranslationFailed(() => base.Where_bool_client_side_negated(async));
 
-    public override Task Where_equals_method_string_with_ignore_case(bool async)
-        => AssertTranslationFailed(() => base.Where_equals_method_string_with_ignore_case(async));
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual async Task EF_MultipleParameters_with_non_evaluatable_argument_throws(bool async)
+    {
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => AssertQuery(
+            async,
+            ss => ss.Set<Customer>().Where(c => c.Orders == EF.MultipleParameters(c.Orders))));
 
-    protected virtual bool CanExecuteQueryString
-        => false;
+        Assert.Equal(CoreStrings.EFMethodWithNonEvaluatableArgument("EF.MultipleParameters<T>"), exception.Message);
+    }
 
     protected override QueryAsserter CreateQueryAsserter(TFixture fixture)
-        => new RelationalQueryAsserter(
-            fixture, RewriteExpectedQueryExpression, RewriteServerQueryExpression, canExecuteQueryString: CanExecuteQueryString);
+        => new(fixture, RewriteExpectedQueryExpression, RewriteServerQueryExpression);
 }

@@ -19,7 +19,7 @@ namespace Microsoft.EntityFrameworkCore.Migrations;
 ///         your constructor so that an instance will be created and injected automatically by the
 ///         dependency injection container. To create an instance with some dependent services replaced,
 ///         first resolve the object from the dependency injection container, then replace selected
-///         services using the 'With...' methods. Do not call the constructor at any point in this process.
+///         services using the C# 'with' operator. Do not call the constructor at any point in this process.
 ///     </para>
 ///     <para>
 ///         The service lifetime is <see cref="ServiceLifetime.Scoped" />. This means that each
@@ -41,7 +41,7 @@ public sealed record HistoryRepositoryDependencies
     ///     as new dependencies are added. Instead, use this type in your constructor so that an instance
     ///     will be created and injected automatically by the dependency injection container. To create
     ///     an instance with some dependent services replaced, first resolve the object from the dependency
-    ///     injection container, then replace selected services using the 'With...' methods. Do not call
+    ///     injection container, then replace selected services using the C# 'with' operator. Do not call
     ///     the constructor at any point in this process.
     /// </remarks>
     [EntityFrameworkInternal]
@@ -52,13 +52,15 @@ public sealed record HistoryRepositoryDependencies
         IDbContextOptions options,
         IMigrationsModelDiffer modelDiffer,
         IMigrationsSqlGenerator migrationsSqlGenerator,
+        IMigrationCommandExecutor migrationCommandExecutor,
         ISqlGenerationHelper sqlGenerationHelper,
         IConventionSetBuilder conventionSetBuilder,
         ModelDependencies modelDependencies,
         IRelationalTypeMappingSource typeMappingSource,
         ICurrentDbContext currentContext,
         IModelRuntimeInitializer modelRuntimeInitializer,
-        IRelationalCommandDiagnosticsLogger commandLogger)
+        IRelationalCommandDiagnosticsLogger commandLogger,
+        IDiagnosticsLogger<DbLoggerCategory.Migrations> migrationsLogger)
     {
         DatabaseCreator = databaseCreator;
         RawSqlCommandBuilder = rawSqlCommandBuilder;
@@ -66,6 +68,7 @@ public sealed record HistoryRepositoryDependencies
         Options = options;
         ModelDiffer = modelDiffer;
         MigrationsSqlGenerator = migrationsSqlGenerator;
+        MigrationCommandExecutor = migrationCommandExecutor;
         SqlGenerationHelper = sqlGenerationHelper;
         ConventionSetBuilder = conventionSetBuilder;
         ModelDependencies = modelDependencies;
@@ -73,6 +76,7 @@ public sealed record HistoryRepositoryDependencies
         CurrentContext = currentContext;
         ModelRuntimeInitializer = modelRuntimeInitializer;
         CommandLogger = commandLogger;
+        MigrationsLogger = migrationsLogger;
     }
 
     /// <summary>
@@ -111,6 +115,11 @@ public sealed record HistoryRepositoryDependencies
     public ISqlGenerationHelper SqlGenerationHelper { get; init; }
 
     /// <summary>
+    ///     The service for executing Migrations operations.
+    /// </summary>
+    public IMigrationCommandExecutor MigrationCommandExecutor { get; init; }
+
+    /// <summary>
     ///     The core convention set to use when creating the model.
     /// </summary>
     public IConventionSetBuilder ConventionSetBuilder { get; init; }
@@ -139,4 +148,9 @@ public sealed record HistoryRepositoryDependencies
     ///     The command logger
     /// </summary>
     public IRelationalCommandDiagnosticsLogger CommandLogger { get; init; }
+
+    /// <summary>
+    ///     The migrations logger
+    /// </summary>
+    public IDiagnosticsLogger<DbLoggerCategory.Migrations> MigrationsLogger { get; init; }
 }

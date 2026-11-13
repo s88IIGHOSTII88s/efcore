@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace Microsoft.EntityFrameworkCore.Infrastructure;
@@ -25,15 +26,19 @@ public abstract class RelationalOptionsExtension : IDbContextOptionsExtension
 
     private string? _connectionString;
     private DbConnection? _connection;
+    private bool _connectionOwned;
     private int? _commandTimeout;
     private int? _maxBatchSize;
     private int? _minBatchSize;
     private bool _useRelationalNulls;
     private QuerySplittingBehavior? _querySplittingBehavior;
     private string? _migrationsAssembly;
+    private Assembly? _migrationsAssemblyObject;
     private string? _migrationsHistoryTableName;
     private string? _migrationsHistoryTableSchema;
     private Func<ExecutionStrategyDependencies, IExecutionStrategy>? _executionStrategyFactory;
+    private ParameterTranslationMode? _parameterizedCollectionMode;
+    private bool _useWindowFunctionAggregates;
 
     /// <summary>
     ///     Creates a new set of options with everything set to default values.
@@ -50,15 +55,19 @@ public abstract class RelationalOptionsExtension : IDbContextOptionsExtension
     {
         _connectionString = copyFrom._connectionString;
         _connection = copyFrom._connection;
+        _connectionOwned = copyFrom._connectionOwned;
         _commandTimeout = copyFrom._commandTimeout;
         _maxBatchSize = copyFrom._maxBatchSize;
         _minBatchSize = copyFrom._minBatchSize;
         _useRelationalNulls = copyFrom._useRelationalNulls;
         _querySplittingBehavior = copyFrom._querySplittingBehavior;
         _migrationsAssembly = copyFrom._migrationsAssembly;
+        _migrationsAssemblyObject = copyFrom._migrationsAssemblyObject;
         _migrationsHistoryTableName = copyFrom._migrationsHistoryTableName;
         _migrationsHistoryTableSchema = copyFrom._migrationsHistoryTableSchema;
         _executionStrategyFactory = copyFrom._executionStrategyFactory;
+        _parameterizedCollectionMode = copyFrom._parameterizedCollectionMode;
+        _useWindowFunctionAggregates = copyFrom._useWindowFunctionAggregates;
     }
 
     /// <summary>
@@ -90,6 +99,10 @@ public abstract class RelationalOptionsExtension : IDbContextOptionsExtension
         var clone = Clone();
 
         clone._connectionString = connectionString;
+        if (connectionString is not null)
+        {
+            clone._connection = null;
+        }
 
         return clone;
     }
@@ -102,16 +115,40 @@ public abstract class RelationalOptionsExtension : IDbContextOptionsExtension
         => _connection;
 
     /// <summary>
+    ///     <see langword="true" /> if the <see cref="Connection" /> is owned by the context and should be disposed appropriately.
+    /// </summary>
+    public virtual bool IsConnectionOwned
+        => _connectionOwned;
+
+    /// <summary>
     ///     Creates a new instance with all options the same as for this instance, but with the given option changed.
     ///     It is unusual to call this method directly. Instead use <see cref="DbContextOptionsBuilder" />.
     /// </summary>
     /// <param name="connection">The option to change.</param>
     /// <returns>A new instance with the option changed.</returns>
     public virtual RelationalOptionsExtension WithConnection(DbConnection? connection)
+        => WithConnection(connection, owned: false);
+
+    /// <summary>
+    ///     Creates a new instance with all options the same as for this instance, but with the given option changed.
+    ///     It is unusual to call this method directly. Instead use <see cref="DbContextOptionsBuilder" />.
+    /// </summary>
+    /// <param name="connection">The option to change.</param>
+    /// <param name="owned">
+    ///     If <see langword="true" />, then the connection will become owned by the context, and will be disposed in the same way
+    ///     that a connection created by the context is disposed.
+    /// </param>
+    /// <returns>A new instance with the option changed.</returns>
+    public virtual RelationalOptionsExtension WithConnection(DbConnection? connection, bool owned)
     {
         var clone = Clone();
 
         clone._connection = connection;
+        clone._connectionOwned = owned;
+        if (connection is not null)
+        {
+            clone._connectionString = null;
+        }
 
         return clone;
     }
@@ -130,8 +167,7 @@ public abstract class RelationalOptionsExtension : IDbContextOptionsExtension
     /// <returns>A new instance with the option changed.</returns>
     public virtual RelationalOptionsExtension WithCommandTimeout(int? commandTimeout)
     {
-        if (commandTimeout.HasValue
-            && commandTimeout <= 0)
+        if (commandTimeout is < 0)
         {
             throw new InvalidOperationException(RelationalStrings.InvalidCommandTimeout(commandTimeout));
         }
@@ -250,6 +286,12 @@ public abstract class RelationalOptionsExtension : IDbContextOptionsExtension
         => _migrationsAssembly;
 
     /// <summary>
+    ///     The assembly that contains migrations, or <see langword="null" /> if none has been set.
+    /// </summary>
+    public virtual Assembly? MigrationsAssemblyObject
+        => _migrationsAssemblyObject;
+
+    /// <summary>
     ///     Creates a new instance with all options the same as for this instance, but with the given option changed.
     ///     It is unusual to call this method directly. Instead use <see cref="DbContextOptionsBuilder" />.
     /// </summary>
@@ -260,6 +302,21 @@ public abstract class RelationalOptionsExtension : IDbContextOptionsExtension
         var clone = Clone();
 
         clone._migrationsAssembly = migrationsAssembly;
+
+        return clone;
+    }
+
+    /// <summary>
+    ///     Creates a new instance with all options the same as for this instance, but with the given option changed.
+    ///     It is unusual to call this method directly. Instead use <see cref="DbContextOptionsBuilder" />.
+    /// </summary>
+    /// <param name="migrationsAssembly">The option to change.</param>
+    /// <returns>A new instance with the option changed.</returns>
+    public virtual RelationalOptionsExtension WithMigrationsAssembly(Assembly migrationsAssembly)
+    {
+        var clone = Clone();
+
+        clone._migrationsAssemblyObject = migrationsAssembly;
 
         return clone;
     }
@@ -330,6 +387,53 @@ public abstract class RelationalOptionsExtension : IDbContextOptionsExtension
     }
 
     /// <summary>
+    ///     Configured translation mode for parameterized collections.
+    /// </summary>
+    public virtual ParameterTranslationMode ParameterizedCollectionMode
+        => _parameterizedCollectionMode ?? ParameterTranslationMode.MultipleParameters;
+
+    /// <summary>
+    ///     Creates a new instance with all options the same as for this instance, but with the given option changed.
+    ///     It is unusual to call this method directly. Instead use <see cref="DbContextOptionsBuilder" />.
+    /// </summary>
+    /// <param name="parameterizedCollectionMode">The option to change.</param>
+    public virtual RelationalOptionsExtension WithUseParameterizedCollectionMode(
+        ParameterTranslationMode parameterizedCollectionMode)
+    {
+        var clone = Clone();
+
+        clone._parameterizedCollectionMode = parameterizedCollectionMode;
+
+        return clone;
+    }
+
+    /// <summary>
+    ///     Whether aggregates projected alongside the elements of a grouping are translated as window functions.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://github.com/dotnet/efcore/issues/12747">the window function issue</see> for more information.
+    /// </remarks>
+    [Experimental(EFDiagnostics.ExperimentalApi)]
+    public virtual bool UseWindowFunctionAggregates
+        => _useWindowFunctionAggregates;
+
+    /// <summary>
+    ///     Creates a new instance with all options the same as for this instance, but with the given option changed.
+    ///     It is unusual to call this method directly. Instead use <see cref="DbContextOptionsBuilder" />.
+    /// </summary>
+    /// <param name="useWindowFunctionAggregates">The option to change.</param>
+    /// <returns>A new instance with the option changed.</returns>
+    [Experimental(EFDiagnostics.ExperimentalApi)]
+    public virtual RelationalOptionsExtension WithUseWindowFunctionAggregates(bool useWindowFunctionAggregates)
+    {
+        var clone = Clone();
+
+        clone._useWindowFunctionAggregates = useWindowFunctionAggregates;
+
+        return clone;
+    }
+
+    /// <summary>
     ///     Finds an existing <see cref="RelationalOptionsExtension" /> registered on the given options
     ///     or throws if none has been registered. This is typically used to find some relational
     ///     configuration when it is known that a relational provider is being used.
@@ -343,24 +447,18 @@ public abstract class RelationalOptionsExtension : IDbContextOptionsExtension
                 .OfType<RelationalOptionsExtension>()
                 .ToList();
 
-        if (relationalOptionsExtensions.Count == 0)
-        {
-            throw new InvalidOperationException(RelationalStrings.NoProviderConfigured);
-        }
-
-        if (relationalOptionsExtensions.Count > 1)
-        {
-            throw new InvalidOperationException(RelationalStrings.MultipleProvidersConfigured);
-        }
-
-        return relationalOptionsExtensions[0];
+        return relationalOptionsExtensions.Count == 0
+            ? throw new InvalidOperationException(RelationalStrings.NoProviderConfigured)
+            : relationalOptionsExtensions.Count > 1
+                ? throw new InvalidOperationException(RelationalStrings.MultipleProvidersConfigured)
+                : relationalOptionsExtensions[0];
     }
 
     /// <summary>
     ///     Adds the services required to make the selected options work. This is used when there
     ///     is no external <see cref="IServiceProvider" /> and EF is maintaining its own service
     ///     provider internally. This allows database providers (and other extensions) to register their
-    ///     required services when EF is creating an service provider.
+    ///     required services when EF is creating a service provider.
     /// </summary>
     /// <param name="services">The collection to add services to.</param>
     public abstract void ApplyServices(IServiceCollection services);
@@ -386,7 +484,10 @@ public abstract class RelationalOptionsExtension : IDbContextOptionsExtension
                 .TryWithExplicit(RelationalEventId.AmbientTransactionWarning, WarningBehavior.Throw)
                 .TryWithExplicit(RelationalEventId.IndexPropertiesBothMappedAndNotMappedToTable, WarningBehavior.Throw)
                 .TryWithExplicit(RelationalEventId.IndexPropertiesMappedToNonOverlappingTables, WarningBehavior.Throw)
-                .TryWithExplicit(RelationalEventId.ForeignKeyPropertiesMappedToUnrelatedTables, WarningBehavior.Throw));
+                .TryWithExplicit(RelationalEventId.ForeignKeyPropertiesMappedToUnrelatedTables, WarningBehavior.Throw)
+                .TryWithExplicit(RelationalEventId.StoredProcedureConcurrencyTokenNotMapped, WarningBehavior.Throw)
+                .TryWithExplicit(RelationalEventId.PendingModelChangesWarning, WarningBehavior.Throw)
+                .TryWithExplicit(RelationalEventId.MigrationsNotFound, WarningBehavior.Throw));
 
     /// <summary>
     ///     Information/metadata for a <see cref="RelationalOptionsExtension" />.
@@ -483,6 +584,17 @@ public abstract class RelationalOptionsExtension : IDbContextOptionsExtension
                         }
 
                         builder.Append(Extension._migrationsHistoryTableName ?? HistoryRepository.DefaultTableName).Append(' ');
+                    }
+
+                    if (Extension._parameterizedCollectionMode != null)
+                    {
+                        builder.Append("ParameterizedCollectionTranslationMode=").Append(Extension._parameterizedCollectionMode)
+                            .Append(' ');
+                    }
+
+                    if (Extension._useWindowFunctionAggregates)
+                    {
+                        builder.Append("UseWindowFunctionAggregates ");
                     }
 
                     _logFragment = builder.ToString();

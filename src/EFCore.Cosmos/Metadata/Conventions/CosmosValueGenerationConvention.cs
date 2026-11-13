@@ -3,6 +3,7 @@
 
 using Microsoft.EntityFrameworkCore.Cosmos.Metadata.Internal;
 
+// ReSharper disable once CheckNamespace
 namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 /// <summary>
@@ -43,7 +44,7 @@ public class CosmosValueGenerationConvention :
         IConventionContext<IConventionAnnotation> context)
     {
         if (name != CosmosAnnotationNames.ContainerName
-            || (annotation == null) == (oldAnnotation == null))
+            || annotation == null == (oldAnnotation == null))
         {
             return;
         }
@@ -67,22 +68,22 @@ public class CosmosValueGenerationConvention :
     /// <returns>The store value generation strategy to set for the given property.</returns>
     protected override ValueGenerated? GetValueGenerated(IConventionProperty property)
     {
-        var entityType = property.DeclaringEntityType;
         var propertyType = property.ClrType.UnwrapNullableType();
-        if (propertyType == typeof(int))
+        if (propertyType == typeof(int)
+            && property.DeclaringType is IConventionEntityType entityType)
         {
             var ownership = entityType.FindOwnership();
-            if (ownership != null
-                && !ownership.IsUnique
+            if (ownership is { IsUnique: false }
                 && !entityType.IsDocumentRoot())
             {
                 var pk = property.FindContainingPrimaryKey();
                 if (pk != null
-                    && !ownership.Properties.Contains(property)
+                    && !property.IsForeignKey()
                     && pk.Properties.Count == ownership.Properties.Count + 1
+                    && property.IsShadowProperty()
                     && ownership.Properties.All(fkProperty => pk.Properties.Contains(fkProperty)))
                 {
-                    return base.GetValueGenerated(property);
+                    return ValueGenerated.OnAddOrUpdate;
                 }
             }
         }

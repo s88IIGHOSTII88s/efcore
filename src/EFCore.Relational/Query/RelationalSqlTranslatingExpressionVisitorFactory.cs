@@ -3,15 +3,7 @@
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-/// <summary>
-///     A factory for creating <see cref="RelationalSqlTranslatingExpressionVisitor" /> instances.
-/// </summary>
-/// <remarks>
-///     The service lifetime is <see cref="ServiceLifetime.Scoped" />. This means that each
-///     <see cref="DbContext" /> instance will use its own instance of this service.
-///     The implementation may depend on other services registered with any lifetime.
-///     The implementation does not need to be thread-safe.
-/// </remarks>
+/// <inheritdoc />
 public class RelationalSqlTranslatingExpressionVisitorFactory : IRelationalSqlTranslatingExpressionVisitorFactory
 {
     /// <summary>
@@ -20,21 +12,14 @@ public class RelationalSqlTranslatingExpressionVisitorFactory : IRelationalSqlTr
     /// <param name="dependencies">The service dependencies.</param>
     public RelationalSqlTranslatingExpressionVisitorFactory(
         RelationalSqlTranslatingExpressionVisitorDependencies dependencies)
-    {
-        Dependencies = dependencies;
-    }
+        => Dependencies = dependencies;
 
     /// <summary>
     ///     Dependencies for this service.
     /// </summary>
     protected virtual RelationalSqlTranslatingExpressionVisitorDependencies Dependencies { get; }
 
-    /// <summary>
-    ///     Creates a new <see cref="RelationalSqlTranslatingExpressionVisitor" />.
-    /// </summary>
-    /// <param name="queryCompilationContext">The query compilation context to use.</param>
-    /// <param name="queryableMethodTranslatingExpressionVisitor">The visitor to use to translate subqueries.</param>
-    /// <returns>A relational sql translating expression visitor.</returns>
+    /// <inheritdoc />
     public virtual RelationalSqlTranslatingExpressionVisitor Create(
         QueryCompilationContext queryCompilationContext,
         QueryableMethodTranslatingExpressionVisitor queryableMethodTranslatingExpressionVisitor)

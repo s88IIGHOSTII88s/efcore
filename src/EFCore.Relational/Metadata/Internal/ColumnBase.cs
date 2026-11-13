@@ -10,9 +10,11 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal;
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
 public class ColumnBase<TColumnMappingBase> : Annotatable, IColumnBase
-    where TColumnMappingBase : class, IColumnMappingBase
+    where TColumnMappingBase : class, IColumnMappingBase, IComparable<TColumnMappingBase>
 {
     private Type? _providerClrType;
+    private RelationalTypeMapping? _storeTypeMapping;
+    private ValueComparer? _providerValueComparer;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -20,11 +22,18 @@ public class ColumnBase<TColumnMappingBase> : Annotatable, IColumnBase
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public ColumnBase(string name, string type, TableBase table)
+    public ColumnBase(
+        string name,
+        string type,
+        TableBase table,
+        RelationalTypeMapping? storeTypeMapping = null,
+        ValueComparer? providerValueComparer = null)
     {
         Name = name;
         StoreType = type;
         Table = table;
+        _storeTypeMapping = storeTypeMapping;
+        _providerValueComparer = providerValueComparer;
     }
 
     /// <summary>
@@ -52,6 +61,17 @@ public class ColumnBase<TColumnMappingBase> : Annotatable, IColumnBase
     public override bool IsReadOnly
         => Table.Model.IsReadOnly;
 
+    /// <inheritdoc />
+    public override bool Equals(object? obj)
+        => ReferenceEquals(this, obj)
+            || (obj is IColumnBase other
+                && Table.Equals(other.Table)
+                && Name == other.Name);
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+        => HashCode.Combine(Table, Name);
+
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
     ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
@@ -74,6 +94,14 @@ public class ColumnBase<TColumnMappingBase> : Annotatable, IColumnBase
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    public virtual IRelationalJsonElement? JsonElement { get; set; }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
     public virtual Type ProviderClrType
     {
         get
@@ -83,8 +111,8 @@ public class ColumnBase<TColumnMappingBase> : Annotatable, IColumnBase
                 return _providerClrType;
             }
 
-            var typeMapping = PropertyMappings.First().TypeMapping;
-            var providerType = typeMapping.Converter?.ProviderClrType ?? typeMapping.ClrType;
+            var typeMapping = StoreTypeMapping;
+            var providerType = typeMapping.Converter?.ProviderClrType.UnwrapNullableType() ?? typeMapping.ClrType;
 
             return _providerClrType = providerType;
         }
@@ -96,8 +124,26 @@ public class ColumnBase<TColumnMappingBase> : Annotatable, IColumnBase
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    public virtual RelationalTypeMapping StoreTypeMapping
+        => _storeTypeMapping ??= GetDefaultStoreTypeMapping();
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    protected virtual RelationalTypeMapping GetDefaultStoreTypeMapping()
+        => PropertyMappings.First().TypeMapping;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
     protected virtual List<TColumnMappingBase> PropertyMappings { get; }
-        = new();
+        = [];
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -107,16 +153,33 @@ public class ColumnBase<TColumnMappingBase> : Annotatable, IColumnBase
     /// </summary>
     public virtual bool AddPropertyMapping(TColumnMappingBase columnMapping)
     {
-        if (PropertyMappings.IndexOf(columnMapping, ColumnMappingBaseComparer.Instance) != -1)
-        {
-            return false;
-        }
+        Check.DebugAssert(
+            PropertyMappings.IndexOf(columnMapping) == -1,
+            $"Duplicate mapping for column {Name}");
 
         PropertyMappings.Add(columnMapping);
-        PropertyMappings.Sort(ColumnMappingBaseComparer.Instance);
+        PropertyMappings.Sort();
 
         return true;
     }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual void RemovePropertyMapping(TColumnMappingBase columnMapping)
+        => PropertyMappings.RemoveAt(PropertyMappings.IndexOf(columnMapping));
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public override string ToString()
+        => ((IColumnBase)this).ToDebugString(MetadataDebugStringOptions.SingleLineDefault);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -144,4 +207,14 @@ public class ColumnBase<TColumnMappingBase> : Annotatable, IColumnBase
         [DebuggerStepThrough]
         get => Table;
     }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    ValueComparer IColumnBase.ProviderValueComparer
+        => _providerValueComparer ??=
+            (PropertyMappings.FirstOrDefault()?.Property.GetProviderValueComparer() ?? StoreTypeMapping.ProviderValueComparer);
 }

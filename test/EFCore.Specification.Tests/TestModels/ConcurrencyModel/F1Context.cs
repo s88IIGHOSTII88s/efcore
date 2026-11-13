@@ -3,27 +3,19 @@
 
 namespace Microsoft.EntityFrameworkCore.TestModels.ConcurrencyModel;
 
-public class F1Context : PoolableDbContext
+public class F1Context(DbContextOptions options) : PoolableDbContext(options)
 {
-    public F1Context(DbContextOptions options)
-        : base(options)
-    {
-    }
+    public DbSet<Team> Teams { get; set; } = null!;
+    public DbSet<Driver> Drivers { get; set; } = null!;
+    public DbSet<Sponsor> Sponsors { get; set; } = null!;
+    public DbSet<Engine> Engines { get; set; } = null!;
+    public DbSet<EngineSupplier> EngineSuppliers { get; set; } = null!;
+    public DbSet<Fan> Fans { get; set; } = null!;
+    public DbSet<FanTpt> FanTpts { get; set; } = null!;
+    public DbSet<FanTpc> FanTpcs { get; set; } = null!;
+    public DbSet<Circuit> Circuits { get; set; } = null!;
 
-    public DbSet<Team> Teams { get; set; }
-    public DbSet<Driver> Drivers { get; set; }
-    public DbSet<Sponsor> Sponsors { get; set; }
-    public DbSet<Engine> Engines { get; set; }
-    public DbSet<EngineSupplier> EngineSuppliers { get; set; }
-
-    public static void Seed(F1Context context)
-    {
-        AddEntities(context);
-
-        context.SaveChanges();
-    }
-
-    private static void AddEntities(F1Context context)
+    public static void AddSeedData(F1Context context)
     {
         foreach (var engineSupplier in new List<EngineSupplier>
                  {
@@ -864,5 +856,52 @@ public class F1Context : PoolableDbContext
 
         teams.Single(t => t.Id == Team.McLaren).Sponsors.Add(vodafone);
         teams.Single(t => t.Id == Team.Ferrari).Sponsors.Add(shell);
+
+        context.AddRange(
+            new SuperFan
+            {
+                Id = 1,
+                Name = "Alice",
+                Swag = new SwagBag { Stuff = "SuperStuff" }
+            },
+            new MegaFan
+            {
+                Id = 2,
+                Name = "Toast",
+                Swag = new SwagBag { Stuff = "MegaStuff" }
+            },
+            new SuperFanTpt
+            {
+                Id = 1,
+                Name = "Alice",
+                Swag = new SwagBag { Stuff = "SuperStuff" }
+            },
+            new MegaFanTpt
+            {
+                Id = 2,
+                Name = "Toast",
+                Swag = new SwagBag { Stuff = "MegaStuff" }
+            },
+            new SuperFanTpc
+            {
+                Id = 1,
+                Name = "Alice",
+                Swag = new SwagBag { Stuff = "SuperStuff" }
+            },
+            new MegaFanTpc
+            {
+                Id = 2,
+                Name = "Toast",
+                Swag = new SwagBag { Stuff = "MegaStuff" }
+            },
+            new StreetCircuit { Id = 1, Name = "Monaco" },
+            new City { Id = 1, Name = "Monaco" },
+            new OvalCircuit { Id = 2, Name = "Indy" },
+            new StreetCircuitTpt { Id = 1, Name = "Monaco" },
+            new CityTpt { Id = 1, Name = "Monaco" },
+            new OvalCircuitTpt { Id = 2, Name = "Indy" },
+            new StreetCircuitTpc { Id = 1, Name = "Monaco" },
+            new CityTpc { Id = 1, Name = "Monaco" },
+            new OvalCircuitTpc { Id = 2, Name = "Indy" });
     }
 }

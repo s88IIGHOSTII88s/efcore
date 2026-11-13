@@ -1,15 +1,13 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.Scaffolding.Internal;
+
 namespace Microsoft.EntityFrameworkCore;
 
-public class DesignApiConsistencyTest : ApiConsistencyTestBase<DesignApiConsistencyTest.DesignApiConsistencyFixture>
+public class DesignApiConsistencyTest(DesignApiConsistencyTest.DesignApiConsistencyFixture fixture)
+    : ApiConsistencyTestBase<DesignApiConsistencyTest.DesignApiConsistencyFixture>(fixture)
 {
-    public DesignApiConsistencyTest(DesignApiConsistencyFixture fixture)
-        : base(fixture)
-    {
-    }
-
     protected override void AddServices(ServiceCollection serviceCollection)
     {
     }
@@ -19,16 +17,22 @@ public class DesignApiConsistencyTest : ApiConsistencyTestBase<DesignApiConsiste
 
     public class DesignApiConsistencyFixture : ApiConsistencyFixtureBase
     {
-        public override HashSet<Type> FluentApiTypes { get; } = new() { typeof(DesignTimeServiceCollectionExtensions) };
+        public override HashSet<Type> FluentApiTypes { get; } = [typeof(DesignTimeServiceCollectionExtensions)];
 
-        public override HashSet<Type> NonSealedPrivateNestedTypes { get; } = new()
-        {
-            Type.GetType(
-                "Microsoft.Extensions.Hosting.HostFactoryResolver+HostingListener, Microsoft.EntityFrameworkCore.Design",
-                throwOnError: true),
-            Type.GetType(
-                "Microsoft.Extensions.Hosting.HostFactoryResolver+HostingListener+StopTheHostException, Microsoft.EntityFrameworkCore.Design",
-                throwOnError: true)
-        };
+        public override HashSet<MethodInfo> VirtualMethodExceptions { get; } =
+        [
+            typeof(CSharpEntityTypeGeneratorBase.ToStringInstanceHelper)
+                .GetProperty(nameof(CSharpEntityTypeGeneratorBase.ToStringInstanceHelper.FormatProvider))!.GetMethod!,
+            typeof(CSharpEntityTypeGeneratorBase.ToStringInstanceHelper)
+                .GetProperty(nameof(CSharpEntityTypeGeneratorBase.ToStringInstanceHelper.FormatProvider))!.SetMethod!,
+            typeof(CSharpEntityTypeGeneratorBase.ToStringInstanceHelper).GetMethod(
+                nameof(CSharpEntityTypeGeneratorBase.ToStringInstanceHelper.ToStringWithCulture))!,
+            typeof(CSharpDbContextGeneratorBase.ToStringInstanceHelper)
+                .GetProperty(nameof(CSharpDbContextGeneratorBase.ToStringInstanceHelper.FormatProvider))!.GetMethod!,
+            typeof(CSharpDbContextGeneratorBase.ToStringInstanceHelper)
+                .GetProperty(nameof(CSharpDbContextGeneratorBase.ToStringInstanceHelper.FormatProvider))!.SetMethod!,
+            typeof(CSharpDbContextGeneratorBase.ToStringInstanceHelper).GetMethod(
+                nameof(CSharpDbContextGeneratorBase.ToStringInstanceHelper.ToStringWithCulture))!
+        ];
     }
 }

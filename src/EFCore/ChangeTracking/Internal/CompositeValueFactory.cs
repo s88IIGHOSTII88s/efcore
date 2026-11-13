@@ -1,8 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Diagnostics.CodeAnalysis;
-
 namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 
 /// <summary>
@@ -11,7 +9,7 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
-public class CompositeValueFactory : IDependentKeyValueFactory<object[]>
+public class CompositeValueFactory : IDependentKeyValueFactory<IReadOnlyList<object?>>
 {
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -31,7 +29,7 @@ public class CompositeValueFactory : IDependentKeyValueFactory<object[]>
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual IEqualityComparer<object[]> EqualityComparer { get; }
+    public virtual IEqualityComparer<IReadOnlyList<object?>> EqualityComparer { get; }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -47,23 +45,22 @@ public class CompositeValueFactory : IDependentKeyValueFactory<object[]>
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual bool TryCreateFromBuffer(in ValueBuffer valueBuffer, [NotNullWhen(true)] out object[]? key)
+    public virtual bool TryCreateFromBuffer(in ValueBuffer valueBuffer, [NotNullWhen(true)] out IReadOnlyList<object?>? key)
     {
-        key = new object[Properties.Count];
-        var index = 0;
-
-        foreach (var property in Properties)
+        var keyArray = new object[Properties.Count];
+        for (var i = 0; i < keyArray.Length; i++)
         {
-            var value = valueBuffer[property.GetIndex()];
+            var value = valueBuffer[Properties[i].GetIndex()];
             if (value == null)
             {
                 key = null;
                 return false;
             }
 
-            key[index++] = value;
+            keyArray[i] = value;
         }
 
+        key = keyArray;
         return true;
     }
 
@@ -73,7 +70,7 @@ public class CompositeValueFactory : IDependentKeyValueFactory<object[]>
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual bool TryCreateFromCurrentValues(IUpdateEntry entry, [NotNullWhen(true)] out object[]? key)
+    public virtual bool TryCreateFromCurrentValues(IUpdateEntry entry, [NotNullWhen(true)] out IReadOnlyList<object?>? key)
         => TryCreateFromEntry(entry, (e, p) => e.GetCurrentValue(p), out key);
 
     /// <summary>
@@ -82,7 +79,7 @@ public class CompositeValueFactory : IDependentKeyValueFactory<object[]>
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual bool TryCreateFromPreStoreGeneratedCurrentValues(IUpdateEntry entry, [NotNullWhen(true)] out object[]? key)
+    public virtual bool TryCreateFromPreStoreGeneratedCurrentValues(IUpdateEntry entry, [NotNullWhen(true)] out IReadOnlyList<object?>? key)
         => TryCreateFromEntry(entry, (e, p) => e.GetPreStoreGeneratedCurrentValue(p), out key);
 
     /// <summary>
@@ -91,8 +88,8 @@ public class CompositeValueFactory : IDependentKeyValueFactory<object[]>
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual bool TryCreateFromOriginalValues(IUpdateEntry entry, [NotNullWhen(true)] out object[]? key)
-        => TryCreateFromEntry(entry, (e, p) => e.GetOriginalValue(p), out key);
+    public virtual bool TryCreateFromOriginalValues(IUpdateEntry entry, [NotNullWhen(true)] out IReadOnlyList<object?>? key)
+        => TryCreateFromEntry(entry, (e, p) => e.CanHaveOriginalValue(p) ? e.GetOriginalValue(p) : e.GetCurrentValue(p), out key);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -100,7 +97,7 @@ public class CompositeValueFactory : IDependentKeyValueFactory<object[]>
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual bool TryCreateFromRelationshipSnapshot(IUpdateEntry entry, [NotNullWhen(true)] out object[]? key)
+    public virtual bool TryCreateFromRelationshipSnapshot(IUpdateEntry entry, [NotNullWhen(true)] out IReadOnlyList<object?>? key)
         => TryCreateFromEntry(entry, (e, p) => e.GetRelationshipSnapshotValue(p), out key);
 
     /// <summary>
@@ -112,23 +109,22 @@ public class CompositeValueFactory : IDependentKeyValueFactory<object[]>
     protected virtual bool TryCreateFromEntry(
         IUpdateEntry entry,
         Func<IUpdateEntry, IProperty, object?> getValue,
-        [NotNullWhen(true)] out object[]? key)
+        [NotNullWhen(true)] out IReadOnlyList<object?>? key)
     {
-        key = new object[Properties.Count];
-        var index = 0;
-
-        foreach (var property in Properties)
+        var keyArray = new object[Properties.Count];
+        for (var i = 0; i < keyArray.Length; i++)
         {
-            var value = getValue(entry, property);
+            var value = getValue(entry, Properties[i]);
             if (value == null)
             {
                 key = null;
                 return false;
             }
 
-            key[index++] = value;
+            keyArray[i] = value;
         }
 
+        key = keyArray;
         return true;
     }
 
@@ -138,21 +134,30 @@ public class CompositeValueFactory : IDependentKeyValueFactory<object[]>
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    protected static IEqualityComparer<object[]> CreateEqualityComparer(IReadOnlyList<IProperty> properties)
-        => new CompositeCustomComparer(properties.Select(p => p.GetKeyValueComparer()).ToList());
+    public virtual object CreatePrincipalEquatableKey(IUpdateEntry entry, bool fromOriginalValues)
+        => throw new NotImplementedException();
 
-    private sealed class CompositeCustomComparer : IEqualityComparer<object[]>
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual object? CreateDependentEquatableKey(IUpdateEntry entry, bool fromOriginalValues)
+        => throw new NotImplementedException();
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    protected static IEqualityComparer<IReadOnlyList<object?>> CreateEqualityComparer(IReadOnlyList<IProperty> properties)
+        => new CompositeCustomComparer(properties.Select(p => p.GetKeyValueComparer()).ToArray());
+
+    private sealed class CompositeCustomComparer(ValueComparer[] comparers) : IEqualityComparer<IReadOnlyList<object?>>
     {
-        private readonly Func<object, object, bool>[] _equals;
-        private readonly Func<object, int>[] _hashCodes;
-
-        public CompositeCustomComparer(IList<ValueComparer> comparers)
-        {
-            _equals = comparers.Select(c => (Func<object, object, bool>)c.Equals).ToArray();
-            _hashCodes = comparers.Select(c => (Func<object, int>)c.GetHashCode).ToArray();
-        }
-
-        public bool Equals(object[]? x, object[]? y)
+        public bool Equals(IReadOnlyList<object?>? x, IReadOnlyList<object?>? y)
         {
             if (ReferenceEquals(x, y))
             {
@@ -169,14 +174,15 @@ public class CompositeValueFactory : IDependentKeyValueFactory<object[]>
                 return false;
             }
 
-            if (x.Length != y.Length)
+            if (x.Count != comparers.Length
+                || y.Count != comparers.Length)
             {
                 return false;
             }
 
-            for (var i = 0; i < x.Length; i++)
+            for (var i = 0; i < comparers.Length; i++)
             {
-                if (!_equals[i](x[i], y[i]))
+                if (!comparers[i].Equals(x[i], y[i]))
                 {
                     return false;
                 }
@@ -185,18 +191,18 @@ public class CompositeValueFactory : IDependentKeyValueFactory<object[]>
             return true;
         }
 
-        public int GetHashCode(object[] obj)
+        public int GetHashCode(IReadOnlyList<object?> obj)
         {
-            var hashCode = 0;
+            var hashCode = new HashCode();
 
             // ReSharper disable once ForCanBeConvertedToForeach
             // ReSharper disable once LoopCanBeConvertedToQuery
-            for (var i = 0; i < obj.Length; i++)
+            for (var i = 0; i < obj.Count; i++)
             {
-                hashCode = (hashCode * 397) ^ _hashCodes[i](obj[i]);
+                hashCode.Add(comparers[i].GetHashCode(obj[i]));
             }
 
-            return hashCode;
+            return hashCode.ToHashCode();
         }
     }
 }

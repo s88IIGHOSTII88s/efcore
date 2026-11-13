@@ -18,7 +18,7 @@ public class QueryLoggingSqlServerTest : IClassFixture<NorthwindQuerySqlServerFi
 
     protected NorthwindQuerySqlServerFixture<NoopModelCustomizer> Fixture { get; }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Queryable_simple()
     {
         using var context = CreateContext();
@@ -32,11 +32,11 @@ public class QueryLoggingSqlServerTest : IClassFixture<NorthwindQuerySqlServerFi
             "Compiling query expression: ",
             Fixture.TestSqlLoggerFactory.Log[0].Message);
         Assert.StartsWith(
-            "Generated query execution expression: " + Environment.NewLine + "'queryContext => new SingleQueryingEnumerable<Customer>(",
+            "Generated query execution expression: " + Environment.NewLine + "'queryContext => SingleQueryingEnumerable.Create<Customer>(",
             Fixture.TestSqlLoggerFactory.Log[1].Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Queryable_simple_split()
     {
         using var context = CreateContext();
@@ -46,11 +46,11 @@ public class QueryLoggingSqlServerTest : IClassFixture<NorthwindQuerySqlServerFi
 
         Assert.NotNull(customers);
         Assert.StartsWith(
-            "Generated query execution expression: " + Environment.NewLine + "'queryContext => new SplitQueryingEnumerable<Customer>(",
+            "Generated query execution expression: " + Environment.NewLine + "'queryContext => SplitQueryingEnumerable.Create<Customer>(",
             Fixture.TestSqlLoggerFactory.Log[1].Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Queryable_with_parameter_outputs_parameter_value_logging_warning()
     {
         using var context = CreateContext();
@@ -70,7 +70,7 @@ public class QueryLoggingSqlServerTest : IClassFixture<NorthwindQuerySqlServerFi
             Fixture.TestSqlLoggerFactory.Log.Select(l => l.Message));
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Include_navigation()
     {
         using var context = CreateContext();
@@ -87,7 +87,7 @@ public class QueryLoggingSqlServerTest : IClassFixture<NorthwindQuerySqlServerFi
             Fixture.TestSqlLoggerFactory.Log[1].Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Skip_without_order_by()
     {
         using var context = CreateContext();
@@ -100,7 +100,7 @@ public class QueryLoggingSqlServerTest : IClassFixture<NorthwindQuerySqlServerFi
             Fixture.TestSqlLoggerFactory.Log[1].Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Take_without_order_by()
     {
         using var context = CreateContext();
@@ -113,7 +113,7 @@ public class QueryLoggingSqlServerTest : IClassFixture<NorthwindQuerySqlServerFi
             Fixture.TestSqlLoggerFactory.Log[1].Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void FirstOrDefault_without_filter_order_by()
     {
         using var context = CreateContext();
@@ -126,7 +126,7 @@ public class QueryLoggingSqlServerTest : IClassFixture<NorthwindQuerySqlServerFi
             Fixture.TestSqlLoggerFactory.Log[1].Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Distinct_used_after_order_by()
     {
         using var context = CreateContext();
@@ -140,7 +140,7 @@ public class QueryLoggingSqlServerTest : IClassFixture<NorthwindQuerySqlServerFi
             Fixture.TestSqlLoggerFactory.Log[1].Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Include_collection_does_not_generate_warning()
     {
         using var context = CreateContext();
@@ -154,7 +154,7 @@ public class QueryLoggingSqlServerTest : IClassFixture<NorthwindQuerySqlServerFi
             Fixture.TestSqlLoggerFactory.Log.Select(e => e.Message));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void SelectExpression_does_not_use_an_old_logger()
     {
         DbContextOptions CreateOptions(ListLoggerFactory listLoggerFactory)
@@ -167,7 +167,7 @@ public class QueryLoggingSqlServerTest : IClassFixture<NorthwindQuerySqlServerFi
 
         var loggerFactory1 = new ListLoggerFactory();
 
-        using (var context = new NorthwindRelationalContext(CreateOptions(loggerFactory1)))
+        using (var context = new NorthwindSqlServerContext(CreateOptions(loggerFactory1)))
         {
             var _ = context.Customers.ToList();
         }
@@ -176,7 +176,7 @@ public class QueryLoggingSqlServerTest : IClassFixture<NorthwindQuerySqlServerFi
 
         var loggerFactory2 = new ListLoggerFactory();
 
-        using (var context = new NorthwindRelationalContext(CreateOptions(loggerFactory2)))
+        using (var context = new NorthwindSqlServerContext(CreateOptions(loggerFactory2)))
         {
             var _ = context.Customers.ToList();
         }

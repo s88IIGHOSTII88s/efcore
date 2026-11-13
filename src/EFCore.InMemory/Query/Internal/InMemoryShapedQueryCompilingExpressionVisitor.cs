@@ -1,6 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using static System.Linq.Expressions.Expression;
+
 namespace Microsoft.EntityFrameworkCore.InMemory.Query.Internal;
 
 public partial class InMemoryShapedQueryCompilingExpressionVisitor : ShapedQueryCompilingExpressionVisitor
@@ -30,18 +32,14 @@ public partial class InMemoryShapedQueryCompilingExpressionVisitor : ShapedQuery
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     protected override Expression VisitExtension(Expression extensionExpression)
-    {
-        switch (extensionExpression)
+        => extensionExpression switch
         {
-            case InMemoryTableExpression inMemoryTableExpression:
-                return Expression.Call(
-                    TableMethodInfo,
-                    QueryCompilationContext.QueryContextParameter,
-                    Expression.Constant(inMemoryTableExpression.EntityType));
-        }
-
-        return base.VisitExtension(extensionExpression);
-    }
+            InMemoryTableExpression inMemoryTableExpression => Call(
+                TableMethodInfo,
+                QueryCompilationContext.QueryContextParameter,
+                Constant(inMemoryTableExpression.EntityType)),
+            _ => base.VisitExtension(extensionExpression),
+        };
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -59,15 +57,15 @@ public partial class InMemoryShapedQueryCompilingExpressionVisitor : ShapedQuery
             .ProcessShaper(shapedQueryExpression.ShaperExpression);
         var innerEnumerable = Visit(inMemoryQueryExpression.ServerQueryExpression);
 
-        return Expression.New(
+        return New(
             typeof(QueryingEnumerable<>).MakeGenericType(shaperExpression.ReturnType).GetConstructors()[0],
             QueryCompilationContext.QueryContextParameter,
             innerEnumerable,
-            Expression.Constant(shaperExpression.Compile()),
-            Expression.Constant(_contextType),
-            Expression.Constant(
+            Constant(shaperExpression.Compile()),
+            Constant(_contextType),
+            Constant(
                 QueryCompilationContext.QueryTrackingBehavior == QueryTrackingBehavior.NoTrackingWithIdentityResolution),
-            Expression.Constant(_threadSafetyChecksEnabled));
+            Constant(_threadSafetyChecksEnabled));
     }
 
     private static readonly MethodInfo TableMethodInfo

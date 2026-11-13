@@ -50,85 +50,100 @@ public static class CoreEventId
     {
         // Update events
         SaveChangesFailed = CoreBaseId,
-        DuplicateDependentEntityTypeInstanceWarning,
-        CascadeDelete,
-        CascadeDeleteOrphan,
-        SaveChangesStarting,
-        SaveChangesCompleted,
-        OptimisticConcurrencyException,
-        SaveChangesCanceled,
+        DuplicateDependentEntityTypeInstanceWarning = CoreBaseId + 1,
+        CascadeDelete = CoreBaseId + 2,
+        CascadeDeleteOrphan = CoreBaseId + 3,
+        SaveChangesStarting = CoreBaseId + 4,
+        SaveChangesCompleted = CoreBaseId + 5,
+        OptimisticConcurrencyException = CoreBaseId + 6,
+        SaveChangesCanceled = CoreBaseId + 7,
 
         // Query events
         QueryIterationFailed = CoreBaseId + 100,
-        Obsolete_QueryModelCompiling,
-        RowLimitingOperationWithoutOrderByWarning,
-        FirstWithoutOrderByAndFilterWarning,
-        Obsolete_QueryModelOptimized,
-        Obsolete_NavigationIncluded,
-        Obsolete_IncludeIgnoredWarning,
-        QueryExecutionPlanned,
-        PossibleUnintendedCollectionNavigationNullComparisonWarning,
-        PossibleUnintendedReferenceComparisonWarning,
-        InvalidIncludePathError,
-        QueryCompilationStarting,
-        NavigationBaseIncluded,
-        NavigationBaseIncludeIgnored,
-        DistinctAfterOrderByWithoutRowLimitingOperatorWarning,
-        QueryCanceled,
+        Obsolete_QueryModelCompiling = CoreBaseId + 101,
+        RowLimitingOperationWithoutOrderByWarning = CoreBaseId + 102,
+        FirstWithoutOrderByAndFilterWarning = CoreBaseId + 103,
+        Obsolete_QueryModelOptimized = CoreBaseId + 104,
+        Obsolete_NavigationIncluded = CoreBaseId + 105,
+        Obsolete_IncludeIgnoredWarning = CoreBaseId + 106,
+        QueryExecutionPlanned = CoreBaseId + 107,
+        PossibleUnintendedCollectionNavigationNullComparisonWarning = CoreBaseId + 108,
+        PossibleUnintendedReferenceComparisonWarning = CoreBaseId + 109,
+        InvalidIncludePathError = CoreBaseId + 110,
+        QueryCompilationStarting = CoreBaseId + 111,
+        NavigationBaseIncluded = CoreBaseId + 112,
+        NavigationBaseIncludeIgnored = CoreBaseId + 113,
+        DistinctAfterOrderByWithoutRowLimitingOperatorWarning = CoreBaseId + 114,
+        QueryCanceled = CoreBaseId + 115,
+        StringEnumValueInJson = CoreBaseId + 116,
+        InconsistentOwnedDataWarning = CoreBaseId + 117,
 
         // Infrastructure events
         SensitiveDataLoggingEnabledWarning = CoreBaseId + 400,
-        ServiceProviderCreated,
-        ManyServiceProvidersCreatedWarning,
-        ContextInitialized,
-        ExecutionStrategyRetrying,
-        LazyLoadOnDisposedContextWarning,
-        NavigationLazyLoading,
-        ContextDisposed,
-        DetachedLazyLoadingWarning,
-        ServiceProviderDebugInfo,
-        RedundantAddServicesCallWarning,
-        OldModelVersionWarning,
+        ServiceProviderCreated = CoreBaseId + 401,
+        ManyServiceProvidersCreatedWarning = CoreBaseId + 402,
+        ContextInitialized = CoreBaseId + 403,
+        ExecutionStrategyRetrying = CoreBaseId + 404,
+        LazyLoadOnDisposedContextWarning = CoreBaseId + 405,
+        NavigationLazyLoading = CoreBaseId + 406,
+        ContextDisposed = CoreBaseId + 407,
+        DetachedLazyLoadingWarning = CoreBaseId + 408,
+        ServiceProviderDebugInfo = CoreBaseId + 409,
+        RedundantAddServicesCallWarning = CoreBaseId + 410,
+        OldModelVersionWarning = CoreBaseId + 411,
+        CompiledModelProviderMismatchWarning = CoreBaseId + 412,
+        EnsureCreatedWithTrackedEntitiesWarning = CoreBaseId + 413,
 
         // Model and ModelValidation events
         ShadowPropertyCreated = CoreBaseId + 600,
-        RedundantIndexRemoved,
-        IncompatibleMatchingForeignKeyProperties,
-        Obsolete_RequiredAttributeOnDependent,
-        Obsolete_RequiredAttributeOnBothNavigations,
-        ConflictingShadowForeignKeysWarning,
-        MultiplePrimaryKeyCandidates,
-        MultipleNavigationProperties,
-        MultipleInversePropertiesSameTargetWarning,
-        Obsolete_NonDefiningInverseNavigationWarning,
-        NonOwnershipInverseNavigationWarning,
-        ForeignKeyAttributesOnBothPropertiesWarning,
-        ForeignKeyAttributesOnBothNavigationsWarning,
-        ConflictingForeignKeyAttributesOnNavigationAndPropertyWarning,
-        RedundantForeignKeyWarning,
-        Obsolete_NonNullableInverted,
-        Obsolete_NonNullableReferenceOnBothNavigations,
-        Obsolete_NonNullableReferenceOnDependent,
-        Obsolete_RequiredAttributeInverted,
-        RequiredAttributeOnCollection,
-        CollectionWithoutComparer,
-        ConflictingKeylessAndKeyAttributesWarning,
-        PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning,
-        RequiredAttributeOnSkipNavigation,
-        AmbiguousEndRequiredWarning,
-        ShadowForeignKeyPropertyCreated,
+        RedundantIndexRemoved = CoreBaseId + 601,
+        IncompatibleMatchingForeignKeyProperties = CoreBaseId + 602,
+        Obsolete_RequiredAttributeOnDependent = CoreBaseId + 603,
+        Obsolete_RequiredAttributeOnBothNavigations = CoreBaseId + 604,
+        ConflictingShadowForeignKeysWarning = CoreBaseId + 605,
+        MultiplePrimaryKeyCandidates = CoreBaseId + 606,
+        MultipleNavigationProperties = CoreBaseId + 607,
+        MultipleInversePropertiesSameTargetWarning = CoreBaseId + 608,
+        Obsolete_NonDefiningInverseNavigationWarning = CoreBaseId + 609,
+        NonOwnershipInverseNavigationWarning = CoreBaseId + 610,
+        ForeignKeyAttributesOnBothPropertiesWarning = CoreBaseId + 611,
+        ForeignKeyAttributesOnBothNavigationsWarning = CoreBaseId + 612,
+        ConflictingForeignKeyAttributesOnNavigationAndPropertyWarning = CoreBaseId + 613,
+        RedundantForeignKeyWarning = CoreBaseId + 614,
+        Obsolete_NonNullableInverted = CoreBaseId + 615,
+        Obsolete_NonNullableReferenceOnBothNavigations = CoreBaseId + 616,
+        Obsolete_NonNullableReferenceOnDependent = CoreBaseId + 617,
+        Obsolete_RequiredAttributeInverted = CoreBaseId + 618,
+        RequiredAttributeOnCollection = CoreBaseId + 619,
+        CollectionWithoutComparer = CoreBaseId + 620,
+        ConflictingKeylessAndKeyAttributesWarning = CoreBaseId + 621,
+        PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning = CoreBaseId + 622,
+        RequiredAttributeOnSkipNavigation = CoreBaseId + 623,
+        AmbiguousEndRequiredWarning = CoreBaseId + 624,
+        ShadowForeignKeyPropertyCreated = CoreBaseId + 625,
+        MappedEntityTypeIgnoredWarning = CoreBaseId + 626,
+        MappedNavigationIgnoredWarning = CoreBaseId + 627,
+        MappedPropertyIgnoredWarning = CoreBaseId + 628,
+        MappedComplexPropertyIgnoredWarning = CoreBaseId + 629,
+        TypeLoadingErrorWarning = CoreBaseId + 630,
+        SkippedEntityTypeConfigurationWarning = CoreBaseId + 631,
+        NoEntityTypeConfigurationsWarning = CoreBaseId + 632,
+        AccidentalEntityType = CoreBaseId + 633,
+        AccidentalComplexPropertyCollection = CoreBaseId + 634,
+        ShadowPropertyNameNotValidIdentifierWarning = CoreBaseId + 635,
 
         // ChangeTracking events
         DetectChangesStarting = CoreBaseId + 800,
-        DetectChangesCompleted,
-        PropertyChangeDetected,
-        ForeignKeyChangeDetected,
-        CollectionChangeDetected,
-        ReferenceChangeDetected,
-        StartedTracking,
-        StateChanged,
-        ValueGenerated,
-        SkipCollectionChangeDetected
+        DetectChangesCompleted = CoreBaseId + 801,
+        PropertyChangeDetected = CoreBaseId + 802,
+        ForeignKeyChangeDetected = CoreBaseId + 803,
+        CollectionChangeDetected = CoreBaseId + 804,
+        ReferenceChangeDetected = CoreBaseId + 805,
+        StartedTracking = CoreBaseId + 806,
+        StateChanged = CoreBaseId + 807,
+        ValueGenerated = CoreBaseId + 808,
+        SkipCollectionChangeDetected = CoreBaseId + 809,
+        ComplexElementPropertyChangeDetected = CoreBaseId + 810
     }
 
     private static readonly string _updatePrefix = DbLoggerCategory.Update.Name + ".";
@@ -163,7 +178,7 @@ public static class CoreEventId
     public static readonly EventId SaveChangesCanceled = MakeUpdateId(Id.SaveChangesCanceled);
 
     /// <summary>
-    ///     The same entity is being tracked as a different shared entity entity type.
+    ///     The same entity is being tracked as a different shared entity type.
     ///     This event is in the <see cref="DbLoggerCategory.Update" /> category.
     /// </summary>
     public static readonly EventId DuplicateDependentEntityTypeInstanceWarning =
@@ -322,6 +337,26 @@ public static class CoreEventId
     public static readonly EventId QueryCanceled
         = MakeQueryId(Id.QueryCanceled);
 
+    /// <summary>
+    ///     A string value for an enum was read from JSON. Starting with EF Core 8, a breaking change was made to store enum
+    ///     values in JSON as numbers by default. See https://aka.ms/efcore-docs-jsonenums for details.
+    /// </summary>
+    /// <remarks>
+    ///     This event is in the <see cref="DbLoggerCategory.Query" /> category.
+    /// </remarks>
+    public static readonly EventId StringEnumValueInJson
+        = MakeQueryId(Id.StringEnumValueInJson);
+
+    /// <summary>
+    ///     An owned entity was loaded, but the owning entity was null. This indicates inconsistent data in the database.
+    ///     The owned entity will be ignored.
+    /// </summary>
+    /// <remarks>
+    ///     This event is in the <see cref="DbLoggerCategory.Query" /> category.
+    /// </remarks>
+    public static readonly EventId InconsistentOwnedDataWarning
+        = MakeQueryId(Id.InconsistentOwnedDataWarning);
+
     private static readonly string _infraPrefix = DbLoggerCategory.Infrastructure.Name + ".";
 
     private static EventId MakeInfraId(Id id)
@@ -470,6 +505,33 @@ public static class CoreEventId
     /// </remarks>
     public static readonly EventId OldModelVersionWarning = MakeInfraId(Id.OldModelVersionWarning);
 
+    /// <summary>
+    ///     A compiled model was found but was built for a different database provider.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Infrastructure" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="ProviderMismatchEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId CompiledModelProviderMismatchWarning = MakeInfraId(Id.CompiledModelProviderMismatchWarning);
+
+    /// <summary>
+    ///     <para>
+    ///         <see cref="IDatabaseCreator.EnsureCreatedAsync" /> was called on a context that is already tracking
+    ///         added, modified, or deleted entities. These changes would be lost if a retry occurs due to a transient failure.
+    ///     </para>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Infrastructure" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="EventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </summary>
+    public static readonly EventId EnsureCreatedWithTrackedEntitiesWarning = MakeInfraId(Id.EnsureCreatedWithTrackedEntitiesWarning);
+
     private static readonly string _modelPrefix = DbLoggerCategory.Model.Name + ".";
 
     private static EventId MakeModelId(Id id)
@@ -513,6 +575,125 @@ public static class CoreEventId
     public static readonly EventId ShadowForeignKeyPropertyCreated = MakeModelValidationId(Id.ShadowForeignKeyPropertyCreated);
 
     /// <summary>
+    ///     An entity type  was first mapped explicitly and then ignored.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="EntityTypeEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and
+    ///         examples.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId MappedEntityTypeIgnoredWarning = MakeModelId(Id.MappedEntityTypeIgnoredWarning);
+
+    /// <summary>
+    ///     A navigation was first mapped explicitly and then ignored.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="NavigationBaseEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and
+    ///         examples.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId MappedNavigationIgnoredWarning = MakeModelId(Id.MappedNavigationIgnoredWarning);
+
+    /// <summary>
+    ///     A property was first mapped explicitly and then ignored.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="PropertyEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and
+    ///         examples.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId MappedPropertyIgnoredWarning = MakeModelId(Id.MappedPropertyIgnoredWarning);
+
+    /// <summary>
+    ///     A property was first mapped explicitly and then ignored.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="ComplexPropertyEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and
+    ///         examples.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId MappedComplexPropertyIgnoredWarning = MakeModelId(Id.MappedComplexPropertyIgnoredWarning);
+
+    /// <summary>
+    ///     An error was ignored while loading types from an assembly.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="TypeLoadingEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and
+    ///         examples.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId TypeLoadingErrorWarning = MakeModelId(Id.TypeLoadingErrorWarning);
+
+    /// <summary>
+    ///     A type that implements <see cref="IEntityTypeConfiguration{TEntity}" /> could not be instantiated.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="TypeEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and
+    ///         examples.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId SkippedEntityTypeConfigurationWarning = MakeModelId(Id.SkippedEntityTypeConfigurationWarning);
+
+    /// <summary>
+    ///     A type that implements <see cref="IEntityTypeConfiguration{TEntity}" /> could not be instantiated.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="AssemblyEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see> for more information and
+    ///         examples.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId NoEntityTypeConfigurationsWarning = MakeModelId(Id.NoEntityTypeConfigurationsWarning);
+
+    /// <summary>
     ///     An index was not created as the properties are already covered.
     /// </summary>
     /// <remarks>
@@ -553,6 +734,47 @@ public static class CoreEventId
     ///     </para>
     /// </remarks>
     public static readonly EventId AmbiguousEndRequiredWarning = MakeModelId(Id.AmbiguousEndRequiredWarning);
+
+    /// <summary>
+    ///     An entity type has been mapped as an entity type. If you are mapping this type intentionally, then please suppress
+    ///     this warning and report the issue on GitHub.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model.Validation" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="EntityTypeEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId AccidentalEntityType = MakeModelValidationId(Id.AccidentalEntityType);
+
+    /// <summary>
+    ///     A complex property is configured with a collection type but is not marked as a collection.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model.Validation" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="ComplexPropertyEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId AccidentalComplexPropertyCollection = MakeModelValidationId(Id.AccidentalComplexPropertyCollection);
+
+    /// <summary>
+    ///     A shadow property has a name that is not a valid identifier, which can cause issues in generated code.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.Model.Validation" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="PropertyEventData" /> payload when used with a <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId ShadowPropertyNameNotValidIdentifierWarning =
+        MakeModelValidationId(Id.ShadowPropertyNameNotValidIdentifierWarning);
 
     /// <summary>
     ///     The <see cref="RequiredAttribute" /> on the collection navigation property was ignored.
@@ -636,21 +858,6 @@ public static class CoreEventId
     /// </remarks>
     public static readonly EventId MultipleInversePropertiesSameTargetWarning =
         MakeModelId(Id.MultipleInversePropertiesSameTargetWarning);
-
-    /// <summary>
-    ///     The navigation that <see cref="InversePropertyAttribute" /> points to is not the defining navigation.
-    /// </summary>
-    /// <remarks>
-    ///     <para>
-    ///         This event is in the <see cref="DbLoggerCategory.Model" /> category.
-    ///     </para>
-    ///     <para>
-    ///         This event uses the <see cref="TwoUnmappedPropertyCollectionsEventData" /> payload when used with a
-    ///         <see cref="DiagnosticSource" />.
-    ///     </para>
-    /// </remarks>
-    [Obsolete("Log message with this event Id has been removed.")]
-    public static readonly EventId NonDefiningInverseNavigationWarning = MakeModelId(Id.Obsolete_NonDefiningInverseNavigationWarning);
 
     /// <summary>
     ///     The navigation that <see cref="InversePropertyAttribute" /> points to is not the defining navigation.
@@ -806,6 +1013,20 @@ public static class CoreEventId
     ///     </para>
     /// </remarks>
     public static readonly EventId PropertyChangeDetected = MakeChangeTrackingId(Id.PropertyChangeDetected);
+
+    /// <summary>
+    ///     DetectChanges has detected a change in a property value.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This event is in the <see cref="DbLoggerCategory.ChangeTracking" /> category.
+    ///     </para>
+    ///     <para>
+    ///         This event uses the <see cref="ComplexTypePropertyChangedEventData" /> payload when used with a
+    ///         <see cref="DiagnosticSource" />.
+    ///     </para>
+    /// </remarks>
+    public static readonly EventId ComplexElementPropertyChangeDetected = MakeChangeTrackingId(Id.ComplexElementPropertyChangeDetected);
 
     /// <summary>
     ///     DetectChanges has detected a change in a foreign key property value.

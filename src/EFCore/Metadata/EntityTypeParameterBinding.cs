@@ -26,12 +26,20 @@ public class EntityTypeParameterBinding : ServiceParameterBinding
     ///     materialization expression to a parameter of the constructor, factory method, etc.
     /// </summary>
     /// <param name="materializationExpression">The expression representing the materialization context.</param>
-    /// <param name="entityTypeExpression">The expression representing the <see cref="IEntityType" /> constant.</param>
+    /// <param name="bindingInfoExpression">The expression representing the <see cref="ParameterBindingInfo" /> constant.</param>
     /// <returns>The expression tree.</returns>
     public override Expression BindToParameter(
         Expression materializationExpression,
-        Expression entityTypeExpression)
-        => Check.NotNull(entityTypeExpression, nameof(entityTypeExpression));
+        Expression bindingInfoExpression)
+    {
+        var result = bindingInfoExpression.Type == typeof(IEntityType) || bindingInfoExpression.Type == typeof(IComplexType)
+            ? bindingInfoExpression
+            : Expression.Property(bindingInfoExpression, nameof(ParameterBindingInfo.StructuralType));
+
+        return ServiceType != typeof(ITypeBase)
+            ? Expression.Convert(result, ServiceType)
+            : result;
+    }
 
     /// <summary>
     ///     Creates a copy that contains the given consumed properties.

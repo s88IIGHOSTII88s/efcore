@@ -28,29 +28,6 @@ public class RelationalQueryFilterRewritingConvention : QueryFilterRewritingConv
     protected virtual RelationalConventionSetBuilderDependencies RelationalDependencies { get; }
 
     /// <inheritdoc />
-    public override void ProcessModelFinalizing(
-        IConventionModelBuilder modelBuilder,
-        IConventionContext<IConventionModelBuilder> context)
-    {
-        foreach (var entityType in modelBuilder.Metadata.GetEntityTypes())
-        {
-            var queryFilter = entityType.GetQueryFilter();
-            if (queryFilter != null)
-            {
-                entityType.SetQueryFilter((LambdaExpression)DbSetAccessRewriter.Rewrite(modelBuilder.Metadata, queryFilter));
-            }
-
-#pragma warning disable CS0618 // Type or member is obsolete
-            var definingQuery = ((IEntityType)entityType).GetDefiningQuery();
-            if (definingQuery != null)
-            {
-                entityType.SetDefiningQuery((LambdaExpression)DbSetAccessRewriter.Rewrite(modelBuilder.Metadata, definingQuery));
-            }
-#pragma warning restore CS0618 // Type or member is obsolete
-        }
-    }
-
-    /// <inheritdoc />
     protected class RelationalDbSetAccessRewritingExpressionVisitor : DbSetAccessRewritingExpressionVisitor
     {
         /// <summary>
@@ -67,10 +44,11 @@ public class RelationalQueryFilterRewritingConvention : QueryFilterRewritingConv
         {
             var methodName = methodCallExpression.Method.Name;
             if (methodCallExpression.Method.DeclaringType == typeof(RelationalQueryableExtensions)
-                && (methodName == nameof(RelationalQueryableExtensions.FromSqlRaw)
-                    || methodName == nameof(RelationalQueryableExtensions.FromSqlInterpolated)))
+                && methodName is nameof(RelationalQueryableExtensions.FromSqlRaw)
+                    or nameof(RelationalQueryableExtensions.FromSqlInterpolated)
+                    or nameof(RelationalQueryableExtensions.FromSql))
             {
-                var newSource = (QueryRootExpression)Visit(methodCallExpression.Arguments[0]);
+                var newSource = (EntityQueryRootExpression)Visit(methodCallExpression.Arguments[0]);
 
                 string sql;
                 Expression argument;
@@ -83,7 +61,9 @@ public class RelationalQueryFilterRewritingConvention : QueryFilterRewritingConv
                 else
                 {
                     var formattableString = Expression.Lambda<Func<FormattableString>>(
-                        Expression.Convert(methodCallExpression.Arguments[1], typeof(FormattableString))).Compile().Invoke();
+                            Expression.Convert(methodCallExpression.Arguments[1], typeof(FormattableString)))
+                        .Compile(preferInterpretation: true)
+                        .Invoke();
 
                     sql = formattableString.Format;
                     argument = Expression.Constant(formattableString.GetArguments());

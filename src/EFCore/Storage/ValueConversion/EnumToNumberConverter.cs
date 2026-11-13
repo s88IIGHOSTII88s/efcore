@@ -10,7 +10,7 @@ namespace Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 ///     See <see href="https://aka.ms/efcore-docs-value-converters">EF Core value converters</see> for more information and examples.
 /// </remarks>
 public class EnumToNumberConverter<TEnum, TNumber> : ValueConverter<TEnum, TNumber>
-    where TEnum : struct
+    where TEnum : struct, Enum
     where TNumber : struct
 {
     // ReSharper disable once StaticMemberInGenericType
@@ -56,10 +56,20 @@ public class EnumToNumberConverter<TEnum, TNumber> : ValueConverter<TEnum, TNumb
     }
 
     /// <summary>
+    ///     A cached, default instance of this converter.
+    /// </summary>
+    public static EnumToNumberConverter<TEnum, TNumber> Instance { get; } = new();
+
+    /// <summary>
     ///     A <see cref="ValueConverterInfo" /> for the default use of this converter.
     /// </summary>
     public static ValueConverterInfo DefaultInfo { get; }
-        = new(typeof(TEnum), typeof(TNumber), i => new EnumToNumberConverter<TEnum, TNumber>(i.MappingHints), DefaultHints);
+        = new(
+            typeof(TEnum), typeof(TNumber),
+            i => ReferenceEquals(i.MappingHints, Instance.MappingHints)
+                ? Instance
+                : new EnumToNumberConverter<TEnum, TNumber>(i.MappingHints),
+            DefaultHints);
 
     private static Expression<Func<TEnum, TNumber>> ToNumber()
     {
@@ -84,8 +94,8 @@ public class EnumToNumberConverter<TEnum, TNumber> : ValueConverter<TEnum, TNumb
         return Expression.Lambda<Func<TEnum, TNumber>>(
             Expression.Convert(
                 typeof(TNumber) == typeof(decimal)
-                    ? Expression.Convert(param, typeof(long))
-                    : (Expression)param,
+                    ? Expression.Convert(param, typeof(TEnum).GetEnumUnderlyingType())
+                    : param,
                 typeof(TNumber)), param);
     }
 
@@ -95,8 +105,8 @@ public class EnumToNumberConverter<TEnum, TNumber> : ValueConverter<TEnum, TNumb
         return Expression.Lambda<Func<TNumber, TEnum>>(
             Expression.Convert(
                 typeof(TNumber) == typeof(decimal)
-                    ? Expression.Convert(param, typeof(long))
-                    : (Expression)param,
+                    ? Expression.Convert(param, typeof(TEnum).GetEnumUnderlyingType())
+                    : param,
                 typeof(TEnum)), param);
     }
 }

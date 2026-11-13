@@ -19,9 +19,7 @@ public class CSharpMigrationOperationGenerator : ICSharpMigrationOperationGenera
     /// </summary>
     /// <param name="dependencies">The dependencies.</param>
     public CSharpMigrationOperationGenerator(CSharpMigrationOperationGeneratorDependencies dependencies)
-    {
-        Dependencies = dependencies;
-    }
+        => Dependencies = dependencies;
 
     /// <summary>
     ///     Dependencies for this service.
@@ -642,7 +640,7 @@ public class CSharpMigrationOperationGenerator : ICSharpMigrationOperationGenera
                     .Append("oldComputedColumnSql: ")
                     .Append(Code.Literal(operation.OldColumn.ComputedColumnSql));
 
-                if (operation.IsStored != null)
+                if (operation.OldColumn.IsStored != null)
                 {
                     builder
                         .AppendLine(",")
@@ -1805,11 +1803,15 @@ public class CSharpMigrationOperationGenerator : ICSharpMigrationOperationGenera
                     .Append(Code.Literal(operation.Schema));
             }
 
-            builder
-                .AppendLine(",")
-                .Append("startValue: ")
-                .Append(Code.Literal(operation.StartValue))
-                .Append(")");
+            if (operation.StartValue.HasValue)
+            {
+                builder
+                    .AppendLine(",")
+                    .Append("startValue: ")
+                    .Append(Code.Literal(operation.StartValue.Value));
+            }
+
+            builder.Append(")");
 
             Annotations(operation.GetAnnotations(), builder);
         }
@@ -1824,8 +1826,16 @@ public class CSharpMigrationOperationGenerator : ICSharpMigrationOperationGenera
     {
         builder
             .Append(".Sql(")
-            .Append(Code.Literal(operation.Sql))
-            .Append(")");
+            .Append(Code.Literal(operation.Sql));
+
+        if (operation.SuppressTransaction)
+        {
+            builder
+                .Append(", suppressTransaction: ")
+                .Append(Code.Literal(true));
+        }
+
+        builder.Append(")");
 
         using (builder.Indent())
         {
@@ -2134,6 +2144,11 @@ public class CSharpMigrationOperationGenerator : ICSharpMigrationOperationGenera
     {
         foreach (var annotation in annotations)
         {
+            if (annotation.Name == RelationalAnnotationNames.JsonIndex)
+            {
+                continue;
+            }
+
             // TODO: Give providers an opportunity to render these as provider-specific extension methods
             // Issue #6546
             builder

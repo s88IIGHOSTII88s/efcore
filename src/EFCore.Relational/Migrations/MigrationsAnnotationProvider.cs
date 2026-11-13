@@ -24,9 +24,7 @@ public class MigrationsAnnotationProvider : IMigrationsAnnotationProvider
     /// </summary>
     /// <param name="dependencies">Parameter object containing dependencies for this service.</param>
     public MigrationsAnnotationProvider(MigrationsAnnotationProviderDependencies dependencies)
-    {
-        Dependencies = dependencies;
-    }
+        => Dependencies = dependencies;
 
     /// <summary>
     ///     Relational provider-specific dependencies for this service.
@@ -35,57 +33,57 @@ public class MigrationsAnnotationProvider : IMigrationsAnnotationProvider
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRemove(IRelationalModel model)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRemove(ITable table)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRemove(IColumn column)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRemove(IView view)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRemove(IViewColumn column)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRemove(IUniqueConstraint constraint)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRemove(ITableIndex index)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRemove(IForeignKeyConstraint foreignKey)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRemove(ISequence sequence)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRemove(ICheckConstraint checkConstraint)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRename(ITable table)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRename(IColumn column)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRename(ITableIndex index)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 
     /// <inheritdoc />
     public virtual IEnumerable<IAnnotation> ForRename(ISequence sequence)
-        => Enumerable.Empty<IAnnotation>();
+        => [];
 }

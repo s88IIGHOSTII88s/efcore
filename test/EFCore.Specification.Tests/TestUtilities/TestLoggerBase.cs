@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace Microsoft.EntityFrameworkCore.TestUtilities;
@@ -8,7 +8,7 @@ public abstract class TestLoggerBase
     public LogLevel EnabledFor { get; set; }
     public LogLevel? LoggedAt { get; set; }
     public EventId LoggedEvent { get; set; }
-    public string Message { get; set; }
+    public string Message { get; set; } = null!;
 
     public IDbContextLogger DbContextLogger { get; } = new TestDbContextLogger();
 

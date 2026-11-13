@@ -21,7 +21,7 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 ///         your constructor so that an instance will be created and injected automatically by the
 ///         dependency injection container. To create an instance with some dependent services replaced,
 ///         first resolve the object from the dependency injection container, then replace selected
-///         services using the 'With...' methods. Do not call the constructor at any point in this process.
+///         services using the C# 'with' operator. Do not call the constructor at any point in this process.
 ///     </para>
 ///     <para>
 ///         The service lifetime is <see cref="ServiceLifetime.Scoped" />. This means that each
@@ -43,12 +43,12 @@ public sealed record StateManagerDependencies
     ///     as new dependencies are added. Instead, use this type in your constructor so that an instance
     ///     will be created and injected automatically by the dependency injection container. To create
     ///     an instance with some dependent services replaced, first resolve the object from the dependency
-    ///     injection container, then replace selected services using the 'With...' methods. Do not call
+    ///     injection container, then replace selected services using the C# 'with' operator. Do not call
     ///     the constructor at any point in this process.
     /// </remarks>
     [EntityFrameworkInternal]
     public StateManagerDependencies(
-        IInternalEntityEntrySubscriber internalEntityEntrySubscriber,
+        IInternalEntrySubscriber internalEntityEntrySubscriber,
         IInternalEntityEntryNotifier internalEntityEntryNotifier,
         IValueGenerationManager valueGenerationManager,
         IModel model,
@@ -57,13 +57,14 @@ public sealed record StateManagerDependencies
         ICurrentDbContext currentContext,
         IEntityFinderSource entityFinderSource,
         IDbSetSource setSource,
-        IEntityMaterializerSource entityMaterializerSource,
+        IStructuralTypeMaterializerSource entityMaterializerSource,
         IExecutionStrategy executionStrategy,
         ICoreSingletonOptions coreSingletonOptions,
         ILoggingOptions loggingOptions,
         IDiagnosticsLogger<DbLoggerCategory.Update> updateLogger,
         IDiagnosticsLogger<DbLoggerCategory.ChangeTracking> changeTrackingLogger,
-        INavigationFixer navigationFixer)
+        INavigationFixer navigationFixer,
+        IInterceptors interceptors)
     {
         InternalEntityEntrySubscriber = internalEntityEntrySubscriber;
         InternalEntityEntryNotifier = internalEntityEntryNotifier;
@@ -81,6 +82,7 @@ public sealed record StateManagerDependencies
         UpdateLogger = updateLogger;
         ChangeTrackingLogger = changeTrackingLogger;
         NavigationFixer = navigationFixer;
+        Interceptors = interceptors;
     }
 
     /// <summary>
@@ -89,7 +91,7 @@ public sealed record StateManagerDependencies
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public IInternalEntityEntrySubscriber InternalEntityEntrySubscriber { get; init; }
+    public IInternalEntrySubscriber InternalEntityEntrySubscriber { get; init; }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -163,7 +165,7 @@ public sealed record StateManagerDependencies
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public IEntityMaterializerSource EntityMaterializerSource { get; init; }
+    public IStructuralTypeMaterializerSource EntityMaterializerSource { get; init; }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -212,4 +214,12 @@ public sealed record StateManagerDependencies
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public INavigationFixer NavigationFixer { get; init; }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public IInterceptors Interceptors { get; }
 }

@@ -5,7 +5,7 @@ namespace Microsoft.EntityFrameworkCore;
 
 public class ProviderSpecificServicesTest
 {
-    [ConditionalFact]
+    [Fact]
     public void Throws_with_new_when_non_relational_provider_in_use()
     {
         var options = new DbContextOptionsBuilder<ConstructorTestContext1A>()
@@ -19,33 +19,42 @@ public class ProviderSpecificServicesTest
         using var context = new ConstructorTestContext1A(options);
         Assert.Equal(
             RelationalStrings.RelationalNotInUse,
-            Assert.Throws<InvalidOperationException>(() => context.Database.GetDbConnection()).Message);
+            Assert.Throws<InvalidOperationException>(context.Database.GetDbConnection).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Throws_with_add_when_non_relational_provider_in_use()
     {
         var appServiceProvider = new ServiceCollection()
             .AddEntityFrameworkInMemoryDatabase()
-            .AddDbContext<ConstructorTestContext1A>(
-                (p, b) => b.UseInMemoryDatabase(Guid.NewGuid().ToString()).UseInternalServiceProvider(p))
+            .AddDbContext<ConstructorTestContext1A>((p, b)
+                => b.UseInMemoryDatabase(Guid.NewGuid().ToString()).UseInternalServiceProvider(p))
             .BuildServiceProvider(validateScopes: true);
 
         using var serviceScope = appServiceProvider
             .GetRequiredService<IServiceScopeFactory>()
             .CreateScope();
-        var context = serviceScope.ServiceProvider.GetService<ConstructorTestContext1A>();
+        var context = serviceScope.ServiceProvider.GetRequiredService<ConstructorTestContext1A>();
 
         Assert.Equal(
             RelationalStrings.RelationalNotInUse,
-            Assert.Throws<InvalidOperationException>(() => context.Database.GetDbConnection()).Message);
+            Assert.Throws<InvalidOperationException>(context.Database.GetDbConnection).Message);
     }
 
-    private class ConstructorTestContext1A : DbContext
+    [Fact]
+    public void Throws_with_multiple_providers_new_when_no_provider()
     {
-        public ConstructorTestContext1A(DbContextOptions options)
-            : base(options)
-        {
-        }
+        var options = new DbContextOptionsBuilder()
+            .UseCosmos("serviceEndPoint", "authKeyOrResourceToken", "databaseName")
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        var context = new DbContext(options);
+
+        Assert.Equal(
+            CoreStrings.MultipleProvidersConfigured("'Microsoft.EntityFrameworkCore.Cosmos', 'Microsoft.EntityFrameworkCore.InMemory'"),
+            Assert.Throws<InvalidOperationException>(() => context.Model).Message);
     }
+
+    private class ConstructorTestContext1A(DbContextOptions options) : DbContext(options);
 }

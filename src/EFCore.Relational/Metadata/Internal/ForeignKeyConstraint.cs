@@ -14,6 +14,8 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal;
 /// </summary>
 public class ForeignKeyConstraint : Annotatable, IForeignKeyConstraint
 {
+    private IRowForeignKeyValueFactory? _foreignKeyRowValueFactory;
+
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
     ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
@@ -45,7 +47,7 @@ public class ForeignKeyConstraint : Annotatable, IForeignKeyConstraint
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual SortedSet<IForeignKey> MappedForeignKeys { get; } = new(ForeignKeyComparer.Instance);
+    public virtual SortedSet<IForeignKey> MappedForeignKeys { get; } = [with(ForeignKeyComparer.Instance)];
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -77,7 +79,8 @@ public class ForeignKeyConstraint : Annotatable, IForeignKeyConstraint
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual IReadOnlyList<Column> PrincipalColumns => PrincipalUniqueConstraint.Columns;
+    public virtual IReadOnlyList<Column> PrincipalColumns
+        => PrincipalUniqueConstraint.Columns;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -99,7 +102,23 @@ public class ForeignKeyConstraint : Annotatable, IForeignKeyConstraint
     /// <inheritdoc />
     public virtual ReferentialAction OnDeleteAction { get; set; }
 
-    private IRowForeignKeyValueFactory? _foreignKeyRowValueFactory;
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual bool IsExcludedFromMigrations
+        => MappedForeignKeys.First().IsExcludedFromMigrations();
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual void SetRowForeignKeyValueFactory(IRowForeignKeyValueFactory factory)
+        => _foreignKeyRowValueFactory = factory;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -110,7 +129,8 @@ public class ForeignKeyConstraint : Annotatable, IForeignKeyConstraint
     public virtual IRowForeignKeyValueFactory GetRowForeignKeyValueFactory()
         => NonCapturingLazyInitializer.EnsureInitialized(
             ref _foreignKeyRowValueFactory, this,
-            static constraint => constraint.Table.Model.Model.GetRelationalDependencies().RowForeignKeyValueFactoryFactory.Create(constraint));
+            static constraint
+                => constraint.Table.Model.Model.GetRelationalDependencies().RowForeignKeyValueFactoryFactory.Create(constraint));
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to

@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Microsoft.EntityFrameworkCore.Proxies.Internal;
 
@@ -19,6 +20,6 @@ public interface IProxyLazyLoader
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    [IgnoreDataMember]
+    [IgnoreDataMember, JsonIgnore]
     ILazyLoader? LazyLoader { get; set; }
 }

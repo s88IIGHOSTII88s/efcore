@@ -10,15 +10,12 @@ namespace Microsoft.EntityFrameworkCore.SqlAzure.Model;
 public class ProductDescription
 {
     public ProductDescription()
-    {
-        ProductModelProductDescription = new HashSet<ProductModelProductDescription>();
-    }
+        => ProductModelProductDescription = new HashSet<ProductModelProductDescription>();
 
     public int ProductDescriptionID { get; set; }
 
-    [Required]
-    [MaxLength(400)]
-    public string Description { get; set; }
+    [Required, MaxLength(400)]
+    public string Description { get; set; } = null!;
 
     public DateTime ModifiedDate { get; set; }
     public Guid rowguid { get; set; }

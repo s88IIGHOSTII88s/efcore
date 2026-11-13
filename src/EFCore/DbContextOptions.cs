@@ -26,9 +26,7 @@ public abstract class DbContextOptions : IDbContextOptions
     /// </summary>
     [EntityFrameworkInternal]
     protected DbContextOptions()
-    {
-        _extensionsMap = ImmutableSortedDictionary.Create<Type, (IDbContextOptionsExtension, int)>(TypeFullNameComparer.Instance);
-    }
+        => _extensionsMap = ImmutableSortedDictionary.Create<Type, (IDbContextOptionsExtension, int)>(TypeFullNameComparer.Instance);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -39,10 +37,8 @@ public abstract class DbContextOptions : IDbContextOptions
     [EntityFrameworkInternal]
     protected DbContextOptions(
         IReadOnlyDictionary<Type, IDbContextOptionsExtension> extensions)
-    {
-        _extensionsMap = ImmutableSortedDictionary.Create<Type, (IDbContextOptionsExtension, int)>(TypeFullNameComparer.Instance)
+        => _extensionsMap = ImmutableSortedDictionary.Create<Type, (IDbContextOptionsExtension, int)>(TypeFullNameComparer.Instance)
             .AddRange(extensions.Select((p, i) => new KeyValuePair<Type, (IDbContextOptionsExtension, int)>(p.Key, (p.Value, i))));
-    }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -53,9 +49,7 @@ public abstract class DbContextOptions : IDbContextOptions
     [EntityFrameworkInternal]
     protected DbContextOptions(
         ImmutableSortedDictionary<Type, (IDbContextOptionsExtension Extension, int Ordinal)> extensions)
-    {
-        _extensionsMap = extensions;
-    }
+        => _extensionsMap = extensions;
 
     /// <summary>
     ///     Gets the extensions that store the configured options.
@@ -81,12 +75,8 @@ public abstract class DbContextOptions : IDbContextOptions
         where TExtension : class, IDbContextOptionsExtension
     {
         var extension = FindExtension<TExtension>();
-        if (extension == null)
-        {
-            throw new InvalidOperationException(CoreStrings.OptionsExtensionNotFound(typeof(TExtension).ShortDisplayName()));
-        }
-
-        return extension;
+        return extension
+            ?? throw new InvalidOperationException(CoreStrings.OptionsExtensionNotFound(typeof(TExtension).ShortDisplayName()));
     }
 
     /// <summary>
@@ -97,6 +87,15 @@ public abstract class DbContextOptions : IDbContextOptions
     /// <param name="extension">The extension to be added.</param>
     /// <returns>The new options instance with the given extension added.</returns>
     public abstract DbContextOptions WithExtension<TExtension>(TExtension extension)
+        where TExtension : class, IDbContextOptionsExtension;
+
+    /// <summary>
+    ///     Removes the given extension from the underlying options and creates a new
+    ///     <see cref="DbContextOptions" /> with the extension removed.
+    /// </summary>
+    /// <typeparam name="TExtension">The type of extension to be removed.</typeparam>
+    /// <returns>The new options instance with the extension removed.</returns>
+    public abstract DbContextOptions WithoutExtension<TExtension>()
         where TExtension : class, IDbContextOptionsExtension;
 
     /// <summary>
@@ -142,9 +141,8 @@ public abstract class DbContextOptions : IDbContextOptions
     protected virtual bool Equals(DbContextOptions other)
         => _extensionsMap.Count == other._extensionsMap.Count
             && _extensionsMap.Zip(other._extensionsMap)
-                .All(
-                    p => p.First.Value.Ordinal == p.Second.Value.Ordinal
-                        && p.First.Value.Extension.Info.ShouldUseSameServiceProvider(p.Second.Value.Extension.Info));
+                .All(p => p.First.Value.Ordinal == p.Second.Value.Ordinal
+                    && p.First.Value.Extension.Info.ShouldUseSameServiceProvider(p.Second.Value.Extension.Info));
 
     /// <inheritdoc />
     public override int GetHashCode()

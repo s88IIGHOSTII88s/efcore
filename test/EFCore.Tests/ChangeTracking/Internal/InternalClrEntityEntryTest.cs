@@ -22,94 +22,92 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
     InternalClrEntityEntryTest.KClrContext,
     InternalClrEntityEntryTest.KClrSnapContext>
 {
-    [ConditionalFact]
+    [Fact]
     public virtual void All_original_values_can_be_accessed_for_entity_that_does_full_change_tracking_if_eager_values_on()
         => AllOriginalValuesTest(new FullNotificationEntity());
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Required_original_values_can_be_accessed_for_entity_that_does_full_change_tracking()
         => OriginalValuesTest(new FullNotificationEntity());
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Required_original_values_can_be_accessed_for_entity_that_does_changed_only_notification()
         => OriginalValuesTest(new ChangedOnlyEntity());
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Required_original_values_can_be_accessed_generically_for_entity_that_does_full_change_tracking()
         => GenericOriginalValuesTest(new FullNotificationEntity());
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Required_original_values_can_be_accessed_generically_for_entity_that_does_changed_only_notification()
         => GenericOriginalValuesTest(new ChangedOnlyEntity());
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Null_original_values_are_handled_for_entity_that_does_full_change_tracking()
         => NullOriginalValuesTest(new FullNotificationEntity());
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Null_original_values_are_handled_for_entity_that_does_changed_only_notification()
         => NullOriginalValuesTest(new ChangedOnlyEntity());
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Null_original_values_are_handled_generically_for_entity_that_does_full_change_tracking()
         => GenericNullOriginalValuesTest(new FullNotificationEntity());
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Null_original_values_are_handled_generically_for_entity_that_does_changed_only_notification()
         => GenericNullOriginalValuesTest(new ChangedOnlyEntity());
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Setting_property_using_state_entry_always_marks_as_modified_full_notifications()
         => SetPropertyInternalEntityEntryTest(new FullNotificationEntity());
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Setting_property_using_state_entry_always_marks_as_modified_changed_notifications()
         => SetPropertyInternalEntityEntryTest(new ChangedOnlyEntity());
 
-    [ConditionalFact]
+    [Fact]
     public void All_original_values_can_be_accessed_for_entity_that_does_changed_only_notifications()
         => AllOriginalValuesTest(new ChangedOnlyEntity());
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Temporary_values_are_not_reset_when_entity_is_detached()
     {
         using var context = new KClrContext();
         var entity = new SomeEntity();
         var entry = context.Add(entity).GetInfrastructure();
-        var keyProperty = entry.EntityType.FindProperty("Id");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
 
         entry.SetEntityState(EntityState.Added);
         entry.SetTemporaryValue(keyProperty, -1);
 
         Assert.NotNull(entry[keyProperty]);
-        Assert.Equal(0, entity.Id);
+        Assert.Equal(-1, entity.Id);
         Assert.Equal(-1, entry[keyProperty]);
 
         entry.SetEntityState(EntityState.Detached);
 
-        Assert.Equal(0, entity.Id);
+        Assert.Equal(-1, entity.Id);
         Assert.Equal(-1, entry[keyProperty]);
 
         entry.SetEntityState(EntityState.Added);
 
-        Assert.Equal(0, entity.Id);
+        Assert.Equal(-1, entity.Id);
         Assert.Equal(-1, entry[keyProperty]);
     }
 
-    [ConditionalTheory]
-    [InlineData(EntityState.Unchanged)]
-    [InlineData(EntityState.Detached)]
-    [InlineData(EntityState.Modified)]
-    [InlineData(EntityState.Added)]
-    [InlineData(EntityState.Deleted)]
+    [Theory, InlineData(EntityState.Unchanged), InlineData(EntityState.Detached), InlineData(EntityState.Modified),
+     InlineData(EntityState.Added), InlineData(EntityState.Deleted)]
     public void AcceptChanges_handles_different_entity_states_for_owned_types(EntityState entityState)
     {
         using var context = new KClrContext();
         var ownerEntry = context.Entry(
             new OwnerClass { Id = 1, Owned = new OwnedClass { Value = "Kool" } }).GetInfrastructure();
 
+        ownerEntry.SetEntityState(EntityState.Unchanged);
+
         var entry = context.Entry(((OwnerClass)ownerEntry.Entity).Owned).GetInfrastructure();
-        var valueProperty = entry.EntityType.FindProperty(nameof(OwnedClass.Value));
+        var valueProperty = entry.EntityType.FindProperty(nameof(OwnedClass.Value))!;
 
         entry.SetEntityState(entityState);
 
@@ -123,7 +121,7 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
         entry.AcceptChanges();
 
         Assert.Equal(
-            entityState == EntityState.Deleted || entityState == EntityState.Detached
+            entityState is EntityState.Deleted or EntityState.Detached
                 ? EntityState.Detached
                 : EntityState.Unchanged,
             entry.EntityState);
@@ -136,17 +134,17 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
         {
             Assert.Equal("Pickle", entry[valueProperty]);
             Assert.Equal(
-                entityState == EntityState.Detached || entityState == EntityState.Deleted ? "Cheese" : "Pickle",
+                entityState is EntityState.Detached or EntityState.Deleted ? "Cheese" : "Pickle",
                 entry.GetOriginalValue(valueProperty));
         }
     }
 
-    [ConditionalFact]
-    public void Setting_an_explicit_value_on_the_entity_marks_property_as_not_temporary()
+    [Fact]
+    public void Setting_an_explicit_value_on_the_entity_does_not_mark_property_as_temporary()
     {
         using var context = new KClrContext();
         var entry = context.Entry(new SomeEntity()).GetInfrastructure();
-        var keyProperty = entry.EntityType.FindProperty("Id");
+        var keyProperty = entry.EntityType.FindProperty("Id")!;
 
         var entity = (SomeEntity)entry.Entity;
 
@@ -163,25 +161,25 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
 
         entry.SetEntityState(EntityState.Unchanged); // Does not throw
 
-        var nameProperty = entry.EntityType.FindProperty(nameof(SomeEntity.Name));
-        Assert.True(entry.HasDefaultValue(nameProperty));
+        var nameProperty = entry.EntityType.FindProperty(nameof(SomeEntity.Name))!;
+        Assert.False(entry.HasExplicitValue(nameProperty));
 
         entity.Name = "Name";
 
-        Assert.False(entry.HasDefaultValue(nameProperty));
+        Assert.True(entry.HasExplicitValue(nameProperty));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Setting_CLR_property_with_snapshot_change_tracking_requires_DetectChanges()
         => SetPropertyClrTest(
             new SomeEntity { Id = 1, Name = "Kool" }, needsDetectChanges: true);
 
-    [ConditionalFact]
+    [Fact]
     public void Setting_CLR_property_with_changed_only_notifications_does_not_require_DetectChanges()
         => SetPropertyClrTest(
             new ChangedOnlyEntity { Id = 1, Name = "Kool" }, needsDetectChanges: false);
 
-    [ConditionalFact]
+    [Fact]
     public void Setting_CLR_property_with_full_notifications_does_not_require_DetectChanges()
         => SetPropertyClrTest(
             new FullNotificationEntity { Id = 1, Name = "Kool" }, needsDetectChanges: false);
@@ -191,7 +189,7 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
     {
         using var context = new KClrContext();
         var entry = context.Attach(entity).GetInfrastructure();
-        var nameProperty = entry.EntityType.FindProperty("Name");
+        var nameProperty = entry.EntityType.FindProperty("Name")!;
 
         Assert.False(entry.IsModified(nameProperty));
         Assert.Equal(EntityState.Unchanged, entry.EntityState);
@@ -218,7 +216,7 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
     public class SomeCompositeEntityBase
     {
         public int Id1 { get; set; }
-        public string Id2 { get; set; }
+        public string Id2 { get; set; } = null!;
     }
 
     public class SomeDependentEntity : SomeCompositeEntityBase
@@ -230,13 +228,13 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
     public class SomeMoreDependentEntity : SomeSimpleEntityBase
     {
         public int Fk1 { get; set; }
-        public string Fk2 { get; set; }
+        public string Fk2 { get; set; } = null!;
     }
 
     public class FullNotificationEntity : INotifyPropertyChanging, INotifyPropertyChanged, ISomeEntity
     {
         private int _id;
-        private string _name;
+        private string _name = null!;
 
         public int Id
         {
@@ -266,8 +264,8 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
             }
         }
 
-        public event PropertyChangingEventHandler PropertyChanging;
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangingEventHandler? PropertyChanging;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         private void NotifyChanged([CallerMemberName] string propertyName = "")
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -279,7 +277,7 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
     public class ChangedOnlyEntity : INotifyPropertyChanged, ISomeEntity
     {
         private int _id;
-        private string _name;
+        private string _name = null!;
 
         public int Id
         {
@@ -307,7 +305,7 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
             }
         }
 
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         private void NotifyChanged([CallerMemberName] string propertyName = "")
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -317,7 +315,7 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
     {
         public int Id { get; set; }
 
-        public FirstDependent First { get; set; }
+        public FirstDependent First { get; set; } = null!;
 
         IFirstDependent IRoot.First
         {
@@ -330,7 +328,7 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
     {
         public int Id { get; set; }
 
-        public Root Root { get; set; }
+        public Root Root { get; set; } = null!;
 
         IRoot IFirstDependent.Root
         {
@@ -338,7 +336,7 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
             set => Root = (Root)value;
         }
 
-        public SecondDependent Second { get; set; }
+        public SecondDependent Second { get; set; } = null!;
 
         ISecondDependent IFirstDependent.Second
         {
@@ -351,7 +349,7 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
     {
         public int Id { get; set; }
 
-        public FirstDependent First { get; set; }
+        public FirstDependent First { get; set; } = null!;
 
         IFirstDependent ISecondDependent.First
         {
@@ -363,20 +361,20 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
     public class CompositeRoot : ICompositeRoot
     {
         public int Id1 { get; set; }
-        public string Id2 { get; set; }
+        public string Id2 { get; set; } = null!;
 
-        public ICompositeFirstDependent First { get; set; }
+        public ICompositeFirstDependent First { get; set; } = null!;
     }
 
     public class CompositeFirstDependent : ICompositeFirstDependent
     {
         public int Id1 { get; set; }
-        public string Id2 { get; set; }
+        public string Id2 { get; set; } = null!;
 
         public int RootId1 { get; set; }
-        public string RootId2 { get; set; }
+        public string RootId2 { get; set; } = null!;
 
-        public CompositeRoot Root { get; set; }
+        public CompositeRoot Root { get; set; } = null!;
 
         ICompositeRoot ICompositeFirstDependent.Root
         {
@@ -384,7 +382,7 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
             set => Root = (CompositeRoot)value;
         }
 
-        public CompositeSecondDependent Second { get; set; }
+        public CompositeSecondDependent Second { get; set; } = null!;
 
         ICompositeSecondDependent ICompositeFirstDependent.Second
         {
@@ -396,12 +394,12 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
     public class CompositeSecondDependent : ICompositeSecondDependent
     {
         public int Id1 { get; set; }
-        public string Id2 { get; set; }
+        public string Id2 { get; set; } = null!;
 
         public int FirstId1 { get; set; }
-        public string FirstId2 { get; set; }
+        public string FirstId2 { get; set; } = null!;
 
-        public CompositeFirstDependent First { get; set; }
+        public CompositeFirstDependent First { get; set; } = null!;
 
         ICompositeFirstDependent ICompositeSecondDependent.First
         {
@@ -413,18 +411,18 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
     public class OwnerClass
     {
         public int Id { get; set; }
-        public virtual OwnedClass Owned { get; set; }
+        public virtual OwnedClass Owned { get; set; } = null!;
     }
 
     public class OwnedClass
     {
-        public string Value { get; set; }
+        public string Value { get; set; } = null!;
     }
 
     public interface ISomeEntity
     {
-        int Id { get; set; }
-        string Name { get; set; }
+        public int Id { get; set; }
+        public string Name { get; set; }
     }
 
     public class SomeSimpleEntityBase
@@ -434,7 +432,7 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
 
     public class SomeEntity : SomeSimpleEntityBase, ISomeEntity
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 
     public class KClrContext : KContext
@@ -443,29 +441,26 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
         {
             base.OnModelCreating(modelBuilder);
 
-            modelBuilder.Entity<FullNotificationEntity>(
-                b =>
-                {
-                    b.Property(e => e.Name).IsConcurrencyToken();
-                    b.HasChangeTrackingStrategy(ChangeTrackingStrategy.ChangingAndChangedNotifications);
-                });
+            modelBuilder.Entity<FullNotificationEntity>(b =>
+            {
+                b.Property(e => e.Name).IsConcurrencyToken();
+                b.HasChangeTrackingStrategy(ChangeTrackingStrategy.ChangingAndChangedNotifications);
+            });
 
-            modelBuilder.Entity<ChangedOnlyEntity>(
-                b =>
-                {
-                    b.Property(e => e.Name).IsConcurrencyToken();
-                    b.HasChangeTrackingStrategy(ChangeTrackingStrategy.ChangedNotifications);
-                });
+            modelBuilder.Entity<ChangedOnlyEntity>(b =>
+            {
+                b.Property(e => e.Name).IsConcurrencyToken();
+                b.HasChangeTrackingStrategy(ChangeTrackingStrategy.ChangedNotifications);
+            });
 
-            modelBuilder.Entity<OwnerClass>(
-                eb =>
-                {
-                    eb.HasKey(e => e.Id);
-                    var owned = eb.OwnsOne(e => e.Owned);
-                    owned.WithOwner().HasForeignKey("Id");
-                    owned.HasKey("Id");
-                    owned.Property(e => e.Value);
-                });
+            modelBuilder.Entity<OwnerClass>(eb =>
+            {
+                eb.HasKey(e => e.Id);
+                var owned = eb.OwnsOne(e => e.Owned);
+                owned.WithOwner().HasForeignKey("Id");
+                owned.HasKey("Id");
+                owned.Property(e => e.Value);
+            });
         }
     }
 
@@ -475,19 +470,17 @@ public class InternalClrEntityEntryTest : InternalEntityEntryTestBase<
         {
             base.OnModelCreating(modelBuilder);
 
-            modelBuilder.Entity<FullNotificationEntity>(
-                b =>
-                {
-                    b.Property(e => e.Name).IsConcurrencyToken();
-                    b.HasChangeTrackingStrategy(ChangeTrackingStrategy.ChangingAndChangedNotificationsWithOriginalValues);
-                });
+            modelBuilder.Entity<FullNotificationEntity>(b =>
+            {
+                b.Property(e => e.Name).IsConcurrencyToken();
+                b.HasChangeTrackingStrategy(ChangeTrackingStrategy.ChangingAndChangedNotificationsWithOriginalValues);
+            });
 
-            modelBuilder.Entity<ChangedOnlyEntity>(
-                b =>
-                {
-                    b.Property(e => e.Name).IsConcurrencyToken();
-                    b.HasChangeTrackingStrategy(ChangeTrackingStrategy.ChangedNotifications);
-                });
+            modelBuilder.Entity<ChangedOnlyEntity>(b =>
+            {
+                b.Property(e => e.Name).IsConcurrencyToken();
+                b.HasChangeTrackingStrategy(ChangeTrackingStrategy.ChangedNotifications);
+            });
         }
     }
 }

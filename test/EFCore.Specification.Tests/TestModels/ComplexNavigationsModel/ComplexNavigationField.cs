@@ -5,7 +5,7 @@ namespace Microsoft.EntityFrameworkCore.TestModels.ComplexNavigationsModel;
 
 public class ComplexNavigationField
 {
-    public string Name { get; set; }
-    public ComplexNavigationString Label { get; set; }
-    public ComplexNavigationString Placeholder { get; set; }
+    public string Name { get; set; } = null!;
+    public ComplexNavigationString? Label { get; set; }
+    public ComplexNavigationString? Placeholder { get; set; }
 }

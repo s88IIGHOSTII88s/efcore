@@ -8,22 +8,15 @@ using Microsoft.EntityFrameworkCore.TestModels.ComplexNavigationsModel;
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public class LevelOneController : TestODataController, IDisposable
+public class LevelOneController(ComplexNavigationsODataContext context) : TestODataController, IDisposable
 {
-    private readonly ComplexNavigationsODataContext _context;
+    private readonly ComplexNavigationsODataContext _context = context;
 
-    public LevelOneController(ComplexNavigationsODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Level1> Get()
         => _context.LevelOne;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] int key)
     {
         var result = _context.LevelOne.FirstOrDefault(e => e.Id == key);
@@ -36,22 +29,15 @@ public class LevelOneController : TestODataController, IDisposable
     }
 }
 
-public class LevelTwoController : TestODataController, IDisposable
+public class LevelTwoController(ComplexNavigationsODataContext context) : TestODataController, IDisposable
 {
-    private readonly ComplexNavigationsODataContext _context;
+    private readonly ComplexNavigationsODataContext _context = context;
 
-    public LevelTwoController(ComplexNavigationsODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Level2> Get()
         => _context.LevelTwo;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] int key)
     {
         var result = _context.LevelTwo.FirstOrDefault(e => e.Id == key);
@@ -64,22 +50,15 @@ public class LevelTwoController : TestODataController, IDisposable
     }
 }
 
-public class LevelThreeController : TestODataController, IDisposable
+public class LevelThreeController(ComplexNavigationsODataContext context) : TestODataController, IDisposable
 {
-    private readonly ComplexNavigationsODataContext _context;
+    private readonly ComplexNavigationsODataContext _context = context;
 
-    public LevelThreeController(ComplexNavigationsODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Level3> Get()
         => _context.LevelThree;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] int key)
     {
         var result = _context.LevelThree.FirstOrDefault(e => e.Id == key);
@@ -92,22 +71,15 @@ public class LevelThreeController : TestODataController, IDisposable
     }
 }
 
-public class LevelFourController : TestODataController, IDisposable
+public class LevelFourController(ComplexNavigationsODataContext context) : TestODataController, IDisposable
 {
-    private readonly ComplexNavigationsODataContext _context;
+    private readonly ComplexNavigationsODataContext _context = context;
 
-    public LevelFourController(ComplexNavigationsODataContext context)
-    {
-        _context = context;
-    }
-
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public IEnumerable<Level4> Get()
         => _context.LevelFour;
 
-    [HttpGet]
-    [EnableQuery]
+    [HttpGet, EnableQuery]
     public ITestActionResult Get([FromODataUri] int key)
     {
         var result = _context.LevelFour.FirstOrDefault(e => e.Id == key);

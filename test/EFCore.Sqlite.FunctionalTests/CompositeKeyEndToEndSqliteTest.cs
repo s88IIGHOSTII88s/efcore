@@ -3,20 +3,19 @@
 
 namespace Microsoft.EntityFrameworkCore;
 
-public class CompositeKeyEndToEndSqliteTest : CompositeKeyEndToEndTestBase<
-    CompositeKeyEndToEndSqliteTest.CompositeKeyEndToEndSqliteFixture>
+public class CompositeKeyEndToEndSqliteTest(CompositeKeyEndToEndSqliteTest.CompositeKeyEndToEndSqliteFixture fixture)
+    : CompositeKeyEndToEndTestBase<
+        CompositeKeyEndToEndSqliteTest.CompositeKeyEndToEndSqliteFixture>(fixture)
 {
-    public CompositeKeyEndToEndSqliteTest(CompositeKeyEndToEndSqliteFixture fixture)
-        : base(fixture)
-    {
-    }
-
     public override Task Can_use_generated_values_in_composite_key_end_to_end()
         // Not supported on Sqlite
         => Task.CompletedTask;
 
     public class CompositeKeyEndToEndSqliteFixture : CompositeKeyEndToEndFixtureBase
     {
+        public override DbContextOptionsBuilder AddOptions(DbContextOptionsBuilder builder)
+            => base.AddOptions(builder.ConfigureWarnings(b => b.Ignore(SqliteEventId.CompositeKeyWithValueGeneration)));
+
         protected override ITestStoreFactory TestStoreFactory
             => SqliteTestStoreFactory.Instance;
     }

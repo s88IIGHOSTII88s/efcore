@@ -24,6 +24,14 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
             = new ResourceManager("Microsoft.EntityFrameworkCore.SqlServer.Properties.SqlServerStrings", typeof(SqlServerStrings).Assembly);
 
         /// <summary>
+        ///     Engine type '{newEngineType}' cannot be configured, because engine type was already configured as '{oldEngineType}'.
+        /// </summary>
+        public static string AlreadyConfiguredEngineType(object? newEngineType, object? oldEngineType)
+            => string.Format(
+                GetString("AlreadyConfiguredEngineType", nameof(newEngineType), nameof(oldEngineType)),
+                newEngineType, oldEngineType);
+
+        /// <summary>
         ///     To change the IDENTITY property of a column, the column needs to be dropped and recreated.
         /// </summary>
         public static string AlterIdentityColumn
@@ -36,12 +44,26 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
             => GetString("AlterMemoryOptimizedTable");
 
         /// <summary>
-        ///     Can't produce unterminated SQL with comments when generating migrations SQL for {operation}, .
+        ///     Cannot produce unterminated SQL with comments when generating migrations SQL for '{operation}'.
         /// </summary>
         public static string CannotProduceUnterminatedSQLWithComments(object? operation)
             => string.Format(
                 GetString("CannotProduceUnterminatedSQLWithComments", nameof(operation)),
                 operation);
+
+        /// <summary>
+        ///     EF Core's SQL Server compatibility level is set to {compatibilityLevel}; compatibility level 130 (SQL Server 2016) is the minimum for most forms of querying of JSON arrays.
+        /// </summary>
+        public static string CompatibilityLevelTooLowForScalarCollections(object? compatibilityLevel)
+            => string.Format(
+                GetString("CompatibilityLevelTooLowForScalarCollections", nameof(compatibilityLevel)),
+                compatibilityLevel);
+
+        /// <summary>
+        ///     'DateTimeOffset.Offset' cannot be translated on its own; use 'DateTimeOffset.Offset.TotalMinutes' to get the offset in minutes.
+        /// </summary>
+        public static string DateTimeOffsetOffsetRequiresTotalMinutes
+            => GetString("DateTimeOffsetOffsetRequiresTotalMinutes");
 
         /// <summary>
         ///     '{entityType1}.{property1}' and '{entityType2}.{property2}' are both mapped to column '{columnName}' in '{table}', but are configured with different identity increment values.
@@ -92,6 +114,14 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
                 index1, entityType1, index2, entityType2, table, indexName);
 
         /// <summary>
+        ///     The indexes {index1} on '{entityType1}' and {index2} on '{entityType2}' are both mapped to '{table}.{indexName}', but have different data compression configurations.
+        /// </summary>
+        public static string DuplicateIndexDataCompressionMismatch(object? index1, object? entityType1, object? index2, object? entityType2, object? table, object? indexName)
+            => string.Format(
+                GetString("DuplicateIndexDataCompressionMismatch", nameof(index1), nameof(entityType1), nameof(index2), nameof(entityType2), nameof(table), nameof(indexName)),
+                index1, entityType1, index2, entityType2, table, indexName);
+
+        /// <summary>
         ///     The indexes {index1} on '{entityType1}' and {index2} on '{entityType2}' are both mapped to '{table}.{indexName}', but have different fill factor configurations.
         /// </summary>
         public static string DuplicateIndexFillFactorMismatch(object? index1, object? entityType1, object? index2, object? entityType2, object? table, object? indexName)
@@ -116,12 +146,72 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
                 index1, entityType1, index2, entityType2, table, indexName);
 
         /// <summary>
+        ///     The indexes {index1} on '{entityType1}' and {index2} on '{entityType2}' are both mapped to '{table}.{indexName}', but have different sort in tempdb configurations.
+        /// </summary>
+        public static string DuplicateIndexSortInTempDbMismatch(object? index1, object? entityType1, object? index2, object? entityType2, object? table, object? indexName)
+            => string.Format(
+                GetString("DuplicateIndexSortInTempDbMismatch", nameof(index1), nameof(entityType1), nameof(index2), nameof(entityType2), nameof(table), nameof(indexName)),
+                index1, entityType1, index2, entityType2, table, indexName);
+
+        /// <summary>
         ///     The keys {key1} on '{entityType1}' and {key2} on '{entityType2}' are both mapped to '{table}.{keyName}', but have different clustering configurations.
         /// </summary>
         public static string DuplicateKeyMismatchedClustering(object? key1, object? entityType1, object? key2, object? entityType2, object? table, object? keyName)
             => string.Format(
                 GetString("DuplicateKeyMismatchedClustering", nameof(key1), nameof(entityType1), nameof(key2), nameof(entityType2), nameof(table), nameof(keyName)),
                 key1, entityType1, key2, entityType2, table, keyName);
+
+        /// <summary>
+        ///     'ExecuteUpdate' cannot set a property in a JSON column to an expression containing a column on SQL Server versions before 2022. If you're on SQL Server 2022 and above, your compatibility level may be set to a lower value; consider raising it.
+        /// </summary>
+        public static string ExecuteUpdateCannotSetJsonPropertyOnOldSqlServer
+            => GetString("ExecuteUpdateCannotSetJsonPropertyOnOldSqlServer");
+
+        /// <summary>
+        ///     Entity type '{entityType}' has multiple full-text indexes configured. SQL Server supports only one full-text index per table.
+        /// </summary>
+        public static string FullTextIndexDuplicateOnTable(object? entityType)
+            => string.Format(
+                GetString("FullTextIndexDuplicateOnTable", nameof(entityType)),
+                entityType);
+
+        /// <summary>
+        ///     Full-text index '{index}' on entity type '{entityType}' specifies a language for property '{property}', but that property is not part of the index.
+        /// </summary>
+        public static string FullTextIndexLanguagePropertyNotInIndex(object? index, object? entityType, object? property)
+            => string.Format(
+                GetString("FullTextIndexLanguagePropertyNotInIndex", nameof(index), nameof(entityType), nameof(property)),
+                index, entityType, property);
+
+        /// <summary>
+        ///     Full-text index '{index}' on entity type '{entityType}' does not have a KEY INDEX configured. SQL Server requires a KEY INDEX for every full-text index. Use 'UseKeyIndex' to configure the KEY INDEX.
+        /// </summary>
+        public static string FullTextIndexMissingKeyIndex(object? index, object? entityType)
+            => string.Format(
+                GetString("FullTextIndexMissingKeyIndex", nameof(index), nameof(entityType)),
+                index, entityType);
+
+        /// <summary>
+        ///     Full-text index '{index}' on entity type '{entityType}' includes property '{property}' which is not mapped to a text or varbinary column type supported by full-text search.
+        /// </summary>
+        public static string FullTextIndexOnInvalidColumn(object? index, object? entityType, object? property)
+            => string.Format(
+                GetString("FullTextIndexOnInvalidColumn", nameof(index), nameof(entityType), nameof(property)),
+                index, entityType, property);
+
+        /// <summary>
+        ///     Full-text index '{index}' on entity type '{entityType}' was configured with the '{option}' option, which is not supported on full-text indexes.
+        /// </summary>
+        public static string FullTextIndexUnsupportedOption(object? index, object? entityType, object? option)
+            => string.Format(
+                GetString("FullTextIndexUnsupportedOption", nameof(index), nameof(entityType), nameof(option)),
+                index, entityType, option);
+
+        /// <summary>
+        ///     Multiple full-text catalogs are marked as default. Only one full-text catalog can be the default.
+        /// </summary>
+        public static string FullTextMultipleDefaultCatalogs
+            => GetString("FullTextMultipleDefaultCatalogs");
 
         /// <summary>
         ///     Identity value generation cannot be used for the property '{property}' on entity type '{entityType}' because the property type is '{propertyType}'. Identity value generation can only be used with signed integer properties.
@@ -156,6 +246,22 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
                 property, index, entityType);
 
         /// <summary>
+        ///     The include property '{property}' specified on the index {index} on entity type '{entityType}' is contained within a JSON-mapped type. Properties contained within JSON-mapped types cannot be included in an index.
+        /// </summary>
+        public static string IncludePropertyInJsonMappedType(object? property, object? index, object? entityType)
+            => string.Format(
+                GetString("IncludePropertyInJsonMappedType", nameof(property), nameof(index), nameof(entityType)),
+                property, index, entityType);
+
+        /// <summary>
+        ///     Cannot use table '{table}' for entity type '{entityType}' since it is being used for entity type '{otherEntityType}' and entity type '{entityTypeWithSqlOutputClause}' is configured to use the SQL OUTPUT clause, but entity type '{entityTypeWithoutSqlOutputClause}' is not.
+        /// </summary>
+        public static string IncompatibleSqlOutputClauseMismatch(object? table, object? entityType, object? otherEntityType, object? entityTypeWithSqlOutputClause, object? entityTypeWithoutSqlOutputClause)
+            => string.Format(
+                GetString("IncompatibleSqlOutputClauseMismatch", nameof(table), nameof(entityType), nameof(otherEntityType), nameof(entityTypeWithSqlOutputClause), nameof(entityTypeWithoutSqlOutputClause)),
+                table, entityType, otherEntityType, entityTypeWithSqlOutputClause, entityTypeWithoutSqlOutputClause);
+
+        /// <summary>
         ///     Cannot use table '{table}' for entity type '{entityType}' since it is being used for entity type '{otherEntityType}' and entity type '{memoryOptimizedEntityType}' is marked as memory-optimized, but entity type '{nonMemoryOptimizedEntityType}' is not.
         /// </summary>
         public static string IncompatibleTableMemoryOptimizedMismatch(object? table, object? entityType, object? otherEntityType, object? memoryOptimizedEntityType, object? nonMemoryOptimizedEntityType)
@@ -170,10 +276,34 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
             => GetString("IndexTableRequired");
 
         /// <summary>
+        ///     Collation name '{collation}' is invalid; collation names may only contain alphanumeric characters and underscores.
+        /// </summary>
+        public static string InvalidCollationName(object? collation)
+            => string.Format(
+                GetString("InvalidCollationName", nameof(collation)),
+                collation);
+
+        /// <summary>
         ///     The expression passed to the 'propertyReference' parameter of the 'FreeText' method is not a valid reference to a property. The expression must represent a reference to a full-text indexed property on the object referenced in the from clause: 'from e in context.Entities where EF.Functions.FreeText(e.SomeProperty, textToSearchFor) select e'
         /// </summary>
         public static string InvalidColumnNameForFreeText
             => GetString("InvalidColumnNameForFreeText");
+
+        /// <summary>
+        ///     The datepart '{datepart}' is invalid for the {function} function; datepart values may only contain letters and underscores.
+        /// </summary>
+        public static string InvalidDatePart(object? datepart, object? function)
+            => string.Format(
+                GetString("InvalidDatePart", nameof(datepart), nameof(function)),
+                datepart, function);
+
+        /// <summary>
+        ///     Engine type was not configured. Use one of {methods} to configure it.
+        /// </summary>
+        public static string InvalidEngineType(object? methods)
+            => string.Format(
+                GetString("InvalidEngineType", nameof(methods)),
+                methods);
 
         /// <summary>
         ///     The specified table '{table}' is not in a valid format. Specify tables using the format '[schema].[table]'.
@@ -182,6 +312,28 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
             => string.Format(
                 GetString("InvalidTableToIncludeInScaffolding", nameof(table)),
                 table);
+
+        /// <summary>
+        ///     JSON index '{index}' on entity type '{entityType}' was configured with the '{option}' option, which is not supported on JSON indexes.
+        /// </summary>
+        public static string JsonIndexUnsupportedOption(object? index, object? entityType, object? option)
+            => string.Format(
+                GetString("JsonIndexUnsupportedOption", nameof(index), nameof(entityType), nameof(option)),
+                index, entityType, option);
+
+        /// <summary>
+        ///     A non-constant array index or property name was used when navigating inside a JSON document, but EF Core's SQL Server compatibility level is set to {compatibilityLevel}; this is only supported with compatibility level 140 (SQL Server 2017) or higher.
+        /// </summary>
+        public static string JsonValuePathExpressionsNotSupported(object? compatibilityLevel)
+            => string.Format(
+                GetString("JsonValuePathExpressionsNotSupported", nameof(compatibilityLevel)),
+                compatibilityLevel);
+
+        /// <summary>
+        ///     This usage of Math.Min or Math.Max requires SQL Server functions LEAST and GREATEST, which require compatibility level 160.
+        /// </summary>
+        public static string LeastGreatestCompatibilityLevelTooLow
+            => GetString("LeastGreatestCompatibilityLevelTooLow");
 
         /// <summary>
         ///     The properties {properties} are configured to use 'Identity' value generation and are mapped to the same table '{table}', but only one column per table can be configured as 'Identity'. Call 'ValueGeneratedNever' in 'OnModelCreating' for properties that should not use 'Identity'.
@@ -198,27 +350,33 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
             => GetString("NoInitialCatalog");
 
         /// <summary>
-        ///     The property '{property}' on entity type '{entityType}' is configured to use 'SequenceHiLo' value generator, which is only intended for keys. If this was intentional, configure an alternate key on the property, otherwise call 'ValueGeneratedNever' or configure store generation for this property.
-        /// </summary>
-        public static string NonKeyValueGeneration(object? property, object? entityType)
-            => string.Format(
-                GetString("NonKeyValueGeneration", nameof(property), nameof(entityType)),
-                property, entityType);
-
-        /// <summary>
         ///     SQL Server does not support releasing a savepoint.
         /// </summary>
         public static string NoSavepointRelease
             => GetString("NoSavepointRelease");
 
         /// <summary>
-        ///     Could not save changes because the target table has computed column with a function that performs data access. Please configure your entity type accordingly, see https://aka.ms/efcore-docs-sqlserver-save-changes-and-computed-columns for more information.
+        ///     The '{propertyType}' property '{entityType}.{property}' could not be mapped because the required HierarchyId services have not been configured. Install the 'Microsoft.EntityFrameworkCore.SqlServer.HierarchyId' NuGet package and call 'UseHierarchyId' in your SQL Server provider configuration. See https://learn.microsoft.com/ef/core/providers/sql-server/hierarchyid for more information.
+        /// </summary>
+        public static string PropertyNotMappedHierarchyId(object? propertyType, object? entityType, object? property)
+            => string.Format(
+                GetString("PropertyNotMappedHierarchyId", nameof(propertyType), nameof(entityType), nameof(property)),
+                propertyType, entityType, property);
+
+        /// <summary>
+        ///     The query is attempting to query a JSON collection of binary data in a context that requires preserving the ordering of the collection; this isn't supported by SQL Server.
+        /// </summary>
+        public static string QueryingOrderedBinaryJsonCollectionsNotSupported
+            => GetString("QueryingOrderedBinaryJsonCollectionsNotSupported");
+
+        /// <summary>
+        ///     Could not save changes because the target table has computed column with a function that performs data access. Please configure your table accordingly, see https://aka.ms/efcore-docs-sqlserver-save-changes-and-output-clause for more information.
         /// </summary>
         public static string SaveChangesFailedBecauseOfComputedColumnWithFunction
             => GetString("SaveChangesFailedBecauseOfComputedColumnWithFunction");
 
         /// <summary>
-        ///     Could not save changes because the target table has database triggers. Please configure your entity type accordingly, see https://aka.ms/efcore-docs-sqlserver-save-changes-and-triggers for more information.
+        ///     Could not save changes because the target table has database triggers. Please configure your table accordingly, see https://aka.ms/efcore-docs-sqlserver-save-changes-and-output-clause for more information.
         /// </summary>
         public static string SaveChangesFailedBecauseOfTriggers
             => GetString("SaveChangesFailedBecauseOfTriggers");
@@ -232,12 +390,28 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
                 property, entityType, propertyType);
 
         /// <summary>
+        ///     Entity type '{entityType}' should be marked as temporal because it shares table mapping with another entity that has been marked as temporal. Alternatively, other entity types that share the same table must be non-temporal.
+        /// </summary>
+        public static string TemporalAllEntitiesMappedToSameTableMustBeTemporal(object? entityType)
+            => string.Format(
+                GetString("TemporalAllEntitiesMappedToSameTableMustBeTemporal", nameof(entityType)),
+                entityType);
+
+        /// <summary>
         ///     Entity type '{entityType}' mapped to temporal table does not contain the expected period property: '{propertyName}'.
         /// </summary>
         public static string TemporalExpectedPeriodPropertyNotFound(object? entityType, object? propertyName)
             => string.Format(
                 GetString("TemporalExpectedPeriodPropertyNotFound", nameof(entityType), nameof(propertyName)),
                 entityType, propertyName);
+
+        /// <summary>
+        ///     Modifying SQL of a computed column '{columnName}' on a temporal table '{tableName}' is not supported by migrations.
+        /// </summary>
+        public static string TemporalMigrationModifyingComputedColumnNotSupported(object? columnName, object? tableName)
+            => string.Format(
+                GetString("TemporalMigrationModifyingComputedColumnNotSupported", nameof(columnName), nameof(tableName)),
+                columnName, tableName);
 
         /// <summary>
         ///     Entity type '{entityType}' mapped to temporal table must have a period start and a period end property.
@@ -264,35 +438,20 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
                 operationName);
 
         /// <summary>
-        ///     When multiple temporal entities are mapped to the same table, their period {periodType} properties must map to the same column. There is an issue with the entity type '{entityType}' with period property '{periodProperty}' which is mapped to column '{periodColumn}'. Expected period column name is '{expectedColumnName}'.
+        ///     When multiple temporal entities are mapped to the same table, their period {periodType} properties must map to the same column. Issue happens for entity type '{entityType}' with period property '{periodProperty}' which is mapped to column '{periodColumn}'. Expected period column name is '{expectedColumnName}'.
         /// </summary>
-        public static string TemporalNotSupportedForTableSplittingWithInconsistentPeriodMapping(
-            object? periodType,
-            object? entityType,
-            object? periodProperty,
-            object? periodColumn,
-            object? expectedColumnName)
+        public static string TemporalNotSupportedForTableSplittingWithInconsistentPeriodMapping(object? periodType, object? entityType, object? periodProperty, object? periodColumn, object? expectedColumnName)
             => string.Format(
-                GetString(
-                    "TemporalNotSupportedForTableSplittingWithInconsistentPeriodMapping",
-                    nameof(periodType),
-                    nameof(entityType),
-                    nameof(periodProperty),
-                    nameof(periodColumn),
-                    nameof(expectedColumnName)),
-                periodType,
-                entityType,
-                periodProperty,
-                periodColumn,
-                expectedColumnName);
+                GetString("TemporalNotSupportedForTableSplittingWithInconsistentPeriodMapping", nameof(periodType), nameof(entityType), nameof(periodProperty), nameof(periodColumn), nameof(expectedColumnName)),
+                periodType, entityType, periodProperty, periodColumn, expectedColumnName);
 
         /// <summary>
-        ///     Entity type '{entityType}' should be marked as temporal because it shares table mapping with another entity that has been marked as temporal. Alternatively, other entity types that share the same table must be non-temporal.
+        ///     The temporal operator '{operatorName}' cannot be used in a compiled query with arguments that vary per invocation. Temporal points in time and ranges are written into the SQL as literals, and a compiled query reuses a single SQL string, so the arguments must be constants. Either use constant arguments, or execute the query without EF.CompileQuery or EF.CompileAsyncQuery.
         /// </summary>
-        public static string TemporalAllEntitiesMappedToSameTableMustBeTemporal(object? entityType)
+        public static string TemporalOperatorRequiresConstantArgumentInCompiledQuery(object? operatorName)
             => string.Format(
-                GetString("TemporalAllEntitiesMappedToSameTableMustBeTemporal", nameof(entityType)),
-                entityType);
+                GetString("TemporalOperatorRequiresConstantArgumentInCompiledQuery", nameof(operatorName)),
+                operatorName);
 
         /// <summary>
         ///     Only root entity type should be marked as temporal. Entity type: '{entityType}'.
@@ -319,14 +478,6 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
                 entityType, propertyName);
 
         /// <summary>
-        ///     Period property '{entityType}.{propertyName}' must be a shadow property.
-        /// </summary>
-        public static string TemporalPeriodPropertyMustBeInShadowState(object? entityType, object? propertyName)
-            => string.Format(
-                GetString("TemporalPeriodPropertyMustBeInShadowState", nameof(entityType), nameof(propertyName)),
-                entityType, propertyName);
-
-        /// <summary>
         ///     Period property '{entityType}.{propertyName}' must be mapped to a column of type '{columnType}'.
         /// </summary>
         public static string TemporalPeriodPropertyMustBeMappedToDatetime2(object? entityType, object? propertyName, object? columnType)
@@ -341,14 +492,6 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
             => string.Format(
                 GetString("TemporalPeriodPropertyMustBeNonNullableDateTime", nameof(entityType), nameof(propertyName), nameof(dateTimeType)),
                 entityType, propertyName, dateTimeType);
-
-        /// <summary>
-        ///     Property '{entityType}.{propertyName}' is mapped to the period column and can't have default value specified.
-        /// </summary>
-        public static string TemporalPropertyMappedToPeriodColumnCantHaveDefaultValue(object? entityType, object? propertyName)
-            => string.Format(
-                GetString("TemporalPropertyMappedToPeriodColumnCantHaveDefaultValue", nameof(entityType), nameof(propertyName)),
-                entityType, propertyName);
 
         /// <summary>
         ///     Property '{entityType}.{propertyName}' is mapped to the period column and must have ValueGenerated set to '{valueGeneratedValue}'.
@@ -367,10 +510,112 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
                 entityType);
 
         /// <summary>
+        ///     The TimeSpan value '{timeSpan}' is outside the valid range for a SQL Server 'time' literal. Values must be greater than or equal to zero and less than 24 hours.
+        /// </summary>
+        public static string TimeSpanLiteralOutOfRange(object? timeSpan)
+            => string.Format(
+                GetString("TimeSpanLiteralOutOfRange", nameof(timeSpan)),
+                timeSpan);
+
+        /// <summary>
+        ///     The provided time zone offset '{offset}' is outside the valid range for SQL Server. Time zone offsets must be between -14:00 and +14:00.
+        /// </summary>
+        public static string TimeSpanOffsetOutOfRange(object? offset)
+            => string.Format(
+                GetString("TimeSpanOffsetOutOfRange", nameof(offset)),
+                offset);
+
+        /// <summary>
+        ///     SQL Server time zone offsets must be specified in whole minutes. The provided TimeSpan value contains sub-minute precision (seconds, milliseconds, or smaller), which is not supported.
+        /// </summary>
+        public static string TimeSpanOffsetPrecisionNotSupported
+            => GetString("TimeSpanOffsetPrecisionNotSupported");
+
+        /// <summary>
         ///     An exception has been raised that is likely due to a transient failure. Consider enabling transient error resiliency by adding 'EnableRetryOnFailure' to the 'UseSqlServer' call.
         /// </summary>
         public static string TransientExceptionDetected
             => GetString("TransientExceptionDetected");
+
+        /// <summary>
+        ///     Vector properties require a positive size (number of dimensions).
+        /// </summary>
+        public static string VectorDimensionsInvalid
+            => GetString("VectorDimensionsInvalid");
+
+        /// <summary>
+        ///     Vector property '{structuralType}.{propertyName}' was not configured with the number of dimensions. Set the column type to 'vector(x)' with the desired number of dimensions, or use the 'MaxLength' APIs.
+        /// </summary>
+        public static string VectorDimensionsMissing(object? structuralType, object? propertyName)
+            => string.Format(
+                GetString("VectorDimensionsMissing", nameof(structuralType), nameof(propertyName)),
+                structuralType, propertyName);
+
+        /// <summary>
+        ///     Vector index '{index}' on entity type '{entityType}' is defined over property '{property}', which is not a vector property.
+        /// </summary>
+        public static string VectorIndexOnNonVectorProperty(object? index, object? entityType, object? property)
+            => string.Format(
+                GetString("VectorIndexOnNonVectorProperty", nameof(index), nameof(entityType), nameof(property)),
+                index, entityType, property);
+
+        /// <summary>
+        ///     Vector index '{index}' on entity type '{entityType}' must specify a similarity metric. Call 'HasMetric' on the vector index builder.
+        /// </summary>
+        public static string VectorIndexRequiresMetric(object? index, object? entityType)
+            => string.Format(
+                GetString("VectorIndexRequiresMetric", nameof(index), nameof(entityType)),
+                index, entityType);
+
+        /// <summary>
+        ///     Vector index '{index}' on entity type '{entityType}' must have exactly one property. Vector indexes do not support multiple properties.
+        /// </summary>
+        public static string VectorIndexRequiresSingleProperty(object? index, object? entityType)
+            => string.Format(
+                GetString("VectorIndexRequiresSingleProperty", nameof(index), nameof(entityType)),
+                index, entityType);
+
+        /// <summary>
+        ///     Vector index '{index}' on entity type '{entityType}' cannot have an empty vector index type.
+        /// </summary>
+        public static string VectorIndexRequiresType(object? index, object? entityType)
+            => string.Format(
+                GetString("VectorIndexRequiresType", nameof(index), nameof(entityType)),
+                index, entityType);
+
+        /// <summary>
+        ///     Vector index '{index}' on entity type '{entityType}' was configured with the '{option}' option, which is not supported on vector indexes.
+        /// </summary>
+        public static string VectorIndexUnsupportedOption(object? index, object? entityType, object? option)
+            => string.Format(
+                GetString("VectorIndexUnsupportedOption", nameof(index), nameof(entityType), nameof(option)),
+                index, entityType, option);
+
+        /// <summary>
+        ///     Vector property '{propertyName}' is on '{structuralType}' which is mapped to JSON. Vector properties are not supported within JSON documents.
+        /// </summary>
+        public static string VectorPropertiesNotSupportedInJson(object? propertyName, object? structuralType)
+            => string.Format(
+                GetString("VectorPropertiesNotSupportedInJson", nameof(propertyName), nameof(structuralType)),
+                propertyName, structuralType);
+
+        /// <summary>
+        ///     VectorSearch() requires a valid vector column.
+        /// </summary>
+        public static string VectorSearchRequiresColumn
+            => GetString("VectorSearchRequiresColumn");
+
+        /// <summary>
+        ///     WithApproximate() after Skip().Take() is not supported. Use Take().WithApproximate().Skip() instead, or remove Skip().
+        /// </summary>
+        public static string WithApproximateNotSupportedWithSkipAndTake
+            => GetString("WithApproximateNotSupportedWithSkipAndTake");
+
+        /// <summary>
+        ///     WithApproximate() must be called after Take() to specify the number of results.
+        /// </summary>
+        public static string WithApproximateRequiresTake
+            => GetString("WithApproximateRequiresTake");
 
         private static string GetString(string name, params string[] formatterNames)
         {
@@ -471,6 +716,31 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
             }
 
             return (EventDefinition<string, string, string, string>)definition;
+        }
+
+        /// <summary>
+        ///     Skipping foreign key '{foreignKeyName}' on table '{tableName}' since it is not supported by the Dataverse TDS Endpoint.
+        /// </summary>
+        public static EventDefinition<string, string> LogDataverseForeignKeyInvalid(IDiagnosticsLogger logger)
+        {
+            var definition = ((Diagnostics.Internal.SqlServerLoggingDefinitions)logger.Definitions).LogDataverseForeignKeyInvalid;
+            if (definition == null)
+            {
+                definition = NonCapturingLazyInitializer.EnsureInitialized(
+                    ref ((Diagnostics.Internal.SqlServerLoggingDefinitions)logger.Definitions).LogDataverseForeignKeyInvalid,
+                    logger,
+                    static logger => new EventDefinition<string, string>(
+                        logger.Options,
+                        SqlServerEventId.DataverseForeignKeyInvalidWarning,
+                        LogLevel.Warning,
+                        "SqlServerEventId.DataverseForeignKeyInvalidWarning",
+                        level => LoggerMessage.Define<string, string>(
+                            level,
+                            SqlServerEventId.DataverseForeignKeyInvalidWarning,
+                            _resourceManager.GetString("LogDataverseForeignKeyInvalid")!)));
+            }
+
+            return (EventDefinition<string, string>)definition;
         }
 
         /// <summary>
@@ -818,6 +1088,31 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
         }
 
         /// <summary>
+        ///     The database user has not been granted 'VIEW DEFINITION' rights. Scaffolding requires these rights to construct the Entity Framework model correctly. Without these rights, parts of the scaffolded model may be missing, resulting in incorrect interactions between Entity Framework and the database at runtime.
+        /// </summary>
+        public static EventDefinition LogMissingViewDefinitionRights(IDiagnosticsLogger logger)
+        {
+            var definition = ((Diagnostics.Internal.SqlServerLoggingDefinitions)logger.Definitions).LogMissingViewDefinitionRights;
+            if (definition == null)
+            {
+                definition = NonCapturingLazyInitializer.EnsureInitialized(
+                    ref ((Diagnostics.Internal.SqlServerLoggingDefinitions)logger.Definitions).LogMissingViewDefinitionRights,
+                    logger,
+                    static logger => new EventDefinition(
+                        logger.Options,
+                        SqlServerEventId.MissingViewDefinitionRightsWarning,
+                        LogLevel.Warning,
+                        "SqlServerEventId.MissingViewDefinitionRightsWarning",
+                        level => LoggerMessage.Define(
+                            level,
+                            SqlServerEventId.MissingViewDefinitionRightsWarning,
+                            _resourceManager.GetString("LogMissingViewDefinitionRights")!)));
+            }
+
+            return (EventDefinition)definition;
+        }
+
+        /// <summary>
         ///     Skipping foreign key with identity '{id}' on table '{tableName}', since the principal column '{principalColumnName}' on the foreign key's principal table, '{principalTableName}', was not found in the model.
         /// </summary>
         public static EventDefinition<string, string, string, string> LogPrincipalColumnNotFound(IDiagnosticsLogger logger)
@@ -943,28 +1238,28 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
         }
 
         /// <summary>
-        ///     The database user has not been granted 'VIEW DEFINITION' rights. Scaffolding requires these rights to construct the Entity Framework model correctly. Without these rights, parts of the scaffolded model may be missing, resulting in incorrect interactions between Entity Framework and the database at runtime.
+        ///     The query uses 'VectorSearch' on property '{property}' of entity type '{entityType}', but 'WithApproximate()' was not specified. The query will perform an exact brute-force search instead of using a vector index. Call 'WithApproximate()' after 'Take()' to use the vector index for better performance. To identify the code which triggers this warning, call 'ConfigureWarnings(w =&gt; w.Throw(SqlServerEventId.VectorSearchWithoutApproximateIndexWarning))'.
         /// </summary>
-        public static EventDefinition LogMissingViewDefinitionRights(IDiagnosticsLogger logger)
+        public static EventDefinition<string, string> LogVectorSearchWithoutApproximate(IDiagnosticsLogger logger)
         {
-            var definition = ((Diagnostics.Internal.SqlServerLoggingDefinitions)logger.Definitions).LogMissingViewDefinitionRights;
+            var definition = ((Diagnostics.Internal.SqlServerLoggingDefinitions)logger.Definitions).LogVectorSearchWithoutApproximate;
             if (definition == null)
             {
                 definition = NonCapturingLazyInitializer.EnsureInitialized(
-                    ref ((Diagnostics.Internal.SqlServerLoggingDefinitions)logger.Definitions).LogMissingViewDefinitionRights,
+                    ref ((Diagnostics.Internal.SqlServerLoggingDefinitions)logger.Definitions).LogVectorSearchWithoutApproximate,
                     logger,
-                    static logger => new EventDefinition(
+                    static logger => new EventDefinition<string, string>(
                         logger.Options,
-                        SqlServerEventId.MissingViewDefinitionRightsWarning,
+                        SqlServerEventId.VectorSearchWithoutApproximateIndexWarning,
                         LogLevel.Warning,
-                        "SqlServerEventId.MissingViewDefinitionRightsWarning",
-                        level => LoggerMessage.Define(
+                        "SqlServerEventId.VectorSearchWithoutApproximateIndexWarning",
+                        level => LoggerMessage.Define<string, string>(
                             level,
-                            SqlServerEventId.MissingViewDefinitionRightsWarning,
-                            _resourceManager.GetString("LogMissingViewDefinitionRights")!)));
+                            SqlServerEventId.VectorSearchWithoutApproximateIndexWarning,
+                            _resourceManager.GetString("LogVectorSearchWithoutApproximate")!)));
             }
 
-            return (EventDefinition)definition;
+            return (EventDefinition<string, string>)definition;
         }
     }
 }

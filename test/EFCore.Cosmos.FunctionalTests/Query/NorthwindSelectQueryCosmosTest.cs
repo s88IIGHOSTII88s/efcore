@@ -4,6 +4,7 @@
 using Microsoft.Azure.Cosmos;
 using Microsoft.EntityFrameworkCore.Cosmos.Internal;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
+using Xunit.Sdk;
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
@@ -15,46 +16,75 @@ public class NorthwindSelectQueryCosmosTest : NorthwindSelectQueryTestBase<North
         : base(fixture)
     {
         ClearLog();
-        //Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
+        Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Check_all_tests_overridden()
         => TestHelpers.AssertAllMethodsOverridden(GetType());
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task Projection_with_Value_Property(bool async)
-    {
-        await AssertQuery(
-            async,
-            ss => ss.Set<Order>().Select(o => new { Value = o.OrderID }),
-            e => e.Value);
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual Task Projection_with_Value_Property(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await AssertQuery(
+                    a,
+                    ss => ss.Set<Order>().Select(o => new { Value = o.OrderID }),
+                    e => e.Value);
 
-        AssertSql(
-            @"SELECT VALUE {""Value"" : c[""OrderID""]}
+                AssertSql(
+                    """
+SELECT VALUE c["OrderID"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Projection_when_arithmetic_expression_precedence(bool async)
-    {
-        await base.Projection_when_arithmetic_expression_precedence(async);
+    public override Task Projection_when_arithmetic_expression_precedence(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Projection_when_arithmetic_expression_precedence(a);
 
-        AssertSql(
-            @"SELECT VALUE {""A"" : (c[""OrderID""] / (c[""OrderID""] / 2)), ""B"" : ((c[""OrderID""] / c[""OrderID""]) / 2)}
+                AssertSql(
+                    """
+SELECT VALUE
+{
+    "A" : (c["OrderID"] / (c["OrderID"] / 2)),
+    "B" : ((c["OrderID"] / c["OrderID"]) / 2)
+}
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Projection_when_arithmetic_expressions(bool async)
+    public override Task Projection_when_arithmetic_expressions(bool async)
     {
-        await base.Projection_when_arithmetic_expressions(async);
+        // https://github.com/Azure/azure-cosmos-db-emulator-docker/issues/335
+        CosmosTestEnvironment.SkipOnLinuxEmulator();
 
-        AssertSql(
-            @"SELECT VALUE {""OrderID"" : c[""OrderID""], ""Double"" : (c[""OrderID""] * 2), ""Add"" : (c[""OrderID""] + 23), ""Sub"" : (100000 - c[""OrderID""]), ""Divide"" : (c[""OrderID""] / (c[""OrderID""] / 2)), ""Literal"" : 42, ""o"" : c}
+        return Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Projection_when_arithmetic_expressions(a);
+
+                AssertSql(
+                    """
+SELECT VALUE
+{
+    "OrderID" : c["OrderID"],
+    "Double" : (c["OrderID"] * 2),
+    "Add" : (c["OrderID"] + 23),
+    "Sub" : (100000 - c["OrderID"]),
+    "Divide" : (c["OrderID"] / (c["OrderID"] / 2)),
+    "Literal" : 42,
+    "o" : c
+}
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
+WHERE (c["$type"] = "Order")
+""");
+            });
     }
 
     public override async Task Projection_when_arithmetic_mixed(bool async)
@@ -73,15 +103,18 @@ WHERE (c[""Discriminator""] = ""Order"")");
         AssertSql();
     }
 
-    public override async Task Projection_when_null_value(bool async)
-    {
-        await base.Projection_when_null_value(async);
+    public override Task Projection_when_null_value(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Projection_when_null_value(a);
 
-        AssertSql(
-            @"SELECT c[""Region""]
+                AssertSql(
+                    """
+SELECT VALUE c["Region"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
     public override async Task Projection_when_client_evald_subquery(bool async)
     {
@@ -91,26 +124,38 @@ WHERE (c[""Discriminator""] = ""Customer"")");
         AssertSql();
     }
 
-    public override async Task Project_to_object_array(bool async)
+    public override Task Project_to_object_array(bool async)
     {
-        await base.Project_to_object_array(async);
+        // https://github.com/Azure/azure-cosmos-db-emulator-docker/issues/335
+        CosmosTestEnvironment.SkipOnLinuxEmulator();
 
-        AssertSql(
-            @"SELECT c[""EmployeeID""], c[""ReportsTo""], c[""Title""]
+        return Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Project_to_object_array(a);
+
+                AssertSql(
+                    """
+SELECT c["EmployeeID"], c["ReportsTo"], c["Title"]
 FROM root c
-WHERE ((c[""Discriminator""] = ""Employee"") AND (c[""EmployeeID""] = 1))");
+WHERE (c["EmployeeID"] = 1)
+""");
+            });
     }
 
-    public override async Task Projection_of_entity_type_into_object_array(bool async)
-    {
-        await base.Projection_of_entity_type_into_object_array(async);
-
-        AssertSql(
-            @"SELECT c
+    public override Task Projection_of_entity_type_into_object_array(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Projection_of_entity_type_into_object_array(a);
+                AssertSql(
+                    """
+SELECT VALUE c
 FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND ((c[""CustomerID""] != null) AND ((""A"" != null) AND STARTSWITH(c[""CustomerID""], ""A""))))
-ORDER BY c[""CustomerID""]");
-    }
+WHERE STARTSWITH(c["id"], "A")
+ORDER BY c["id"]
+""");
+            });
 
     public override async Task Projection_of_multiple_entity_types_into_object_array(bool async)
     {
@@ -120,26 +165,32 @@ ORDER BY c[""CustomerID""]");
         AssertSql();
     }
 
-    public override async Task Projection_of_entity_type_into_object_list(bool async)
-    {
-        await base.Projection_of_entity_type_into_object_list(async);
-
-        AssertSql(
-            @"SELECT c
+    public override Task Projection_of_entity_type_into_object_list(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Projection_of_entity_type_into_object_list(a);
+                AssertSql(
+                    """
+SELECT VALUE c
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")
-ORDER BY c[""CustomerID""]");
-    }
+ORDER BY c["id"]
+""");
+            });
 
-    public override async Task Project_to_int_array(bool async)
-    {
-        await base.Project_to_int_array(async);
+    public override Task Project_to_int_array(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Project_to_int_array(a);
 
-        AssertSql(
-            @"SELECT c[""EmployeeID""], c[""ReportsTo""]
+                AssertSql(
+                    """
+SELECT VALUE [c["EmployeeID"], c["ReportsTo"]]
 FROM root c
-WHERE ((c[""Discriminator""] = ""Employee"") AND (c[""EmployeeID""] = 1))");
-    }
+WHERE (c["EmployeeID"] = 1)
+""");
+            });
 
     public override async Task Select_bool_closure_with_order_by_property_with_cast_to_nullable(bool async)
     {
@@ -151,162 +202,247 @@ WHERE ((c[""Discriminator""] = ""Employee"") AND (c[""EmployeeID""] = 1))");
 
     public override async Task Select_bool_closure_with_order_parameter_with_cast_to_nullable(bool async)
     {
-        await Assert.ThrowsAsync<CosmosException>(
-            () => base.Select_bool_closure_with_order_parameter_with_cast_to_nullable(async));
+        // Always throws for sync.
+        if (async)
+        {
+            await Assert.ThrowsAsync<CosmosException>(() => base.Select_bool_closure_with_order_parameter_with_cast_to_nullable(async));
 
-        AssertSql(
-            @"@__boolean_0='false'
+            AssertSql(
+                """
+@boolean='false'
 
-SELECT VALUE {""c"" : @__boolean_0}
+SELECT VALUE @boolean
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")
-ORDER BY @__boolean_0");
+ORDER BY @boolean
+""");
+        }
     }
 
-    public override async Task Select_scalar(bool async)
+    public override Task Select_scalar(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_scalar(a);
+
+                AssertSql(
+                    """
+SELECT VALUE c["City"]
+FROM root c
+""");
+            });
+
+    public override Task Select_anonymous_one(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_anonymous_one(a);
+                AssertSql(
+                    """
+SELECT VALUE c["City"]
+FROM root c
+""");
+            });
+
+    public override Task Select_anonymous_two(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_anonymous_two(a);
+
+                AssertSql(
+                    """
+SELECT c["City"], c["Phone"]
+FROM root c
+""");
+            });
+
+    public override Task Select_anonymous_three(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_anonymous_three(a);
+
+                AssertSql(
+                    """
+SELECT c["City"], c["Phone"], c["Country"]
+FROM root c
+""");
+            });
+
+    public override Task Select_anonymous_bool_constant_true(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_anonymous_bool_constant_true(a);
+
+                AssertSql(
+                    """
+SELECT VALUE
+{
+    "CustomerID" : c["id"],
+    "ConstantTrue" : true
+}
+FROM root c
+""");
+            });
+
+    public override Task Select_anonymous_non_numeric_constants(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_anonymous_non_numeric_constants(a);
+                AssertSql(
+                    """
+@MinValue='0001-01-01'
+@MinValue1='00:00:00'
+
+SELECT VALUE
+{
+    "CustomerID" : c["id"],
+    "ConstantGuid" : "00000000-0000-0000-0000-000000000000",
+    "ConstantDateTime" : "0001-01-01T00:00:00.0000000",
+    "ConstantDateOnly" : @MinValue,
+    "ConstantTimeSpan" : "00:00:00",
+    "ConstantTimeOnly" : @MinValue1,
+    "ConstantDateTimeOffset" : "0001-01-01T00:00:00+00:00"
+}
+FROM root c
+""");
+            });
+
+    public override Task Select_anonymous_constant_in_expression(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_anonymous_constant_in_expression(a);
+                AssertSql(
+                    """
+SELECT VALUE
+{
+    "CustomerID" : c["id"],
+    "Expression" : (LENGTH(c["id"]) + 5)
+}
+FROM root c
+""");
+            });
+
+    public override Task Select_anonymous_conditional_expression(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_anonymous_conditional_expression(a);
+
+                AssertSql(
+                    """
+SELECT VALUE
+{
+    "ProductID" : c["ProductID"],
+    "IsAvailable" : (c["UnitsInStock"] > 0)
+}
+FROM root c
+WHERE (c["$type"] = "Product")
+""");
+            });
+
+    public override Task Select_anonymous_with_object(bool async)
     {
-        await base.Select_scalar(async);
+        // https://github.com/Azure/azure-cosmos-db-emulator-docker/issues/335
+        CosmosTestEnvironment.SkipOnLinuxEmulator();
 
-        AssertSql(
-            @"SELECT c[""City""]
+        return Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_anonymous_with_object(a);
+
+                AssertSql(
+                    """
+SELECT c["City"], c
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
+""");
+            });
     }
 
-    public override async Task Select_anonymous_one(bool async)
-    {
-        await base.Select_anonymous_one(async);
-
-        AssertSql(
-            @"SELECT c[""City""]
+    public override Task Select_constant_int(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_constant_int(a);
+                AssertSql(
+                    """
+SELECT VALUE 0
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
-    public override async Task Select_anonymous_two(bool async)
-    {
-        await base.Select_anonymous_two(async);
+    public override Task Select_constant_null_string(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_constant_null_string(a);
 
-        AssertSql(
-            @"SELECT c[""City""], c[""Phone""]
+                AssertSql(
+                    """
+SELECT VALUE null
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
-    public override async Task Select_anonymous_three(bool async)
-    {
-        await base.Select_anonymous_three(async);
+    public override Task Select_local(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_local(a);
+                AssertSql(
+                    """
+@x='10'
 
-        AssertSql(
-            @"SELECT c[""City""], c[""Phone""], c[""Country""]
+SELECT VALUE @x
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
-    public override async Task Select_anonymous_bool_constant_true(bool async)
-    {
-        await base.Select_anonymous_bool_constant_true(async);
+    public override Task Select_scalar_primitive_after_take(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_scalar_primitive_after_take(a);
 
-        AssertSql(
-            @"SELECT VALUE {""CustomerID"" : c[""CustomerID""], ""ConstantTrue"" : true}
+                AssertSql(
+                    """
+@p='9'
+
+SELECT VALUE c["EmployeeID"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+OFFSET 0 LIMIT @p
+""");
+            });
 
-    public override async Task Select_anonymous_constant_in_expression(bool async)
-    {
-        await base.Select_anonymous_constant_in_expression(async);
-
-        AssertSql(
-            @"SELECT VALUE {""CustomerID"" : c[""CustomerID""], ""Expression"" : (LENGTH(c[""CustomerID""]) + 5)}
+    public override Task Select_project_filter(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_project_filter(a);
+                AssertSql(
+                    """
+SELECT VALUE c["CompanyName"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+WHERE (c["City"] = "London")
+""");
+            });
 
-    public override async Task Select_anonymous_conditional_expression(bool async)
-    {
-        await base.Select_anonymous_conditional_expression(async);
+    public override Task Select_project_filter2(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_project_filter2(a);
 
-        AssertSql(
-            @"SELECT VALUE {""ProductID"" : c[""ProductID""], ""IsAvailable"" : (c[""UnitsInStock""] > 0)}
+                AssertSql(
+                    """
+SELECT VALUE c["City"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Product"")");
-    }
-
-    public override async Task Select_anonymous_with_object(bool async)
-    {
-        await base.Select_anonymous_with_object(async);
-
-        AssertSql(
-            @"SELECT c[""City""], c
-FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
-
-    public override async Task Select_constant_int(bool async)
-    {
-        await base.Select_constant_int(async);
-
-        AssertSql(
-            @"SELECT VALUE {""c"" : 0}
-FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
-
-    public override async Task Select_constant_null_string(bool async)
-    {
-        await base.Select_constant_null_string(async);
-
-        AssertSql(
-            @"SELECT VALUE {""c"" : null}
-FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
-
-    public override async Task Select_local(bool async)
-    {
-        await base.Select_local(async);
-
-        AssertSql(
-            @"@__x_0='10'
-
-SELECT VALUE {""c"" : @__x_0}
-FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
-
-    public override async Task Select_scalar_primitive_after_take(bool async)
-    {
-        await base.Select_scalar_primitive_after_take(async);
-
-        AssertSql(
-            @"@__p_0='9'
-
-SELECT c[""EmployeeID""]
-FROM root c
-WHERE (c[""Discriminator""] = ""Employee"")
-OFFSET 0 LIMIT @__p_0");
-    }
-
-    public override async Task Select_project_filter(bool async)
-    {
-        await base.Select_project_filter(async);
-
-        AssertSql(
-            @"SELECT c[""CompanyName""]
-FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND (c[""City""] = ""London""))");
-    }
-
-    public override async Task Select_project_filter2(bool async)
-    {
-        await base.Select_project_filter2(async);
-
-        AssertSql(
-            @"SELECT c[""City""]
-FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND (c[""City""] = ""London""))");
-    }
+WHERE (c["City"] = "London")
+""");
+            });
 
     public override async Task Select_nested_collection(bool async)
     {
@@ -372,177 +508,236 @@ WHERE ((c[""Discriminator""] = ""Customer"") AND (c[""City""] = ""London""))");
         AssertSql();
     }
 
-    public override async Task New_date_time_in_anonymous_type_works(bool async)
-    {
-        await base.New_date_time_in_anonymous_type_works(async);
-
-        AssertSql(
-            @"SELECT 1
+    public override Task New_date_time_in_anonymous_type_works(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.New_date_time_in_anonymous_type_works(a);
+                AssertSql(
+                    """
+SELECT 1
 FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND ((c[""CustomerID""] != null) AND ((""A"" != null) AND STARTSWITH(c[""CustomerID""], ""A""))))");
-    }
+WHERE STARTSWITH(c["id"], "A")
+""");
+            });
 
-    public override async Task Select_non_matching_value_types_int_to_long_introduces_explicit_cast(bool async)
-    {
-        await base.Select_non_matching_value_types_int_to_long_introduces_explicit_cast(async);
+    public override Task Select_non_matching_value_types_int_to_long_introduces_explicit_cast(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_non_matching_value_types_int_to_long_introduces_explicit_cast(a);
 
-        AssertSql(
-            @"SELECT c[""OrderID""]
+                AssertSql(
+                    """
+SELECT VALUE c["OrderID"]
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""CustomerID""] = ""ALFKI""))
-ORDER BY c[""OrderID""]");
-    }
+WHERE ((c["$type"] = "Order") AND (c["CustomerID"] = "ALFKI"))
+ORDER BY c["OrderID"]
+""");
+            });
 
-    public override async Task Select_non_matching_value_types_nullable_int_to_long_introduces_explicit_cast(bool async)
-    {
-        await base.Select_non_matching_value_types_nullable_int_to_long_introduces_explicit_cast(async);
+    public override Task Select_non_matching_value_types_nullable_int_to_long_introduces_explicit_cast(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_non_matching_value_types_nullable_int_to_long_introduces_explicit_cast(a);
 
-        AssertSql(
-            @"SELECT c[""EmployeeID""]
+                AssertSql(
+                    """
+SELECT VALUE c["EmployeeID"]
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""CustomerID""] = ""ALFKI""))
-ORDER BY c[""OrderID""]");
-    }
+WHERE ((c["$type"] = "Order") AND (c["CustomerID"] = "ALFKI"))
+ORDER BY c["OrderID"]
+""");
+            });
 
-    public override async Task Select_non_matching_value_types_nullable_int_to_int_doesnt_introduce_explicit_cast(bool async)
-    {
-        await base.Select_non_matching_value_types_nullable_int_to_int_doesnt_introduce_explicit_cast(async);
+    public override Task Select_non_matching_value_types_nullable_int_to_int_doesnt_introduce_explicit_cast(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_non_matching_value_types_nullable_int_to_int_doesnt_introduce_explicit_cast(a);
 
-        AssertSql(
-            @"SELECT c[""EmployeeID""]
+                AssertSql(
+                    """
+SELECT VALUE c["EmployeeID"]
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""CustomerID""] = ""ALFKI""))
-ORDER BY c[""OrderID""]");
-    }
+WHERE ((c["$type"] = "Order") AND (c["CustomerID"] = "ALFKI"))
+ORDER BY c["OrderID"]
+""");
+            });
 
-    public override async Task Select_non_matching_value_types_int_to_nullable_int_doesnt_introduce_explicit_cast(bool async)
-    {
-        await base.Select_non_matching_value_types_int_to_nullable_int_doesnt_introduce_explicit_cast(async);
+    public override Task Select_non_matching_value_types_int_to_nullable_int_doesnt_introduce_explicit_cast(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_non_matching_value_types_int_to_nullable_int_doesnt_introduce_explicit_cast(a);
 
-        AssertSql(
-            @"SELECT c[""OrderID""]
+                AssertSql(
+                    """
+SELECT VALUE c["OrderID"]
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""CustomerID""] = ""ALFKI""))
-ORDER BY c[""OrderID""]");
-    }
+WHERE ((c["$type"] = "Order") AND (c["CustomerID"] = "ALFKI"))
+ORDER BY c["OrderID"]
+""");
+            });
 
-    public override async Task Select_non_matching_value_types_from_binary_expression_introduces_explicit_cast(bool async)
-    {
-        await base.Select_non_matching_value_types_from_binary_expression_introduces_explicit_cast(async);
+    public override Task Select_non_matching_value_types_from_binary_expression_introduces_explicit_cast(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_non_matching_value_types_from_binary_expression_introduces_explicit_cast(a);
 
-        AssertSql(
-            @"SELECT VALUE {""c"" : (c[""OrderID""] + c[""OrderID""])}
+                AssertSql(
+                    """
+SELECT VALUE (c["OrderID"] + c["OrderID"])
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""CustomerID""] = ""ALFKI""))
-ORDER BY c[""OrderID""]");
-    }
+WHERE ((c["$type"] = "Order") AND (c["CustomerID"] = "ALFKI"))
+ORDER BY c["OrderID"]
+""");
+            });
 
-    public override async Task Select_non_matching_value_types_from_binary_expression_nested_introduces_top_level_explicit_cast(
+    public override Task Select_non_matching_value_types_from_binary_expression_nested_introduces_top_level_explicit_cast(
         bool async)
-    {
-        await base.Select_non_matching_value_types_from_binary_expression_nested_introduces_top_level_explicit_cast(async);
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_non_matching_value_types_from_binary_expression_nested_introduces_top_level_explicit_cast(a);
 
-        AssertSql(
-            @"SELECT c[""OrderID""]
+                AssertSql(
+                    """
+SELECT VALUE (c["OrderID"] + c["OrderID"])
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""CustomerID""] = ""ALFKI""))
-ORDER BY c[""OrderID""]");
-    }
+WHERE ((c["$type"] = "Order") AND (c["CustomerID"] = "ALFKI"))
+ORDER BY c["OrderID"]
+""");
+            });
 
-    public override async Task Select_non_matching_value_types_from_unary_expression_introduces_explicit_cast1(bool async)
-    {
-        await base.Select_non_matching_value_types_from_unary_expression_introduces_explicit_cast1(async);
+    public override Task Select_non_matching_value_types_from_unary_expression_introduces_explicit_cast1(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_non_matching_value_types_from_unary_expression_introduces_explicit_cast1(a);
 
-        AssertSql(
-            @"SELECT VALUE {""c"" : -(c[""OrderID""])}
+                AssertSql(
+                    """
+SELECT VALUE -(c["OrderID"])
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""CustomerID""] = ""ALFKI""))
-ORDER BY c[""OrderID""]");
-    }
+WHERE ((c["$type"] = "Order") AND (c["CustomerID"] = "ALFKI"))
+ORDER BY c["OrderID"]
+""");
+            });
 
-    public override async Task Select_non_matching_value_types_from_unary_expression_introduces_explicit_cast2(bool async)
-    {
-        await base.Select_non_matching_value_types_from_unary_expression_introduces_explicit_cast2(async);
+    public override Task Select_non_matching_value_types_from_unary_expression_introduces_explicit_cast2(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_non_matching_value_types_from_unary_expression_introduces_explicit_cast2(a);
 
-        AssertSql(
-            @"SELECT c[""OrderID""]
+                AssertSql(
+                    """
+SELECT VALUE -(c["OrderID"])
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""CustomerID""] = ""ALFKI""))
-ORDER BY c[""OrderID""]");
-    }
+WHERE ((c["$type"] = "Order") AND (c["CustomerID"] = "ALFKI"))
+ORDER BY c["OrderID"]
+""");
+            });
 
-    public override async Task Select_non_matching_value_types_from_length_introduces_explicit_cast(bool async)
-    {
-        await base.Select_non_matching_value_types_from_length_introduces_explicit_cast(async);
+    public override Task Select_non_matching_value_types_from_length_introduces_explicit_cast(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_non_matching_value_types_from_length_introduces_explicit_cast(a);
 
-        AssertSql(
-            @"SELECT LENGTH(c[""CustomerID""]) AS c
+                AssertSql(
+                    """
+SELECT VALUE LENGTH(c["CustomerID"])
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""CustomerID""] = ""ALFKI""))
-ORDER BY c[""OrderID""]");
-    }
+WHERE ((c["$type"] = "Order") AND (c["CustomerID"] = "ALFKI"))
+ORDER BY c["OrderID"]
+""");
+            });
 
-    public override async Task Select_non_matching_value_types_from_method_call_introduces_explicit_cast(bool async)
-    {
-        await base.Select_non_matching_value_types_from_method_call_introduces_explicit_cast(async);
+    public override Task Select_non_matching_value_types_from_method_call_introduces_explicit_cast(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_non_matching_value_types_from_method_call_introduces_explicit_cast(a);
 
-        AssertSql(
-            @"SELECT ABS(c[""OrderID""]) AS c
+                AssertSql(
+                    """
+SELECT VALUE ABS(c["OrderID"])
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""CustomerID""] = ""ALFKI""))
-ORDER BY c[""OrderID""]");
-    }
+WHERE ((c["$type"] = "Order") AND (c["CustomerID"] = "ALFKI"))
+ORDER BY c["OrderID"]
+""");
+            });
 
-    public override async Task Select_non_matching_value_types_from_anonymous_type_introduces_explicit_cast(bool async)
-    {
-        await base.Select_non_matching_value_types_from_anonymous_type_introduces_explicit_cast(async);
+    public override Task Select_non_matching_value_types_from_anonymous_type_introduces_explicit_cast(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_non_matching_value_types_from_anonymous_type_introduces_explicit_cast(a);
 
-        AssertSql(
-            @"SELECT c[""OrderID""]
+                AssertSql(
+                    """
+SELECT VALUE
+{
+    "Order" : c["OrderID"],
+    "LongOrder" : c["OrderID"],
+    "ShortOrder" : c["OrderID"]
+}
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""CustomerID""] = ""ALFKI""))
-ORDER BY c[""OrderID""]");
-    }
+WHERE ((c["$type"] = "Order") AND (c["CustomerID"] = "ALFKI"))
+ORDER BY c["OrderID"]
+""");
+            });
 
     public override async Task
         Project_single_element_from_collection_with_OrderBy_Distinct_and_FirstOrDefault_followed_by_projecting_length(bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(
-            () => base
-                .Project_single_element_from_collection_with_OrderBy_Distinct_and_FirstOrDefault_followed_by_projecting_length(async));
+        await AssertTranslationFailed(() => base
+            .Project_single_element_from_collection_with_OrderBy_Distinct_and_FirstOrDefault_followed_by_projecting_length(async));
 
         AssertSql();
     }
 
-    public override async Task Select_conditional_with_null_comparison_in_test(bool async)
-    {
-        await base.Select_conditional_with_null_comparison_in_test(async);
+    public override Task Select_conditional_with_null_comparison_in_test(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_conditional_with_null_comparison_in_test(a);
 
-        AssertSql(
-            @"SELECT VALUE {""c"" : ((c[""CustomerID""] = null) ? true : (c[""OrderID""] < 100))}
+                AssertSql(
+                    """
+SELECT VALUE ((c["CustomerID"] = null) ? true : (c["OrderID"] < 100))
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""CustomerID""] = ""ALFKI""))");
-    }
+WHERE ((c["$type"] = "Order") AND (c["CustomerID"] = "ALFKI"))
+""");
+            });
 
     public override async Task Projection_in_a_subquery_should_be_liftable(bool async)
     {
-        Assert.Equal(
-            CosmosStrings.OffsetRequiresLimit,
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                () => base.Projection_in_a_subquery_should_be_liftable(async))).Message);
+        // Always throws for sync.
+        if (async)
+        {
+            Assert.Equal(
+                CosmosStrings.OffsetRequiresLimit,
+                (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Projection_in_a_subquery_should_be_liftable(async)))
+                .Message);
 
-        AssertSql();
+            AssertSql();
+        }
     }
 
-    public override async Task Projection_containing_DateTime_subtraction(bool async)
-    {
-        await base.Projection_containing_DateTime_subtraction(async);
+    public override Task Projection_containing_DateTime_subtraction(bool async)
+        => Assert.ThrowsAsync<InvalidOperationException>(() => base.Projection_containing_DateTime_subtraction(async));
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
-FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""OrderID""] < 10300))");
+    public override async Task Multiple_members_of_correlated_single_result_subquery_lift_to_single_join(bool async, string method)
+    {
+        await AssertTranslationFailed(() => base.Multiple_members_of_correlated_single_result_subquery_lift_to_single_join(async, method));
+
+        AssertSql();
     }
 
     public override async Task Project_single_element_from_collection_with_OrderBy_Take_and_FirstOrDefault(bool async)
@@ -577,11 +772,20 @@ WHERE ((c[""Discriminator""] = ""Order"") AND (c[""OrderID""] < 10300))");
         AssertSql();
     }
 
+    public override async Task Project_single_element_from_collection_with_OrderBy_Take_OrderBy_and_FirstOrDefault(bool async)
+    {
+        // Cosmos client evaluation. Issue #17246.
+        await AssertTranslationFailed(()
+            => base.Project_single_element_from_collection_with_OrderBy_Take_OrderBy_and_FirstOrDefault(async));
+
+        AssertSql();
+    }
+
     public override async Task Project_single_element_from_collection_with_OrderBy_Take_and_FirstOrDefault_with_parameter(bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(
-            () => base.Project_single_element_from_collection_with_OrderBy_Take_and_FirstOrDefault_with_parameter(async));
+        await AssertTranslationFailed(()
+            => base.Project_single_element_from_collection_with_OrderBy_Take_and_FirstOrDefault_with_parameter(async));
 
         AssertSql();
     }
@@ -589,8 +793,8 @@ WHERE ((c[""Discriminator""] = ""Order"") AND (c[""OrderID""] < 10300))");
     public override async Task Project_single_element_from_collection_with_multiple_OrderBys_Take_and_FirstOrDefault(bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(
-            () => base.Project_single_element_from_collection_with_multiple_OrderBys_Take_and_FirstOrDefault(async));
+        await AssertTranslationFailed(()
+            => base.Project_single_element_from_collection_with_multiple_OrderBys_Take_and_FirstOrDefault(async));
 
         AssertSql();
     }
@@ -600,10 +804,9 @@ WHERE ((c[""Discriminator""] = ""Order"") AND (c[""OrderID""] < 10300))");
             bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(
-            () => base
-                .Project_single_element_from_collection_with_multiple_OrderBys_Take_and_FirstOrDefault_followed_by_projection_of_length_property(
-                    async));
+        await AssertTranslationFailed(() => base
+            .Project_single_element_from_collection_with_multiple_OrderBys_Take_and_FirstOrDefault_followed_by_projection_of_length_property(
+                async));
 
         AssertSql();
     }
@@ -611,8 +814,8 @@ WHERE ((c[""Discriminator""] = ""Order"") AND (c[""OrderID""] < 10300))");
     public override async Task Project_single_element_from_collection_with_multiple_OrderBys_Take_and_FirstOrDefault_2(bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(
-            () => base.Project_single_element_from_collection_with_multiple_OrderBys_Take_and_FirstOrDefault_2(async));
+        await AssertTranslationFailed(()
+            => base.Project_single_element_from_collection_with_multiple_OrderBys_Take_and_FirstOrDefault_2(async));
 
         AssertSql();
     }
@@ -620,8 +823,8 @@ WHERE ((c[""Discriminator""] = ""Order"") AND (c[""OrderID""] < 10300))");
     public override async Task Project_single_element_from_collection_with_OrderBy_over_navigation_Take_and_FirstOrDefault(bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(
-            () => base.Project_single_element_from_collection_with_OrderBy_over_navigation_Take_and_FirstOrDefault(async));
+        await AssertTranslationFailed(()
+            => base.Project_single_element_from_collection_with_OrderBy_over_navigation_Take_and_FirstOrDefault(async));
 
         AssertSql();
     }
@@ -630,142 +833,190 @@ WHERE ((c[""Discriminator""] = ""Order"") AND (c[""OrderID""] < 10300))");
         bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(
-            () => base.Project_single_element_from_collection_with_OrderBy_over_navigation_Take_and_FirstOrDefault_2(async));
+        await AssertTranslationFailed(()
+            => base.Project_single_element_from_collection_with_OrderBy_over_navigation_Take_and_FirstOrDefault_2(async));
 
         AssertSql();
     }
 
-    public override async Task Select_datetime_year_component(bool async)
-    {
-        await base.Select_datetime_year_component(async);
+    public override Task Select_datetime_year_component(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_datetime_year_component(a);
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
+                AssertSql(
+                    """
+SELECT VALUE DateTimePart("yyyy", c["OrderDate"])
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Select_datetime_month_component(bool async)
-    {
-        await base.Select_datetime_month_component(async);
+    public override Task Select_datetime_month_component(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_datetime_month_component(a);
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
+                AssertSql(
+                    """
+SELECT VALUE DateTimePart("mm", c["OrderDate"])
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Select_datetime_day_of_year_component(bool async)
-    {
-        await base.Select_datetime_day_of_year_component(async);
+    public override Task Select_datetime_day_of_year_component(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                // DateTime.DayOfYear not supported by Cosmos
+                await base.Select_datetime_day_of_year_component(a);
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
+                AssertSql(
+                    """
+SELECT VALUE c["OrderDate"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Select_datetime_day_component(bool async)
-    {
-        await base.Select_datetime_day_component(async);
+    public override Task Select_datetime_day_component(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_datetime_day_component(a);
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
+                AssertSql(
+                    """
+SELECT VALUE DateTimePart("dd", c["OrderDate"])
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Select_datetime_hour_component(bool async)
-    {
-        await base.Select_datetime_hour_component(async);
+    public override Task Select_datetime_hour_component(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_datetime_hour_component(a);
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
+                AssertSql(
+                    """
+SELECT VALUE DateTimePart("hh", c["OrderDate"])
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Select_datetime_minute_component(bool async)
-    {
-        await base.Select_datetime_minute_component(async);
+    public override Task Select_datetime_minute_component(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_datetime_minute_component(a);
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
+                AssertSql(
+                    """
+SELECT VALUE DateTimePart("mi", c["OrderDate"])
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Select_datetime_second_component(bool async)
-    {
-        await base.Select_datetime_second_component(async);
+    public override Task Select_datetime_second_component(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_datetime_second_component(a);
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
+                AssertSql(
+                    """
+SELECT VALUE DateTimePart("ss", c["OrderDate"])
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Select_datetime_millisecond_component(bool async)
-    {
-        await base.Select_datetime_millisecond_component(async);
+    public override Task Select_datetime_millisecond_component(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_datetime_millisecond_component(a);
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
+                AssertSql(
+                    """
+SELECT VALUE DateTimePart("ms", c["OrderDate"])
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Select_byte_constant(bool async)
-    {
-        await base.Select_byte_constant(async);
+    public override Task Select_byte_constant(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_byte_constant(a);
 
-        AssertSql(
-            @"SELECT VALUE {""c"" : ((c[""CustomerID""] = ""ALFKI"") ? 1 : 2)}
+                AssertSql(
+                    """
+SELECT VALUE ((c["id"] = "ALFKI") ? 1 : 2)
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
-    public override async Task Select_short_constant(bool async)
-    {
-        await base.Select_short_constant(async);
+    public override Task Select_short_constant(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_short_constant(a);
 
-        AssertSql(
-            @"SELECT VALUE {""c"" : ((c[""CustomerID""] = ""ALFKI"") ? 1 : 2)}
+                AssertSql(
+                    """
+SELECT VALUE ((c["id"] = "ALFKI") ? 1 : 2)
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
-    public override async Task Select_bool_constant(bool async)
-    {
-        await base.Select_bool_constant(async);
+    public override Task Select_bool_constant(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_bool_constant(a);
 
-        AssertSql(
-            @"SELECT VALUE {""c"" : ((c[""CustomerID""] = ""ALFKI"") ? true : false)}
+                AssertSql(
+                    """
+SELECT VALUE ((c["id"] = "ALFKI") ? true : false)
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
-    public override async Task Anonymous_projection_AsNoTracking_Selector(bool async)
-    {
-        await base.Anonymous_projection_AsNoTracking_Selector(async);
+    public override Task Anonymous_projection_AsNoTracking_Selector(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Anonymous_projection_AsNoTracking_Selector(a);
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
+                AssertSql(
+                    """
+SELECT VALUE c["OrderDate"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Anonymous_projection_with_repeated_property_being_ordered(bool async)
-    {
-        await base.Anonymous_projection_with_repeated_property_being_ordered(async);
-
-        AssertSql(
-            @"SELECT VALUE {""A"" : c[""CustomerID""]}
+    public override Task Anonymous_projection_with_repeated_property_being_ordered(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Anonymous_projection_with_repeated_property_being_ordered(a);
+                AssertSql(
+                    """
+SELECT VALUE c["id"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")
-ORDER BY c[""CustomerID""]");
-    }
+ORDER BY c["id"]
+""");
+            });
 
     public override async Task Anonymous_projection_with_repeated_property_being_ordered_2(bool async)
     {
@@ -775,15 +1026,19 @@ ORDER BY c[""CustomerID""]");
         AssertSql();
     }
 
-    public override async Task Select_GetValueOrDefault_on_DateTime(bool async)
-    {
-        await base.Select_GetValueOrDefault_on_DateTime(async);
+    public override Task Select_GetValueOrDefault_on_DateTime(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_GetValueOrDefault_on_DateTime(a);
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
+                AssertSql(
+                    """
+SELECT VALUE c["OrderDate"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
     public override async Task Select_GetValueOrDefault_on_DateTime_with_null_values(bool async)
     {
@@ -793,25 +1048,31 @@ WHERE (c[""Discriminator""] = ""Order"")");
         AssertSql();
     }
 
-    public override async Task Client_method_in_projection_requiring_materialization_1(bool async)
-    {
-        await base.Client_method_in_projection_requiring_materialization_1(async);
-
-        AssertSql(
-            @"SELECT c
+    public override Task Client_method_in_projection_requiring_materialization_1(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Client_method_in_projection_requiring_materialization_1(a);
+                AssertSql(
+                    """
+SELECT VALUE c
 FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND ((c[""CustomerID""] != null) AND ((""A"" != null) AND STARTSWITH(c[""CustomerID""], ""A""))))");
-    }
+WHERE STARTSWITH(c["id"], "A")
+""");
+            });
 
-    public override async Task Client_method_in_projection_requiring_materialization_2(bool async)
-    {
-        await base.Client_method_in_projection_requiring_materialization_2(async);
-
-        AssertSql(
-            @"SELECT c
+    public override Task Client_method_in_projection_requiring_materialization_2(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Client_method_in_projection_requiring_materialization_2(a);
+                AssertSql(
+                    """
+SELECT VALUE c
 FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND ((c[""CustomerID""] != null) AND ((""A"" != null) AND STARTSWITH(c[""CustomerID""], ""A""))))");
-    }
+WHERE STARTSWITH(c["id"], "A")
+""");
+            });
 
     public override async Task Multiple_select_many_with_predicate(bool async)
     {
@@ -841,6 +1102,18 @@ WHERE ((c[""Discriminator""] = ""Customer"") AND ((c[""CustomerID""] != null) AN
     {
         // Cosmos client evaluation. Issue #17246.
         await AssertTranslationFailed(() => base.SelectMany_correlated_with_outer_1(async));
+
+        AssertSql();
+    }
+
+    public override async Task SelectMany_over_inline_array_projecting_range_variable_and_outer(bool async)
+    {
+        // Cosmos client evaluation. Issue #17246.
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(()
+                => base.SelectMany_over_inline_array_projecting_range_variable_and_outer(async));
+
+        Assert.Equal(CosmosStrings.ComplexProjectionInSubqueryNotSupported, exception.Message);
 
         AssertSql();
     }
@@ -893,6 +1166,30 @@ WHERE ((c[""Discriminator""] = ""Customer"") AND ((c[""CustomerID""] != null) AN
         AssertSql();
     }
 
+    public override async Task SelectMany_with_multiple_Take(bool async)
+    {
+        // Cosmos client evaluation. Issue #17246.
+        await AssertTranslationFailed(() => base.SelectMany_with_multiple_Take(async));
+
+        AssertSql();
+    }
+
+    public override async Task SelectMany_with_nested_DefaultIfEmpty(bool async)
+    {
+        // Cosmos client evaluation. Issue #17246.
+        await AssertTranslationFailed(() => base.SelectMany_with_nested_DefaultIfEmpty(async));
+
+        AssertSql();
+    }
+
+    public override async Task Select_with_multiple_Take(bool async)
+    {
+        // Cosmos client evaluation. Issue #17246.
+        await AssertTranslationFailed(() => base.Select_with_multiple_Take(async));
+
+        AssertSql();
+    }
+
     public override async Task FirstOrDefault_over_empty_collection_of_value_type_returns_correct_results(bool async)
     {
         // Cosmos client evaluation. Issue #17246.
@@ -919,7 +1216,7 @@ WHERE ((c[""Discriminator""] = ""Customer"") AND ((c[""CustomerID""] != null) AN
     public override async Task Filtered_collection_projection_is_tracked(bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(() => base.Member_binding_after_ctor_arguments_fails_with_client_eval(async));
+        await AssertTranslationFailed(() => base.Filtered_collection_projection_is_tracked(async));
 
         AssertSql();
     }
@@ -935,8 +1232,8 @@ WHERE ((c[""Discriminator""] = ""Customer"") AND ((c[""CustomerID""] != null) AN
     public override async Task SelectMany_with_collection_being_correlated_subquery_which_references_inner_and_outer_entity(bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(
-            () => base.SelectMany_with_collection_being_correlated_subquery_which_references_inner_and_outer_entity(async));
+        await AssertTranslationFailed(()
+            => base.SelectMany_with_collection_being_correlated_subquery_which_references_inner_and_outer_entity(async));
 
         AssertSql();
     }
@@ -957,15 +1254,19 @@ WHERE ((c[""Discriminator""] = ""Customer"") AND ((c[""CustomerID""] != null) AN
         AssertSql();
     }
 
-    public override async Task Explicit_cast_in_arithmetic_operation_is_preserved(bool async)
-    {
-        await base.Explicit_cast_in_arithmetic_operation_is_preserved(async);
+    public override Task Explicit_cast_in_arithmetic_operation_is_preserved(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Explicit_cast_in_arithmetic_operation_is_preserved(a);
 
-        AssertSql(
-            @"SELECT VALUE {""OrderID"" : c[""OrderID""], ""c"" : (c[""OrderID""] + 1000)}
+                AssertSql(
+                    """
+SELECT VALUE (c["OrderID"] / (c["OrderID"] + 1000))
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""OrderID""] = 10243))");
-    }
+WHERE ((c["$type"] = "Order") AND (c["OrderID"] = 10250))
+""");
+            });
 
     public override async Task SelectMany_whose_selector_references_outer_source(bool async)
     {
@@ -1015,15 +1316,19 @@ WHERE ((c[""Discriminator""] = ""Order"") AND (c[""OrderID""] = 10243))");
         AssertSql();
     }
 
-    public override async Task Coalesce_over_nullable_uint(bool async)
-    {
-        await base.Coalesce_over_nullable_uint(async);
+    public override Task Coalesce_over_nullable_uint(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Coalesce_over_nullable_uint(a);
 
-        AssertSql(
-            @"SELECT VALUE {""c"" : ((c[""EmployeeID""] != null) ? c[""EmployeeID""] : 0)}
+                AssertSql(
+                    """
+SELECT VALUE ((c["EmployeeID"] != null) ? c["EmployeeID"] : 0)
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
     public override async Task Project_uint_through_collection_FirstOrDefault(bool async)
     {
@@ -1041,27 +1346,33 @@ WHERE (c[""Discriminator""] = ""Order"")");
         AssertSql();
     }
 
-    public override async Task Reverse_changes_asc_order_to_desc(bool async)
-    {
-        await base.Reverse_changes_asc_order_to_desc(async);
+    public override Task Reverse_changes_asc_order_to_desc(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Reverse_changes_asc_order_to_desc(a);
 
-        AssertSql(
-            @"SELECT c[""EmployeeID""]
+                AssertSql(
+                    """
+SELECT VALUE c["EmployeeID"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Employee"")
-ORDER BY c[""EmployeeID""] DESC");
-    }
+ORDER BY c["EmployeeID"] DESC
+""");
+            });
 
-    public override async Task Reverse_changes_desc_order_to_asc(bool async)
-    {
-        await base.Reverse_changes_desc_order_to_asc(async);
+    public override Task Reverse_changes_desc_order_to_asc(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Reverse_changes_desc_order_to_asc(a);
 
-        AssertSql(
-            @"SELECT c[""EmployeeID""]
+                AssertSql(
+                    """
+SELECT VALUE c["EmployeeID"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Employee"")
-ORDER BY c[""EmployeeID""]");
-    }
+ORDER BY c["EmployeeID"]
+""");
+            });
 
     public override async Task Projection_AsEnumerable_projection(bool async)
     {
@@ -1071,16 +1382,19 @@ ORDER BY c[""EmployeeID""]");
         AssertSql();
     }
 
-    public override async Task Projection_custom_type_in_both_sides_of_ternary(bool async)
-    {
-        await base.Projection_custom_type_in_both_sides_of_ternary(async);
+    public override Task Projection_custom_type_in_both_sides_of_ternary(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Projection_custom_type_in_both_sides_of_ternary(a);
 
-        AssertSql(
-            @"SELECT VALUE {""c"" : (c[""City""] = ""Seattle"")}
+                AssertSql(
+                    """
+SELECT VALUE (c["City"] = "Seattle")
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")
-ORDER BY c[""CustomerID""]");
-    }
+ORDER BY c["id"]
+""");
+            });
 
     public override async Task Projecting_multiple_collection_with_same_constant_works(bool async)
     {
@@ -1101,8 +1415,8 @@ ORDER BY c[""CustomerID""]");
     public override async Task Correlated_collection_after_distinct_with_complex_projection_containing_original_identifier(bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(
-            () => base.Correlated_collection_after_distinct_with_complex_projection_containing_original_identifier(async));
+        await AssertTranslationFailed(()
+            => base.Correlated_collection_after_distinct_with_complex_projection_containing_original_identifier(async));
 
         AssertSql();
     }
@@ -1118,8 +1432,8 @@ ORDER BY c[""CustomerID""]");
     public override async Task Correlated_collection_after_distinct_with_complex_projection_not_containing_original_identifier(bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(
-            () => base.Correlated_collection_after_distinct_with_complex_projection_not_containing_original_identifier(async));
+        await AssertTranslationFailed(()
+            => base.Correlated_collection_after_distinct_with_complex_projection_not_containing_original_identifier(async));
 
         AssertSql();
     }
@@ -1127,8 +1441,8 @@ ORDER BY c[""CustomerID""]");
     public override async Task Correlated_collection_after_groupby_with_complex_projection_containing_original_identifier(bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(
-            () => base.Correlated_collection_after_groupby_with_complex_projection_containing_original_identifier(async));
+        await AssertTranslationFailed(()
+            => base.Correlated_collection_after_groupby_with_complex_projection_containing_original_identifier(async));
 
         AssertSql();
     }
@@ -1160,54 +1474,55 @@ ORDER BY c[""CustomerID""]");
     public override async Task Projecting_Length_of_a_string_property_after_FirstOrDefault_on_correlated_collection(bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(
-            () => base.Projecting_Length_of_a_string_property_after_FirstOrDefault_on_correlated_collection(async));
+        await AssertTranslationFailed(()
+            => base.Projecting_Length_of_a_string_property_after_FirstOrDefault_on_correlated_collection(async));
 
         AssertSql();
     }
 
-    public override async Task Projection_take_predicate_projection(bool async)
-    {
-        await base.Projection_take_predicate_projection(async);
+    public override Task Projection_take_predicate_projection(bool async)
+        => AssertTranslationFailedWithDetails(
+            () => base.Projection_take_predicate_projection(async),
+            CosmosStrings.LimitOffsetNotSupportedInSubqueries);
 
-        AssertSql(
-            @"@__p_0='10'
+    public override Task Projection_take_projection_doesnt_project_intermittent_column(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Projection_take_projection_doesnt_project_intermittent_column(a);
+                AssertSql(
+                    """
+@p='10'
 
-SELECT VALUE {""Aggregate"" : ((c[""CustomerID""] || "" "") || c[""City""])}
+SELECT VALUE ((c["id"] || " ") || c["City"])
 FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND ((c[""CustomerID""] != null) AND ((""A"" != null) AND STARTSWITH(c[""CustomerID""], ""A""))))
-ORDER BY c[""CustomerID""]
-OFFSET 0 LIMIT @__p_0");
-    }
-
-    public override async Task Projection_take_projection_doesnt_project_intermittent_column(bool async)
-    {
-        await base.Projection_take_projection_doesnt_project_intermittent_column(async);
-
-        AssertSql(
-            @"@__p_0='10'
-
-SELECT VALUE {""Aggregate"" : ((c[""CustomerID""] || "" "") || c[""City""])}
-FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")
-ORDER BY c[""CustomerID""]
-OFFSET 0 LIMIT @__p_0");
-    }
+ORDER BY c["id"]
+OFFSET 0 LIMIT @p
+""");
+            });
 
     public override async Task Projection_skip_projection_doesnt_project_intermittent_column(bool async)
     {
-        var message = (await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.Projection_skip_projection_doesnt_project_intermittent_column(async))).Message;
+        // Always throws for sync.
+        if (async)
+        {
+            var message = (await Assert.ThrowsAsync<InvalidOperationException>(()
+                => base.Projection_skip_projection_doesnt_project_intermittent_column(async))).Message;
 
-        Assert.Equal(CosmosStrings.OffsetRequiresLimit, message);
+            Assert.Equal(CosmosStrings.OffsetRequiresLimit, message);
+        }
     }
 
     public override async Task Projection_Distinct_projection_preserves_columns_used_for_distinct_in_subquery(bool async)
     {
-        // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(() => base.Projection_Distinct_projection_preserves_columns_used_for_distinct_in_subquery(async));
+        // Always throws for sync.
+        if (async)
+        {
+            // Cosmos client evaluation. Issue #17246.
+            await AssertTranslationFailed(() => base.Projection_Distinct_projection_preserves_columns_used_for_distinct_in_subquery(async));
 
-        AssertSql();
+            AssertSql();
+        }
     }
 
     public override async Task Projecting_count_of_navigation_which_is_generic_collection(bool async)
@@ -1232,8 +1547,8 @@ OFFSET 0 LIMIT @__p_0");
         Assert.Equal(
             CosmosStrings.NonEmbeddedIncludeNotSupported(
                 "Navigation: Order.OrderDetails (ICollection<OrderDetail>) Collection ToDependent OrderDetail Inverse: Order"),
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                () => base.Do_not_erase_projection_mapping_when_adding_single_projection(async)))
+            (await Assert.ThrowsAsync<InvalidOperationException>(()
+                => base.Do_not_erase_projection_mapping_when_adding_single_projection(async)))
             .Message);
 
         AssertSql();
@@ -1250,21 +1565,37 @@ OFFSET 0 LIMIT @__p_0");
     public override async Task Correlated_collection_after_groupby_with_complex_projection_not_containing_original_identifier(bool async)
     {
         // Cosmos client evaluation. Issue #17246.
-        await AssertTranslationFailed(
-            () => base.Correlated_collection_after_groupby_with_complex_projection_not_containing_original_identifier(async));
+        await AssertTranslationFailed(()
+            => base.Correlated_collection_after_groupby_with_complex_projection_not_containing_original_identifier(async));
 
         AssertSql();
     }
 
-    public override async Task Ternary_in_client_eval_assigns_correct_types(bool async)
+    public override Task Ternary_in_client_eval_assigns_correct_types(bool async)
     {
-        await base.Ternary_in_client_eval_assigns_correct_types(async);
+        // https://github.com/Azure/azure-cosmos-db-emulator-docker/issues/335
+        CosmosTestEnvironment.SkipOnLinuxEmulator();
 
-        AssertSql(
-            @"SELECT VALUE {""CustomerID"" : c[""CustomerID""], ""OrderDate"" : c[""OrderDate""], ""c"" : (c[""OrderID""] - 10000)}
+        return Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Ternary_in_client_eval_assigns_correct_types(a);
+
+                AssertSql(
+                    """
+SELECT VALUE
+{
+    "CustomerID" : c["CustomerID"],
+    "c" : (c["OrderDate"] != null),
+    "OrderDate" : c["OrderDate"],
+    "c0" : (c["OrderID"] - 10000),
+    "c1" : ((c["OrderDate"] != null) = false)
+}
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND (c[""OrderID""] < 10300))
-ORDER BY c[""OrderID""]");
+WHERE ((c["$type"] = "Order") AND (c["OrderID"] < 10300))
+ORDER BY c["OrderID"]
+""");
+            });
     }
 
     public override async Task Collection_include_over_result_of_single_non_scalar(bool async)
@@ -1321,8 +1652,13 @@ ORDER BY c[""OrderID""]");
 
     public override async Task Projecting_count_of_navigation_which_is_generic_collection_using_convert(bool async)
     {
-        // Cross collection join. Issue #17246.
-        await AssertTranslationFailed(() => base.Projecting_count_of_navigation_which_is_generic_collection_using_convert(async));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(()
+            => base.Projecting_count_of_navigation_which_is_generic_collection_using_convert(async));
+
+        Assert.Equal(
+            CosmosStrings.NonEmbeddedIncludeNotSupported(
+                "Navigation: Customer.Orders (List<Order>) Collection ToDependent Order Inverse: Customer PropertyAccessMode.Field"),
+            ex.Message);
 
         AssertSql();
     }
@@ -1361,10 +1697,9 @@ ORDER BY c[""OrderID""]");
 
     public override async Task Reverse_in_join_inner_with_skip(bool async)
     {
-        Assert.Equal(
-            CosmosStrings.ReverseAfterSkipTakeNotSupported,
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                () => base.Reverse_in_join_inner_with_skip(async))).Message);
+        await AssertTranslationFailedWithDetails(
+            () => base.Reverse_in_join_inner_with_skip(async),
+            CosmosStrings.MultipleRootEntityTypesReferencedInQuery(nameof(Order), nameof(Customer)));
 
         AssertSql();
     }
@@ -1417,22 +1752,28 @@ ORDER BY c[""OrderID""]");
         AssertSql();
     }
 
+    // https://github.com/Azure/azure-cosmos-db-emulator-docker/issues/238 (ORDER BY with expressions/functions not supported)
     public override async Task Reverse_after_orderby_thenby(bool async)
     {
-        await Assert.ThrowsAsync<CosmosException>(
-            () => base.Reverse_after_orderby_thenby(async));
+        CosmosTestEnvironment.SkipOnLinuxEmulator();
 
-        AssertSql(
-            @"SELECT c[""EmployeeID""]
+        // Always throws for sync.
+        if (async)
+        {
+            await Assert.ThrowsAsync<CosmosException>(() => base.Reverse_after_orderby_thenby(async));
+
+            AssertSql(
+                """
+SELECT VALUE c["EmployeeID"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Employee"")
-ORDER BY c[""EmployeeID""] DESC, c[""City""]");
+ORDER BY c["EmployeeID"] DESC, c["City"]
+""");
+        }
     }
 
     public override async Task Reverse_after_orderBy_and_take(bool async)
     {
-        var message = (await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.Reverse_after_orderBy_and_take(async))).Message;
+        var message = (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Reverse_after_orderBy_and_take(async))).Message;
 
         Assert.Equal(CosmosStrings.ReverseAfterSkipTakeNotSupported, message);
     }
@@ -1449,235 +1790,432 @@ ORDER BY c[""EmployeeID""] DESC, c[""City""]");
         SelectMany_with_collection_being_correlated_subquery_which_references_non_mapped_properties_from_inner_and_outer_entity(
             bool async)
     {
-        await AssertTranslationFailed(
-            () => base
-                .SelectMany_with_collection_being_correlated_subquery_which_references_non_mapped_properties_from_inner_and_outer_entity(
-                    async));
+        await AssertTranslationFailed(() => base
+            .SelectMany_with_collection_being_correlated_subquery_which_references_non_mapped_properties_from_inner_and_outer_entity(
+                async));
 
         AssertSql();
     }
 
-    public override async Task Select_bool_closure(bool async)
-    {
-        await base.Select_bool_closure(async);
-
-        AssertSql(
-            @"SELECT 1
+    public override Task Select_bool_closure(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_bool_closure(a);
+                AssertSql(
+                    """
+SELECT 1
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")",
-            //
-            @"SELECT 1
+""",
+                    //
+                    """
+SELECT 1
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
-    public override async Task Select_datetime_DayOfWeek_component(bool async)
-    {
-        await base.Select_datetime_DayOfWeek_component(async);
+    public override Task Select_datetime_DayOfWeek_component(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_datetime_DayOfWeek_component(a);
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
+                AssertSql(
+                    """
+SELECT VALUE c["OrderDate"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Reverse_after_multiple_orderbys(bool async)
-    {
-        await base.Reverse_after_multiple_orderbys(async);
+    public override Task Reverse_after_multiple_orderbys(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Reverse_after_multiple_orderbys(a);
 
-        AssertSql(
-            @"SELECT c[""EmployeeID""]
+                AssertSql(
+                    """
+SELECT VALUE c["EmployeeID"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Employee"")
-ORDER BY c[""EmployeeID""]");
-    }
+ORDER BY c["EmployeeID"]
+""");
+            });
 
+    [Theory(Skip = "Always does sync evaluation.")]
     public override async Task VisitLambda_should_not_be_visited_trivially(bool async)
     {
-        await base.VisitLambda_should_not_be_visited_trivially(async);
+        // Always throws for sync.
+        if (async)
+        {
+            await base.VisitLambda_should_not_be_visited_trivially(async);
 
-        AssertSql(
-            @"SELECT c
+            AssertSql(
+                """
+SELECT c
 FROM root c
-WHERE ((c[""Discriminator""] = ""Order"") AND ((c[""CustomerID""] != null) AND ((""A"" != null) AND STARTSWITH(c[""CustomerID""], ""A""))))");
+WHERE ((c["Discriminator"] = "Order") AND STARTSWITH(c["CustomerID"], "A"))
+""");
+        }
     }
 
-    public override async Task Projecting_nullable_struct(bool async)
+    public override Task Projecting_nullable_struct(bool async)
     {
-        await base.Projecting_nullable_struct(async);
+        // https://github.com/Azure/azure-cosmos-db-emulator-docker/issues/335
+        CosmosTestEnvironment.SkipOnLinuxEmulator();
 
-        AssertSql(
-            @"SELECT c[""CustomerID""], (c[""CustomerID""] = ""ALFKI"") AS c, c[""OrderID""], LENGTH(c[""CustomerID""]) AS c0
+        return Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Projecting_nullable_struct(a);
+
+                AssertSql(
+                    """
+SELECT c["OrderID"], c["CustomerID"], (c["CustomerID"] = "ALFKI") AS c, LENGTH(c["CustomerID"]) AS c0
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
+WHERE (c["$type"] = "Order")
+""");
+            });
     }
 
-    public override async Task Select_customer_identity(bool async)
-    {
-        await base.Select_customer_identity(async);
+    public override Task Select_customer_identity(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_customer_identity(a);
 
-        AssertSql(
-            @"SELECT c
+                AssertSql(
+                    """
+SELECT VALUE c
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
-    public override async Task Projection_with_parameterized_constructor(bool async)
-    {
-        await base.Projection_with_parameterized_constructor(async);
+    public override Task Projection_with_parameterized_constructor(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Projection_with_parameterized_constructor(a);
 
-        AssertSql(
-            @"SELECT c
+                AssertSql(
+                    """
+SELECT VALUE c
 FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND (c[""CustomerID""] = ""ALFKI""))");
-    }
+WHERE (c["id"] = "ALFKI")
+""");
+            });
 
-    public override async Task Select_anonymous_nested(bool async)
-    {
-        await base.Select_anonymous_nested(async);
+    public override Task Select_anonymous_nested(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_anonymous_nested(a);
 
-        AssertSql(
-            @"SELECT c[""City""], c[""Country""]
+                AssertSql(
+                    """
+SELECT c["City"], c["Country"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
-    public override async Task Cast_on_top_level_projection_brings_explicit_Cast(bool async)
-    {
-        await base.Cast_on_top_level_projection_brings_explicit_Cast(async);
+    public override Task Cast_on_top_level_projection_brings_explicit_Cast(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Cast_on_top_level_projection_brings_explicit_Cast(a);
 
-        AssertSql(
-            @"SELECT c[""OrderID""]
+                AssertSql(
+                    """
+SELECT VALUE c["OrderID"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Select_anonymous_empty(bool async)
-    {
-        await base.Select_anonymous_empty(async);
-
-        AssertSql(
-            @"SELECT 1
+    public override Task Select_anonymous_empty(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_anonymous_empty(a);
+                AssertSql(
+                    """
+SELECT 1
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
-    public override async Task Select_scalar_primitive(bool async)
-    {
-        await base.Select_scalar_primitive(async);
+    public override Task Select_scalar_primitive(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_scalar_primitive(a);
 
-        AssertSql(
-            @"SELECT c[""EmployeeID""]
+                AssertSql(
+                    """
+SELECT VALUE c["EmployeeID"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Employee"")");
-    }
+""");
+            });
 
-    public override async Task Select_into(bool async)
-    {
-        await base.Select_into(async);
-
-        AssertSql(
-            @"SELECT c[""CustomerID""]
+    public override Task Select_into(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_into(a);
+                AssertSql(
+                    """
+SELECT VALUE c["id"]
 FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND (c[""CustomerID""] = ""ALFKI""))");
-    }
+WHERE (c["id"] = "ALFKI")
+""");
+            });
 
-    public override async Task Projection_with_parameterized_constructor_with_member_assignment(bool async)
-    {
-        await base.Projection_with_parameterized_constructor_with_member_assignment(async);
+    public override Task Projection_with_parameterized_constructor_with_member_assignment(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Projection_with_parameterized_constructor_with_member_assignment(a);
 
-        AssertSql(
-            @"SELECT c, c[""City""]
+                AssertSql(
+                    """
+SELECT c, c["City"]
 FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND (c[""CustomerID""] = ""ALFKI""))");
-    }
+WHERE (c["id"] = "ALFKI")
+""");
+            });
 
-    public override async Task Select_datetime_TimeOfDay_component(bool async)
-    {
-        await base.Select_datetime_TimeOfDay_component(async);
+    public override Task Select_datetime_TimeOfDay_component(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_datetime_TimeOfDay_component(a);
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
+                AssertSql(
+                    """
+SELECT VALUE c["OrderDate"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
     public override async Task Select_with_complex_expression_that_can_be_funcletized(bool async)
     {
-        await base.Select_with_complex_expression_that_can_be_funcletized(async);
+        // Always throws for sync.
+        if (async)
+        {
+            await Assert.ThrowsAsync<EqualException>(() => base.Select_with_complex_expression_that_can_be_funcletized(true));
 
-        AssertSql(
-            @"SELECT INDEX_OF(c[""ContactName""], """") AS c
+            AssertSql(
+                """
+SELECT VALUE INDEX_OF(c["Region"], "")
 FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND (c[""CustomerID""] = ""ALFKI""))");
+WHERE (c["id"] = "ALFKI")
+""");
+        }
     }
 
-    public override async Task Select_datetime_Ticks_component(bool async)
-    {
-        await base.Select_datetime_Ticks_component(async);
+    public override Task Select_datetime_Ticks_component(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_datetime_Ticks_component(a);
 
-        AssertSql(
-            @"SELECT c[""OrderDate""]
+                AssertSql(
+                    """
+SELECT VALUE c["OrderDate"]
 FROM root c
-WHERE (c[""Discriminator""] = ""Order"")");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    public override async Task Select_anonymous_literal(bool async)
-    {
-        await base.Select_anonymous_literal(async);
+    public override Task Select_anonymous_literal(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_anonymous_literal(a);
 
-        AssertSql(
-            @"SELECT VALUE {""X"" : 10}
+                AssertSql(
+                    """
+SELECT VALUE 10
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
-    public override async Task Select_customer_table(bool async)
-    {
-        await base.Select_customer_table(async);
+    public override Task Select_customer_table(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_customer_table(a);
 
-        AssertSql(
-            @"SELECT c
+                AssertSql(
+                    """
+SELECT VALUE c
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
-    public override async Task Select_over_10_nested_ternary_condition(bool async)
-    {
-        await base.Select_over_10_nested_ternary_condition(async);
-
-        AssertSql(
-            @"SELECT VALUE {""c"" : ((c[""CustomerID""] = ""1"") ? ""01"" : ((c[""CustomerID""] = ""2"") ? ""02"" : ((c[""CustomerID""] = ""3"") ? ""03"" : ((c[""CustomerID""] = ""4"") ? ""04"" : ((c[""CustomerID""] = ""5"") ? ""05"" : ((c[""CustomerID""] = ""6"") ? ""06"" : ((c[""CustomerID""] = ""7"") ? ""07"" : ((c[""CustomerID""] = ""8"") ? ""08"" : ((c[""CustomerID""] = ""9"") ? ""09"" : ((c[""CustomerID""] = ""10"") ? ""10"" : ((c[""CustomerID""] = ""11"") ? ""11"" : null)))))))))))}
+    public override Task Select_over_10_nested_ternary_condition(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_over_10_nested_ternary_condition(a);
+                AssertSql(
+                    """
+SELECT VALUE ((c["id"] = "1") ? "01" : ((c["id"] = "2") ? "02" : ((c["id"] = "3") ? "03" : ((c["id"] = "4") ? "04" : ((c["id"] = "5") ? "05" : ((c["id"] = "6") ? "06" : ((c["id"] = "7") ? "07" : ((c["id"] = "8") ? "08" : ((c["id"] = "9") ? "09" : ((c["id"] = "10") ? "10" : ((c["id"] = "11") ? "11" : null)))))))))))
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
-    }
+""");
+            });
 
-    public override async Task Using_enumerable_parameter_in_projection(bool async)
-    {
-        await base.Using_enumerable_parameter_in_projection(async);
+    public override Task Select_conditional_drops_false(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_conditional_drops_false(a);
 
-        AssertSql(
-            @"SELECT c[""CustomerID""]
+                AssertSql(
+                    """
+SELECT VALUE (((c["OrderID"] % 2) = 0) ? c["OrderID"] : -(c["OrderID"]))
 FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND ((c[""CustomerID""] != null) AND ((""F"" != null) AND STARTSWITH(c[""CustomerID""], ""F""))))");
-    }
+WHERE (c["$type"] = "Order")
+""");
+            });
 
-    [ConditionalTheory(Skip = "Cross collection join Issue#17246")]
+    public override Task Select_conditional_terminates_at_true(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_conditional_terminates_at_true(a);
+
+                AssertSql(
+                    """
+SELECT VALUE (((c["OrderID"] % 2) = 0) ? c["OrderID"] : 0)
+FROM root c
+WHERE (c["$type"] = "Order")
+""");
+            });
+
+    public override Task Select_conditional_flatten_nested_results(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_conditional_flatten_nested_results(a);
+
+                AssertSql(
+                    """
+SELECT VALUE (((c["OrderID"] % 2) = 0) ? (((c["OrderID"] % 5) = 0) ? -(c["OrderID"]) : c["OrderID"]) : c["OrderID"])
+FROM root c
+WHERE (c["$type"] = "Order")
+""");
+            });
+
+    public override Task Select_conditional_flatten_nested_tests(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Select_conditional_flatten_nested_tests(a);
+
+                AssertSql(
+                    """
+SELECT VALUE ((((c["OrderID"] % 2) = 0) ? false : true) ? c["OrderID"] : -(c["OrderID"]))
+FROM root c
+WHERE (c["$type"] = "Order")
+""");
+            });
+
+    public override Task Using_enumerable_parameter_in_projection(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Using_enumerable_parameter_in_projection(a);
+
+                AssertSql(
+                    """
+SELECT VALUE c["id"]
+FROM root c
+WHERE STARTSWITH(c["id"], "F")
+""");
+            });
+
+    [Theory(Skip = "Cross collection join Issue#17246")]
     public override Task List_from_result_of_single_result(bool async)
-    {
-        return base.List_from_result_of_single_result(async);
-    }
+        => base.List_from_result_of_single_result(async);
 
-    [ConditionalTheory(Skip = "Cross collection join Issue#17246")]
+    [Theory(Skip = "Cross collection join Issue#17246")]
     public override Task List_from_result_of_single_result_2(bool async)
+        => base.List_from_result_of_single_result_2(async);
+
+    [Theory(Skip = "Cross collection join Issue#17246")]
+    public override Task List_from_result_of_single_result_3(bool async)
+        => base.List_from_result_of_single_result_3(async);
+
+    public override Task Entity_passed_to_DTO_constructor_works(bool async)
+        => Fixture.NoSyncTest(
+            async, async a =>
+            {
+                await base.Entity_passed_to_DTO_constructor_works(a);
+
+                AssertSql(
+                    """
+SELECT VALUE c
+FROM root c
+""");
+            });
+
+    public override async Task Set_operation_in_pending_collection(bool async)
     {
-        return base.List_from_result_of_single_result_2(async);
+        // Cosmos client evaluation. Issue #17246.
+        await AssertTranslationFailed(() => base.Set_operation_in_pending_collection(async));
+
+        AssertSql();
     }
 
-    [ConditionalTheory(Skip = "Cross collection join Issue#17246")]
-    public override Task List_from_result_of_single_result_3(bool async)
+    public override async Task Multiple_members_of_single_result_subquery_with_non_equi_correlation_lift_to_single_join(bool async)
     {
-        return base.List_from_result_of_single_result_3(async);
+        await AssertTranslationFailed(() => base.Multiple_members_of_single_result_subquery_with_non_equi_correlation_lift_to_single_join(async));
+
+        AssertSql();
+    }
+
+    public override async Task Members_through_navigation_of_repeated_single_result_subquery_lift_to_single_join(bool async)
+    {
+        await AssertTranslationFailed(() => base.Members_through_navigation_of_repeated_single_result_subquery_lift_to_single_join(async));
+
+        AssertSql();
+    }
+
+    public override async Task Single_result_subquery_read_whole_and_null_checked_lift_to_single_join(bool async)
+    {
+        await AssertTranslationFailed(() => base.Single_result_subquery_read_whole_and_null_checked_lift_to_single_join(async));
+
+        AssertSql();
+    }
+
+    public override async Task Repeated_single_result_subqueries_that_are_not_lifted(bool async)
+    {
+        await AssertTranslationFailed(() => base.Repeated_single_result_subqueries_that_are_not_lifted(async));
+
+        AssertSql();
+    }
+
+    public override async Task Repeated_non_deterministic_single_result_subquery_is_not_lifted(bool async)
+    {
+        await AssertTranslationFailed(() => base.Repeated_non_deterministic_single_result_subquery_is_not_lifted(async));
+
+        AssertSql();
+    }
+
+    public override async Task Single_result_subquery_null_check_over_keyless_entity(bool async)
+    {
+        await AssertTranslationFailed(() => base.Single_result_subquery_null_check_over_keyless_entity(async));
+
+        AssertSql();
+    }
+
+    public override async Task Single_result_subquery_null_check_preserves_type_as(bool async)
+    {
+        await AssertTranslationFailed(() => base.Single_result_subquery_null_check_preserves_type_as(async));
+
+        AssertSql();
     }
 
     private void AssertSql(params string[] expected)

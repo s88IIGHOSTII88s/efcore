@@ -3,18 +3,14 @@
 
 namespace Microsoft.EntityFrameworkCore;
 
-public class WithConstructorsInMemoryTest : WithConstructorsTestBase<WithConstructorsInMemoryTest.WithConstructorsInMemoryFixture>
+public class WithConstructorsInMemoryTest(WithConstructorsInMemoryTest.WithConstructorsInMemoryFixture fixture)
+    : WithConstructorsTestBase<WithConstructorsInMemoryTest.WithConstructorsInMemoryFixture>(fixture)
 {
-    public WithConstructorsInMemoryTest(WithConstructorsInMemoryFixture fixture)
-        : base(fixture)
+    public override async Task Query_and_update_using_constructors_with_property_parameters()
     {
-    }
+        await base.Query_and_update_using_constructors_with_property_parameters();
 
-    public override void Query_and_update_using_constructors_with_property_parameters()
-    {
-        base.Query_and_update_using_constructors_with_property_parameters();
-
-        Fixture.Reseed();
+        await Fixture.ReseedAsync();
     }
 
     public class WithConstructorsInMemoryFixture : WithConstructorsFixtureBase
@@ -29,8 +25,8 @@ public class WithConstructorsInMemoryTest : WithConstructorsTestBase<WithConstru
         {
             base.OnModelCreating(modelBuilder, context);
 
-            modelBuilder.Entity<BlogQuery>().HasNoKey().ToInMemoryQuery(
-                () => context.Set<Blog>().Select(b => new BlogQuery(b.Title, b.MonthlyRevenue)));
+            modelBuilder.Entity<BlogQuery>().HasNoKey()
+                .ToInMemoryQuery(() => context.Set<Blog>().Select(b => new BlogQuery(b.Title, b.MonthlyRevenue)));
         }
     }
 }

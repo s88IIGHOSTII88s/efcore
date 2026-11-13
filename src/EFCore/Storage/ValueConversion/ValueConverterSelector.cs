@@ -26,22 +26,22 @@ public class ValueConverterSelector : IValueConverterSelector
 {
     private readonly ConcurrentDictionary<(Type ModelClrType, Type ProviderClrType), ValueConverterInfo> _converters = new();
 
-    private static readonly Type[] SignedPreferred = { typeof(sbyte), typeof(short), typeof(int), typeof(long), typeof(decimal) };
+    private static readonly Type[] SignedPreferred = [typeof(sbyte), typeof(short), typeof(int), typeof(long), typeof(decimal)];
 
     private static readonly Type[] UnsignedPreferred =
-    {
+    [
         typeof(byte), typeof(short), typeof(ushort), typeof(int), typeof(uint), typeof(long), typeof(ulong), typeof(decimal)
-    };
+    ];
 
-    private static readonly Type[] FloatingPreferred = { typeof(float), typeof(double), typeof(decimal) };
+    private static readonly Type[] FloatingPreferred = [typeof(float), typeof(double), typeof(decimal)];
 
     private static readonly Type[] CharPreferred =
-    {
+    [
         typeof(char), typeof(int), typeof(ushort), typeof(uint), typeof(long), typeof(ulong), typeof(decimal)
-    };
+    ];
 
     private static readonly Type[] Numerics =
-    {
+    [
         typeof(int),
         typeof(long),
         typeof(short),
@@ -53,7 +53,7 @@ public class ValueConverterSelector : IValueConverterSelector
         typeof(decimal),
         typeof(double),
         typeof(float)
-    };
+    ];
 
     // ReSharper disable once InconsistentNaming
     private static readonly Type? _readOnlyIPAddressType = IPAddress.Loopback.GetType();
@@ -63,9 +63,7 @@ public class ValueConverterSelector : IValueConverterSelector
     /// </summary>
     /// <param name="dependencies">Parameter object containing dependencies for this service.</param>
     public ValueConverterSelector(ValueConverterSelectorDependencies dependencies)
-    {
-        Dependencies = dependencies;
-    }
+        => Dependencies = dependencies;
 
     /// <summary>
     ///     Dependencies for this service.
@@ -208,11 +206,23 @@ public class ValueConverterSelector : IValueConverterSelector
                     (modelClrType, typeof(DateTimeOffset)),
                     _ => StringToDateTimeOffsetConverter.DefaultInfo);
             }
+            else if (providerClrType == typeof(DateOnly))
+            {
+                yield return _converters.GetOrAdd(
+                    (modelClrType, typeof(DateOnly)),
+                    _ => StringToDateOnlyConverter.DefaultInfo);
+            }
             else if (providerClrType == typeof(TimeSpan))
             {
                 yield return _converters.GetOrAdd(
                     (modelClrType, typeof(TimeSpan)),
                     _ => StringToTimeSpanConverter.DefaultInfo);
+            }
+            else if (providerClrType == typeof(TimeOnly))
+            {
+                yield return _converters.GetOrAdd(
+                    (modelClrType, typeof(TimeOnly)),
+                    _ => StringToTimeOnlyConverter.DefaultInfo);
             }
             else if (providerClrType == typeof(Guid))
             {
@@ -241,7 +251,8 @@ public class ValueConverterSelector : IValueConverterSelector
         }
         else if (modelClrType == typeof(DateTime)
                  || modelClrType == typeof(DateTimeOffset)
-                 || modelClrType == typeof(TimeSpan))
+                 || modelClrType == typeof(TimeSpan)
+                 || modelClrType == typeof(TimeOnly))
         {
             if (providerClrType == null
                 || providerClrType == typeof(string))
@@ -252,7 +263,9 @@ public class ValueConverterSelector : IValueConverterSelector
                         ? DateTimeToStringConverter.DefaultInfo
                         : k.ModelClrType == typeof(DateTimeOffset)
                             ? DateTimeOffsetToStringConverter.DefaultInfo
-                            : TimeSpanToStringConverter.DefaultInfo);
+                            : k.ModelClrType == typeof(TimeSpan)
+                                ? TimeSpanToStringConverter.DefaultInfo
+                                : TimeOnlyToStringConverter.DefaultInfo);
             }
 
             if (providerClrType == null
@@ -264,7 +277,9 @@ public class ValueConverterSelector : IValueConverterSelector
                         ? DateTimeToBinaryConverter.DefaultInfo
                         : k.ModelClrType == typeof(DateTimeOffset)
                             ? DateTimeOffsetToBinaryConverter.DefaultInfo
-                            : TimeSpanToTicksConverter.DefaultInfo);
+                            : k.ModelClrType == typeof(TimeSpan)
+                                ? TimeSpanToTicksConverter.DefaultInfo
+                                : TimeOnlyToTicksConverter.DefaultInfo);
             }
 
             if (providerClrType == null
@@ -281,10 +296,35 @@ public class ValueConverterSelector : IValueConverterSelector
                             typeof(byte[]),
                             i => (i.ModelClrType == typeof(DateTime)
                                     ? DateTimeToBinaryConverter.DefaultInfo.Create()
-                                    : TimeSpanToTicksConverter.DefaultInfo.Create())
+                                    : i.ModelClrType == typeof(TimeSpan)
+                                        ? TimeSpanToTicksConverter.DefaultInfo.Create()
+                                        : TimeOnlyToTicksConverter.DefaultInfo.Create())
                                 .ComposeWith(
                                     NumberToBytesConverter<long>.DefaultInfo.Create()),
                             NumberToBytesConverter<long>.DefaultInfo.MappingHints));
+            }
+        }
+        else if (modelClrType == typeof(DateOnly))
+        {
+            if (providerClrType == null
+                || providerClrType == typeof(string))
+            {
+                yield return _converters.GetOrAdd(
+                    (modelClrType, typeof(string)),
+                    _ => DateOnlyToStringConverter.DefaultInfo);
+            }
+
+            if (providerClrType == null
+                || providerClrType == typeof(byte[]))
+            {
+                yield return _converters.GetOrAdd(
+                    (modelClrType, typeof(byte[])),
+                    static k => new ValueConverterInfo(
+                        k.ModelClrType,
+                        typeof(byte[]),
+                        _ => new DateOnlyToStringConverter().ComposeWith(
+                            StringToBytesConverter.DefaultInfo.Create()),
+                        StringToBytesConverter.DefaultInfo.MappingHints));
             }
         }
         else if (modelClrType == typeof(IPAddress) || modelClrType == _readOnlyIPAddressType)
@@ -441,7 +481,7 @@ public class ValueConverterSelector : IValueConverterSelector
         if (modelType.IsEnum)
         {
             foreach (var converterInfo in FindPreferredConversions(
-                         new[] { underlyingModelType }, modelType, providerType, converterType))
+                         [underlyingModelType], modelType, providerType, converterType))
             {
                 yield return converterInfo;
 
@@ -559,6 +599,8 @@ public class ValueConverterSelector : IValueConverterSelector
         }
     }
 
-    private static ValueConverterInfo GetDefaultValueConverterInfo(Type converterTypeInfo)
+    private static ValueConverterInfo GetDefaultValueConverterInfo(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.NonPublicProperties)]
+        Type converterTypeInfo)
         => (ValueConverterInfo)converterTypeInfo.GetAnyProperty("DefaultInfo")!.GetValue(null)!;
 }

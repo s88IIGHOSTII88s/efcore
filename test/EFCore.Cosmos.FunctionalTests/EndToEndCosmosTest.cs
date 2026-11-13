@@ -3,122 +3,52 @@
 
 using System.Collections.Immutable;
 using Microsoft.Azure.Cosmos;
-using Microsoft.EntityFrameworkCore.Cosmos.ChangeTracking.Internal;
 using Microsoft.EntityFrameworkCore.Cosmos.Internal;
-using Newtonsoft.Json.Linq;
+using Microsoft.EntityFrameworkCore.Cosmos.Metadata.Internal;
 
 // ReSharper disable UnusedMember.Local
-namespace Microsoft.EntityFrameworkCore.Cosmos;
+namespace Microsoft.EntityFrameworkCore;
 
-public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture>
+public class EndToEndCosmosTest(NonSharedFixture fixture) : NonSharedModelTestBase(fixture), IClassFixture<NonSharedFixture>
 {
-    private const string DatabaseName = "CosmosEndToEndTest";
-
-    protected CosmosFixture Fixture { get; }
-
-    public EndToEndCosmosTest(CosmosFixture fixture)
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Can_add_update_delete_end_to_end(bool transactionalBatch)
     {
-        Fixture = fixture;
-    }
-
-    [ConditionalFact]
-    public void Can_add_update_delete_end_to_end()
-    {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<DbContext>(
+            b => b.Entity<Customer>(),
+            shouldLogCategory: _ => true,
+            onConfiguring: o => o.ConfigureWarnings(w => w.Log(CosmosEventId.NoPartitionKeyDefined)));
 
         var customer = new Customer { Id = 42, Name = "Theon" };
 
-        using (var context = new CustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            context.Database.EnsureCreated();
-
-            context.Add(customer);
-
-            context.SaveChanges();
-
-            var logEntry = TestSqlLoggerFactory.Log.Single();
-            Assert.Equal(LogLevel.Information, logEntry.Level);
-            Assert.Contains("CreateItem", logEntry.Message);
-        }
-
-        using (var context = new CustomerContext(options))
-        {
-            TestSqlLoggerFactory.Clear();
-            var customerFromStore = context.Set<Customer>().Single();
-
-            var logEntry = TestSqlLoggerFactory.Log.Last();
-            Assert.Equal(LogLevel.Information, logEntry.Level);
-            Assert.Contains("ReadNext", logEntry.Message);
-            TestSqlLoggerFactory.Clear();
-
-            Assert.Equal(42, customerFromStore.Id);
-            Assert.Equal("Theon", customerFromStore.Name);
-
-            customerFromStore.Name = "Theon Greyjoy";
-
-            context.SaveChanges();
-
-            logEntry = TestSqlLoggerFactory.Log.Single();
-            Assert.Equal(LogLevel.Information, logEntry.Level);
-            Assert.Contains("ReplaceItem", logEntry.Message);
-        }
-
-        using (var context = new CustomerContext(options))
-        {
-            TestSqlLoggerFactory.Clear();
-            var customerFromStore = context.Find<Customer>(42);
-
-            var logEntry = TestSqlLoggerFactory.Log.Last();
-            Assert.Equal(LogLevel.Information, logEntry.Level);
-            Assert.Contains("ReadItem", logEntry.Message);
-            TestSqlLoggerFactory.Clear();
-
-            Assert.Equal(42, customerFromStore.Id);
-            Assert.Equal("Theon Greyjoy", customerFromStore.Name);
-
-            context.Remove(customerFromStore);
-
-            context.SaveChanges();
-
-            logEntry = TestSqlLoggerFactory.Log.Single();
-            Assert.Equal(LogLevel.Information, logEntry.Level);
-            Assert.Contains("DeleteItem", logEntry.Message);
-        }
-
-        using (var context = new CustomerContext(options))
-        {
-            Assert.Empty(context.Set<Customer>().ToList());
-        }
-    }
-
-    [ConditionalFact]
-    public async Task Can_add_update_delete_end_to_end_async()
-    {
-        var options = Fixture.CreateOptions();
-
-        var customer = new Customer { Id = 42, Name = "Theon" };
-
-        using (var context = new CustomerContext(options))
-        {
-            await context.Database.EnsureCreatedAsync();
-
-            context.Add(customer);
+            await context.AddAsync(customer);
 
             await context.SaveChangesAsync();
 
-            var logEntry = TestSqlLoggerFactory.Log.Single();
-            Assert.Equal(LogLevel.Information, logEntry.Level);
-            Assert.Contains("CreateItem", logEntry.Message);
+            if (transactionalBatch)
+            {
+                var logEntry = ListLoggerFactory.Log.Single(e => e.Id == CosmosEventId.ExecutedTransactionalBatch);
+                Assert.Equal(LogLevel.Information, logEntry.Level);
+                Assert.Contains("TransactionalBatch", logEntry.Message);
+            }
+            else
+            {
+                var logEntry = ListLoggerFactory.Log.Single(e => e.Id == CosmosEventId.ExecutedCreateItem);
+                Assert.Equal(LogLevel.Information, logEntry.Level);
+                Assert.Contains("CreateItem", logEntry.Message);
+            }
         }
 
-        using (var context = new CustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             var customerFromStore = await context.Set<Customer>().SingleAsync();
 
-            var logEntry = TestSqlLoggerFactory.Log.Last();
+            var logEntry = ListLoggerFactory.Log.Single(e => e.Id == CosmosEventId.ExecutedReadNext);
             Assert.Equal(LogLevel.Information, logEntry.Level);
             Assert.Contains("ReadNext", logEntry.Message);
-            TestSqlLoggerFactory.Clear();
+            ListLoggerFactory.Clear();
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("Theon", customerFromStore.Name);
@@ -127,19 +57,28 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
 
             await context.SaveChangesAsync();
 
-            logEntry = TestSqlLoggerFactory.Log.Single();
-            Assert.Equal(LogLevel.Information, logEntry.Level);
-            Assert.Contains("ReplaceItem", logEntry.Message);
+            if (transactionalBatch)
+            {
+                logEntry = ListLoggerFactory.Log.Single(e => e.Id == CosmosEventId.ExecutedTransactionalBatch);
+                Assert.Equal(LogLevel.Information, logEntry.Level);
+                Assert.Contains("TransactionalBatch", logEntry.Message);
+            }
+            else
+            {
+                logEntry = ListLoggerFactory.Log.Single(e => e.Id == CosmosEventId.ExecutedReplaceItem);
+                Assert.Equal(LogLevel.Information, logEntry.Level);
+                Assert.Contains("ReplaceItem", logEntry.Message);
+            }
         }
 
-        using (var context = new CustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            var customerFromStore = await context.FindAsync<Customer>(42);
+            var customerFromStore = (await context.FindAsync<Customer>(42))!;
 
-            var logEntry = TestSqlLoggerFactory.Log.Last();
+            var logEntry = ListLoggerFactory.Log.Single(e => e.Id == CosmosEventId.ExecutedReadItem);
             Assert.Equal(LogLevel.Information, logEntry.Level);
             Assert.Contains("ReadItem", logEntry.Message);
-            TestSqlLoggerFactory.Clear();
+            ListLoggerFactory.Clear();
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("Theon Greyjoy", customerFromStore.Name);
@@ -148,40 +87,50 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
 
             await context.SaveChangesAsync();
 
-            logEntry = TestSqlLoggerFactory.Log.Single();
-            Assert.Equal(LogLevel.Information, logEntry.Level);
-            Assert.Contains("DeleteItem", logEntry.Message);
+            if (transactionalBatch)
+            {
+                logEntry = ListLoggerFactory.Log.Single(e => e.Id == CosmosEventId.ExecutedTransactionalBatch);
+                Assert.Equal(LogLevel.Information, logEntry.Level);
+                Assert.Contains("TransactionalBatch", logEntry.Message);
+            }
+            else
+            {
+                logEntry = ListLoggerFactory.Log.Single(e => e.Id == CosmosEventId.ExecutedDeleteItem);
+                Assert.Equal(LogLevel.Information, logEntry.Level);
+                Assert.Contains("DeleteItem", logEntry.Message);
+            }
         }
 
-        using (var context = new CustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             Assert.Empty(await context.Set<Customer>().ToListAsync());
         }
     }
 
-    [ConditionalFact]
-    public async Task Can_add_update_delete_detached_entity_end_to_end_async()
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Can_add_update_delete_detached_entity_end_to_end(bool transactionalBatch)
     {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<DbContext>(
+            b => b.Entity<Customer>(),
+            shouldLogCategory: _ => true,
+            onConfiguring: o => o.ConfigureWarnings(w => w.Log(CosmosEventId.NoPartitionKeyDefined)));
 
         var customer = new Customer { Id = 42, Name = "Theon" };
-        string storeId = null;
-        using (var context = new CustomerContext(options))
+        string? storeId = null;
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            await context.Database.EnsureCreatedAsync();
-
-            var entry = context.Add(customer);
+            var entry = await context.AddAsync(customer);
 
             await context.SaveChangesAsync();
 
-            context.Add(customer);
+            await context.AddAsync(customer);
 
-            storeId = entry.Property<string>(StoreKeyConvention.DefaultIdPropertyName).CurrentValue;
+            storeId = entry.Property<string>(CosmosJsonIdConvention.DefaultIdPropertyName).CurrentValue;
         }
 
-        Assert.Equal("Customer|42", storeId);
+        Assert.Equal("42", storeId);
 
-        using (var context = new CustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             var customerFromStore = await context.Set<Customer>().SingleAsync();
 
@@ -189,213 +138,53 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
             Assert.Equal("Theon", customerFromStore.Name);
         }
 
-        using (var context = new CustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             customer.Name = "Theon Greyjoy";
 
             var entry = context.Entry(customer);
-            entry.Property<string>(StoreKeyConvention.DefaultIdPropertyName).CurrentValue = storeId;
+
+            entry.Property<string>(CosmosJsonIdConvention.DefaultIdPropertyName).CurrentValue = storeId;
 
             entry.State = EntityState.Modified;
 
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            var customerFromStore = context.Set<Customer>().Single();
+            var customerFromStore = await context.Set<Customer>().SingleAsync();
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("Theon Greyjoy", customerFromStore.Name);
         }
 
-        using (var context = new CustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             var entry = context.Entry(customer);
-            entry.Property<string>(StoreKeyConvention.DefaultIdPropertyName).CurrentValue = storeId;
+            entry.Property<string>(CosmosJsonIdConvention.DefaultIdPropertyName).CurrentValue = storeId;
             entry.State = EntityState.Deleted;
 
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             Assert.Empty(await context.Set<Customer>().ToListAsync());
         }
     }
 
-    [ConditionalFact]
-    public void Can_add_update_untracked_properties()
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Can_add_update_delete_end_to_end_with_Guid(bool transactionalBatch)
     {
-        var options = Fixture.CreateOptions();
-
-        var customer = new Customer { Id = 42, Name = "Theon" };
-
-        using (var context = new CustomerContext(options))
-        {
-            context.Database.EnsureCreated();
-
-            var entry = context.Add(customer);
-
-            context.SaveChanges();
-
-            var document = entry.Property<JObject>("__jObject").CurrentValue;
-            Assert.NotNull(document);
-            Assert.Equal("Theon", document["Name"]);
-
-            context.Remove(customer);
-
-            context.SaveChanges();
-        }
-
-        using (var context = new CustomerContext(options))
-        {
-            Assert.Empty(context.Set<Customer>().ToList());
-
-            var entry = context.Add(customer);
-
-            entry.Property<JObject>("__jObject").CurrentValue = new JObject { ["key1"] = "value1" };
-
-            context.SaveChanges();
-
-            var document = entry.Property<JObject>("__jObject").CurrentValue;
-            Assert.NotNull(document);
-            Assert.Equal("Theon", document["Name"]);
-            Assert.Equal("value1", document["key1"]);
-
-            document["key2"] = "value2";
-            entry.State = EntityState.Modified;
-            context.SaveChanges();
-        }
-
-        using (var context = new CustomerContext(options))
-        {
-            var customerFromStore = context.Set<Customer>().Single();
-
-            Assert.Equal(42, customerFromStore.Id);
-            Assert.Equal("Theon", customerFromStore.Name);
-
-            var entry = context.Entry(customerFromStore);
-            var document = entry.Property<JObject>("__jObject").CurrentValue;
-            Assert.Equal("value1", document["key1"]);
-            Assert.Equal("value2", document["key2"]);
-
-            document["key1"] = "value1.1";
-            customerFromStore.Name = "Theon Greyjoy";
-
-            context.SaveChanges();
-        }
-
-        using (var context = new CustomerContext(options))
-        {
-            var customerFromStore = context.Set<Customer>().Single();
-
-            Assert.Equal("Theon Greyjoy", customerFromStore.Name);
-
-            var entry = context.Entry(customerFromStore);
-            var document = entry.Property<JObject>("__jObject").CurrentValue;
-            Assert.Equal("value1.1", document["key1"]);
-            Assert.Equal("value2", document["key2"]);
-
-            context.Remove(customerFromStore);
-
-            context.SaveChanges();
-        }
-
-        using (var context = new CustomerContext(options))
-        {
-            Assert.Empty(context.Set<Customer>().ToList());
-        }
-    }
-
-    [ConditionalFact]
-    public async Task Can_add_update_untracked_properties_async()
-    {
-        var options = Fixture.CreateOptions();
-
-        var customer = new Customer { Id = 42, Name = "Theon" };
-
-        using (var context = new CustomerContext(options))
-        {
-            await context.Database.EnsureCreatedAsync();
-
-            var entry = context.Add(customer);
-
-            await context.SaveChangesAsync();
-
-            var document = entry.Property<JObject>("__jObject").CurrentValue;
-            Assert.NotNull(document);
-            Assert.Equal("Theon", document["Name"]);
-
-            context.Remove(customer);
-
-            await context.SaveChangesAsync();
-        }
-
-        using (var context = new CustomerContext(options))
-        {
-            Assert.Empty(await context.Set<Customer>().ToListAsync());
-
-            var entry = context.Add(customer);
-
-            entry.Property<JObject>("__jObject").CurrentValue = new JObject { ["key1"] = "value1" };
-
-            await context.SaveChangesAsync();
-
-            var document = entry.Property<JObject>("__jObject").CurrentValue;
-            Assert.NotNull(document);
-            Assert.Equal("Theon", document["Name"]);
-            Assert.Equal("value1", document["key1"]);
-
-            document["key2"] = "value2";
-            entry.State = EntityState.Modified;
-            await context.SaveChangesAsync();
-        }
-
-        using (var context = new CustomerContext(options))
-        {
-            var customerFromStore = await context.Set<Customer>().SingleAsync();
-
-            Assert.Equal(42, customerFromStore.Id);
-            Assert.Equal("Theon", customerFromStore.Name);
-
-            var entry = context.Entry(customerFromStore);
-            var document = entry.Property<JObject>("__jObject").CurrentValue;
-            Assert.Equal("value1", document["key1"]);
-            Assert.Equal("value2", document["key2"]);
-
-            document["key1"] = "value1.1";
-            customerFromStore.Name = "Theon Greyjoy";
-
-            await context.SaveChangesAsync();
-        }
-
-        using (var context = new CustomerContext(options))
-        {
-            var customerFromStore = await context.Set<Customer>().SingleAsync();
-
-            Assert.Equal("Theon Greyjoy", customerFromStore.Name);
-
-            var entry = context.Entry(customerFromStore);
-            var document = entry.Property<JObject>("__jObject").CurrentValue;
-            Assert.Equal("value1.1", document["key1"]);
-            Assert.Equal("value2", document["key2"]);
-
-            context.Remove(customerFromStore);
-
-            await context.SaveChangesAsync();
-        }
-
-        using (var context = new CustomerContext(options))
-        {
-            Assert.Empty(await context.Set<Customer>().ToListAsync());
-        }
-    }
-
-    [ConditionalFact]
-    public async Task Can_add_update_delete_end_to_end_with_Guid_async()
-    {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<DbContext>(
+            b => b.Entity<CustomerGuid>(b =>
+            {
+                b.Property(c => c.Id).ToJsonProperty("id");
+                b.Property(c => c.PartitionKey).HasConversion<string>().ToJsonProperty("pk");
+                b.HasPartitionKey(c => c.PartitionKey);
+            }),
+            shouldLogCategory: _ => true);
 
         var customer = new CustomerGuid
         {
@@ -404,16 +193,14 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
             PartitionKey = 42
         };
 
-        using (var context = new CustomerContextGuid(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            await context.Database.EnsureCreatedAsync();
-
-            context.Add(customer);
+            await context.AddAsync(customer);
 
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CustomerContextGuid(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             var customerFromStore = await context.Set<CustomerGuid>().SingleAsync();
 
@@ -425,7 +212,7 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CustomerContextGuid(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             var customerFromStore = await context.Set<CustomerGuid>().SingleAsync();
 
@@ -437,48 +224,54 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CustomerContextGuid(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             Assert.Empty(await context.Set<CustomerGuid>().ToListAsync());
         }
     }
 
-    [ConditionalFact]
-    public async Task Can_add_update_delete_end_to_end_with_DateTime_async()
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Can_add_update_delete_end_to_end_with_DateTime(bool transactionalBatch)
     {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<DbContext>(
+            b => b.Entity<CustomerDateTime>(b =>
+            {
+                b.Property(c => c.Id);
+                b.Property(c => c.PartitionKey).HasConversion<string>();
+                b.HasPartitionKey(c => c.PartitionKey);
+                b.HasKey(c => new { c.Id, c.Name });
+            }),
+            shouldLogCategory: _ => true);
 
         var customer = new CustomerDateTime
         {
             Id = DateTime.MinValue,
-            Name = "Theon/\\#\\\\?",
+            Name = "Theon Greyjoy",
             PartitionKey = 42
         };
 
-        using (var context = new CustomerContextDateTime(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            await context.Database.EnsureCreatedAsync();
+            var entry = await context.AddAsync(customer);
 
-            var entry = context.Add(customer);
-
-            Assert.Equal("CustomerDateTime|0001-01-01T00:00:00.0000000|Theon^2F^5C^23^5C^5C^3F", entry.CurrentValues["__id"]);
+            Assert.Equal("0001-01-01T00:00:00.0000000|Theon Greyjoy", entry.CurrentValues["__id"]);
 
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CustomerContextDateTime(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             var customerFromStore = await context.Set<CustomerDateTime>().SingleAsync();
 
             Assert.Equal(customer.Id, customerFromStore.Id);
-            Assert.Equal("Theon/\\#\\\\?", customerFromStore.Name);
+            Assert.Equal("Theon Greyjoy", customerFromStore.Name);
 
             customerFromStore.Value = 23;
 
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CustomerContextDateTime(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             var customerFromStore = await context.Set<CustomerDateTime>().SingleAsync();
 
@@ -490,7 +283,7 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CustomerContextDateTime(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             Assert.Empty(await context.Set<CustomerDateTime>().ToListAsync());
         }
@@ -499,28 +292,31 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
     private class Customer
     {
         public int Id { get; set; }
-        public string Name { get; set; }
-        public int PartitionKey { get; set; }
+        public string Name { get; set; } = null!;
+        public int PartitionKey1 { get; set; }
+        public bool PartitionKey3 { get; set; }
+        public string PartitionKey2 { get; set; } = null!;
     }
 
     private class CustomerWithResourceId
     {
-        public string id { get; set; }
-        public string Name { get; set; }
-        public int PartitionKey { get; set; }
+        public string id { get; set; } = null!;
+        public string Name { get; set; } = null!;
+        public int PartitionKey1 { get; set; }
+        public decimal PartitionKey2 { get; set; }
     }
 
     private class CustomerGuid
     {
         public Guid Id { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         public int PartitionKey { get; set; }
     }
 
     private class CustomerDateTime
     {
         public DateTime Id { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         public int PartitionKey { get; set; }
         public int Value { get; set; }
     }
@@ -528,79 +324,34 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
     private class CustomerNoPartitionKey
     {
         public int Id { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 
-    private class CustomerContext : DbContext
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Can_add_update_delete_with_dateTime_string_end_to_end(bool transactionalBatch)
     {
-        public CustomerContext(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<Customer>();
-    }
-
-    private class CustomerContextGuid : DbContext
-    {
-        public CustomerContextGuid(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<CustomerGuid>(
-                cb =>
-                {
-                    cb.Property(c => c.Id).ToJsonProperty("id");
-                    cb.Property(c => c.PartitionKey).HasConversion<string>().ToJsonProperty("pk");
-                    cb.HasPartitionKey(c => c.PartitionKey);
-                });
-    }
-
-    private class CustomerContextDateTime : DbContext
-    {
-        public CustomerContextDateTime(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<CustomerDateTime>(
-                cb =>
-                {
-                    cb.Property(c => c.Id);
-                    cb.Property(c => c.PartitionKey).HasConversion<string>();
-                    cb.HasPartitionKey(c => c.PartitionKey);
-                    cb.HasKey(c => new { c.Id, c.Name });
-                });
-    }
-
-    [ConditionalFact]
-    public async Task Can_add_update_delete_with_dateTime_string_end_to_end_async()
-    {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<DbContext>(
+            b => b.Entity<Customer>(),
+            shouldLogCategory: _ => true,
+            onConfiguring: o => o.ConfigureWarnings(w => w.Log(CosmosEventId.NoPartitionKeyDefined)));
 
         var customer = new Customer { Id = 42, Name = "2021-08-23T06:23:40+00:00" };
 
-        using (var context = new CustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            await context.Database.EnsureCreatedAsync();
-
-            context.Add(customer);
+            await context.AddAsync(customer);
 
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             var customerFromStore = await context.Set<Customer>().SingleAsync();
 
-            var logEntry = TestSqlLoggerFactory.Log.Last();
+            var logEntry = ListLoggerFactory.Log.Single(e => e.Id == CosmosEventId.ExecutedReadNext);
             Assert.Equal(LogLevel.Information, logEntry.Level);
             Assert.Contains("ReadNext", logEntry.Message);
-            TestSqlLoggerFactory.Clear();
+            ListLoggerFactory.Clear();
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("2021-08-23T06:23:40+00:00", customerFromStore.Name);
@@ -610,9 +361,9 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            var customerFromStore = await context.FindAsync<Customer>(42);
+            var customerFromStore = (await context.FindAsync<Customer>(42))!;
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("2021-08-23T06:23:40+02:00", customerFromStore.Name);
@@ -622,17 +373,92 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             Assert.Empty(await context.Set<Customer>().ToListAsync());
         }
     }
 
-    [ConditionalFact]
-    public async Task Can_add_update_delete_with_collections()
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Entities_with_null_PK_can_be_added_with_normal_use_of_DbContext_methods_and_have_id_shadow_value_and_PK_created(
+        bool transactionalBatch)
+    {
+        var contextFactory = await InitializeNonSharedTest<IdentifierShadowValuePresenceTestContext>(
+            usePooling: false,
+            shouldLogCategory: _ => true,
+            onConfiguring: o => o.ConfigureWarnings(w => w.Log(CosmosEventId.NoPartitionKeyDefined)));
+
+        var context = CreateContext(contextFactory, transactionalBatch);
+        var item = new GItem();
+
+        Assert.Null(item.Id);
+
+        var entry = await context.AddAsync(item);
+
+        var id = entry.Property("Id").CurrentValue;
+
+        Assert.NotNull(item.Id);
+        Assert.NotNull(id);
+
+        Assert.Equal(item.Id, id);
+        Assert.Equal(EntityState.Added, entry.State);
+    }
+
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Entities_can_be_tracked_with_normal_use_of_DbContext_methods_and_have_correct_resultant_state_and_id_shadow_value(
+        bool transactionalBatch)
+    {
+        var contextFactory = await InitializeNonSharedTest<IdentifierShadowValuePresenceTestContext>(
+            usePooling: false,
+            shouldLogCategory: _ => true,
+            onConfiguring: o => o.ConfigureWarnings(w => w.Log(CosmosEventId.NoPartitionKeyDefined)));
+
+        using var context = CreateContext(contextFactory, transactionalBatch);
+
+        var item = new Item { Id = 1337 };
+        var entry = context.Attach(item);
+
+        Assert.Equal($"{item.Id}", entry.Property("__id").CurrentValue);
+        Assert.Equal(EntityState.Unchanged, entry.State);
+
+        entry.State = EntityState.Detached;
+        entry = context.Update(item = new Item { Id = 71 });
+
+        Assert.Equal($"{item.Id}", entry.Property("__id").CurrentValue);
+        Assert.Equal(EntityState.Modified, entry.State);
+
+        entry.State = EntityState.Detached;
+        entry = context.Remove(item = new Item { Id = 33 });
+
+        Assert.Equal($"{item.Id}", entry.Property("__id").CurrentValue);
+        Assert.Equal(EntityState.Deleted, entry.State);
+    }
+
+    protected class IdentifierShadowValuePresenceTestContext(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
+    {
+        public DbSet<GItem> GItems
+            => Set<GItem>();
+
+        public DbSet<Item> Items
+            => Set<Item>();
+    }
+
+    protected class GItem
+    {
+        public Guid? Id { get; set; }
+    }
+
+    protected class Item
+    {
+        public int Id { get; set; }
+    }
+
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Can_add_update_delete_with_collections(bool transactionalBatch)
     {
         await Can_add_update_delete_with_collection(
-            new List<short> { 1, 2 },
+            transactionalBatch,
+            [1, 2],
             c =>
             {
                 c.Collection.Clear();
@@ -641,80 +467,72 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
             new List<short> { 3 });
 
         await Can_add_update_delete_with_collection<IList<byte?>>(
-            new List<byte?>(),
+            transactionalBatch,
+            [],
             c =>
             {
                 c.Collection.Clear();
                 c.Collection.Add(3);
                 c.Collection.Add(null);
             },
-            new List<byte?> { 3, null });
+            [3, null]);
 
-        await Can_add_update_delete_with_collection<IReadOnlyList<string>>(
-            new[] { "1", null },
-            c =>
-            {
-                c.Collection = new List<string>
-                {
-                    "3",
-                    "2",
-                    "1"
-                };
-            },
-            new List<string>
-            {
+        await Can_add_update_delete_with_collection<IReadOnlyList<string?>>(
+            transactionalBatch,
+            ["1", null],
+            c => c.Collection =
+            [
                 "3",
                 "2",
                 "1"
-            });
+            ],
+            [
+                "3",
+                "2",
+                "1"
+            ]);
 
-        // See #25343
+        // See #34026
         await Can_add_update_delete_with_collection(
-            new List<EntityType>
-            {
-                EntityType.Base,
-                EntityType.Derived,
-                EntityType.Derived
-            },
+            transactionalBatch,
+            [
+                Discriminator.Base,
+                Discriminator.Derived,
+                Discriminator.Derived
+            ],
             c =>
             {
                 c.Collection.Clear();
-                c.Collection.Add(EntityType.Base);
+                c.Collection.Add(Discriminator.Base);
             },
-            new List<EntityType> { EntityType.Base },
-            modelBuilder => modelBuilder.Entity<CustomerWithCollection<List<EntityType>>>(
-                c =>
-                    c.Property(s => s.Collection)
-                        .HasConversion(
-                            m => m.Select(v => (int)v).ToList(), p => p.Select(v => (EntityType)v).ToList(),
-                            new ListComparer<EntityType, List<EntityType>>(
-                                ValueComparer.CreateDefault(typeof(EntityType), false), readOnly: false))));
+            new List<Discriminator> { Discriminator.Base },
+            modelBuilder => modelBuilder.Entity<CustomerWithCollection<List<Discriminator>>>(c =>
+                c.Property(s => s.Collection)
+                    .HasConversion(
+                        m => m.Select(v => (int)v).ToList(), p => p.Select(v => (Discriminator)v).ToList(),
+                        new ListOfValueTypesComparer<List<Discriminator>, Discriminator>(
+                            ValueComparer.CreateDefault(typeof(Discriminator), false)))));
 
         await Can_add_update_delete_with_collection(
-            new[] { 1f, 2 },
-            c =>
-            {
-                c.Collection[0] = 3f;
-            },
+            transactionalBatch,
+            [1f, 2],
+            c => c.Collection[0] = 3f,
             new[] { 3f, 2 });
 
         await Can_add_update_delete_with_collection(
-            new decimal?[] { 1, null },
-            c =>
-            {
-                c.Collection[0] = 3;
-            },
+            transactionalBatch,
+            [1, null],
+            c => c.Collection[0] = 3,
             new decimal?[] { 3, null });
 
         await Can_add_update_delete_with_collection(
+            transactionalBatch,
             new Dictionary<string, int> { { "1", 1 } },
-            c =>
-            {
-                c.Collection["2"] = 3;
-            },
+            c => c.Collection["2"] = 3,
             new Dictionary<string, int> { { "1", 1 }, { "2", 3 } });
 
         await Can_add_update_delete_with_collection<IDictionary<string, long?>>(
+            transactionalBatch,
             new SortedDictionary<string, long?> { { "2", 2 }, { "1", 1 } },
             c =>
             {
@@ -724,98 +542,179 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
             new SortedDictionary<string, long?> { { "2", null } });
 
         await Can_add_update_delete_with_collection<IReadOnlyDictionary<string, short?>>(
+            transactionalBatch,
             ImmutableDictionary<string, short?>.Empty
                 .Add("2", 2).Add("1", 1),
-            c =>
-            {
-                c.Collection = ImmutableDictionary<string, short?>.Empty.Add("1", 1).Add("2", null);
-            },
+            c => c.Collection = ImmutableDictionary<string, short?>.Empty.Add("1", 1).Add("2", null),
             new Dictionary<string, short?> { { "1", 1 }, { "2", null } });
     }
 
-    [ConditionalFact]
-    public async Task Can_add_update_delete_with_nested_collections()
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Can_add_update_delete_with_nested_collections(bool transactionalBatch)
     {
         await Can_add_update_delete_with_collection(
-            new List<List<short>> { new() { 1, 2 } },
+            transactionalBatch,
+            [[1, 2]],
             c =>
             {
                 c.Collection.Clear();
-                c.Collection.Add(new List<short> { 3 });
+                c.Collection.Add([3]);
             },
             new List<List<short>> { new() { 3 } });
-        await Can_add_update_delete_with_collection<IList<byte?[]>>(
-            new List<byte?[]>(),
+
+        await Can_add_update_delete_with_collection<IList<byte?[]?>>(
+            transactionalBatch,
+            [],
             c =>
             {
-                c.Collection.Add(new byte?[] { 3, null });
+                c.Collection.Add([3, null]);
                 c.Collection.Add(null);
             },
-            new List<byte?[]> { new byte?[] { 3, null }, null });
-        await Can_add_update_delete_with_collection<IReadOnlyList<Dictionary<string, string>>>(
-            new Dictionary<string, string>[] { new() { { "1", null } } },
+            [new byte?[] { 3, null }, null]);
+
+        await Can_add_update_delete_with_collection<IReadOnlyList<Dictionary<string, string?>>>(
+            transactionalBatch,
+            [new Dictionary<string, string?> { { "1", null } }],
             c =>
             {
                 var dictionary = c.Collection[0]["3"] = "2";
             },
-            new List<Dictionary<string, string>> { new() { { "1", null }, { "3", "2" } } });
+            [new Dictionary<string, string?> { { "1", null }, { "3", "2" } }]);
 
         await Can_add_update_delete_with_collection(
-            new List<float>[] { new() { 1f }, new() { 2 } },
-            c =>
-            {
-                c.Collection[1][0] = 3f;
-            },
-            new List<float>[] { new() { 1f }, new() { 3f } });
+            transactionalBatch,
+            [[1f], [2]],
+            c => c.Collection[1][0] = 3f,
+            new List<float>[] { [1f], [3f] });
 
         await Can_add_update_delete_with_collection(
-            new[] { new decimal?[] { 1, null } },
-            c =>
-            {
-                c.Collection[0][1] = 3;
-            },
+            transactionalBatch,
+            [[1, null]],
+            c => c.Collection[0][1] = 3,
             new[] { new decimal?[] { 1, 3 } });
 
         await Can_add_update_delete_with_collection(
-            new Dictionary<string, List<int>> { { "1", new List<int> { 1 } } },
+            transactionalBatch,
+            new Dictionary<string, List<int>> { { "1", [1] } },
+            c => c.Collection["2"] = [3],
+            new Dictionary<string, List<int>> { { "1", [1] }, { "2", [3] } });
+
+        // Issue #34105
+        await Can_add_update_delete_with_collection(
+            transactionalBatch,
+            new Dictionary<string, string[]> { { "1", ["1"] } },
+            c => c.Collection["2"] = ["3"],
+            new Dictionary<string, string[]> { { "1", ["1"] }, { "2", ["3"] } });
+
+        await Can_add_update_delete_with_collection<IDictionary<string, long?[]?>>(
+            transactionalBatch,
+            new SortedDictionary<string, long?[]?> { { "2", [2] }, { "1", [1] } },
             c =>
             {
-                c.Collection["2"] = new List<int> { 3 };
+                c.Collection.Clear();
+                c.Collection["2"] = [null];
             },
-            new Dictionary<string, List<int>> { { "1", new List<int> { 1 } }, { "2", new List<int> { 3 } } });
+            new SortedDictionary<string, long?[]?> { { "2", [null] } });
 
-        await Can_add_update_delete_with_collection<IDictionary<string, long?[]>>(
-            new SortedDictionary<string, long?[]> { { "2", new long?[] { 2 } }, { "1", new long?[] { 1 } } },
+        await Can_add_update_delete_with_collection<IDictionary<string, long?[]?>>(
+            transactionalBatch,
+            new SortedDictionary<string, long?[]?> { { "2", [2] }, { "1", [1] } },
             c =>
             {
                 c.Collection.Clear();
                 c.Collection["2"] = null;
             },
-            new SortedDictionary<string, long?[]> { { "2", null } });
+            new SortedDictionary<string, long?[]?> { { "2", null } });
 
-        await Can_add_update_delete_with_collection<IReadOnlyDictionary<string, Dictionary<string, short?>>>(
-            ImmutableDictionary<string, Dictionary<string, short?>>.Empty
-                .Add("2", new Dictionary<string, short?> { { "value", 2 } })
-                .Add("1", new Dictionary<string, short?> { { "value", 1 } }),
-            c =>
+        await Can_add_update_delete_with_collection<IReadOnlyDictionary<string, Dictionary<string, short?>?>>(
+            transactionalBatch,
+            new Dictionary<string, Dictionary<string, short?>?>
             {
-                c.Collection = ImmutableDictionary<string, Dictionary<string, short?>>.Empty
-                    .Add("1", new Dictionary<string, short?> { { "value", 1 } }).Add("2", null);
+                { "2", new Dictionary<string, short?> { { "value", 2 } } }, { "1", new Dictionary<string, short?> { { "value", 1 } } }
             },
-            new Dictionary<string, Dictionary<string, short?>>
+            c => c.Collection = new Dictionary<string, Dictionary<string, short?>?>
             {
                 { "1", new Dictionary<string, short?> { { "value", 1 } } }, { "2", null }
+            },
+            new Dictionary<string, Dictionary<string, short?>?>
+            {
+                { "1", new Dictionary<string, short?> { { "value", 1 } } }, { "2", null }
+            });
+
+        await Can_add_update_delete_with_collection<IReadOnlyDictionary<string, Dictionary<string, short?>?>>(
+            transactionalBatch,
+            ImmutableDictionary<string, Dictionary<string, short?>?>.Empty
+                .Add("2", new Dictionary<string, short?> { { "value", 2 } })
+                .Add("1", new Dictionary<string, short?> { { "value", 1 } }),
+            c => c.Collection = ImmutableDictionary<string, Dictionary<string, short?>?>.Empty
+                .Add("1", new Dictionary<string, short?> { { "value", 1 } }).Add("2", null),
+            new Dictionary<string, Dictionary<string, short?>?>
+            {
+                { "1", new Dictionary<string, short?> { { "value", 1 } } }, { "2", null }
+            });
+
+        await Can_add_update_delete_with_collection<Dictionary<string, Dictionary<string, Dictionary<string, List<string>>>>>(
+            transactionalBatch,
+            new Dictionary<string, Dictionary<string, Dictionary<string, List<string>>>>
+            {
+                {
+                    "2",
+                    new Dictionary<string, Dictionary<string, List<string>>>
+                    {
+                        { "value", new Dictionary<string, List<string>> { { "1", ["1", "2"] } } }
+                    }
+                },
+                {
+                    "1",
+                    new Dictionary<string, Dictionary<string, List<string>>>
+                    {
+                        { "value", new Dictionary<string, List<string>> { { "2", ["3", "4"] } } }
+                    }
+                }
+            },
+            c =>
+            {
+                c.Collection.Add(
+                    "3",
+                    new Dictionary<string, Dictionary<string, List<string>>>
+                    {
+                        { "value", new Dictionary<string, List<string>> { { "3", ["5", "6"] } } }
+                    });
+                c.Collection.Remove("1");
+                c.Collection["2"].Remove("value");
+                c.Collection["2"].Add("value2", new Dictionary<string, List<string>> { { "4", ["7", "8"] } });
+            },
+            new Dictionary<string, Dictionary<string, Dictionary<string, List<string>>>>
+            {
+                {
+                    "2",
+                    new Dictionary<string, Dictionary<string, List<string>>>
+                    {
+                        { "value2", new Dictionary<string, List<string>> { { "4", ["7", "8"] } } }
+                    }
+                },
+                {
+                    "3",
+                    new Dictionary<string, Dictionary<string, List<string>>>
+                    {
+                        { "value", new Dictionary<string, List<string>> { { "3", ["5", "6"] } } }
+                    }
+                }
             });
     }
 
     private async Task Can_add_update_delete_with_collection<TCollection>(
+        bool transactionalBatch,
         TCollection initialValue,
         Action<CustomerWithCollection<TCollection>> modify,
         TCollection modifiedValue,
-        Action<ModelBuilder> onModelBuilder = null)
+        Action<ModelBuilder>? onModelBuilder = null)
         where TCollection : class
     {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<CollectionCustomerContext<TCollection>>(
+            shouldLogCategory: _ => true,
+            onModelCreating: onModelBuilder,
+            onConfiguring: o => o.ConfigureWarnings(w => w.Log(CosmosEventId.NoPartitionKeyDefined)));
 
         var customer = new CustomerWithCollection<TCollection>
         {
@@ -824,16 +723,14 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
             Collection = initialValue
         };
 
-        using (var context = new CollectionCustomerContext<TCollection>(options, onModelBuilder))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            await context.Database.EnsureCreatedAsync();
-
-            context.Add(customer);
+            await context.AddAsync(customer);
 
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CollectionCustomerContext<TCollection>(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             var customerFromStore = await context.Customers.SingleAsync();
 
@@ -845,19 +742,19 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CollectionCustomerContext<TCollection>(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             var customerFromStore = await context.Customers.SingleAsync();
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal(modifiedValue, customerFromStore.Collection);
 
-            customerFromStore.Collection = null;
+            customerFromStore.Collection = null!;
 
             await context.SaveChangesAsync();
         }
 
-        using (var context = new CollectionCustomerContext<TCollection>(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             var customerFromStore = await context.Customers.SingleAsync();
 
@@ -869,30 +766,26 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
     private class CustomerWithCollection<TCollection>
     {
         public int Id { get; set; }
-        public string Name { get; set; }
-        public TCollection Collection { get; set; }
+        public string Name { get; set; } = null!;
+        public TCollection Collection { get; set; } = default!;
     }
 
-    private class CollectionCustomerContext<TCollection> : DbContext
+    private class CollectionCustomerContext<TCollection>(DbContextOptions dbContextOptions, Action<ModelBuilder>? onModelBuilder = null)
+        : DbContext(dbContextOptions)
     {
-        private readonly Action<ModelBuilder> _onModelBuilder;
-
-        public DbSet<CustomerWithCollection<TCollection>> Customers { get; set; }
-
-        public CollectionCustomerContext(DbContextOptions dbContextOptions, Action<ModelBuilder> onModelBuilder = null)
-            : base(dbContextOptions)
-        {
-            _onModelBuilder = onModelBuilder;
-        }
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        public DbSet<CustomerWithCollection<TCollection>> Customers
+            => Set<CustomerWithCollection<TCollection>>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => _onModelBuilder?.Invoke(modelBuilder);
+            => onModelBuilder?.Invoke(modelBuilder);
     }
 
-    [ConditionalFact]
-    public async Task Can_read_with_find_with_resource_id_async()
+    [Fact]
+    public async Task Can_read_with_find_with_resource_id()
     {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<PartitionKeyContextWithResourceId>(shouldLogCategory: _ => true);
+
         const int pk1 = 1;
         const int pk2 = 2;
 
@@ -900,131 +793,80 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
         {
             id = "42",
             Name = "Theon",
-            PartitionKey = pk1
+            PartitionKey1 = pk1,
+            PartitionKey2 = 3.15m
         };
 
-        await using (var context = new PartitionKeyContextWithResourceId(options))
+        await using (var context = CreateContext(contextFactory, false))
         {
-            await context.Database.EnsureCreatedAsync();
-
             Assert.Null(
-                context.Model.FindEntityType(typeof(CustomerWithResourceId))
-                    .FindProperty(StoreKeyConvention.DefaultIdPropertyName));
+                context.Model.FindEntityType(typeof(CustomerWithResourceId))!
+                    .FindProperty(CosmosJsonIdConvention.DefaultIdPropertyName));
 
-            context.Add(customer);
-            context.Add(
+            await context.AddAsync(customer);
+            await context.AddAsync(
                 new CustomerWithResourceId
                 {
                     id = "42",
                     Name = "Theon Twin",
-                    PartitionKey = pk2
+                    PartitionKey1 = pk2,
+                    PartitionKey2 = 3.15m
                 });
 
             await context.SaveChangesAsync();
         }
 
-        await using (var context = new PartitionKeyContextWithResourceId(options))
+        await using (var context = CreateContext(contextFactory, false))
         {
-            var customerFromStore = await context.Set<CustomerWithResourceId>()
-                .FindAsync(pk1, "42");
+            var customerFromStore = (await context.Set<CustomerWithResourceId>()
+                .FindAsync(pk1, 3.15m, "42"))!;
 
             Assert.Equal("42", customerFromStore.id);
             Assert.Equal("Theon", customerFromStore.Name);
-            Assert.Equal(pk1, customerFromStore.PartitionKey);
-            AssertSql(context, @"ReadItem(1, 42)");
+            Assert.Equal(pk1, customerFromStore.PartitionKey1);
+            Assert.Equal(3.15m, customerFromStore.PartitionKey2);
+            AssertSql(context, """ReadItem([1.0,3.15], 42)""");
 
             customerFromStore.Name = "Theon Greyjoy";
 
             await context.SaveChangesAsync();
         }
 
-        await using (var context = new PartitionKeyContextWithResourceId(options))
+        await using (var context = CreateContext(contextFactory, false))
         {
             var customerFromStore = await context.Set<CustomerWithResourceId>()
-                .WithPartitionKey(partitionKey: pk1.ToString())
-                .FirstAsync();
+                .WithPartitionKey(pk1, 3.15m)
+                .SingleAsync();
 
             Assert.Equal("42", customerFromStore.id);
             Assert.Equal("Theon Greyjoy", customerFromStore.Name);
-            Assert.Equal(pk1, customerFromStore.PartitionKey);
+            Assert.Equal(pk1, customerFromStore.PartitionKey1);
+            Assert.Equal(3.15m, customerFromStore.PartitionKey2);
         }
     }
 
-    [ConditionalFact]
-    public void Can_read_with_find_with_resource_id()
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Find_with_empty_resource_id_throws(bool transactionalBatch)
     {
-        var options = Fixture.CreateOptions();
-        const int pk1 = 1;
-        const int pk2 = 2;
+        var contextFactory = await InitializeNonSharedTest<PartitionKeyContextWithResourceId>(shouldLogCategory: _ => true);
 
-        var customer = new CustomerWithResourceId
-        {
-            id = "42",
-            Name = "Theon",
-            PartitionKey = pk1
-        };
+        using var context = CreateContext(contextFactory, transactionalBatch);
+        await context.Database.EnsureCreatedAsync();
 
-        using (var context = new PartitionKeyContextWithResourceId(options))
-        {
-            context.Database.EnsureCreated();
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(async ()
+                => await context.Set<CustomerWithResourceId>().FindAsync(1, 3.15m, ""));
 
-            context.Add(customer);
-            context.Add(
-                new CustomerWithResourceId
-                {
-                    id = "42",
-                    Name = "Theon Twin",
-                    PartitionKey = pk2
-                });
-
-            context.SaveChanges();
-        }
-
-        using (var context = new PartitionKeyContextWithResourceId(options))
-        {
-            var customerFromStore = context.Set<CustomerWithResourceId>()
-                .Find(pk1, "42");
-
-            Assert.Equal("42", customerFromStore.id);
-            Assert.Equal("Theon", customerFromStore.Name);
-            Assert.Equal(pk1, customerFromStore.PartitionKey);
-            AssertSql(context, @"ReadItem(1, 42)");
-
-            customerFromStore.Name = "Theon Greyjoy";
-
-            context.SaveChanges();
-        }
-
-        using (var context = new PartitionKeyContextWithResourceId(options))
-        {
-            var customerFromStore = context.Set<CustomerWithResourceId>()
-                .WithPartitionKey(partitionKey: pk1.ToString())
-                .First();
-
-            Assert.Equal("42", customerFromStore.id);
-            Assert.Equal("Theon Greyjoy", customerFromStore.Name);
-            Assert.Equal(pk1, customerFromStore.PartitionKey);
-        }
+        Assert.Equal(CosmosStrings.InvalidResourceId, exception.Message);
     }
 
-    [ConditionalFact]
-    public void Find_with_empty_resource_id_throws()
+    [Fact]
+    public async Task Can_read_with_find_with_partition_key_and_value_generator()
     {
-        var options = Fixture.CreateOptions();
-        using (var context = new PartitionKeyContextWithResourceId(options))
-        {
-            context.Database.EnsureCreated();
+        var contextFactory = await InitializeNonSharedTest<PartitionKeyContextCustomValueGenerator>(
+            shouldLogCategory: _ => true,
+            addServices: s => s.AddSingleton<IJsonIdDefinitionFactory, CustomJsonIdDefinitionFactory>());
 
-            Assert.Equal(
-                CosmosStrings.InvalidResourceId,
-                Assert.Throws<InvalidOperationException>(() => context.Set<CustomerWithResourceId>().Find(1, "")).Message);
-        }
-    }
-
-    [ConditionalFact]
-    public async Task Can_read_with_find_with_partition_key_and_value_generator_async()
-    {
-        var options = Fixture.CreateOptions();
         const int pk1 = 1;
         const int pk2 = 2;
 
@@ -1032,498 +874,440 @@ public class EndToEndCosmosTest : IClassFixture<EndToEndCosmosTest.CosmosFixture
         {
             Id = 42,
             Name = "Theon",
-            PartitionKey = pk1
+            PartitionKey1 = pk1,
+            PartitionKey2 = "One",
+            PartitionKey3 = true
         };
 
-        await using (var context = new PartitionKeyContextCustomValueGenerator(options))
+        await using (var context = CreateContext(contextFactory, false))
         {
-            await context.Database.EnsureCreatedAsync();
-
-            context.Add(customer);
-            context.Add(
+            await context.AddAsync(customer);
+            await context.AddAsync(
                 new Customer
                 {
                     Id = 42,
                     Name = "Theon Twin",
-                    PartitionKey = pk2
+                    PartitionKey1 = pk2,
+                    PartitionKey2 = "Two",
+                    PartitionKey3 = false
                 });
 
             await context.SaveChangesAsync();
         }
 
-        await using (var context = new PartitionKeyContextCustomValueGenerator(options))
+        await using (var context = CreateContext(contextFactory, false))
         {
-            var customerFromStore = await context.Set<Customer>()
-                .FindAsync(pk1, 42);
+            var customerFromStore = (await context.Set<Customer>()
+                .FindAsync(pk1, 42, "One", true))!;
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("Theon", customerFromStore.Name);
-            Assert.Equal(pk1, customerFromStore.PartitionKey);
+            Assert.Equal(pk1, customerFromStore.PartitionKey1);
+            Assert.Equal("One", customerFromStore.PartitionKey2);
+            Assert.True(customerFromStore.PartitionKey3);
 
             customerFromStore.Name = "Theon Greyjoy";
 
             await context.SaveChangesAsync();
         }
 
-        await using (var context = new PartitionKeyContextCustomValueGenerator(options))
+        await using (var context = CreateContext(contextFactory, false))
+        {
+            var customersFromStore = await context.Set<Customer>()
+                .ToListAsync();
+            Assert.Equal(2, customersFromStore.Count);
+        }
+
+        await using (var context = CreateContext(contextFactory, false))
         {
             var customerFromStore = await context.Set<Customer>()
-                .WithPartitionKey(partitionKey: pk1.ToString())
-                .FirstAsync();
+                .WithPartitionKey(pk1, "One", true)
+                .SingleAsync();
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("Theon Greyjoy", customerFromStore.Name);
-            Assert.Equal(pk1, customerFromStore.PartitionKey);
+            Assert.Equal(pk1, customerFromStore.PartitionKey1);
+            Assert.Equal("One", customerFromStore.PartitionKey2);
+            Assert.True(customerFromStore.PartitionKey3);
         }
     }
 
-    [ConditionalFact]
-    public void Can_read_with_find_with_partition_key_and_value_generator()
+    [Fact]
+    public async Task Can_read_with_find_with_partition_key_without_value_generator()
     {
-        var options = Fixture.CreateOptions();
-        const int pk1 = 1;
-        const int pk2 = 2;
+        var contextFactory = await InitializeNonSharedTest<PartitionKeyContextNoValueGenerator>(shouldLogCategory: _ => true);
 
-        var customer = new Customer
-        {
-            Id = 42,
-            Name = "Theon",
-            PartitionKey = pk1
-        };
-
-        using (var context = new PartitionKeyContextCustomValueGenerator(options))
-        {
-            context.Database.EnsureCreated();
-
-            context.Add(customer);
-            context.Add(
-                new Customer
-                {
-                    Id = 42,
-                    Name = "Theon Twin",
-                    PartitionKey = pk2
-                });
-
-            context.SaveChanges();
-        }
-
-        using (var context = new PartitionKeyContextCustomValueGenerator(options))
-        {
-            var customerFromStore = context.Set<Customer>()
-                .Find(pk1, 42);
-
-            Assert.Equal(42, customerFromStore.Id);
-            Assert.Equal("Theon", customerFromStore.Name);
-            Assert.Equal(pk1, customerFromStore.PartitionKey);
-            AssertSql(context, @"ReadItem(1, Customer-42)");
-
-            customerFromStore.Name = "Theon Greyjoy";
-
-            context.SaveChanges();
-        }
-
-        using (var context = new PartitionKeyContextCustomValueGenerator(options))
-        {
-            var customerFromStore = context.Set<Customer>()
-                .WithPartitionKey(partitionKey: pk1.ToString())
-                .First();
-
-            Assert.Equal(42, customerFromStore.Id);
-            Assert.Equal("Theon Greyjoy", customerFromStore.Name);
-            Assert.Equal(pk1, customerFromStore.PartitionKey);
-        }
-    }
-
-    [ConditionalFact]
-    public void Can_read_with_find_with_partition_key_without_value_generator()
-    {
-        var options = Fixture.CreateOptions();
         const int pk1 = 1;
 
         var customer = new Customer
         {
             Id = 42,
             Name = "Theon",
-            PartitionKey = pk1
+            PartitionKey1 = pk1,
+            PartitionKey2 = "One",
+            PartitionKey3 = true
         };
 
-        using (var context = new PartitionKeyContextNoValueGenerator(options))
+        using (var context = CreateContext(contextFactory, false))
         {
-            context.Database.EnsureCreated();
-
             var customerEntry = context.Entry(customer);
-            customerEntry.Property(StoreKeyConvention.DefaultIdPropertyName).CurrentValue = "42";
+            customerEntry.Property(CosmosJsonIdConvention.DefaultIdPropertyName).CurrentValue = "42";
             customerEntry.State = EntityState.Added;
 
-            context.SaveChanges();
+            await context.SaveChangesAsync();
         }
 
-        using (var context = new PartitionKeyContextNoValueGenerator(options))
+        using (var context = CreateContext(contextFactory, false))
         {
-            var customerFromStore = context.Set<Customer>()
-                .Find(pk1, 42);
+            var customerFromStore = (await context.Set<Customer>()
+                .FindAsync(pk1, "One", true, 42))!;
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("Theon", customerFromStore.Name);
-            Assert.Equal(pk1, customerFromStore.PartitionKey);
+            Assert.Equal(pk1, customerFromStore.PartitionKey1);
+            Assert.Equal("One", customerFromStore.PartitionKey2);
+            Assert.True(customerFromStore.PartitionKey3);
             AssertSql(
-                context, @"@__p_1='42'
-
-SELECT c
-FROM root c
-WHERE ((c[""Discriminator""] = ""Customer"") AND (c[""Id""] = @__p_1))
-OFFSET 0 LIMIT 1");
+                context,
+                """
+ReadItem([1.0,"One",true], 42)
+""");
 
             customerFromStore.Name = "Theon Greyjoy";
 
-            context.SaveChanges();
+            await context.SaveChangesAsync();
         }
 
-        using (var context = new PartitionKeyContextNoValueGenerator(options))
+        using (var context = CreateContext(contextFactory, false))
         {
-            var customerFromStore = context.Set<Customer>()
-                .WithPartitionKey(partitionKey: pk1.ToString())
-                .First();
+            var customerFromStore = await context.Set<Customer>()
+                .WithPartitionKey(pk1, "One", true)
+                .SingleAsync();
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("Theon Greyjoy", customerFromStore.Name);
-            Assert.Equal(pk1, customerFromStore.PartitionKey);
+            Assert.Equal(pk1, customerFromStore.PartitionKey1);
+            Assert.Equal("One", customerFromStore.PartitionKey2);
+            Assert.True(customerFromStore.PartitionKey3);
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_read_with_find_with_partition_key_not_part_of_primary_key()
     {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<PartitionKeyContextNonPrimaryKey>(
+            shouldLogCategory: _ => true,
+            onConfiguring: o => o.ConfigureWarnings(w => w.Log(CosmosEventId.NoPartitionKeyDefined)));
 
         var customer = new Customer
         {
             Id = 42,
             Name = "Theon",
-            PartitionKey = 1
+            PartitionKey1 = 1,
+            PartitionKey2 = "One",
+            PartitionKey3 = true
         };
 
-        await using (var context = new PartitionKeyContextNonPrimaryKey(options))
+        using (var context = CreateContext(contextFactory, false))
         {
             await context.Database.EnsureCreatedAsync();
 
-            context.Add(customer);
+            await context.AddAsync(customer);
 
             await context.SaveChangesAsync();
         }
 
-        await using (var context = new PartitionKeyContextNonPrimaryKey(options))
+        using (var context = CreateContext(contextFactory, false))
         {
-            var customerFromStore = context.Set<Customer>().Find(42);
+            var customerFromStore = (await context.Set<Customer>().FindAsync(42))!;
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("Theon", customerFromStore.Name);
-            AssertSql(context, "ReadItem(, Customer|42)");
+            AssertSql(context, """ReadItem(None, 42)""");
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_read_with_find_without_partition_key()
     {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<PartitionKeyContextEntityWithNoPartitionKey>(
+            shouldLogCategory: _ => true,
+            onConfiguring: o => o.ConfigureWarnings(w => w.Log(CosmosEventId.NoPartitionKeyDefined)));
 
         var customer = new CustomerNoPartitionKey { Id = 42, Name = "Theon" };
 
-        await using (var context = new PartitionKeyContextEntityWithNoPartitionKey(options))
+        await using (var context = CreateContext(contextFactory, false))
         {
-            await context.Database.EnsureCreatedAsync();
-
-            context.Add(customer);
+            await context.AddAsync(customer);
 
             await context.SaveChangesAsync();
         }
 
-        await using (var context = new PartitionKeyContextEntityWithNoPartitionKey(options))
+        await using (var context = CreateContext(contextFactory, false))
         {
-            var customerFromStore = context.Set<CustomerNoPartitionKey>().Find(42);
+            var customerFromStore = (await context.Set<CustomerNoPartitionKey>().FindAsync(42))!;
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("Theon", customerFromStore.Name);
-            AssertSql(context, @"ReadItem(, CustomerNoPartitionKey|42)");
+            AssertSql(context, @"ReadItem(None, 42)");
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_read_with_find_with_PK_partition_key()
     {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<PartitionKeyContextPrimaryKey>(shouldLogCategory: _ => true);
 
-        var customer = new Customer { Id = 42, Name = "Theon" };
+        var customer = new CustomerGuid { Id = Guid.NewGuid(), Name = "Theon" };
 
-        await using (var context = new PartitionKeyContextPrimaryKey(options))
+        await using (var context = CreateContext(contextFactory, false))
         {
-            await context.Database.EnsureCreatedAsync();
-
-            context.Add(customer);
+            await context.AddAsync(customer);
 
             await context.SaveChangesAsync();
         }
 
-        await using (var context = new PartitionKeyContextPrimaryKey(options))
+        await using (var context = CreateContext(contextFactory, false))
         {
-            var customerFromStore = context.Set<Customer>().Find(42);
+            var customerFromStore = (await context.Set<CustomerGuid>().FindAsync(customer.Id))!;
 
-            Assert.Equal(42, customerFromStore.Id);
+            Assert.Equal(customer.Id, customerFromStore.Id);
             Assert.Equal("Theon", customerFromStore.Name);
-            AssertSql(context, @"ReadItem(42, 42)");
+            AssertSql(context, @$"ReadItem([""{customer.Id}""], {customer.Id})");
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public async Task Can_read_with_find_with_PK_resource_id()
     {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<PartitionKeyContextWithPrimaryKeyResourceId>(shouldLogCategory: _ => true);
 
         var customer = new CustomerWithResourceId { id = "42", Name = "Theon" };
 
-        await using (var context = new PartitionKeyContextWithPrimaryKeyResourceId(options))
+        await using (var context = CreateContext(contextFactory, false))
         {
-            await context.Database.EnsureCreatedAsync();
-
-            context.Add(customer);
+            await context.AddAsync(customer);
 
             await context.SaveChangesAsync();
         }
 
-        await using (var context = new PartitionKeyContextWithPrimaryKeyResourceId(options))
+        await using (var context = CreateContext(contextFactory, false))
         {
-            var customerFromStore = context.Set<CustomerWithResourceId>().Find("42");
+            var customerFromStore = (await context.Set<CustomerWithResourceId>().FindAsync("42"))!;
 
             Assert.Equal("42", customerFromStore.id);
             Assert.Equal("Theon", customerFromStore.Name);
             AssertSql(
-                context, @"@__p_0='42'
+                context,
+                """
+@p='42'
 
-SELECT c
+SELECT VALUE c
 FROM root c
-WHERE ((c[""Discriminator""] = ""CustomerWithResourceId"") AND (c[""id""] = @__p_0))
-OFFSET 0 LIMIT 1");
+WHERE (c["id"] = @p)
+OFFSET 0 LIMIT 1
+""");
         }
     }
 
-    private class PartitionKeyContext : DbContext
+    private class PartitionKeyContext(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public PartitionKeyContext(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<Customer>(
-                cb =>
+            => modelBuilder.Entity<Customer>(cb =>
+            {
+                cb.HasPartitionKey(c => new
                 {
-                    cb.HasPartitionKey(c => c.PartitionKey);
-                    cb.Property(c => c.PartitionKey).HasConversion<string>();
-                    cb.HasKey(c => new { c.Id, c.PartitionKey });
+                    c.PartitionKey1,
+                    c.PartitionKey2,
+                    c.PartitionKey3
                 });
+                cb.HasKey(c => new
+                {
+                    c.Id,
+                    c.PartitionKey1,
+                    c.PartitionKey2,
+                    c.PartitionKey3
+                });
+            });
     }
 
-    private class PartitionKeyContextEntityWithNoPartitionKey : DbContext
+    private class PartitionKeyContextEntityWithNoPartitionKey(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public PartitionKeyContextEntityWithNoPartitionKey(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<CustomerNoPartitionKey>();
     }
 
-    private class PartitionKeyContextCustomValueGenerator : DbContext
+    private class PartitionKeyContextCustomValueGenerator(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public PartitionKeyContextCustomValueGenerator(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<Customer>(
-                cb =>
+        {
+            modelBuilder.HasDiscriminatorInJsonIds();
+
+            modelBuilder.Entity<Customer>(cb =>
+            {
+                cb.HasShadowId();
+
+                cb.HasPartitionKey(c => new
                 {
-                    cb.Property(StoreKeyConvention.DefaultIdPropertyName)
-                        .HasValueGeneratorFactory(typeof(CustomPartitionKeyIdValueGeneratorFactory));
-
-                    cb.Property(c => c.PartitionKey).HasConversion<string>();
-
-                    cb.HasPartitionKey(c => c.PartitionKey);
-                    cb.HasKey(c => new { c.PartitionKey, c.Id });
+                    c.PartitionKey1,
+                    c.PartitionKey2,
+                    c.PartitionKey3
                 });
+                cb.HasKey(c => new
+                {
+                    c.PartitionKey1,
+                    c.Id,
+                    c.PartitionKey2,
+                    c.PartitionKey3
+                });
+            });
+        }
     }
 
-    private class PartitionKeyContextNoValueGenerator : DbContext
+    private class PartitionKeyContextNoValueGenerator(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public PartitionKeyContextNoValueGenerator(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<Customer>(
-                cb =>
+            => modelBuilder.Entity<Customer>(cb =>
+            {
+                cb.HasPartitionKey(c => new
                 {
-                    cb.Property(StoreKeyConvention.DefaultIdPropertyName).HasValueGenerator((Type)null);
-
-                    cb.Property(c => c.PartitionKey).HasConversion<string>();
-
-                    cb.HasPartitionKey(c => c.PartitionKey);
-                    cb.HasKey(c => new { c.PartitionKey, c.Id });
+                    c.PartitionKey1,
+                    c.PartitionKey2,
+                    c.PartitionKey3
                 });
+                cb.HasKey(c => new
+                {
+                    c.PartitionKey1,
+                    c.PartitionKey2,
+                    c.PartitionKey3,
+                    c.Id
+                });
+            });
     }
 
-    private class PartitionKeyContextNonPrimaryKey : DbContext
+    private class PartitionKeyContextNonPrimaryKey(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public PartitionKeyContextNonPrimaryKey(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<Customer>();
     }
 
-    private class PartitionKeyContextPrimaryKey : DbContext
+    private class PartitionKeyContextPrimaryKey(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public PartitionKeyContextPrimaryKey(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<Customer>(
-                cb =>
-                {
-                    cb.HasNoDiscriminator();
-                    cb.Property(c => c.Id).HasConversion<string>();
-                    cb.HasPartitionKey(c => c.Id);
-                });
+            => modelBuilder.Entity<CustomerGuid>(cb =>
+            {
+                cb.Property(c => c.Id).ToJsonProperty("id");
+                cb.HasPartitionKey(c => c.Id);
+            });
     }
 
-    private class PartitionKeyContextWithPrimaryKeyResourceId : DbContext
+    private class PartitionKeyContextWithPrimaryKeyResourceId(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public PartitionKeyContextWithPrimaryKeyResourceId(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<CustomerWithResourceId>(
-                cb =>
-                {
-                    cb.HasPartitionKey(c => c.PartitionKey);
-                    cb.Property(c => c.PartitionKey).HasConversion<string>();
-                    cb.Property(c => c.id).HasConversion<string>();
-                    cb.HasKey(c => new { c.id });
-                });
+            => modelBuilder.Entity<CustomerWithResourceId>(cb =>
+            {
+                cb.HasPartitionKey(c => new { c.PartitionKey1, c.PartitionKey2 });
+                cb.Property(c => c.id).HasConversion<string>();
+                cb.HasKey(c => new { c.id });
+            });
     }
 
-    private class PartitionKeyContextWithResourceId : DbContext
+    private class PartitionKeyContextWithResourceId(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public PartitionKeyContextWithResourceId(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<CustomerWithResourceId>(
-                cb =>
+            => modelBuilder.Entity<CustomerWithResourceId>(cb =>
+            {
+                cb.HasPartitionKey(c => new { c.PartitionKey1, c.PartitionKey2 });
+                cb.HasKey(c => new
                 {
-                    cb.HasPartitionKey(c => c.PartitionKey);
-                    cb.Property(c => c.PartitionKey).HasConversion<string>();
-                    cb.HasKey(c => new { c.PartitionKey, c.id });
+                    c.PartitionKey1,
+                    c.PartitionKey2,
+                    c.id
                 });
+            });
     }
 
-    [ConditionalFact]
-    public async Task Can_use_detached_entities_without_discriminators()
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Can_use_detached_entities_without_discriminators(bool transactionalBatch)
     {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<NoDiscriminatorCustomerContext>(
+            shouldLogCategory: _ => true,
+            onConfiguring: o => o.ConfigureWarnings(w => w.Log(CosmosEventId.NoPartitionKeyDefined)));
 
         var customer = new Customer { Id = 42, Name = "Theon" };
 
-        using (var context = new NoDiscriminatorCustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            await context.Database.EnsureCreatedAsync();
-
-            context.Add(customer);
+            await context.AddAsync(customer);
 
             await context.SaveChangesAsync();
         }
 
-        using (var context = new NoDiscriminatorCustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            context.Add(customer).State = EntityState.Modified;
+            (await context.AddAsync(customer)).State = EntityState.Modified;
 
             customer.Name = "Theon Greyjoy";
 
             await context.SaveChangesAsync();
         }
 
-        using (var context = new NoDiscriminatorCustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            var customerFromStore = context.Set<Customer>().AsNoTracking().Single();
+            var customerFromStore = await context.Set<Customer>().AsNoTracking().SingleAsync();
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("Theon Greyjoy", customerFromStore.Name);
 
-            context.Add(customer).State = EntityState.Deleted;
+            (await context.AddAsync(customer)).State = EntityState.Deleted;
 
             await context.SaveChangesAsync();
         }
 
-        using (var context = new NoDiscriminatorCustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             Assert.Empty(await context.Set<Customer>().ToListAsync());
         }
     }
 
-    private class NoDiscriminatorCustomerContext : CustomerContext
+    private class NoDiscriminatorCustomerContext(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public NoDiscriminatorCustomerContext(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<Customer>().HasNoDiscriminator();
     }
 
-    [ConditionalFact]
-    public void Can_update_unmapped_properties()
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Can_update_unmapped_properties(bool transactionalBatch)
     {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<ExtraCustomerContext>(
+            shouldLogCategory: _ => true,
+            onConfiguring: o => o.ConfigureWarnings(w => w.Log(CosmosEventId.NoPartitionKeyDefined)));
 
         var customer = new Customer { Id = 42, Name = "Theon" };
 
-        using (var context = new ExtraCustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            context.Database.EnsureCreated();
-
             var entry = context.Add(customer);
             entry.Property<string>("EMail").CurrentValue = "theon.g@winterfell.com";
 
-            context.SaveChanges();
+            await context.SaveChangesAsync();
         }
 
-        using (var context = new ExtraCustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            var customerFromStore = context.Set<Customer>().Single();
+            var customerFromStore = await context.Set<Customer>().SingleAsync();
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("Theon", customerFromStore.Name);
 
             customerFromStore.Name = "Theon Greyjoy";
 
-            context.SaveChanges();
+            await context.SaveChangesAsync();
         }
 
-        using (var context = new ExtraCustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            var customerFromStore = context.Set<Customer>().Single();
+            var customerFromStore = await context.Set<Customer>().SingleAsync();
 
             Assert.Equal(42, customerFromStore.Id);
             Assert.Equal("Theon Greyjoy", customerFromStore.Name);
@@ -1531,52 +1315,41 @@ OFFSET 0 LIMIT 1");
             var entry = context.Entry(customerFromStore);
             Assert.Equal("theon.g@winterfell.com", entry.Property<string>("EMail").CurrentValue);
 
-            var json = entry.Property<JObject>("__jObject").CurrentValue;
-            Assert.Equal("theon.g@winterfell.com", json["e-mail"]);
-
             context.Remove(customerFromStore);
 
-            context.SaveChanges();
+            await context.SaveChangesAsync();
         }
 
-        using (var context = new ExtraCustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            Assert.Empty(context.Set<Customer>().ToList());
+            Assert.Empty(await context.Set<Customer>().ToListAsync());
         }
     }
 
-    private class ExtraCustomerContext : CustomerContext
+    private class ExtraCustomerContext(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public ExtraCustomerContext(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            modelBuilder.HasDefaultContainer(nameof(CustomerContext));
-            modelBuilder.Entity<Customer>().Property<string>("EMail").ToJsonProperty("e-mail");
-        }
+            => modelBuilder.Entity<Customer>().Property<string>("EMail").ToJsonProperty("e-mail");
     }
 
-    [ConditionalFact]
-    public async Task Can_use_non_persisted_properties()
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Can_use_non_persisted_properties(bool transactionalBatch)
     {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<UnmappedCustomerContext>(
+            shouldLogCategory: _ => true,
+            onConfiguring: o => o.ConfigureWarnings(w => w.Log(CosmosEventId.NoPartitionKeyDefined)));
 
         var customer = new Customer { Id = 42, Name = "Theon" };
 
-        using (var context = new UnmappedCustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            await context.Database.EnsureCreatedAsync();
-
-            context.Add(customer);
+            await context.AddAsync(customer);
 
             await context.SaveChangesAsync();
             Assert.Equal("Theon", customer.Name);
         }
 
-        using (var context = new UnmappedCustomerContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             var customerFromStore = await context.Set<Customer>().SingleAsync();
 
@@ -1589,119 +1362,136 @@ OFFSET 0 LIMIT 1");
         }
     }
 
-    private class UnmappedCustomerContext : CustomerContext
+    private class UnmappedCustomerContext(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public UnmappedCustomerContext(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<Customer>().Property(c => c.Name).ToJsonProperty("");
     }
 
-    [ConditionalFact]
-    public async Task Add_update_delete_query_throws_if_no_container()
+    [Theory, InlineData(false, Skip = "Fails only on C.I. See #33402"), InlineData(true, Skip = "Fails only on C.I. See #33402")]
+    public async Task Add_update_delete_query_throws_if_no_container(bool transactionalBatch)
     {
-        await using var testDatabase = CosmosTestStore.CreateInitialized(DatabaseName + "Empty");
-        var options = Fixture.CreateOptions(testDatabase);
+        await using var testDatabase = await CosmosTestStore.CreateInitializedAsync("EndToEndEmpty");
+
+        var options = new DbContextOptionsBuilder<EndToEndEmptyContext>()
+            .UseCosmos(testDatabase.ConnectionString, "EndToEndEmpty")
+            .Options;
 
         var customer = new Customer { Id = 42, Name = "Theon" };
-        using (var context = new CustomerContext(options))
+        using (var context = new EndToEndEmptyContext(options))
         {
-            context.Add(customer);
+            if (!transactionalBatch)
+            {
+                context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never;
+            }
+
+            await context.AddAsync(customer);
 
             Assert.StartsWith(
                 "Response status code does not indicate success: NotFound (404); Substatus: 0",
                 (await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync())).InnerException!.Message);
         }
 
-        using (var context = new CustomerContext(options))
+        using (var context = new EndToEndEmptyContext(options))
         {
-            context.Add(customer).State = EntityState.Modified;
+            if (!transactionalBatch)
+            {
+                context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never;
+            }
+
+            (await context.AddAsync(customer)).State = EntityState.Modified;
 
             Assert.StartsWith(
                 "Response status code does not indicate success: NotFound (404); Substatus: 0",
                 (await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync())).InnerException!.Message);
         }
 
-        using (var context = new CustomerContext(options))
+        using (var context = new EndToEndEmptyContext(options))
         {
-            context.Add(customer).State = EntityState.Deleted;
+            if (!transactionalBatch)
+            {
+                context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never;
+            }
+
+            (await context.AddAsync(customer)).State = EntityState.Deleted;
 
             Assert.StartsWith(
                 "Response status code does not indicate success: NotFound (404); Substatus: 0",
                 (await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync())).InnerException!.Message);
         }
 
-        using (var context = new CustomerContext(options))
+        using (var context = new EndToEndEmptyContext(options))
         {
+            if (!transactionalBatch)
+            {
+                context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never;
+            }
+
             Assert.StartsWith(
                 "Response status code does not indicate success: NotFound (404); Substatus: 0",
                 (await Assert.ThrowsAsync<CosmosException>(() => context.Set<Customer>().SingleAsync())).Message);
         }
     }
 
-    [ConditionalFact]
+    private class EndToEndEmptyContext(DbContextOptions options) : DbContext(options)
+    {
+        public DbSet<Customer> Customers
+            => Set<Customer>();
+    }
+
+    [Fact]
     public async Task Using_a_conflicting_incompatible_id_throws()
     {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<PartitionKeyContextPrimaryKey>(shouldLogCategory: _ => true);
 
-        using var context = new ConflictingIncompatibleIdContext(options);
-        await Assert.ThrowsAnyAsync<Exception>(
-            async () =>
-            {
-                await context.Database.EnsureCreatedAsync();
+        using var context = CreateContext(contextFactory, false);
 
-                context.Add(new ConflictingIncompatibleId { id = 42 });
+        await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await context.AddAsync(new ConflictingIncompatibleId { id = 42 });
 
-                await context.SaveChangesAsync();
-            });
+            await context.SaveChangesAsync();
+        });
     }
 
     private class ConflictingIncompatibleId
     {
         // ReSharper disable once InconsistentNaming
         public int id { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 
-    public class ConflictingIncompatibleIdContext : DbContext
+    public class ConflictingIncompatibleIdContext(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public ConflictingIncompatibleIdContext(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<ConflictingIncompatibleId>();
     }
 
-    [ConditionalFact]
-    public async Task Can_add_update_delete_end_to_end_with_conflicting_id()
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task Can_add_update_delete_end_to_end_with_conflicting_id(bool transactionalBatch)
     {
-        var options = Fixture.CreateOptions();
+        var contextFactory = await InitializeNonSharedTest<ConflictingIdContext>(
+            shouldLogCategory: _ => true,
+            onConfiguring: o => o.ConfigureWarnings(w => w.Log(CosmosEventId.NoPartitionKeyDefined)));
 
         var entity = new ConflictingId { id = "42", Name = "Theon" };
 
-        using (var context = new ConflictingIdContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            await context.Database.EnsureCreatedAsync();
-
-            context.Add(entity);
+            await context.AddAsync(entity);
 
             await context.SaveChangesAsync();
         }
 
-        using (var context = new ConflictingIdContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            var entityFromStore = context.Set<ConflictingId>().Single();
+            var entityFromStore = await context.Set<ConflictingId>().SingleAsync();
 
             Assert.Equal("42", entityFromStore.id);
             Assert.Equal("Theon", entityFromStore.Name);
         }
 
-        using (var context = new ConflictingIdContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             entity.Name = "Theon Greyjoy";
 
@@ -1710,77 +1500,142 @@ OFFSET 0 LIMIT 1");
             await context.SaveChangesAsync();
         }
 
-        using (var context = new ConflictingIdContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            var entityFromStore = context.Set<ConflictingId>().Single();
+            var entityFromStore = await context.Set<ConflictingId>().SingleAsync();
 
             Assert.Equal("42", entityFromStore.id);
             Assert.Equal("Theon Greyjoy", entityFromStore.Name);
         }
 
-        using (var context = new ConflictingIdContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
             context.Remove(entity);
 
             await context.SaveChangesAsync();
         }
 
-        using (var context = new ConflictingIdContext(options))
+        using (var context = CreateContext(contextFactory, transactionalBatch))
         {
-            Assert.Empty(context.Set<ConflictingId>().ToList());
+            Assert.Empty(await context.Set<ConflictingId>().ToListAsync());
         }
     }
 
     private class ConflictingId
     {
-        public string id { get; set; }
-        public string Name { get; set; }
+        public string id { get; set; } = null!;
+        public string Name { get; set; } = null!;
     }
 
-    public class ConflictingIdContext : DbContext
+    public class ConflictingIdContext(DbContextOptions dbContextOptions) : DbContext(dbContextOptions)
     {
-        public ConflictingIdContext(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<ConflictingId>();
     }
 
-    [ConditionalFact]
-    public async Task Can_have_non_string_property_named_Discriminator()
+    [Theory, InlineData(true), InlineData(false)]
+    public async Task Can_have_non_string_property_named_Discriminator(bool useDiscriminator)
     {
-        using var context = new NonStringDiscriminatorContext(Fixture.CreateOptions());
-        context.Database.EnsureCreated();
+        var contextFactory = await InitializeNonSharedTest<DbContext>(
+            shouldLogCategory: _ => true,
+            onModelCreating: b =>
+            {
+                if (useDiscriminator)
+                {
+                    b.Entity<NonStringDiscriminator>()
+                        .HasDiscriminator(m => m.Discriminator)
+                        .HasValue(Discriminator.Base);
+                }
+                else
+                {
+                    b.Entity<NonStringDiscriminator>();
+                }
+            },
+            onConfiguring: o => o.ConfigureWarnings(w => w.Log(CosmosEventId.NoPartitionKeyDefined)));
 
-        context.Add(new NonStringDiscriminator { Id = 1 });
+        using var context = CreateContext(contextFactory, false);
+
+        var entry = await context.AddAsync(new NonStringDiscriminator { Id = 1 });
         await context.SaveChangesAsync();
 
-        Assert.NotNull(await context.Set<NonStringDiscriminator>().OrderBy(e => e.Id).FirstOrDefaultAsync());
+        var baseEntity = await context.Set<NonStringDiscriminator>().OrderBy(e => e.Id).FirstOrDefaultAsync();
+        Assert.NotNull(baseEntity);
+
+        AssertSql(
+            context,
+            """
+SELECT VALUE c
+FROM root c
+ORDER BY c["Id"]
+OFFSET 0 LIMIT 1
+""");
+
+        ListLoggerFactory.Clear();
+        Assert.Equal(
+            baseEntity, await context.Set<NonStringDiscriminator>()
+                .Where(e => e.Discriminator == Discriminator.Base).OrderBy(e => e.Id).FirstOrDefaultAsync());
+
+        AssertSql(
+            context,
+            """
+SELECT VALUE c
+FROM root c
+WHERE (c["Discriminator"] = 0)
+ORDER BY c["Id"]
+OFFSET 0 LIMIT 1
+""");
+
+        ListLoggerFactory.Clear();
+        Assert.Equal(
+            baseEntity, await context.Set<NonStringDiscriminator>()
+                .Where(e => e.GetType() == typeof(NonStringDiscriminator)).OrderBy(e => e.Id).FirstOrDefaultAsync());
+
+        AssertSql(
+            context,
+            """
+SELECT VALUE c
+FROM root c
+ORDER BY c["Id"]
+OFFSET 0 LIMIT 1
+""");
+
+        ListLoggerFactory.Clear();
+        Assert.Equal(
+            baseEntity, await context.Set<NonStringDiscriminator>()
+                .Where(e => e is NonStringDiscriminator).OrderBy(e => e.Id).FirstOrDefaultAsync());
+
+        AssertSql(
+            context,
+            """
+SELECT VALUE c
+FROM root c
+ORDER BY c["Id"]
+OFFSET 0 LIMIT 1
+""");
+    }
+
+    protected virtual TContext CreateContext<TContext>(ContextFactory<TContext> factory, bool transactionalBatch)
+        where TContext : DbContext
+    {
+        var context = factory.CreateDbContext();
+        if (transactionalBatch)
+        {
+            context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Always;
+        }
+
+        return context;
     }
 
     private class NonStringDiscriminator
     {
         public int Id { get; set; }
-        public EntityType Discriminator { get; set; }
+        public Discriminator Discriminator { get; set; }
     }
 
-    private enum EntityType
+    private enum Discriminator
     {
         Base,
         Derived
-    }
-
-    public class NonStringDiscriminatorContext : DbContext
-    {
-        public NonStringDiscriminatorContext(DbContextOptions dbContextOptions)
-            : base(dbContextOptions)
-        {
-        }
-
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<NonStringDiscriminator>();
     }
 
     private void AssertSql(DbContext context, params string[] expected)
@@ -1789,43 +1644,29 @@ OFFSET 0 LIMIT 1");
         logger.AssertBaseline(expected);
     }
 
-    protected TestSqlLoggerFactory TestSqlLoggerFactory
-        => (TestSqlLoggerFactory)Fixture.ListLoggerFactory;
+    protected ListLoggerFactory LoggerFactory { get; } = null!;
 
-    protected void AssertSql(params string[] expected)
-        => TestSqlLoggerFactory.AssertBaseline(expected);
+    protected override string NonSharedStoreName
+        => nameof(EndToEndCosmosTest);
 
-    protected void AssertContainsSql(params string[] expected)
-        => TestSqlLoggerFactory.AssertBaseline(expected, assertOrder: false);
+    protected override ITestStoreFactory NonSharedTestStoreFactory
+        => CosmosTestStoreFactory.Instance;
 
-    protected ListLoggerFactory LoggerFactory { get; }
+    protected ContextFactory<DbContext> ContextFactory { get; private set; } = null!;
 
-    public class CosmosFixture : ServiceProviderFixtureBase, IAsyncLifetime
-    {
-        public CosmosFixture()
-        {
-            TestStore = CosmosTestStore.Create(DatabaseName);
-        }
-
-        protected override ITestStoreFactory TestStoreFactory
-            => CosmosTestStoreFactory.Instance;
-
-        public virtual CosmosTestStore TestStore { get; }
-
-        public DbContextOptions CreateOptions()
-        {
-            TestStore.Initialize(null, (Func<DbContext>)null);
-            ListLoggerFactory.Clear();
-            return CreateOptions(TestStore);
-        }
-
-        protected override bool ShouldLogCategory(string logCategory)
-            => logCategory == DbLoggerCategory.Database.Command.Name;
-
-        public Task InitializeAsync()
-            => Task.CompletedTask;
-
-        public Task DisposeAsync()
-            => TestStore.DisposeAsync();
-    }
+    protected async Task InitializeAsync(
+        Action<ModelBuilder> onModelCreating,
+        Func<DbContextOptionsBuilder, Task>? onConfiguring = null,
+        Func<DbContext, Task>? seed = null,
+        bool sensitiveLogEnabled = true)
+        => ContextFactory = await InitializeNonSharedTest(
+            onModelCreating,
+            seed: seed,
+            shouldLogCategory: _ => true,
+            onConfiguring: options =>
+            {
+                options.EnableSensitiveDataLogging(sensitiveLogEnabled);
+                onConfiguring?.Invoke(options);
+            }
+        );
 }

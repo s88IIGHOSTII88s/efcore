@@ -4,19 +4,16 @@
 using System;
 using System.Collections.Generic;
 
-namespace Microsoft.EntityFrameworkCore.Benchmarks.Models.AdventureWorks
+namespace Microsoft.EntityFrameworkCore.Benchmarks.Models.AdventureWorks;
+
+public class Illustration
 {
-    public class Illustration
-    {
-        public Illustration()
-        {
-            ProductModelIllustration = new HashSet<ProductModelIllustration>();
-        }
+    public Illustration()
+        => ProductModelIllustration = new HashSet<ProductModelIllustration>();
 
-        public int IllustrationID { get; set; }
-        public DateTime ModifiedDate { get; set; }
-        public string Diagram { get; set; }
+    public int IllustrationID { get; set; }
+    public DateTime ModifiedDate { get; set; }
+    public string? Diagram { get; set; }
 
-        public virtual ICollection<ProductModelIllustration> ProductModelIllustration { get; set; }
-    }
+    public virtual ICollection<ProductModelIllustration> ProductModelIllustration { get; set; }
 }

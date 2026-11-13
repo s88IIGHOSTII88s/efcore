@@ -1,10 +1,10 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-namespace Microsoft.EntityFrameworkCore.InMemory.Metadata.Conventions;
+namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 /// <summary>
-///     A builder for building conventions for th in-memory provider.
+///     A builder for building conventions for the in-memory provider.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -36,7 +36,8 @@ public class InMemoryConventionSetBuilder : ProviderConventionSetBuilder
     {
         var conventionSet = base.CreateConventionSet();
 
-        conventionSet.ModelFinalizingConventions.Add(new DefiningQueryRewritingConvention(Dependencies));
+        conventionSet.Add(new DefiningQueryRewritingConvention(Dependencies));
+        conventionSet.Remove(typeof(ForeignKeyIndexConvention));
 
         return conventionSet;
     }
@@ -75,10 +76,9 @@ public class InMemoryConventionSetBuilder : ProviderConventionSetBuilder
     {
         var serviceProvider = new ServiceCollection()
             .AddEntityFrameworkInMemoryDatabase()
-            .AddDbContext<DbContext>(
-                (p, o) =>
-                    o.UseInMemoryDatabase(Guid.NewGuid().ToString())
-                        .UseInternalServiceProvider(p))
+            .AddDbContext<DbContext>((p, o) =>
+                o.UseInMemoryDatabase(Guid.NewGuid().ToString())
+                    .UseInternalServiceProvider(p))
             .BuildServiceProvider();
 
         return serviceProvider.GetRequiredService<IServiceScopeFactory>().CreateScope();

@@ -20,14 +20,9 @@ public class DbCommandInterceptorAggregator : InterceptorAggregator<IDbCommandIn
     protected override IDbCommandInterceptor CreateChain(IEnumerable<IDbCommandInterceptor> interceptors)
         => new CompositeDbCommandInterceptor(interceptors);
 
-    private sealed class CompositeDbCommandInterceptor : IDbCommandInterceptor
+    private sealed class CompositeDbCommandInterceptor(IEnumerable<IDbCommandInterceptor> interceptors) : IDbCommandInterceptor
     {
-        private readonly IDbCommandInterceptor[] _interceptors;
-
-        public CompositeDbCommandInterceptor(IEnumerable<IDbCommandInterceptor> interceptors)
-        {
-            _interceptors = interceptors.ToArray();
-        }
+        private readonly IDbCommandInterceptor[] _interceptors = interceptors.ToArray();
 
         public InterceptionResult<DbCommand> CommandCreating(
             CommandCorrelatedEventData eventData,
@@ -48,6 +43,18 @@ public class DbCommandInterceptorAggregator : InterceptorAggregator<IDbCommandIn
             for (var i = 0; i < _interceptors.Length; i++)
             {
                 result = _interceptors[i].CommandCreated(eventData, result);
+            }
+
+            return result;
+        }
+
+        public DbCommand CommandInitialized(
+            CommandEndEventData eventData,
+            DbCommand result)
+        {
+            for (var i = 0; i < _interceptors.Length; i++)
+            {
+                result = _interceptors[i].CommandInitialized(eventData, result);
             }
 
             return result;
@@ -259,6 +266,30 @@ public class DbCommandInterceptorAggregator : InterceptorAggregator<IDbCommandIn
                 await _interceptors[i].CommandFailedAsync(command, eventData, cancellationToken)
                     .ConfigureAwait(false);
             }
+        }
+
+        public InterceptionResult DataReaderClosing(DbCommand command, DataReaderClosingEventData eventData, InterceptionResult result)
+        {
+            for (var i = 0; i < _interceptors.Length; i++)
+            {
+                result = _interceptors[i].DataReaderClosing(command, eventData, result);
+            }
+
+            return result;
+        }
+
+        public async ValueTask<InterceptionResult> DataReaderClosingAsync(
+            DbCommand command,
+            DataReaderClosingEventData eventData,
+            InterceptionResult result)
+        {
+            for (var i = 0; i < _interceptors.Length; i++)
+            {
+                result = await _interceptors[i].DataReaderClosingAsync(command, eventData, result)
+                    .ConfigureAwait(false);
+            }
+
+            return result;
         }
 
         public InterceptionResult DataReaderDisposing(

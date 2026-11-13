@@ -24,14 +24,24 @@ public class View : TableBase, IView
 
     /// <inheritdoc />
     public virtual string? ViewDefinitionSql
-        => (string?)EntityTypeMappings.Select(m => m.EntityType[RelationalAnnotationNames.ViewDefinitionSql])
+        => (string?)EntityTypeMappings.Select(m => m.TypeBase[RelationalAnnotationNames.ViewDefinitionSql])
             .FirstOrDefault(d => d != null);
 
     /// <inheritdoc />
-    public override IColumnBase? FindColumn(IProperty property)
+    protected override IColumnBase? FindColumn(IProperty property)
         => property.GetViewColumnMappings()
-            .FirstOrDefault(cm => cm.TableMapping.Table == this)
-            ?.Column;
+                .FirstOrDefault(cm => cm.TableMapping.Table == this)?.Column
+            ?? property.GetJsonElementMappings()
+                .FirstOrDefault(m => m.TableMapping.Table == this)?.Element.ContainingColumn;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public new virtual ViewColumn? FindColumn(string name)
+        => (ViewColumn?)base.FindColumn(name);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -63,6 +73,6 @@ public class View : TableBase, IView
 
     /// <inheritdoc />
     [DebuggerStepThrough]
-    IViewColumn? IView.FindColumn(IProperty property)
-        => (IViewColumn?)FindColumn(property);
+    IViewColumn? IView.FindColumn(IPropertyBase propertyBase)
+        => (IViewColumn?)FindColumn(propertyBase);
 }

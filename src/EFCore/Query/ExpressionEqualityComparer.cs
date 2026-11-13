@@ -5,6 +5,8 @@
 // ReSharper disable ForCanBeConvertedToForeach
 // ReSharper disable LoopCanBeConvertedToQuery
 
+using System.Collections;
+
 namespace Microsoft.EntityFrameworkCore.Query;
 
 /// <summary>
@@ -28,11 +30,7 @@ public sealed class ExpressionEqualityComparer : IEqualityComparer<Expression?>
     /// </summary>
     public static ExpressionEqualityComparer Instance { get; } = new();
 
-    /// <summary>
-    ///     Returns the hash code for given expression.
-    /// </summary>
-    /// <param name="obj">The <see cref="Expression" /> obj to compute hash code for.</param>
-    /// <returns>The hash code value for <paramref name="obj" />.</returns>
+    /// <inheritdoc />
     public int GetHashCode(Expression obj)
     {
         if (obj == null)
@@ -68,10 +66,29 @@ public sealed class ExpressionEqualityComparer : IEqualityComparer<Expression?>
                     break;
 
                 case ConstantExpression constantExpression:
-                    if (constantExpression.Value != null
-                        && !(constantExpression.Value is IQueryable))
+                    switch (constantExpression.Value)
                     {
-                        hash.Add(constantExpression.Value);
+                        case IQueryable:
+                        case null:
+                            break;
+
+                        // Enumerables are compared element-wise, so they must also be hashed element-wise, regardless
+                        // of their concrete type (e.g. an array and a list containing the same elements).
+                        case IEnumerable enumerable:
+                            foreach (var item in enumerable)
+                            {
+                                hash.Add(item?.GetHashCode() ?? 0);
+                            }
+
+                            break;
+
+                        case IStructuralEquatable structuralEquatable:
+                            hash.Add(structuralEquatable.GetHashCode(StructuralComparisons.StructuralEqualityComparer));
+                            break;
+
+                        default:
+                            hash.Add(constantExpression.Value);
+                            break;
                     }
 
                     break;
@@ -276,12 +293,7 @@ public sealed class ExpressionEqualityComparer : IEqualityComparer<Expression?>
         }
     }
 
-    /// <summary>
-    ///     Returns a value indicating whether the given expressions are equal.
-    /// </summary>
-    /// <param name="x">The left expression.</param>
-    /// <param name="y">The right expression.</param>
-    /// <returns><see langword="true" /> if the expressions are equal, <see langword="false" /> otherwise.</returns>
+    /// <inheritdoc />
     public bool Equals(Expression? x, Expression? y)
         => new ExpressionComparer().Compare(x, y);
 
@@ -290,60 +302,42 @@ public sealed class ExpressionEqualityComparer : IEqualityComparer<Expression?>
         private Dictionary<ParameterExpression, ParameterExpression> _parameterScope;
 
         public bool Compare(Expression? left, Expression? right)
-        {
-            if (left == right)
-            {
-                return true;
-            }
+            => left == right
+                || left != null
+                && right != null
+                && left.NodeType == right.NodeType
+                && left.Type == right.Type
+                && left switch
+                {
+                    BinaryExpression leftBinary => CompareBinary(leftBinary, (BinaryExpression)right),
+                    BlockExpression leftBlock => CompareBlock(leftBlock, (BlockExpression)right),
+                    ConditionalExpression leftConditional => CompareConditional(leftConditional, (ConditionalExpression)right),
+                    ConstantExpression leftConstant => CompareConstant(leftConstant, (ConstantExpression)right),
+                    DefaultExpression => true, // Intentionally empty. No additional members
+                    GotoExpression leftGoto => CompareGoto(leftGoto, (GotoExpression)right),
+                    IndexExpression leftIndex => CompareIndex(leftIndex, (IndexExpression)right),
+                    InvocationExpression leftInvocation => CompareInvocation(leftInvocation, (InvocationExpression)right),
+                    LabelExpression leftLabel => CompareLabel(leftLabel, (LabelExpression)right),
+                    LambdaExpression leftLambda => CompareLambda(leftLambda, (LambdaExpression)right),
+                    ListInitExpression leftListInit => CompareListInit(leftListInit, (ListInitExpression)right),
+                    LoopExpression leftLoop => CompareLoop(leftLoop, (LoopExpression)right),
+                    MemberExpression leftMember => CompareMember(leftMember, (MemberExpression)right),
+                    MemberInitExpression leftMemberInit => CompareMemberInit(leftMemberInit, (MemberInitExpression)right),
+                    MethodCallExpression leftMethodCall => CompareMethodCall(leftMethodCall, (MethodCallExpression)right),
+                    NewArrayExpression leftNewArray => CompareNewArray(leftNewArray, (NewArrayExpression)right),
+                    NewExpression leftNew => CompareNew(leftNew, (NewExpression)right),
+                    ParameterExpression leftParameter => CompareParameter(leftParameter, (ParameterExpression)right),
+                    RuntimeVariablesExpression leftRuntimeVariables => CompareRuntimeVariables(
+                        leftRuntimeVariables, (RuntimeVariablesExpression)right),
+                    SwitchExpression leftSwitch => CompareSwitch(leftSwitch, (SwitchExpression)right),
+                    TryExpression leftTry => CompareTry(leftTry, (TryExpression)right),
+                    TypeBinaryExpression leftTypeBinary => CompareTypeBinary(leftTypeBinary, (TypeBinaryExpression)right),
+                    UnaryExpression leftUnary => CompareUnary(leftUnary, (UnaryExpression)right),
 
-            if (left == null
-                || right == null)
-            {
-                return false;
-            }
-
-            if (left.NodeType != right.NodeType)
-            {
-                return false;
-            }
-
-            if (left.Type != right.Type)
-            {
-                return false;
-            }
-
-            return left switch
-            {
-                BinaryExpression leftBinary => CompareBinary(leftBinary, (BinaryExpression)right),
-                BlockExpression leftBlock => CompareBlock(leftBlock, (BlockExpression)right),
-                ConditionalExpression leftConditional => CompareConditional(leftConditional, (ConditionalExpression)right),
-                ConstantExpression leftConstant => CompareConstant(leftConstant, (ConstantExpression)right),
-                DefaultExpression => true, // Intentionally empty. No additional members
-                GotoExpression leftGoto => CompareGoto(leftGoto, (GotoExpression)right),
-                IndexExpression leftIndex => CompareIndex(leftIndex, (IndexExpression)right),
-                InvocationExpression leftInvocation => CompareInvocation(leftInvocation, (InvocationExpression)right),
-                LabelExpression leftLabel => CompareLabel(leftLabel, (LabelExpression)right),
-                LambdaExpression leftLambda => CompareLambda(leftLambda, (LambdaExpression)right),
-                ListInitExpression leftListInit => CompareListInit(leftListInit, (ListInitExpression)right),
-                LoopExpression leftLoop => CompareLoop(leftLoop, (LoopExpression)right),
-                MemberExpression leftMember => CompareMember(leftMember, (MemberExpression)right),
-                MemberInitExpression leftMemberInit => CompareMemberInit(leftMemberInit, (MemberInitExpression)right),
-                MethodCallExpression leftMethodCall => CompareMethodCall(leftMethodCall, (MethodCallExpression)right),
-                NewArrayExpression leftNewArray => CompareNewArray(leftNewArray, (NewArrayExpression)right),
-                NewExpression leftNew => CompareNew(leftNew, (NewExpression)right),
-                ParameterExpression leftParameter => CompareParameter(leftParameter, (ParameterExpression)right),
-                RuntimeVariablesExpression leftRuntimeVariables => CompareRuntimeVariables(
-                    leftRuntimeVariables, (RuntimeVariablesExpression)right),
-                SwitchExpression leftSwitch => CompareSwitch(leftSwitch, (SwitchExpression)right),
-                TryExpression leftTry => CompareTry(leftTry, (TryExpression)right),
-                TypeBinaryExpression leftTypeBinary => CompareTypeBinary(leftTypeBinary, (TypeBinaryExpression)right),
-                UnaryExpression leftUnary => CompareUnary(leftUnary, (UnaryExpression)right),
-
-                _ => left.NodeType == ExpressionType.Extension
-                    ? left.Equals(right)
-                    : throw new InvalidOperationException(CoreStrings.UnhandledExpressionNode(left.NodeType))
-            };
-        }
+                    _ => left.NodeType == ExpressionType.Extension
+                        ? left.Equals(right)
+                        : throw new InvalidOperationException(CoreStrings.UnhandledExpressionNode(left.NodeType))
+                };
 
         private bool CompareBinary(BinaryExpression a, BinaryExpression b)
             => Equals(a.Method, b.Method)
@@ -363,7 +357,34 @@ public sealed class ExpressionEqualityComparer : IEqualityComparer<Expression?>
                 && Compare(a.IfFalse, b.IfFalse);
 
         private static bool CompareConstant(ConstantExpression a, ConstantExpression b)
-            => Equals(a.Value, b.Value);
+        {
+            var (v1, v2) = (a.Value, b.Value);
+
+            if (Equals(v1, v2))
+            {
+                return true;
+            }
+
+            // Queryables are excluded from the hash code, so they can only be equal by reference (checked above).
+            // They must also not be compared element-wise here, since enumerating them can execute a query.
+            if (v1 is IQueryable || v2 is IQueryable)
+            {
+                return false;
+            }
+
+            // Both values are dispatched on, so that the comparison stays symmetric for values of different types
+            // (e.g. an array and a list containing the same elements).
+            return (v1, v2) switch
+            {
+                (IEnumerable enumerable1, IEnumerable enumerable2)
+                    => enumerable1.Cast<object?>().SequenceEqual(enumerable2.Cast<object?>()),
+
+                (IStructuralEquatable structuralEquatable1, not null)
+                    => structuralEquatable1.Equals(v2, StructuralComparisons.StructuralEqualityComparer),
+
+                _ => false
+            };
+        }
 
         private bool CompareGoto(GotoExpression a, GotoExpression b)
             => a.Kind == b.Kind
@@ -392,11 +413,13 @@ public sealed class ExpressionEqualityComparer : IEqualityComparer<Expression?>
                 return false;
             }
 
-            _parameterScope ??= new Dictionary<ParameterExpression, ParameterExpression>();
+            _parameterScope ??= [];
 
             for (var i = 0; i < n; i++)
             {
-                if (a.Parameters[i].Type != b.Parameters[i].Type)
+                var (p1, p2) = (a.Parameters[i], b.Parameters[i]);
+
+                if (p1.Type != p2.Type || p1.Name != p2.Name)
                 {
                     for (var j = 0; j < i; j++)
                     {
@@ -406,7 +429,10 @@ public sealed class ExpressionEqualityComparer : IEqualityComparer<Expression?>
                     return false;
                 }
 
-                _parameterScope.Add(a.Parameters[i], b.Parameters[i]);
+                if (!_parameterScope.TryAdd(p1, p2))
+                {
+                    throw new InvalidOperationException(CoreStrings.SameParameterInstanceUsedInMultipleLambdas(p1.Name));
+                }
             }
 
             try
@@ -565,38 +591,19 @@ public sealed class ExpressionEqualityComparer : IEqualityComparer<Expression?>
                 return true;
             }
 
-            if (a == null
-                || b == null)
-            {
-                return false;
-            }
-
-            if (a.BindingType != b.BindingType)
-            {
-                return false;
-            }
-
-            if (!Equals(a.Member, b.Member))
-            {
-                return false;
-            }
-
-#pragma warning disable IDE0066 // Convert switch statement to expression
-            switch (a)
-#pragma warning restore IDE0066 // Convert switch statement to expression
-            {
-                case MemberAssignment aMemberAssignment:
-                    return Compare(aMemberAssignment.Expression, ((MemberAssignment)b).Expression);
-
-                case MemberListBinding aMemberListBinding:
-                    return CompareElementInitList(aMemberListBinding.Initializers, ((MemberListBinding)b).Initializers);
-
-                case MemberMemberBinding aMemberMemberBinding:
-                    return CompareMemberBindingList(aMemberMemberBinding.Bindings, ((MemberMemberBinding)b).Bindings);
-
-                default:
-                    throw new InvalidOperationException(CoreStrings.UnhandledMemberBinding(a.BindingType));
-            }
+            return a != null
+                && b != null
+                && a.BindingType == b.BindingType
+                && Equals(a.Member, b.Member)
+                && a switch
+                {
+                    MemberAssignment aMemberAssignment => Compare(aMemberAssignment.Expression, ((MemberAssignment)b).Expression),
+                    MemberListBinding aMemberListBinding => CompareElementInitList(
+                        aMemberListBinding.Initializers, ((MemberListBinding)b).Initializers),
+                    MemberMemberBinding aMemberMemberBinding => CompareMemberBindingList(
+                        aMemberMemberBinding.Bindings, ((MemberMemberBinding)b).Bindings),
+                    _ => throw new InvalidOperationException(CoreStrings.UnhandledMemberBinding(a.BindingType)),
+                };
         }
 
         private bool CompareElementInitList(IReadOnlyList<ElementInit> a, IReadOnlyList<ElementInit> b)

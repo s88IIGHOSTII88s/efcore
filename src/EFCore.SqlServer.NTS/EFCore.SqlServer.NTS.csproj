@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <Description>NetTopologySuite support for the Microsoft SQL Server database provider for Entity Framework Core.</Description>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>$(DefaultNetCoreTargetFramework)</TargetFramework>
     <MinClientVersion>3.6</MinClientVersion>
     <AssemblyName>Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite</AssemblyName>
     <RootNamespace>Microsoft.EntityFrameworkCore.SqlServer</RootNamespace>
@@ -46,24 +46,24 @@
   <ItemGroup>
     <None Include="build\**\*">
       <Pack>True</Pack>
-      <PackagePath>build</PackagePath>
+      <PackagePath>build\$(DefaultNetCoreTargetFramework)</PackagePath>
     </None>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EFCore.SqlServer\EFCore.SqlServer.csproj" PrivateAssets="contentfiles;build" />
-    <ProjectReference Condition="'$(BuildingByReSharper)' != 'true'" Include="..\EFCore.Analyzers\EFCore.Analyzers.csproj" ReferenceOutputAssembly="False" OutputItemType="Analyzer" />
+    <ProjectReference Include="..\EFCore.SqlServer\EFCore.SqlServer.csproj" PrivateAssets="contentfiles;build" PackageVersion="[$(Version), $(NextMajorVersion))" />
+    <ProjectReference Include="..\EFCore.Analyzers\EFCore.Analyzers.csproj" ReferenceOutputAssembly="False" OutputItemType="Analyzer" PackageVersion="[$(Version), $(NextMajorVersion))" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NetTopologySuite" Version="2.4.0" />
-    <PackageReference Include="NetTopologySuite.IO.SqlServerBytes" Version="2.1.0" />
+    <PackageReference Include="NetTopologySuite.IO.SqlServerBytes" />
   </ItemGroup>
 
   <ItemGroup>
     <None Update="Properties\SqlServerNTSStrings.Designer.tt">
       <Generator>TextTemplatingFileGenerator</Generator>
       <LastGenOutput>SqlServerNTSStrings.Designer.cs</LastGenOutput>
+      <CustomToolNamespace>Microsoft.EntityFrameworkCore.SqlServer.Internal</CustomToolNamespace>
     </None>
   </ItemGroup>
 
@@ -77,12 +77,6 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>SqlServerNTSStrings.Designer.tt</DependentUpon>
     </Compile>
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Update="Properties\SqlServerNTSStrings.resx">
-      <CustomToolNamespace>Microsoft.EntityFrameworkCore.SqlServer.Internal</CustomToolNamespace>
-    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

@@ -8,9 +8,9 @@ public class JoinThreeToCompositeKeyFull
     public virtual Guid Id { get; set; }
     public virtual int ThreeId { get; set; }
     public virtual int CompositeId1 { get; set; }
-    public virtual string CompositeId2 { get; set; }
+    public virtual string CompositeId2 { get; set; } = null!;
     public virtual DateTime CompositeId3 { get; set; }
 
-    public virtual EntityThree Three { get; set; }
-    public virtual EntityCompositeKey Composite { get; set; }
+    public virtual EntityThree Three { get; set; } = null!;
+    public virtual EntityCompositeKey Composite { get; set; } = null!;
 }

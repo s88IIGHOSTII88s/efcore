@@ -11,7 +11,7 @@ using System.Runtime.CompilerServices;
 // ReSharper disable ConvertToAutoProperty
 namespace Microsoft.EntityFrameworkCore.TestModels;
 
-public class ChangedOnlyMonsterContext : MonsterContext<
+public class ChangedOnlyMonsterContext(DbContextOptions options) : MonsterContext<
     ChangedOnlyMonsterContext.Customer, ChangedOnlyMonsterContext.Barcode, ChangedOnlyMonsterContext.IncorrectScan,
     ChangedOnlyMonsterContext.BarcodeDetail, ChangedOnlyMonsterContext.Complaint, ChangedOnlyMonsterContext.Resolution,
     ChangedOnlyMonsterContext.Login, ChangedOnlyMonsterContext.SuspiciousActivity, ChangedOnlyMonsterContext.SmartCard,
@@ -25,16 +25,11 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     ChangedOnlyMonsterContext.License, ChangedOnlyMonsterContext.ConcurrencyInfo, ChangedOnlyMonsterContext.AuditInfo,
     ChangedOnlyMonsterContext.ContactDetails, ChangedOnlyMonsterContext.Dimensions, ChangedOnlyMonsterContext.Phone,
     ChangedOnlyMonsterContext.BackOrderLine, ChangedOnlyMonsterContext.DiscontinuedProduct,
-    ChangedOnlyMonsterContext.ProductPageView>
+    ChangedOnlyMonsterContext.ProductPageView>(options)
 {
-    public ChangedOnlyMonsterContext(DbContextOptions options)
-        : base(options)
-    {
-    }
-
     public class NotificationEntity : INotifyPropertyChanged
     {
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         private void NotifyChanged(string propertyName)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -49,20 +44,16 @@ public class ChangedOnlyMonsterContext : MonsterContext<
         }
     }
 
-    public class BackOrderLine2 : BackOrderLine
-    {
-    }
+    public class BackOrderLine2 : BackOrderLine;
 
     public class BackOrderLine : OrderLine, IBackOrderLine
     {
-        private ISupplier _supplier;
+        private ISupplier _supplier = null!;
         private int _supplierId;
         private DateTime _eta;
 
         public BackOrderLine()
-        {
-            ETA = DateTime.Now;
-        }
+            => ETA = DateTime.Now;
 
         public DateTime ETA
         {
@@ -85,8 +76,8 @@ public class ChangedOnlyMonsterContext : MonsterContext<
 
     public class BarcodeDetail : NotificationEntity, IBarcodeDetail
     {
-        private byte[] _code;
-        private string _registeredTo;
+        private byte[] _code = null!;
+        private string _registeredTo = null!;
 
         public byte[] Code
         {
@@ -103,12 +94,12 @@ public class ChangedOnlyMonsterContext : MonsterContext<
 
     public class Barcode : NotificationEntity, IBarcode
     {
-        private byte[] _code;
+        private byte[] _code = null!;
         private int _productId;
-        private string _text;
-        private IProduct _product;
-        private ICollection<IIncorrectScan> _badScans;
-        private IBarcodeDetail _detail;
+        private string _text = null!;
+        private IProduct _product = null!;
+        private ICollection<IIncorrectScan> _badScans = null!;
+        private IBarcodeDetail _detail = null!;
 
         public void InitializeCollections()
             => BadScans ??= new ObservableCollection<IIncorrectScan>();
@@ -152,13 +143,13 @@ public class ChangedOnlyMonsterContext : MonsterContext<
 
     public class Complaint : NotificationEntity, IComplaint
     {
-        private ICustomer _customer;
-        private IResolution _resolution;
+        private ICustomer _customer = null!;
+        private IResolution _resolution = null!;
         private int _complaintId;
         private int _alternateId;
         private int? _customerId;
         private DateTime _logged;
-        private string _details;
+        private string _details = null!;
 
         public int ComplaintId
         {
@@ -206,18 +197,16 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class ComputerDetail : NotificationEntity, IComputerDetail
     {
         private int _computerDetailId;
-        private string _manufacturer;
-        private string _model;
-        private string _serial;
-        private string _specifications;
+        private string _manufacturer = null!;
+        private string _model = null!;
+        private string _serial = null!;
+        private string _specifications = null!;
         private DateTime _purchaseDate;
-        private IDimensions _dimensions;
-        private IComputer _computer;
+        private IDimensions _dimensions = null!;
+        private IComputer _computer = null!;
 
         public ComputerDetail()
-        {
-            Dimensions = new Dimensions();
-        }
+            => Dimensions = new Dimensions();
 
         public int ComputerDetailId
         {
@@ -271,8 +260,8 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class Computer : NotificationEntity, IComputer
     {
         private int _computerId;
-        private string _name;
-        private IComputerDetail _computerDetail;
+        private string _name = null!;
+        private IComputerDetail _computerDetail = null!;
 
         public int ComputerId
         {
@@ -296,7 +285,7 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class ConcurrencyInfo : NotificationEntity, IConcurrencyInfo
     {
         private bool _active;
-        private string _token;
+        private string? _token;
         private DateTime? _queriedDateTime;
 
         public bool Active
@@ -305,7 +294,7 @@ public class ChangedOnlyMonsterContext : MonsterContext<
             set => SetWithNotify(value, ref _active);
         }
 
-        public string Token
+        public string? Token
         {
             get => _token;
             set => SetWithNotify(value, ref _token);
@@ -321,10 +310,10 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class ContactDetails : NotificationEntity, IContactDetails
     {
         private bool _active;
-        private string _email;
-        private IPhone _homePhone;
-        private IPhone _workPhone;
-        private IPhone _mobilePhone;
+        private string? _email;
+        private IPhone _homePhone = null!;
+        private IPhone _workPhone = null!;
+        private IPhone _mobilePhone = null!;
 
         public ContactDetails()
         {
@@ -339,7 +328,7 @@ public class ChangedOnlyMonsterContext : MonsterContext<
             set => SetWithNotify(value, ref _active);
         }
 
-        public string Email
+        public string? Email
         {
             get => _email;
             set => SetWithNotify(value, ref _email);
@@ -367,7 +356,7 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class CustomerInfo : NotificationEntity, ICustomerInfo
     {
         private int _customerInfoId;
-        private string _information;
+        private string _information = null!;
 
         public int CustomerInfoId
         {
@@ -409,7 +398,7 @@ public class ChangedOnlyMonsterContext : MonsterContext<
 
     public class DiscontinuedProduct : Product, IDiscontinuedProduct
     {
-        private IProduct _replacedBy;
+        private IProduct _replacedBy = null!;
         private DateTime _discontinued;
         private int? _replacementProductId;
 
@@ -434,9 +423,9 @@ public class ChangedOnlyMonsterContext : MonsterContext<
 
     public class Driver : NotificationEntity, IDriver
     {
-        private string _name;
+        private string _name = null!;
         private DateTime _birthDate;
-        private ILicense _license;
+        private ILicense _license = null!;
 
         public string Name
         {
@@ -460,12 +449,12 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class IncorrectScan : NotificationEntity, IIncorrectScan
     {
         private int _incorrectScanId;
-        private byte[] _expectedCode;
-        private byte[] _actualCode;
+        private byte[]? _expectedCode;
+        private byte[]? _actualCode;
         private DateTime _scanDate;
-        private string _details;
-        private IBarcode _expectedBarcode;
-        private IBarcode _actualBarcode;
+        private string _details = null!;
+        private IBarcode? _expectedBarcode;
+        private IBarcode? _actualBarcode;
 
         public int IncorrectScanId
         {
@@ -473,13 +462,13 @@ public class ChangedOnlyMonsterContext : MonsterContext<
             set => SetWithNotify(value, ref _incorrectScanId);
         }
 
-        public byte[] ExpectedCode
+        public byte[]? ExpectedCode
         {
             get => _expectedCode;
             set => SetWithNotify(value, ref _expectedCode);
         }
 
-        public byte[] ActualCode
+        public byte[]? ActualCode
         {
             get => _actualCode;
             set => SetWithNotify(value, ref _actualCode);
@@ -497,13 +486,13 @@ public class ChangedOnlyMonsterContext : MonsterContext<
             set => SetWithNotify(value, ref _details);
         }
 
-        public virtual IBarcode ExpectedBarcode
+        public virtual IBarcode? ExpectedBarcode
         {
             get => _expectedBarcode;
             set => SetWithNotify(value, ref _expectedBarcode);
         }
 
-        public virtual IBarcode ActualBarcode
+        public virtual IBarcode? ActualBarcode
         {
             get => _actualBarcode;
             set => SetWithNotify(value, ref _actualBarcode);
@@ -512,11 +501,11 @@ public class ChangedOnlyMonsterContext : MonsterContext<
 
     public class LastLogin : NotificationEntity, ILastLogin
     {
-        private string _username;
+        private string _username = null!;
         private DateTime _loggedIn;
         private DateTime? _loggedOut;
-        private string _smartcardUsername;
-        private ILogin _login;
+        private string? _smartcardUsername;
+        private ILogin _login = null!;
 
         public string Username
         {
@@ -536,7 +525,7 @@ public class ChangedOnlyMonsterContext : MonsterContext<
             set => SetWithNotify(value, ref _loggedOut);
         }
 
-        public string SmartcardUsername
+        public string? SmartcardUsername
         {
             get => _smartcardUsername;
             set => SetWithNotify(value, ref _smartcardUsername);
@@ -551,18 +540,16 @@ public class ChangedOnlyMonsterContext : MonsterContext<
 
     public class License : NotificationEntity, ILicense
     {
-        private string _name;
-        private string _licenseNumber;
-        private string _licenseClass;
-        private string _restrictions;
+        private string _name = null!;
+        private string _licenseNumber = null!;
+        private string _licenseClass = null!;
+        private string _restrictions = null!;
         private DateTime _expirationDate;
         private LicenseState? _state;
-        private IDriver _driver;
+        private IDriver _driver = null!;
 
         public License()
-        {
-            LicenseClass = "C";
-        }
+            => LicenseClass = "C";
 
         public string Name
         {
@@ -610,14 +597,14 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class Message : NotificationEntity, IMessage
     {
         private int _messageId;
-        private string _fromUsername;
-        private string _toUsername;
+        private string _fromUsername = null!;
+        private string? _toUsername;
         private DateTime _sent;
-        private string _subject;
-        private string _body;
+        private string _subject = null!;
+        private string _body = null!;
         private bool _isRead;
-        private ILogin _sender;
-        private ILogin _recipient;
+        private ILogin _sender = null!;
+        private ILogin? _recipient;
 
         public int MessageId
         {
@@ -631,7 +618,7 @@ public class ChangedOnlyMonsterContext : MonsterContext<
             set => SetWithNotify(value, ref _fromUsername);
         }
 
-        public string ToUsername
+        public string? ToUsername
         {
             get => _toUsername;
             set => SetWithNotify(value, ref _toUsername);
@@ -667,7 +654,7 @@ public class ChangedOnlyMonsterContext : MonsterContext<
             set => SetWithNotify(value, ref _sender);
         }
 
-        public virtual ILogin Recipient
+        public virtual ILogin? Recipient
         {
             get => _recipient;
             set => SetWithNotify(value, ref _recipient);
@@ -679,14 +666,12 @@ public class ChangedOnlyMonsterContext : MonsterContext<
         private int _orderId;
         private int _productId;
         private int _quantity;
-        private string _concurrencyToken;
-        private IAnOrder _order;
-        private IProduct _product;
+        private string? _concurrencyToken;
+        private IAnOrder _order = null!;
+        private IProduct _product = null!;
 
         public OrderLine()
-        {
-            Quantity = 1;
-        }
+            => Quantity = 1;
 
         public int OrderId
         {
@@ -706,7 +691,7 @@ public class ChangedOnlyMonsterContext : MonsterContext<
             set => SetWithNotify(value, ref _quantity);
         }
 
-        public string ConcurrencyToken
+        public string? ConcurrencyToken
         {
             get => _concurrencyToken;
             set => SetWithNotify(value, ref _concurrencyToken);
@@ -730,17 +715,15 @@ public class ChangedOnlyMonsterContext : MonsterContext<
         private int _anOrderId;
         private int _alternateId;
         private int? _customerId;
-        private IConcurrencyInfo _concurrency;
-        private ICustomer _customer;
-        private ICollection<IOrderLine> _orderLines;
-        private ICollection<IOrderNote> _notes;
-        private string _username;
-        private ILogin _login;
+        private IConcurrencyInfo _concurrency = null!;
+        private ICustomer _customer = null!;
+        private ICollection<IOrderLine> _orderLines = null!;
+        private ICollection<IOrderNote> _notes = null!;
+        private string _username = null!;
+        private ILogin _login = null!;
 
         public AnOrder()
-        {
-            Concurrency = new ConcurrencyInfo();
-        }
+            => Concurrency = new ConcurrencyInfo();
 
         public void InitializeCollections()
         {
@@ -806,9 +789,9 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class OrderNote : NotificationEntity, IOrderNote
     {
         private int _noteId;
-        private string _note;
+        private string _note = null!;
         private int _orderId;
-        private IAnOrder _order;
+        private IAnOrder _order = null!;
 
         public int NoteId
         {
@@ -838,9 +821,9 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class OrderQualityCheck : NotificationEntity, IOrderQualityCheck
     {
         private int _orderId;
-        private string _checkedBy;
+        private string _checkedBy = null!;
         private DateTime _checkedDateTime;
-        private IAnOrder _order;
+        private IAnOrder _order = null!;
 
         public int OrderId
         {
@@ -870,10 +853,10 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class PageView : NotificationEntity, IPageView
     {
         private int _pageViewId;
-        private string _username;
+        private string _username = null!;
         private DateTime _viewed;
-        private string _pageUrl;
-        private ILogin _login;
+        private string _pageUrl = null!;
+        private ILogin _login = null!;
 
         public int PageViewId
         {
@@ -909,10 +892,10 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class PasswordReset : NotificationEntity, IPasswordReset
     {
         private int _resetNo;
-        private string _username;
-        private string _tempPassword;
-        private string _emailedTo;
-        private ILogin _login;
+        private string _username = null!;
+        private string _tempPassword = null!;
+        private string _emailedTo = null!;
+        private ILogin _login = null!;
 
         public int ResetNo
         {
@@ -948,8 +931,8 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class ProductDetail : NotificationEntity, IProductDetail
     {
         private int _productId;
-        private string _details;
-        private IProduct _product;
+        private string _details = null!;
+        private IProduct _product = null!;
 
         public int ProductId
         {
@@ -973,17 +956,17 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class Product : NotificationEntity, IProduct
     {
         private int _productId;
-        private string _description;
-        private string _baseConcurrency;
-        private IDimensions _dimensions;
-        private IConcurrencyInfo _complexConcurrency;
-        private IAuditInfo _nestedComplexConcurrency;
-        private ICollection<ISupplier> _suppliers;
-        private IProductDetail _detail;
-        private ICollection<IProductReview> _reviews;
-        private ICollection<IProductPhoto> _photos;
-        private ICollection<IBarcode> _barcodes;
-        private ICollection<IDiscontinuedProduct> _replaces;
+        private string _description = null!;
+        private string _baseConcurrency = null!;
+        private IDimensions _dimensions = null!;
+        private IConcurrencyInfo _complexConcurrency = null!;
+        private IAuditInfo _nestedComplexConcurrency = null!;
+        private ICollection<ISupplier> _suppliers = null!;
+        private IProductDetail _detail = null!;
+        private ICollection<IProductReview> _reviews = null!;
+        private ICollection<IProductPhoto> _photos = null!;
+        private ICollection<IBarcode> _barcodes = null!;
+        private ICollection<IDiscontinuedProduct> _replaces = null!;
 
         public Product()
         {
@@ -1075,7 +1058,7 @@ public class ChangedOnlyMonsterContext : MonsterContext<
 
     public class ProductPageView : PageView, IProductPageView
     {
-        private IProduct _product;
+        private IProduct _product = null!;
         private int _productId;
 
         public int ProductId
@@ -1095,8 +1078,8 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     {
         private int _productId;
         private int _photoId;
-        private byte[] _photo;
-        private ICollection<IProductWebFeature> _features;
+        private byte[] _photo = null!;
+        private ICollection<IProductWebFeature> _features = null!;
 
         public void InitializeCollections()
             => Features ??= new ObservableCollection<IProductWebFeature>();
@@ -1130,9 +1113,9 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     {
         private int _productId;
         private int _reviewId;
-        private string _review;
-        private IProduct _product;
-        private ICollection<IProductWebFeature> _features;
+        private string _review = null!;
+        private IProduct _product = null!;
+        private ICollection<IProductWebFeature> _features = null!;
 
         public void InitializeCollections()
             => Features ??= new ObservableCollection<IProductWebFeature>();
@@ -1174,9 +1157,9 @@ public class ChangedOnlyMonsterContext : MonsterContext<
         private int? _productId;
         private int? _photoId;
         private int _reviewId;
-        private string _heading;
-        private IProductReview _review;
-        private IProductPhoto _photo;
+        private string _heading = null!;
+        private IProductReview _review = null!;
+        private IProductPhoto _photo = null!;
 
         public int FeatureId
         {
@@ -1224,8 +1207,8 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class Resolution : NotificationEntity, IResolution
     {
         private int _resolutionId;
-        private string _details;
-        private IComplaint _complaint;
+        private string _details = null!;
+        private IComplaint _complaint = null!;
 
         public int ResolutionId
         {
@@ -1248,10 +1231,10 @@ public class ChangedOnlyMonsterContext : MonsterContext<
 
     public class RsaToken : NotificationEntity, IRsaToken
     {
-        private string _serial;
+        private string _serial = null!;
         private DateTime _issued;
-        private string _username;
-        private ILogin _login;
+        private string _username = null!;
+        private ILogin _login = null!;
 
         public string Serial
         {
@@ -1280,11 +1263,11 @@ public class ChangedOnlyMonsterContext : MonsterContext<
 
     public class SmartCard : NotificationEntity, ISmartCard
     {
-        private string _username;
-        private string _cardSerial;
+        private string _username = null!;
+        private string _cardSerial = null!;
         private DateTime _issued;
-        private ILogin _login;
-        private ILastLogin _lastLogin;
+        private ILogin _login = null!;
+        private ILastLogin? _lastLogin;
 
         public string Username
         {
@@ -1310,7 +1293,7 @@ public class ChangedOnlyMonsterContext : MonsterContext<
             set => SetWithNotify(value, ref _login);
         }
 
-        public virtual ILastLogin LastLogin
+        public virtual ILastLogin? LastLogin
         {
             get => _lastLogin;
             set => SetWithNotify(value, ref _lastLogin);
@@ -1320,9 +1303,9 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class SupplierInfo : NotificationEntity, ISupplierInfo
     {
         private int _supplierInfoId;
-        private string _information;
+        private string _information = null!;
         private int _supplierId;
-        private ISupplier _supplier;
+        private ISupplier _supplier = null!;
 
         public int SupplierInfoId
         {
@@ -1352,7 +1335,7 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class SupplierLogo : NotificationEntity, ISupplierLogo
     {
         private int _supplierId;
-        private byte[] _logo;
+        private byte[] _logo = null!;
 
         public int SupplierId
         {
@@ -1370,10 +1353,10 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class Supplier : NotificationEntity, ISupplier
     {
         private int _supplierId;
-        private string _name;
-        private ICollection<IProduct> _products;
-        private ISupplierLogo _logo;
-        private ICollection<IBackOrderLine> _backOrderLines;
+        private string _name = null!;
+        private ICollection<IProduct> _products = null!;
+        private ISupplierLogo _logo = null!;
+        private ICollection<IBackOrderLine> _backOrderLines = null!;
 
         public void InitializeCollections()
         {
@@ -1415,8 +1398,8 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class SuspiciousActivity : NotificationEntity, ISuspiciousActivity
     {
         private int _suspiciousActivityId;
-        private string _activity;
-        private string _username;
+        private string _activity = null!;
+        private string _username = null!;
 
         public int SuspiciousActivityId
         {
@@ -1440,8 +1423,8 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class AuditInfo : NotificationEntity, IAuditInfo
     {
         private DateTime _modifiedDate;
-        private string _modifiedBy;
-        private IConcurrencyInfo _concurrency;
+        private string? _modifiedBy;
+        private IConcurrencyInfo _concurrency = null!;
 
         public AuditInfo()
         {
@@ -1455,7 +1438,7 @@ public class ChangedOnlyMonsterContext : MonsterContext<
             set => SetWithNotify(value, ref _modifiedDate);
         }
 
-        public string ModifiedBy
+        public string? ModifiedBy
         {
             get => _modifiedBy;
             set => SetWithNotify(value, ref _modifiedBy);
@@ -1472,14 +1455,14 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     {
         private int _customerId;
         private int? _husbandId;
-        private string _name;
-        private IContactDetails _contactInfo;
-        private IAuditInfo _auditing;
-        private ICollection<IAnOrder> _orders;
-        private ICollection<ILogin> _logins;
-        private ICustomer _husband;
-        private ICustomer _wife;
-        private ICustomerInfo _info;
+        private string _name = null!;
+        private IContactDetails _contactInfo = null!;
+        private IAuditInfo _auditing = null!;
+        private ICollection<IAnOrder> _orders = null!;
+        private ICollection<ILogin> _logins = null!;
+        private ICustomer _husband = null!;
+        private ICustomer _wife = null!;
+        private ICustomerInfo _info = null!;
 
         public Customer()
         {
@@ -1556,14 +1539,14 @@ public class ChangedOnlyMonsterContext : MonsterContext<
 
     public class Login : NotificationEntity, ILogin
     {
-        private string _username;
-        private string _alternateUsername;
+        private string _username = null!;
+        private string _alternateUsername = null!;
         private int _customerId;
-        private ICustomer _customer;
-        private ILastLogin _lastLogin;
-        private ICollection<IMessage> _sentMessages;
-        private ICollection<IMessage> _receivedMessages;
-        private ICollection<IAnOrder> _orders;
+        private ICustomer _customer = null!;
+        private ILastLogin _lastLogin = null!;
+        private ICollection<IMessage> _sentMessages = null!;
+        private ICollection<IMessage> _receivedMessages = null!;
+        private ICollection<IAnOrder> _orders = null!;
 
         public void InitializeCollections()
         {
@@ -1624,15 +1607,13 @@ public class ChangedOnlyMonsterContext : MonsterContext<
     public class Phone : NotificationEntity, IPhone
     {
         private PhoneType _phoneType;
-        private string _extension;
-        private string _phoneNumber;
+        private string _extension = null!;
+        private string? _phoneNumber;
 
         public Phone()
-        {
-            Extension = "None";
-        }
+            => Extension = "None";
 
-        public string PhoneNumber
+        public string? PhoneNumber
         {
             get => _phoneNumber;
             set => SetWithNotify(value, ref _phoneNumber);

@@ -3,6 +3,7 @@
 
 using System.Collections;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 
@@ -12,7 +13,9 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
-public class SortableBindingList<T> : BindingList<T>
+[RequiresUnreferencedCode("Raises ListChanged events with PropertyDescriptors. PropertyDescriptors require unreferenced code."),
+ RequiresDynamicCode("Requires calling MakeGenericType on the property descriptor's type")]
+public class SortableBindingList<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T> : BindingList<T>
 {
     private bool _isSorted;
     private ListSortDirection _sortDirection;
@@ -24,6 +27,7 @@ public class SortableBindingList<T> : BindingList<T>
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    [RequiresUnreferencedCode("Raises ListChanged events with PropertyDescriptors. PropertyDescriptors require unreferenced code.")]
     public SortableBindingList(List<T> list)
         : base(list)
     {
@@ -35,6 +39,16 @@ public class SortableBindingList<T> : BindingList<T>
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    [RequiresUnreferencedCode("Requires accessing property 'Default' on the property descriptor's type"),
+     RequiresDynamicCode("Requires calling MakeGenericType on the property descriptor's type"), UnconditionalSuppressMessage(
+         "ReflectionAnalysis",
+         "IL2046",
+         Justification =
+             "This method is an override, and the base method isn't annotated with RequiresUnreferencedCode. "
+             + "The entire type is marked with RequiresUnreferencedCode."), SuppressMessage(
+         "AOT", "IL3051:'RequiresDynamicCodeAttribute' annotations must match across all interface implementations or overrides.",
+         Justification = "This method is an override, and the base method isn't annotated with RequiresDynamicCode. "
+             + "The entire type is marked with RequiresDynamicCode.")]
     protected override void ApplySortCore(PropertyDescriptor prop, ListSortDirection direction)
     {
         if (PropertyComparer.CanSort(prop.PropertyType))
@@ -101,6 +115,8 @@ public class SortableBindingList<T> : BindingList<T>
         private readonly ListSortDirection _direction;
         private readonly PropertyDescriptor _prop;
 
+        [RequiresUnreferencedCode("Requires accessing property 'Default' on the property descriptor's type"),
+         RequiresDynamicCode("Requires calling MakeGenericType on the property descriptor's type")]
         public PropertyComparer(PropertyDescriptor prop, ListSortDirection direction)
         {
             if (!prop.ComponentType.IsAssignableFrom(typeof(T)))
@@ -135,7 +151,7 @@ public class SortableBindingList<T> : BindingList<T>
                 : _comparer.Compare(rightValue, leftValue);
         }
 
-        public static bool CanSort(Type type)
+        public static bool CanSort([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type)
             => type.GetInterface("IComparable") != null
                 || (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>));
     }

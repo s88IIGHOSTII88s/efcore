@@ -20,17 +20,6 @@ public class QueryCompilationContext
 {
     /// <summary>
     ///     <para>
-    ///         Prefix for all the query parameters generated during parameter extraction in query pipeline.
-    ///     </para>
-    ///     <para>
-    ///         This property is typically used by database providers (and other extensions). It is generally
-    ///         not used in application code.
-    ///     </para>
-    /// </summary>
-    public const string QueryParameterPrefix = "__";
-
-    /// <summary>
-    ///     <para>
     ///         ParameterExpression representing <see cref="QueryContext" /> parameter in query expression.
     ///     </para>
     ///     <para>
@@ -56,7 +45,8 @@ public class QueryCompilationContext
     private readonly IQueryTranslationPostprocessorFactory _queryTranslationPostprocessorFactory;
     private readonly IShapedQueryCompilingExpressionVisitorFactory _shapedQueryCompilingExpressionVisitorFactory;
 
-    private readonly ExpressionPrinter _expressionPrinter;
+    private readonly ExpressionPrinter _expressionPrinter = new();
+    private readonly RuntimeParameterConstantLifter _runtimeParameterConstantLifter;
 
     private Dictionary<string, LambdaExpression>? _runtimeParameters;
 
@@ -65,14 +55,25 @@ public class QueryCompilationContext
     /// </summary>
     /// <param name="dependencies">Parameter object containing dependencies for this class.</param>
     /// <param name="async">A bool value indicating whether it is for async query.</param>
-    public QueryCompilationContext(
-        QueryCompilationContextDependencies dependencies,
-        bool async)
+    public QueryCompilationContext(QueryCompilationContextDependencies dependencies, bool async)
+        : this(dependencies, async, precompiling: false)
+    {
+    }
+
+    /// <summary>
+    ///     Creates a new instance of the <see cref="QueryCompilationContext" /> class.
+    /// </summary>
+    /// <param name="dependencies">Parameter object containing dependencies for this class.</param>
+    /// <param name="async">A bool value indicating whether it is for async query.</param>
+    /// <param name="precompiling">Indicates whether the query is being precompiled.</param>
+    [Experimental(EFDiagnostics.PrecompiledQueryExperimental)]
+    public QueryCompilationContext(QueryCompilationContextDependencies dependencies, bool async, bool precompiling)
     {
         Dependencies = dependencies;
         IsAsync = async;
         QueryTrackingBehavior = dependencies.QueryTrackingBehavior;
         IsBuffering = ExecutionStrategy.Current?.RetriesOnFailure ?? dependencies.IsRetryingExecutionStrategy;
+        IsPrecompiling = precompiling;
         Model = dependencies.Model;
         ContextOptions = dependencies.ContextOptions;
         ContextType = dependencies.ContextType;
@@ -82,8 +83,7 @@ public class QueryCompilationContext
         _queryableMethodTranslatingExpressionVisitorFactory = dependencies.QueryableMethodTranslatingExpressionVisitorFactory;
         _queryTranslationPostprocessorFactory = dependencies.QueryTranslationPostprocessorFactory;
         _shapedQueryCompilingExpressionVisitorFactory = dependencies.ShapedQueryCompilingExpressionVisitorFactory;
-
-        _expressionPrinter = new ExpressionPrinter();
+        _runtimeParameterConstantLifter = new RuntimeParameterConstantLifter(dependencies.LiftableConstantFactory);
     }
 
     /// <summary>
@@ -117,9 +117,19 @@ public class QueryCompilationContext
     public virtual bool IsBuffering { get; }
 
     /// <summary>
+    ///     Indicates whether the query is being precompiled.
+    /// </summary>
+    public virtual bool IsPrecompiling { get; }
+
+    /// <summary>
     ///     A value indicating whether query filters are ignored in this query.
     /// </summary>
     public virtual bool IgnoreQueryFilters { get; internal set; }
+
+    /// <summary>
+    ///     A collection of ignored query filters.
+    /// </summary>
+    public virtual HashSet<string>? IgnoredQueryFilters { get; internal set; }
 
     /// <summary>
     ///     A value indicating whether eager loaded navigations are ignored in this query.
@@ -149,6 +159,14 @@ public class QueryCompilationContext
         => Tags.Add(tag);
 
     /// <summary>
+    ///     A value indicating whether the provider supports precompiled query. Default value is <see langword="false" />. Providers that do
+    ///     support this feature should opt-in by setting this value to <see langword="true" />.
+    /// </summary>
+    [Experimental(EFDiagnostics.PrecompiledQueryExperimental)]
+    public virtual bool SupportsPrecompiledQuery
+        => false;
+
+    /// <summary>
     ///     Creates the query executor func which gives results for this query.
     /// </summary>
     /// <typeparam name="TResult">The result type of this query.</typeparam>
@@ -156,33 +174,51 @@ public class QueryCompilationContext
     /// <returns>Returns <see cref="Func{QueryContext, TResult}" /> which can be invoked to get results of this query.</returns>
     public virtual Func<QueryContext, TResult> CreateQueryExecutor<TResult>(Expression query)
     {
-        Logger.QueryCompilationStarting(_expressionPrinter, query);
+        var queryExecutorExpression = CreateQueryExecutorExpression<TResult>(query);
 
-        query = _queryTranslationPreprocessorFactory.Create(this).Process(query);
-        // Convert EntityQueryable to ShapedQueryExpression
-        query = _queryableMethodTranslatingExpressionVisitorFactory.Create(this).Visit(query);
-        query = _queryTranslationPostprocessorFactory.Create(this).Process(query);
-
-        // Inject actual entity materializer
-        // Inject tracking
-        query = _shapedQueryCompilingExpressionVisitorFactory.Create(this).Visit(query);
-
-        // If any additional parameters were added during the compilation phase (e.g. entity equality ID expression),
-        // wrap the query with code adding those parameters to the query context
-        query = InsertRuntimeParameters(query);
-
-        var queryExecutorExpression = Expression.Lambda<Func<QueryContext, TResult>>(
-            query,
-            QueryContextParameter);
+        // The materializer expression tree has liftable constant nodes, pointing to various constants that should be the same instances
+        // across invocations of the query.
+        // In normal mode, these nodes should simply be evaluated, and a ConstantExpression to those instances embedded directly in the
+        // tree (for precompiled queries we generate C# code for resolving those instances instead).
+        var queryExecutorAfterLiftingExpression =
+            (Expression<Func<QueryContext, TResult>>)Dependencies.LiftableConstantProcessor.InlineConstants(
+                queryExecutorExpression, SupportsPrecompiledQuery);
 
         try
         {
-            return queryExecutorExpression.Compile();
+            return queryExecutorAfterLiftingExpression.Compile();
         }
         finally
         {
-            Logger.QueryExecutionPlanned(_expressionPrinter, queryExecutorExpression);
+            Logger.QueryExecutionPlanned(Dependencies.Context, _expressionPrinter, queryExecutorExpression);
         }
+    }
+
+    /// <summary>
+    ///     Creates the query executor func which gives results for this query.
+    /// </summary>
+    /// <typeparam name="TResult">The result type of this query.</typeparam>
+    /// <param name="query">The query to generate executor for.</param>
+    /// <returns>Returns <see cref="Func{QueryContext, TResult}" /> which can be invoked to get results of this query.</returns>
+    [Experimental(EFDiagnostics.PrecompiledQueryExperimental)]
+    public virtual Expression<Func<QueryContext, TResult>> CreateQueryExecutorExpression<TResult>(Expression query)
+    {
+        var queryAndEventData = Logger.QueryCompilationStarting(Dependencies.Context, _expressionPrinter, query);
+        var interceptedQuery = queryAndEventData.Query;
+
+        var preprocessedQuery = _queryTranslationPreprocessorFactory.Create(this).Process(interceptedQuery);
+        var translatedQuery = _queryableMethodTranslatingExpressionVisitorFactory.Create(this).Translate(preprocessedQuery);
+        var postprocessedQuery = _queryTranslationPostprocessorFactory.Create(this).Process(translatedQuery);
+
+        var compiledQuery = _shapedQueryCompilingExpressionVisitorFactory.Create(this).Visit(postprocessedQuery);
+
+        // If any additional parameters were added during the compilation phase (e.g. entity equality ID expression),
+        // wrap the query with code adding those parameters to the query context
+        var compiledQueryWithRuntimeParameters = InsertRuntimeParameters(compiledQuery);
+
+        return Expression.Lambda<Func<QueryContext, TResult>>(
+            compiledQueryWithRuntimeParameters,
+            QueryContextParameter);
     }
 
     /// <summary>
@@ -190,18 +226,26 @@ public class QueryCompilationContext
     ///     A lambda must be provided, which will extract the parameter's value from the QueryContext every time
     ///     the query is executed.
     /// </summary>
-    public virtual ParameterExpression RegisterRuntimeParameter(string name, LambdaExpression valueExtractor)
+    public virtual QueryParameterExpression RegisterRuntimeParameter(string name, LambdaExpression valueExtractor)
     {
+        var valueExtractorBody = valueExtractor.Body;
+        if (SupportsPrecompiledQuery)
+        {
+            valueExtractorBody = _runtimeParameterConstantLifter.Visit(valueExtractorBody);
+        }
+
+        valueExtractor = Expression.Lambda(valueExtractorBody, valueExtractor.Parameters);
+
         if (valueExtractor.Parameters.Count != 1
             || valueExtractor.Parameters[0] != QueryContextParameter)
         {
             throw new ArgumentException(CoreStrings.RuntimeParameterMissingParameter, nameof(valueExtractor));
         }
 
-        _runtimeParameters ??= new Dictionary<string, LambdaExpression>();
+        _runtimeParameters ??= [];
 
         _runtimeParameters[name] = valueExtractor;
-        return Expression.Parameter(valueExtractor.ReturnType, name);
+        return new QueryParameterExpression(name, valueExtractor.ReturnType);
     }
 
     private Expression InsertRuntimeParameters(Expression query)
@@ -209,24 +253,80 @@ public class QueryCompilationContext
             ? query
             : Expression.Block(
                 _runtimeParameters
-                    .Select(
-                        kv =>
-                            Expression.Call(
+                    .Select(kv =>
+                        Expression.Call(
+                            Expression.Property(
                                 QueryContextParameter,
-                                QueryContextAddParameterMethodInfo,
-                                Expression.Constant(kv.Key),
-                                Expression.Convert(Expression.Invoke(kv.Value, QueryContextParameter), typeof(object))))
+                                QueryContextParametersProperty),
+                            ParameterDictionaryAddMethod,
+                            Expression.Constant(kv.Key),
+                            Expression.Convert(Expression.Invoke(kv.Value, QueryContextParameter), typeof(object))))
                     .Append(query));
 
-    private static readonly MethodInfo QueryContextAddParameterMethodInfo
-        = typeof(QueryContext).GetTypeInfo().GetDeclaredMethod(nameof(QueryContext.AddParameter))!;
+    private static readonly PropertyInfo QueryContextParametersProperty
+        = typeof(QueryContext).GetProperty(nameof(QueryContext.Parameters))!;
 
-    private sealed class NotTranslatedExpressionType : Expression
+    private static readonly MethodInfo ParameterDictionaryAddMethod
+        = typeof(Dictionary<string, object?>).GetMethod(nameof(Dictionary<,>.Add))!;
+
+    [DebuggerDisplay("{Microsoft.EntityFrameworkCore.Query.ExpressionPrinter.Print(this), nq}")]
+    private sealed class NotTranslatedExpressionType : Expression, IPrintableExpression
     {
         public override Type Type
             => typeof(object);
 
         public override ExpressionType NodeType
             => ExpressionType.Extension;
+
+        void IPrintableExpression.Print(ExpressionPrinter expressionPrinter)
+            => expressionPrinter.Append("!!! NotTranslated !!!");
+    }
+
+    private sealed class RuntimeParameterConstantLifter(ILiftableConstantFactory liftableConstantFactory) : ExpressionVisitor
+    {
+        private static readonly MethodInfo ComplexPropertyListElementAddMethod =
+            typeof(List<IComplexProperty>).GetMethod(nameof(List<>.Add))!;
+
+        protected override Expression VisitConstant(ConstantExpression constantExpression)
+        {
+            switch (constantExpression.Value)
+            {
+                case IProperty property:
+                {
+                    return liftableConstantFactory.CreateLiftableConstant(
+                        constantExpression.Value,
+                        LiftableConstantExpressionHelpers.BuildMemberAccessLambdaForProperty(property),
+                        property.Name + "Property",
+                        typeof(IProperty));
+                }
+
+                case List<IComplexProperty> complexPropertyChain:
+                {
+                    var elementInitExpressions = new ElementInit[complexPropertyChain.Count];
+                    var prm = Expression.Parameter(typeof(MaterializerLiftableConstantContext));
+
+                    for (var i = 0; i < complexPropertyChain.Count; i++)
+                    {
+                        var complexType = complexPropertyChain[i].ComplexType;
+                        var complexTypeExpression =
+                            LiftableConstantExpressionHelpers.BuildMemberAccessForEntityOrComplexType(complexType, prm);
+                        elementInitExpressions[i] = Expression.ElementInit(
+                            ComplexPropertyListElementAddMethod,
+                            Expression.Property(complexTypeExpression, nameof(IComplexType.ComplexProperty)));
+                    }
+
+                    return liftableConstantFactory.CreateLiftableConstant(
+                        constantExpression.Value,
+                        Expression.Lambda<Func<MaterializerLiftableConstantContext, object>>(
+                            Expression.ListInit(Expression.New(typeof(List<IComplexProperty>)), elementInitExpressions),
+                            prm),
+                        "ComplexPropertyChain",
+                        constantExpression.Type);
+                }
+
+                default:
+                    return base.VisitConstant(constantExpression);
+            }
+        }
     }
 }

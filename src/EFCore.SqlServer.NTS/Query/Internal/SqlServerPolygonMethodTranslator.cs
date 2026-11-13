@@ -15,7 +15,7 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
 public class SqlServerPolygonMethodTranslator : IMethodCallTranslator
 {
     private static readonly MethodInfo GetInteriorRingN = typeof(Polygon).GetRuntimeMethod(
-        nameof(Polygon.GetInteriorRingN), new[] { typeof(int) })!;
+        nameof(Polygon.GetInteriorRingN), [typeof(int)])!;
 
     private readonly IRelationalTypeMappingSource _typeMappingSource;
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
@@ -52,38 +52,33 @@ public class SqlServerPolygonMethodTranslator : IMethodCallTranslator
             var storeType = instance.TypeMapping.StoreType;
             var isGeography = string.Equals(storeType, "geography", StringComparison.OrdinalIgnoreCase);
 
-            if (isGeography)
-            {
-                return _sqlExpressionFactory.Function(
+            return isGeography
+                ? _sqlExpressionFactory.Function(
                     instance,
                     "RingN",
-                    new[]
-                    {
+                    [
                         _sqlExpressionFactory.Add(
                             arguments[0],
                             _sqlExpressionFactory.Constant(2))
-                    },
+                    ],
                     nullable: true,
                     instancePropagatesNullability: true,
-                    argumentsPropagateNullability: new[] { true },
+                    argumentsPropagateNullability: Statics.TrueArrays[1],
+                    method.ReturnType,
+                    _typeMappingSource.FindMapping(method.ReturnType, storeType))
+                : _sqlExpressionFactory.Function(
+                    instance,
+                    "STInteriorRingN",
+                    [
+                        _sqlExpressionFactory.Add(
+                            arguments[0],
+                            _sqlExpressionFactory.Constant(1))
+                    ],
+                    nullable: true,
+                    instancePropagatesNullability: true,
+                    argumentsPropagateNullability: Statics.TrueArrays[1],
                     method.ReturnType,
                     _typeMappingSource.FindMapping(method.ReturnType, storeType));
-            }
-
-            return _sqlExpressionFactory.Function(
-                instance,
-                "STInteriorRingN",
-                new[]
-                {
-                    _sqlExpressionFactory.Add(
-                        arguments[0],
-                        _sqlExpressionFactory.Constant(1))
-                },
-                nullable: true,
-                instancePropagatesNullability: true,
-                argumentsPropagateNullability: new[] { true },
-                method.ReturnType,
-                _typeMappingSource.FindMapping(method.ReturnType, storeType));
         }
 
         return null;

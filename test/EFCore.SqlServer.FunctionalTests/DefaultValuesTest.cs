@@ -3,13 +3,13 @@
 
 namespace Microsoft.EntityFrameworkCore;
 
-public class DefaultValuesTest : IDisposable
+public class DefaultValuesTest : IAsyncLifetime
 {
     private readonly IServiceProvider _serviceProvider = new ServiceCollection()
         .AddEntityFrameworkSqlServer()
         .BuildServiceProvider(validateScopes: true);
 
-    [ConditionalFact]
+    [Fact]
     public void Can_use_SQL_Server_default_values()
     {
         using (var context = new ChipsContext(_serviceProvider, TestStore.Name))
@@ -39,19 +39,16 @@ public class DefaultValuesTest : IDisposable
         }
     }
 
-    private class ChipsContext : DbContext
+    private class ChipsContext(IServiceProvider serviceProvider, string databaseName) : DbContext
     {
-        private readonly IServiceProvider _serviceProvider;
-        private readonly string _databaseName;
+        private readonly IServiceProvider _serviceProvider = serviceProvider;
+        private readonly string _databaseName = databaseName;
 
-        public ChipsContext(IServiceProvider serviceProvider, string databaseName)
-        {
-            _serviceProvider = serviceProvider;
-            _databaseName = databaseName;
-        }
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        public DbSet<KettleChips> Chips { get; set; } = null!;
 
-        public DbSet<KettleChips> Chips { get; set; }
-        public DbSet<Chipper> Chippers { get; set; }
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        public DbSet<Chipper> Chippers { get; set; } = null!;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder
@@ -59,41 +56,38 @@ public class DefaultValuesTest : IDisposable
                 .UseInternalServiceProvider(_serviceProvider);
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<KettleChips>(
-                b =>
-                {
-                    b.Property(e => e.BestBuyDate)
-                        .ValueGeneratedOnAdd()
-                        .HasDefaultValue(new DateTime(2035, 9, 25));
+            => modelBuilder.Entity<KettleChips>(b =>
+            {
+                b.Property(e => e.BestBuyDate)
+                    .ValueGeneratedOnAdd()
+                    .HasDefaultValue(new DateTime(2035, 9, 25));
 
-                    b.Property(e => e.ChipperId)
-                        .IsRequired()
-                        .HasDefaultValue("Default");
-                });
+                b.Property(e => e.ChipperId)
+                    .IsRequired()
+                    .HasDefaultValue("Default");
+            });
     }
 
     private class KettleChips
     {
         public int Id { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         public DateTime BestBuyDate { get; set; }
-        public string ChipperId { get; set; }
+        public string ChipperId { get; set; } = null!;
 
-        public Chipper Manufacturer { get; set; }
+        public Chipper Manufacturer { get; set; } = null!;
     }
 
     private class Chipper
     {
-        public string Id { get; set; }
+        public string Id { get; set; } = null!;
     }
 
-    public DefaultValuesTest()
-    {
-        TestStore = SqlServerTestStore.CreateInitialized("DefaultValuesTest");
-    }
+    protected SqlServerTestStore TestStore { get; private set; } = null!;
 
-    protected SqlServerTestStore TestStore { get; }
+    public async ValueTask InitializeAsync()
+        => TestStore = await SqlServerTestStore.CreateInitializedAsync("DefaultValuesTest");
 
-    public virtual void Dispose()
-        => TestStore.Dispose();
+    public async ValueTask DisposeAsync()
+        => await TestStore.DisposeAsync();
 }

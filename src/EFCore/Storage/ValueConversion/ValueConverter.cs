@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -14,6 +15,10 @@ namespace Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 /// </remarks>
 public abstract class ValueConverter
 {
+    internal static readonly ConstructorInfo MappingHintsCtor
+        = typeof(ConverterMappingHints).GetConstructor(
+            [typeof(int?), typeof(int?), typeof(int?), typeof(bool?)])!;
+
     /// <summary>
     ///     Initializes a new instance of the <see cref="ValueConverter" /> class.
     /// </summary>
@@ -81,8 +86,8 @@ public abstract class ValueConverter
         bool convertsNulls,
         ConverterMappingHints? mappingHints = null)
     {
-        Check.NotNull(convertToProviderExpression, nameof(convertToProviderExpression));
-        Check.NotNull(convertFromProviderExpression, nameof(convertFromProviderExpression));
+        Check.NotNull(convertToProviderExpression);
+        Check.NotNull(convertFromProviderExpression);
 
         ConvertToProviderExpression = convertToProviderExpression;
         ConvertFromProviderExpression = convertFromProviderExpression;
@@ -180,20 +185,17 @@ public abstract class ValueConverter
         Type converterType,
         params Type[] supportedTypes)
     {
-        Check.NotNull(type, nameof(type));
-        Check.NotNull(converterType, nameof(converterType));
-        Check.NotEmpty(supportedTypes, nameof(supportedTypes));
+        Check.NotNull(type);
+        Check.NotNull(converterType);
+        Check.NotEmpty(supportedTypes);
 
-        if (!supportedTypes.Contains(type))
-        {
-            throw new InvalidOperationException(
+        return !supportedTypes.Contains(type)
+            ? throw new InvalidOperationException(
                 CoreStrings.ConverterBadType(
                     converterType.ShortDisplayName(),
                     type.ShortDisplayName(),
-                    string.Join(", ", supportedTypes.Select(t => $"'{t.ShortDisplayName()}'"))));
-        }
-
-        return type;
+                    string.Join(", ", supportedTypes.Select(t => $"'{t.ShortDisplayName()}'"))))
+            : type;
     }
 
     /// <summary>
@@ -223,6 +225,11 @@ public abstract class ValueConverter
                     secondConverter.ProviderClrType.ShortDisplayName()));
         }
 
+        if (!RuntimeFeature.IsDynamicCodeSupported)
+        {
+            throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel);
+        }
+
         var firstConverter
             = ProviderClrType.IsNullableType()
             && !secondConverter.ModelClrType.IsNullableType()
@@ -245,4 +252,17 @@ public abstract class ValueConverter
                 ? firstConverter.MappingHints
                 : secondConverter.MappingHints.With(firstConverter.MappingHints))!;
     }
+
+    /// <summary>
+    ///     The expression representing construction of this object.
+    /// </summary>
+    [Experimental(EFDiagnostics.PrecompiledQueryExperimental)]
+    public abstract Expression ConstructorExpression { get; }
+
+    /// <summary>
+    ///     The expression representing construction of this object without <see cref="ConverterMappingHints" />.
+    /// </summary>
+    [EntityFrameworkInternal, Experimental(EFDiagnostics.PrecompiledQueryExperimental)]
+    public virtual Expression ConstructorExpressionWithoutMappingHints
+        => ConstructorExpression;
 }

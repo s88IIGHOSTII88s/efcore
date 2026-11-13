@@ -60,7 +60,7 @@ public class CheckConstraintConvention : IEntityTypeBaseTypeChangedConvention, I
                 continue;
             }
 
-            constraintsToReattach ??= new List<IConventionCheckConstraint>();
+            constraintsToReattach ??= [];
 
             constraintsToReattach.Add(checkConstraint);
         }
@@ -117,7 +117,7 @@ public class CheckConstraintConvention : IEntityTypeBaseTypeChangedConvention, I
                                 baseCheckConstraint.EntityType.DisplayName()));
                     }
 
-                    checkConstraintsToBeRemoved ??= new List<IConventionCheckConstraint>();
+                    checkConstraintsToBeRemoved ??= [];
 
                     checkConstraintsToBeRemoved.Add(checkConstraint);
                     continue;
@@ -125,7 +125,7 @@ public class CheckConstraintConvention : IEntityTypeBaseTypeChangedConvention, I
 
                 if (baseCheckConstraint != null)
                 {
-                    checkConstraintsToBeDetached ??= new List<IConventionCheckConstraint>();
+                    checkConstraintsToBeDetached ??= [];
 
                     checkConstraintsToBeDetached.Add(checkConstraint);
                 }
@@ -144,7 +144,7 @@ public class CheckConstraintConvention : IEntityTypeBaseTypeChangedConvention, I
                 foreach (var checkConstraintToBeDetached in checkConstraintsToBeDetached)
                 {
                     var baseCheckConstraint = baseCheckConstraints[checkConstraintToBeDetached.ModelName];
-                    CheckConstraint.Attach(checkConstraintToBeDetached, baseCheckConstraint);
+                    CheckConstraint.MergeInto(checkConstraintToBeDetached, baseCheckConstraint);
 
                     checkConstraintToBeDetached.EntityType.RemoveCheckConstraint(checkConstraintToBeDetached.ModelName);
                 }
@@ -155,22 +155,14 @@ public class CheckConstraintConvention : IEntityTypeBaseTypeChangedConvention, I
     private static bool AreCompatible(IConventionCheckConstraint checkConstraint, IConventionCheckConstraint baseCheckConstraint)
     {
         var baseTable = StoreObjectIdentifier.Create(baseCheckConstraint.EntityType, StoreObjectType.Table);
-        if (baseTable == null)
-        {
-            return true;
-        }
-
-        if (checkConstraint.GetName(baseTable.Value) != baseCheckConstraint.GetName(baseTable.Value)
-            && checkConstraint.GetNameConfigurationSource() is ConfigurationSource nameConfigurationSource
-            && !nameConfigurationSource.OverridesStrictly(baseCheckConstraint.GetNameConfigurationSource()))
-        {
-            return false;
-        }
-
-        return CheckConstraint.AreCompatible(
-            checkConstraint,
-            baseCheckConstraint,
-            baseTable.Value,
-            shouldThrow: false);
+        return baseTable == null
+            || ((checkConstraint.GetName(baseTable.Value) == baseCheckConstraint.GetName(baseTable.Value)
+                    || !(checkConstraint.GetNameConfigurationSource() is { } nameConfigurationSource)
+                    || nameConfigurationSource.OverridesStrictly(baseCheckConstraint.GetNameConfigurationSource()))
+                && CheckConstraint.AreCompatible(
+                    checkConstraint,
+                    baseCheckConstraint,
+                    baseTable.Value,
+                    shouldThrow: false));
     }
 }

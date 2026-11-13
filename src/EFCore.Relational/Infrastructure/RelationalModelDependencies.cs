@@ -21,7 +21,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure;
 ///         your constructor so that an instance will be created and injected automatically by the
 ///         dependency injection container. To create an instance with some dependent services replaced,
 ///         first resolve the object from the dependency injection container, then replace selected
-///         services using the 'With...' methods. Do not call the constructor at any point in this process.
+///         services using the C# 'with' operator. Do not call the constructor at any point in this process.
 ///     </para>
 ///     <para>
 ///         The service lifetime is <see cref="ServiceLifetime.Singleton" />. This means that each
@@ -43,18 +43,20 @@ public sealed record RelationalModelDependencies
     ///     as new dependencies are added. Instead, use this type in your constructor so that an instance
     ///     will be created and injected automatically by the dependency injection container. To create
     ///     an instance with some dependent services replaced, first resolve the object from the dependency
-    ///     injection container, then replace selected services using the 'With...' methods. Do not call
+    ///     injection container, then replace selected services using the C# 'with' operator. Do not call
     ///     the constructor at any point in this process.
     /// </remarks>
     [EntityFrameworkInternal]
     public RelationalModelDependencies(
         IRowKeyValueFactoryFactory rowKeyValueFactoryFactory,
         IRowForeignKeyValueFactoryFactory foreignKeyRowValueFactorySource,
-        IRowIndexValueFactoryFactory rowIndexValueFactoryFactory)
+        IRowIndexValueFactoryFactory rowIndexValueFactoryFactory,
+        IValueConverterSelector valueConverterSelector)
     {
         RowKeyValueFactoryFactory = rowKeyValueFactoryFactory;
         RowForeignKeyValueFactoryFactory = foreignKeyRowValueFactorySource;
         RowIndexValueFactoryFactory = rowIndexValueFactoryFactory;
+        ValueConverterSelector = valueConverterSelector;
     }
 
     /// <summary>
@@ -83,4 +85,13 @@ public sealed record RelationalModelDependencies
     /// </summary>
     [EntityFrameworkInternal]
     public IRowIndexValueFactoryFactory RowIndexValueFactoryFactory { get; init; }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [EntityFrameworkInternal]
+    public IValueConverterSelector ValueConverterSelector { get; init; }
 }

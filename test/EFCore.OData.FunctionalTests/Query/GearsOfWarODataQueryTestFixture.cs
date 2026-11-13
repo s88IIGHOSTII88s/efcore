@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.EntityFrameworkCore.TestModels.GearsOfWarModel;
@@ -10,15 +10,14 @@ namespace Microsoft.EntityFrameworkCore.Query;
 
 public class GearsOfWarODataQueryTestFixture : GearsOfWarQuerySqlServerFixture, IODataQueryTestFixture
 {
-    private IHost _selfHostServer;
+    private IHost? _selfHostServer;
 
-    protected override string StoreName { get; } = "ODataGearsOfWarQueryTest";
+    protected override string StoreName
+        => "ODataGearsOfWarQueryTest";
 
     public GearsOfWarODataQueryTestFixture()
-    {
-        (BaseAddress, ClientFactory, _selfHostServer)
+        => (BaseAddress, ClientFactory, _selfHostServer)
             = ODataQueryTestFixtureInitializer.Initialize<GearsOfWarODataContext>(StoreName, GetEdmModel());
-    }
 
     private static IEdmModel GetEdmModel()
     {
@@ -45,7 +44,7 @@ public class GearsOfWarODataQueryTestFixture : GearsOfWarQuerySqlServerFixture, 
 
     public IHttpClientFactory ClientFactory { get; }
 
-    public override async Task DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         if (_selfHostServer != null)
         {

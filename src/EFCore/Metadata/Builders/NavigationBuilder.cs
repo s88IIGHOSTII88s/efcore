@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
+using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -30,7 +31,7 @@ public class NavigationBuilder : IInfrastructure<IConventionSkipNavigationBuilde
     [EntityFrameworkInternal]
     public NavigationBuilder(IMutableNavigationBase navigationOrSkipNavigation)
     {
-        Check.NotNull(navigationOrSkipNavigation, nameof(navigationOrSkipNavigation));
+        Check.NotNull(navigationOrSkipNavigation);
 
         InternalNavigationBuilder = (navigationOrSkipNavigation as Navigation)?.Builder;
         InternalSkipNavigationBuilder = (navigationOrSkipNavigation as SkipNavigation)?.Builder;
@@ -60,7 +61,7 @@ public class NavigationBuilder : IInfrastructure<IConventionSkipNavigationBuilde
     /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
     public virtual NavigationBuilder HasAnnotation(string annotation, object? value)
     {
-        Check.NotEmpty(annotation, nameof(annotation));
+        Check.NotEmpty(annotation);
 
         if (InternalNavigationBuilder != null)
         {
@@ -144,23 +145,43 @@ public class NavigationBuilder : IInfrastructure<IConventionSkipNavigationBuilde
     }
 
     /// <summary>
+    ///     Configures whether this navigation should be enabled for lazy-loading. Note that a property can only be lazy-loaded
+    ///     if a lazy-loading mechanism such as lazy-loading proxies or <see cref="ILazyLoader" /> injection has been configured.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-lazy-loading">Lazy loading</see> for more information and examples.
+    ///     </para>
+    /// </remarks>
+    /// <param name="lazyLoadingEnabled">A value indicating if the navigation should be enabled for lazy-loading.</param>
+    /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
+    public virtual NavigationBuilder EnableLazyLoading(bool lazyLoadingEnabled = true)
+    {
+        if (InternalNavigationBuilder != null)
+        {
+            InternalNavigationBuilder.EnableLazyLoading(lazyLoadingEnabled, ConfigurationSource.Explicit);
+        }
+        else
+        {
+            InternalSkipNavigationBuilder!.EnableLazyLoading(lazyLoadingEnabled, ConfigurationSource.Explicit);
+        }
+
+        return this;
+    }
+
+    /// <summary>
     ///     Configures whether this navigation is required.
     /// </summary>
     /// <param name="required">A value indicating whether the navigation should be required.</param>
     /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
     public virtual NavigationBuilder IsRequired(bool required = true)
     {
-        if (InternalNavigationBuilder != null)
-        {
-            InternalNavigationBuilder = InternalNavigationBuilder.IsRequired(required, ConfigurationSource.Explicit);
-        }
-        else
-        {
-            throw new InvalidOperationException(
+        InternalNavigationBuilder = InternalNavigationBuilder != null
+            ? InternalNavigationBuilder.IsRequired(required, ConfigurationSource.Explicit)
+            : throw new InvalidOperationException(
                 CoreStrings.RequiredSkipNavigation(
                     InternalSkipNavigationBuilder!.Metadata.DeclaringEntityType.DisplayName(),
                     InternalSkipNavigationBuilder.Metadata.Name));
-        }
 
         return this;
     }

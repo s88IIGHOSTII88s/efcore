@@ -1,8 +1,10 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Diagnostics.CodeAnalysis;
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using Microsoft.EntityFrameworkCore.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Infrastructure.Internal;
 
@@ -12,10 +14,22 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure.Internal;
 ///     any release. You should only use it directly in your code with extreme caution and knowing that
 ///     doing so can result in application failures when updating to a new Entity Framework Core release.
 /// </summary>
-public class LazyLoader : ILazyLoader
+public class LazyLoader : ILazyLoader, IInjectableService
 {
+    private QueryTrackingBehavior? _queryTrackingBehavior;
     private bool _disposed;
-    private IDictionary<string, bool>? _loadedStates;
+    private bool _detached;
+    private readonly ConcurrentDictionary<string, bool> _loadedStates = new();
+    private readonly Lock _isLoadingLock = new();
+
+    private readonly Dictionary<(object Entity, string NavigationName), TaskCompletionSource> _isLoading =
+    [
+        with(
+            NavEntryEqualityComparer.Instance)
+    ];
+
+    private static readonly AsyncLocal<int> _isLoadingCallDepth = new();
+    private HashSet<string>? _nonLazyNavigations;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -37,15 +51,34 @@ public class LazyLoader : ILazyLoader
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    public virtual void Injected(DbContext context, object entity, QueryTrackingBehavior? queryTrackingBehavior, ITypeBase structuralType)
+    {
+        _queryTrackingBehavior = queryTrackingBehavior;
+        _nonLazyNavigations ??= InitNavigationsMetadata(
+            structuralType as IEntityType
+            ?? throw new NotImplementedException("Navigations on complex types are not supported"));
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
     public virtual void SetLoaded(
         object entity,
         [CallerMemberName] string navigationName = "",
         bool loaded = true)
-    {
-        _loadedStates ??= new Dictionary<string, bool>();
+        => _loadedStates[navigationName] = loaded;
 
-        _loadedStates[navigationName] = loaded;
-    }
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual bool IsLoaded(object entity, string navigationName = "")
+        => _loadedStates.TryGetValue(navigationName, out var loaded) && loaded;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -61,7 +94,7 @@ public class LazyLoader : ILazyLoader
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    protected virtual DbContext Context { get; }
+    protected virtual DbContext? Context { get; set; }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -72,19 +105,66 @@ public class LazyLoader : ILazyLoader
     // ReSharper disable once AssignNullToNotNullAttribute
     public virtual void Load(object entity, [CallerMemberName] string navigationName = "")
     {
-        Check.NotNull(entity, nameof(entity));
-        Check.NotEmpty(navigationName, nameof(navigationName));
+        Check.NotNull(entity);
+        Check.NotEmpty(navigationName);
 
-        if (ShouldLoad(entity, navigationName, out var entry))
+        var navEntry = (entity, navigationName);
+
+        bool exists;
+        TaskCompletionSource isLoadingValue;
+
+        lock (_isLoadingLock)
         {
-            try
+            ref var refIsLoadingValue = ref CollectionsMarshal.GetValueRefOrAddDefault(_isLoading, navEntry, out exists);
+            if (!exists)
             {
-                entry.Load();
+                refIsLoadingValue = new TaskCompletionSource();
             }
-            catch
+
+            isLoadingValue = refIsLoadingValue!;
+        }
+
+        _isLoadingCallDepth.Value++;
+
+        if (exists)
+        {
+            // Only waits for the outermost call on the call stack. See #35528.
+            // if _isLoadingCallDepth.Value > 1 the call is recursive, waiting probably generates a deadlock See #35832.
+            if (_isLoadingCallDepth.Value == 1)
             {
-                SetLoaded(entity, navigationName, false);
-                throw;
+                isLoadingValue.Task.Wait();
+            }
+
+            _isLoadingCallDepth.Value--;
+            return;
+        }
+
+        try
+        {
+            // ShouldLoad is called after _isLoading.Add because it could attempt to load the property. See #13138.
+            if (ShouldLoad(entity, navigationName, out var entry))
+            {
+                try
+                {
+                    entry.Load(
+                        _queryTrackingBehavior == QueryTrackingBehavior.NoTrackingWithIdentityResolution
+                            ? LoadOptions.ForceIdentityResolution
+                            : LoadOptions.None);
+                }
+                catch
+                {
+                    ResetIsLoaded(entry);
+                    throw;
+                }
+            }
+        }
+        finally
+        {
+            isLoadingValue.TrySetResult();
+            _isLoadingCallDepth.Value--;
+            lock (_isLoadingLock)
+            {
+                _isLoading.Remove(navEntry);
             }
         }
     }
@@ -100,56 +180,119 @@ public class LazyLoader : ILazyLoader
         CancellationToken cancellationToken = default,
         [CallerMemberName] string navigationName = "")
     {
-        Check.NotNull(entity, nameof(entity));
-        Check.NotEmpty(navigationName, nameof(navigationName));
+        Check.NotNull(entity);
+        Check.NotEmpty(navigationName);
 
-        if (ShouldLoad(entity, navigationName, out var entry))
+        var navEntry = (entity, navigationName);
+
+        bool exists;
+        TaskCompletionSource isLoadingValue;
+
+        lock (_isLoadingLock)
         {
-            try
+            ref var refIsLoadingValue = ref CollectionsMarshal.GetValueRefOrAddDefault(_isLoading, navEntry, out exists);
+            if (!exists)
             {
-                await entry.LoadAsync(cancellationToken).ConfigureAwait(false);
+                refIsLoadingValue = new TaskCompletionSource();
             }
-            catch
+
+            isLoadingValue = refIsLoadingValue!;
+        }
+
+        _isLoadingCallDepth.Value++;
+
+        if (exists)
+        {
+            // Only waits for the outermost call on the call stack. See #35528.
+            // if _isLoadingCallDepth.Value > 1 the call is recursive, waiting probably generates a deadlock See #35832.
+            if (_isLoadingCallDepth.Value == 1)
             {
-                SetLoaded(entity, navigationName, false);
-                throw;
+                await isLoadingValue.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
+
+            _isLoadingCallDepth.Value--;
+            return;
+        }
+
+        try
+        {
+            // ShouldLoad is called after _isLoading.Add because it could attempt to load the property. See #13138.
+            if (ShouldLoad(entity, navigationName, out var entry))
+            {
+                try
+                {
+                    await entry.LoadAsync(
+                        _queryTrackingBehavior == QueryTrackingBehavior.NoTrackingWithIdentityResolution
+                            ? LoadOptions.ForceIdentityResolution
+                            : LoadOptions.None,
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch
+                {
+                    ResetIsLoaded(entry);
+                    throw;
+                }
+            }
+        }
+        finally
+        {
+            isLoadingValue.TrySetResult();
+            _isLoadingCallDepth.Value--;
+            lock (_isLoadingLock)
+            {
+                _isLoading.Remove(navEntry);
+            }
+        }
+    }
+
+    private sealed class NavEntryEqualityComparer : IEqualityComparer<(object Entity, string NavigationName)>
+    {
+        public static readonly NavEntryEqualityComparer Instance = new();
+
+        private NavEntryEqualityComparer()
+        {
+        }
+
+        public bool Equals((object Entity, string NavigationName) x, (object Entity, string NavigationName) y)
+            => ReferenceEquals(x.Entity, y.Entity)
+                && string.Equals(x.NavigationName, y.NavigationName, StringComparison.Ordinal);
+
+        public int GetHashCode((object Entity, string NavigationName) obj)
+            => HashCode.Combine(RuntimeHelpers.GetHashCode(obj.Entity), obj.NavigationName.GetHashCode());
+    }
+
+    // A reference that fix-up already set to an entity can't be marked as not loaded, and trying to would throw
+    // and hide the exception that made the load fail. See #34167.
+    private static void ResetIsLoaded(NavigationEntry entry)
+    {
+        if (entry.Metadata.IsCollection
+            || entry.CurrentValue == null)
+        {
+            entry.IsLoaded = false;
         }
     }
 
     private bool ShouldLoad(object entity, string navigationName, [NotNullWhen(true)] out NavigationEntry? navigationEntry)
     {
-        if (_loadedStates != null
-            && _loadedStates.TryGetValue(navigationName, out var loaded)
-            && loaded)
+        if (!_detached && !IsLoaded(entity, navigationName))
         {
-            navigationEntry = null;
-            return false;
-        }
-
-        if (_disposed)
-        {
-            Logger.LazyLoadOnDisposedContextWarning(Context, entity, navigationName);
-        }
-        else if (Context.ChangeTracker.LazyLoadingEnabled)
-        {
-            // Set early to avoid recursive loading overflow
-            SetLoaded(entity, navigationName, loaded: true);
-
-            var entityEntry = Context.Entry(entity); // Will use local-DetectChanges, if enabled.
-            var tempNavigationEntry = entityEntry.Navigation(navigationName);
-
-            if (entityEntry.State == EntityState.Detached)
+            if (_nonLazyNavigations == null
+                || !_nonLazyNavigations.Contains(navigationName))
             {
-                Logger.DetachedLazyLoadingWarning(Context, entity, navigationName);
-            }
-            else if (!tempNavigationEntry.IsLoaded)
-            {
-                Logger.NavigationLazyLoading(Context, entity, navigationName);
+                if (_disposed)
+                {
+                    Logger.LazyLoadOnDisposedContextWarning(Context, entity, navigationName);
+                }
+                else if (Context!.ChangeTracker.LazyLoadingEnabled)
+                {
+                    navigationEntry = Context.Entry(entity).Navigation(navigationName); // Will use local-DetectChanges, if enabled.
+                    if (!navigationEntry.IsLoaded) // Check again because the nav may be loaded without the loader knowing
+                    {
+                        Logger.NavigationLazyLoading(Context, entity, navigationName);
 
-                navigationEntry = tempNavigationEntry;
-
-                return true;
+                        return true;
+                    }
+                }
             }
         }
 
@@ -164,5 +307,43 @@ public class LazyLoader : ILazyLoader
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual void Dispose()
-        => _disposed = true;
+    {
+        Context = null;
+        _disposed = true;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual bool Detaching(DbContext context, object entity)
+    {
+        _detached = true;
+        Dispose();
+        return false;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual void Attaching(DbContext context, IEntityType entityType, object entity)
+    {
+        _disposed = false;
+        _detached = false;
+        Context = context;
+        _nonLazyNavigations ??= InitNavigationsMetadata(entityType);
+    }
+
+    private HashSet<string> InitNavigationsMetadata(IEntityType entityType)
+        => entityType!.GetNavigations()
+            .Cast<INavigationBase>()
+            .Concat(entityType.GetSkipNavigations())
+            .Where(n => !n.LazyLoadingEnabled)
+            .Select(t => t.Name)
+            .ToHashSet();
 }

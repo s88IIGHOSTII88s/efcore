@@ -4,8 +4,13 @@
 using System.Collections;
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Text;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Editing;
 using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.EntityFrameworkCore.Query.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Design.Internal;
 
@@ -18,6 +23,8 @@ namespace Microsoft.EntityFrameworkCore.Design.Internal;
 public class CSharpHelper : ICSharpHelper
 {
     private readonly ITypeMappingSource _typeMappingSource;
+    private readonly Project _project;
+    private readonly RuntimeModelLinqToCSharpSyntaxTranslator _translator;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -28,10 +35,18 @@ public class CSharpHelper : ICSharpHelper
     public CSharpHelper(ITypeMappingSource typeMappingSource)
     {
         _typeMappingSource = typeMappingSource;
+
+        var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var versionStamp = VersionStamp.Create();
+        var projectInfo = ProjectInfo.Create(projectId, versionStamp, "Proj", "Proj", LanguageNames.CSharp);
+        _project = workspace.AddProject(projectInfo);
+        var syntaxGenerator = SyntaxGenerator.GetGenerator(workspace, LanguageNames.CSharp);
+        _translator = new RuntimeModelLinqToCSharpSyntaxTranslator(syntaxGenerator);
     }
 
-    private static readonly IReadOnlyCollection<string> Keywords = new[]
-    {
+    private static readonly IReadOnlyCollection<string> Keywords =
+    [
         "__arglist",
         "__makeref",
         "__reftype",
@@ -113,7 +128,7 @@ public class CSharpHelper : ICSharpHelper
         "void",
         "volatile",
         "while"
-    };
+    ];
 
     private static readonly IReadOnlyDictionary<Type, Func<CSharpHelper, object, string>> LiteralFuncs =
         new Dictionary<Type, Func<CSharpHelper, object, string>>
@@ -131,7 +146,8 @@ public class CSharpHelper : ICSharpHelper
             { typeof(Guid), (c, v) => c.Literal((Guid)v) },
             { typeof(int), (c, v) => c.Literal((int)v) },
             { typeof(long), (c, v) => c.Literal((long)v) },
-            { typeof(NestedClosureCodeFragment), (c, v) => c.Fragment((NestedClosureCodeFragment)v, 0) },
+            { typeof(NestedClosureCodeFragment), (c, v) => c.Fragment((NestedClosureCodeFragment)v) },
+            { typeof(PropertyAccessorCodeFragment), (c, v) => c.Fragment((PropertyAccessorCodeFragment)v) },
             { typeof(object[]), (c, v) => c.Literal((object[])v) },
             { typeof(object[,]), (c, v) => c.Literal((object[,])v) },
             { typeof(sbyte), (c, v) => c.Literal((sbyte)v) },
@@ -195,7 +211,7 @@ public class CSharpHelper : ICSharpHelper
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual bool ShouldUseFullName(Type type)
+    protected virtual bool ShouldUseFullName(Type type)
         => ShouldUseFullName(type.Name);
 
     /// <summary>
@@ -204,7 +220,7 @@ public class CSharpHelper : ICSharpHelper
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual bool ShouldUseFullName(string shortTypeName)
+    protected virtual bool ShouldUseFullName(string shortTypeName)
         => false;
 
     /// <summary>
@@ -214,6 +230,50 @@ public class CSharpHelper : ICSharpHelper
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual string Identifier(string name, ICollection<string>? scope = null, bool? capitalize = null)
+    {
+        var identifier = Identifier(name, capitalize);
+        if (scope == null)
+        {
+            return Keywords.Contains(identifier) ? "@" + identifier : identifier;
+        }
+
+        var uniqueIdentifier = Keywords.Contains(identifier) ? "@" + identifier : identifier;
+        var qualifier = 0;
+        while (scope.Contains(uniqueIdentifier))
+        {
+            uniqueIdentifier = identifier + qualifier++;
+        }
+
+        scope.Add(uniqueIdentifier);
+        identifier = uniqueIdentifier;
+
+        return identifier;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public string Identifier<T>(string name, T value, IDictionary<string, T> scope, bool? capitalize = null)
+    {
+        var identifier = Identifier(name, capitalize);
+
+        var uniqueIdentifier = Keywords.Contains(identifier) ? "@" + identifier : identifier;
+        var qualifier = 0;
+        while (scope.ContainsKey(uniqueIdentifier))
+        {
+            uniqueIdentifier = identifier + qualifier++;
+        }
+
+        scope.Add(uniqueIdentifier, value);
+        identifier = uniqueIdentifier;
+
+        return identifier;
+    }
+
+    private static string Identifier(string name, bool? capitalize)
     {
         var builder = new StringBuilder();
         var partStart = 0;
@@ -236,32 +296,16 @@ public class CSharpHelper : ICSharpHelper
             builder.Append(name[partStart..]);
         }
 
-        if (builder.Length == 0
-            || !IsIdentifierStartCharacter(builder[0]))
-        {
-            builder.Insert(0, '_');
-        }
-
         if (capitalize != null)
         {
             ChangeFirstLetterCase(builder, capitalize.Value);
         }
 
-        var identifier = builder.ToString();
-        if (scope != null)
-        {
-            var uniqueIdentifier = identifier;
-            var qualifier = 0;
-            while (scope.Contains(uniqueIdentifier))
-            {
-                uniqueIdentifier = identifier + qualifier++;
-            }
+        var candidateIdentifier = builder.ToString();
 
-            scope.Add(uniqueIdentifier);
-            identifier = uniqueIdentifier;
-        }
-
-        return Keywords.Contains(identifier) ? "@" + identifier : identifier;
+        return ModelValidator.IsValidIdentifier(candidateIdentifier)
+            ? candidateIdentifier
+            : "_" + candidateIdentifier;
     }
 
     private static void ChangeFirstLetterCase(StringBuilder builder, bool capitalize)
@@ -291,7 +335,7 @@ public class CSharpHelper : ICSharpHelper
     {
         var @namespace = new StringBuilder();
         foreach (var piece in name.Where(p => !string.IsNullOrEmpty(p))
-                     .SelectMany(p => p.Split(new[] { '.' }, StringSplitOptions.RemoveEmptyEntries)))
+                     .SelectMany(p => p.Split('.', StringSplitOptions.RemoveEmptyEntries)))
         {
             var identifier = Identifier(piece);
             if (!string.IsNullOrEmpty(identifier))
@@ -310,9 +354,22 @@ public class CSharpHelper : ICSharpHelper
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual string Literal(string value)
-        // do not use @"" syntax as in Migrations this can get indented at a newline and so add spaces to the literal
-        => "\"" + value.Replace(@"\", @"\\").Replace("\"", "\\\"").Replace("\n", @"\n").Replace("\r", @"\r") + "\"";
+    public virtual string Literal(string? value)
+        // do not output @"" syntax as in Migrations this can get indented at a newline and so add spaces to the literal
+        => value is not null
+            ? new StringBuilder(value)
+                .Replace("\\", @"\\")
+                .Replace("\0", @"\0")
+                .Replace("\n", @"\n")
+                .Replace("\r", @"\r")
+                .Replace("\"", "\\\"")
+                .Replace("\u2028", "\\u2028")
+                .Replace("\u2029", "\\u2029")
+                .Replace("\u0085", "\\u0085")
+                .Insert(0, '"')
+                .Append('"')
+                .ToString()
+            : "null";
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -330,7 +387,7 @@ public class CSharpHelper : ICSharpHelper
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual string Literal(byte value)
-        => "(byte)" + value;
+        => "(byte)" + value.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -339,7 +396,20 @@ public class CSharpHelper : ICSharpHelper
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual string Literal(char value)
-        => "\'" + (value == '\'' ? "\\'" : value.ToString()) + "\'";
+        => "\'"
+            + value switch
+            {
+                '\\' => @"\\",
+                '\0' => @"\0",
+                '\n' => @"\n",
+                '\r' => @"\r",
+                '\'' => @"\'",
+                '\u2028' => "\\u2028",
+                '\u2029' => "\\u2029",
+                '\u0085' => "\\u0085",
+                _ => value.ToString()
+            }
+            + "\'";
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -411,26 +481,17 @@ public class CSharpHelper : ICSharpHelper
     {
         var literal = number.ToString("G17", CultureInfo.InvariantCulture);
 
-        if (double.IsNaN(number))
-        {
-            return $"double.{nameof(double.NaN)}";
-        }
-
-        if (double.IsNegativeInfinity(number))
-        {
-            return $"double.{nameof(double.NegativeInfinity)}";
-        }
-
-        if (double.IsPositiveInfinity(number))
-        {
-            return $"double.{nameof(double.PositiveInfinity)}";
-        }
-
-        return !literal.Contains('E')
-            && !literal.Contains('e')
-            && !literal.Contains('.')
-                ? literal + ".0"
-                : literal;
+        return double.IsNaN(number)
+            ? $"double.{nameof(double.NaN)}"
+            : double.IsNegativeInfinity(number)
+                ? $"double.{nameof(double.NegativeInfinity)}"
+                : double.IsPositiveInfinity(number)
+                    ? $"double.{nameof(double.PositiveInfinity)}"
+                    : !literal.Contains('E')
+                    && !literal.Contains('e')
+                    && !literal.Contains('.')
+                        ? literal + ".0"
+                        : literal;
     }
 
     /// <summary>
@@ -440,7 +501,24 @@ public class CSharpHelper : ICSharpHelper
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual string Literal(float value)
-        => value.ToString(CultureInfo.InvariantCulture) + "f";
+    {
+        if (float.IsNaN(value))
+        {
+            return $"float.{nameof(float.NaN)}";
+        }
+
+        if (float.IsNegativeInfinity(value))
+        {
+            return $"float.{nameof(float.NegativeInfinity)}";
+        }
+
+        if (float.IsPositiveInfinity(value))
+        {
+            return $"float.{nameof(float.PositiveInfinity)}";
+        }
+
+        return value.ToString(CultureInfo.InvariantCulture) + "f";
+    }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -476,7 +554,7 @@ public class CSharpHelper : ICSharpHelper
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual string Literal(sbyte value)
-        => "(sbyte)" + value;
+        => "(sbyte)" + value.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -485,7 +563,7 @@ public class CSharpHelper : ICSharpHelper
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual string Literal(short value)
-        => "(short)" + value;
+        => "(short)" + value.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -541,7 +619,7 @@ public class CSharpHelper : ICSharpHelper
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual string Literal(uint value)
-        => value + "u";
+        => value.ToString(CultureInfo.InvariantCulture) + "u";
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -550,7 +628,7 @@ public class CSharpHelper : ICSharpHelper
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual string Literal(ulong value)
-        => value + "ul";
+        => value.ToString(CultureInfo.InvariantCulture) + "ul";
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -559,7 +637,7 @@ public class CSharpHelper : ICSharpHelper
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual string Literal(ushort value)
-        => "(ushort)" + value;
+        => "(ushort)" + value.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -623,6 +701,12 @@ public class CSharpHelper : ICSharpHelper
             else if (type == typeof(object))
             {
                 builder.Append(" object");
+            }
+            else if (Nullable.GetUnderlyingType(type) != null)
+            {
+                // Elements are emitted as their underlying type, so an implicitly-typed array would be inferred as
+                // the non-nullable type; emit the element type explicitly to keep the array type correct.
+                builder.Append(' ').Append(Reference(type));
             }
 
             if (vertical)
@@ -689,6 +773,54 @@ public class CSharpHelper : ICSharpHelper
         return builder.ToString();
     }
 
+    private string ValueTuple(ITuple tuple)
+    {
+        var builder = new StringBuilder();
+
+        Type[]? typeArguments = null;
+        var i = 0;
+
+        if (tuple.Length == 1)
+        {
+            builder.Append("ValueTuple.Create(");
+            AppendItem(tuple[i]);
+            builder.Append(')');
+
+            return builder.ToString();
+        }
+
+        builder.Append('(');
+
+        for (; i < tuple.Length; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append(", ");
+            }
+
+            AppendItem(tuple[i]);
+        }
+
+        builder.Append(')');
+
+        return builder.ToString();
+
+        void AppendItem(object? item)
+        {
+            if (item is null)
+            {
+                typeArguments ??= tuple.GetType().GenericTypeArguments;
+
+                builder
+                    .Append('(')
+                    .Append(Reference(typeArguments[i]))
+                    .Append(')');
+            }
+
+            builder.Append(UnknownLiteral(item));
+        }
+    }
+
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
     ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
@@ -743,14 +875,19 @@ public class CSharpHelper : ICSharpHelper
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual string Literal(Enum value)
-    {
-        var type = value.GetType();
-        var name = Enum.GetName(type, value);
+    public virtual string Literal<T>(List<T> values, bool vertical = false)
+        => List(typeof(T), values, vertical);
 
-        return name == null
-            ? GetCompositeEnumValue(type, value)
-            : GetSimpleEnumValue(type, name);
+    private string List(Type type, IEnumerable values, bool vertical = false)
+    {
+        var builder = new IndentedStringBuilder();
+
+        builder.Append("new List<")
+            .Append(Reference(type))
+            .Append(">");
+
+        return HandleEnumerable(
+            builder, vertical, values, value => builder.Append(UnknownLiteral(value)));
     }
 
     /// <summary>
@@ -759,8 +896,94 @@ public class CSharpHelper : ICSharpHelper
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    protected virtual string GetSimpleEnumValue(Type type, string name)
-        => Reference(type) + "." + name;
+    public virtual string Literal<TKey, TValue>(Dictionary<TKey, TValue> dict, bool vertical = false)
+        where TKey : notnull
+        => Dictionary(typeof(TKey), typeof(TValue), dict, vertical);
+
+    private string Dictionary(Type keyType, Type valueType, IDictionary dict, bool vertical = false)
+    {
+        var builder = new IndentedStringBuilder();
+
+        builder.Append("new Dictionary<")
+            .Append(Reference(keyType))
+            .Append(", ")
+            .Append(Reference(valueType))
+            .Append(">");
+
+        return HandleEnumerable(
+            builder, vertical, dict.Keys, key => builder.Append("[")
+                .Append(UnknownLiteral(key))
+                .Append("] = ")
+                .Append(UnknownLiteral(dict[key])));
+    }
+
+    private static string HandleEnumerable(IndentedStringBuilder builder, bool vertical, IEnumerable values, Action<object> handleValue)
+    {
+        var first = true;
+        foreach (var value in values)
+        {
+            if (first)
+            {
+                if (vertical)
+                {
+                    builder.AppendLine();
+                }
+                else
+                {
+                    builder.Append(" ");
+                }
+
+                builder.Append("{");
+                if (vertical)
+                {
+                    builder.AppendLine();
+                    builder.IncrementIndent();
+                }
+                else
+                {
+                    builder.Append(" ");
+                }
+
+                first = false;
+            }
+            else
+            {
+                builder.Append(",");
+
+                if (vertical)
+                {
+                    builder.AppendLine();
+                }
+                else
+                {
+                    builder.Append(" ");
+                }
+            }
+
+            handleValue(value);
+        }
+
+        if (first)
+        {
+            builder.Append("()");
+        }
+        else
+        {
+            if (vertical)
+            {
+                builder.AppendLine();
+                builder.DecrementIndent();
+            }
+            else
+            {
+                builder.Append(" ");
+            }
+
+            builder.Append("}");
+        }
+
+        return builder.ToString();
+    }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -768,7 +991,44 @@ public class CSharpHelper : ICSharpHelper
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    protected virtual string GetCompositeEnumValue(Type type, Enum flags)
+    public virtual string Literal(Enum value, bool fullName = false)
+    {
+        var type = value.GetType();
+        var name = Enum.GetName(type, value);
+
+        return name == null
+            ? type.IsDefined(typeof(FlagsAttribute), false)
+                ? GetCompositeEnumValue(type, value, fullName)
+                : GetUnnamedEnumValue(type, value)
+            : GetSimpleEnumValue(type, name, fullName);
+    }
+
+    private string GetUnnamedEnumValue(Type type, Enum value)
+    {
+        var underlyingLiteral = UnknownLiteral(Convert.ChangeType(value, Enum.GetUnderlyingType(type)));
+
+        // A negative value must be enclosed in parentheses, otherwise e.g. (MyEnum)-1 fails to compile (CS0075).
+        return underlyingLiteral.StartsWith('-')
+            ? $"({Reference(type)})({underlyingLiteral})"
+            : $"({Reference(type)}){underlyingLiteral}";
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    protected virtual string GetSimpleEnumValue(Type type, string name, bool fullName)
+        => Reference(type, fullName) + "." + name;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    protected virtual string GetCompositeEnumValue(Type type, Enum flags, bool fullName)
     {
         var allValues = new HashSet<Enum>(GetFlags(flags));
         foreach (var currentValue in allValues.ToList())
@@ -780,12 +1040,31 @@ public class CSharpHelper : ICSharpHelper
             }
         }
 
-        return allValues.Aggregate(
+        var composite = allValues.Aggregate(
             (string?)null,
             (previous, current) =>
                 previous == null
-                    ? GetSimpleEnumValue(type, Enum.GetName(type, current)!)
-                    : previous + " | " + GetSimpleEnumValue(type, Enum.GetName(type, current)!))!;
+                    ? GetSimpleEnumValue(type, Enum.GetName(type, current)!, fullName)
+                    : previous + " | " + GetSimpleEnumValue(type, Enum.GetName(type, current)!, fullName));
+        if (composite == null)
+        {
+            return GetUnnamedEnumValue(type, flags);
+        }
+
+        // Bits that don't correspond to any named flag must still be emitted, otherwise the generated value would differ
+        var unnamedBits = ToUInt64(flags) & ~allValues.Aggregate(0UL, (bits, current) => bits | ToUInt64(current));
+
+        return unnamedBits == 0
+            ? composite
+            : composite + " | " + GetUnnamedEnumValue(type, (Enum)Enum.ToObject(type, unnamedBits));
+
+        static ulong ToUInt64(Enum value)
+            => Type.GetTypeCode(Enum.GetUnderlyingType(value.GetType())) switch
+            {
+                TypeCode.SByte or TypeCode.Int16 or TypeCode.Int32 or TypeCode.Int64
+                    => unchecked((ulong)Convert.ToInt64(value, CultureInfo.InvariantCulture)),
+                _ => Convert.ToUInt64(value, CultureInfo.InvariantCulture)
+            };
     }
 
     internal static IReadOnlyCollection<Enum> GetFlags(Enum flags)
@@ -844,6 +1123,25 @@ public class CSharpHelper : ICSharpHelper
             return Array(literalType.GetElementType()!, array);
         }
 
+        if (value is ITuple tuple
+            && value.GetType().FullName?.StartsWith("System.ValueTuple`", StringComparison.Ordinal) == true)
+        {
+            return ValueTuple(tuple);
+        }
+
+        var valueType = value.GetType();
+        if (valueType is { IsGenericType: true, IsGenericTypeDefinition: false })
+        {
+            var genericArguments = valueType.GetGenericArguments();
+            switch (value)
+            {
+                case IList list when genericArguments.Length == 1 && valueType.GetGenericTypeDefinition() == typeof(List<>):
+                    return List(genericArguments[0], list);
+                case IDictionary dict when genericArguments.Length == 2 && valueType.GetGenericTypeDefinition() == typeof(Dictionary<,>):
+                    return Dictionary(genericArguments[0], genericArguments[1], dict);
+            }
+        }
+
         var mapping = _typeMappingSource.FindMapping(literalType);
         if (mapping != null)
         {
@@ -851,15 +1149,12 @@ public class CSharpHelper : ICSharpHelper
             var expression = mapping.GenerateCodeLiteral(value);
             var handled = HandleExpression(expression, builder);
 
-            if (!handled)
-            {
-                throw new NotSupportedException(
+            return !handled
+                ? throw new NotSupportedException(
                     DesignStrings.LiteralExpressionNotSupported(
                         expression.ToString(),
-                        literalType.ShortDisplayName()));
-            }
-
-            return builder.ToString();
+                        literalType.ShortDisplayName()))
+                : builder.ToString();
         }
 
         throw new InvalidOperationException(DesignStrings.UnknownLiteral(literalType));
@@ -883,12 +1178,18 @@ public class CSharpHelper : ICSharpHelper
 
                 return true;
             case ExpressionType.Convert:
-                builder
-                    .Append('(')
-                    .Append(Reference(expression.Type, fullName: true))
-                    .Append(')');
+            {
+                var unaryExpression = (UnaryExpression)expression;
+                if (unaryExpression.Method?.Name != "op_Implicit")
+                {
+                    builder
+                        .Append('(')
+                        .Append(Reference(expression.Type, fullName: true))
+                        .Append(')');
+                }
 
-                return HandleExpression(((UnaryExpression)expression).Operand, builder);
+                return HandleExpression(unaryExpression.Operand, builder);
+            }
             case ExpressionType.New:
                 builder
                     .Append("new ")
@@ -1006,32 +1307,36 @@ public class CSharpHelper : ICSharpHelper
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual string Fragment(MethodCallCodeFragment fragment, string? instanceIdentifier = null, bool typeQualified = false)
-        => Fragment(fragment, typeQualified, instanceIdentifier, indent: 0);
-
-    private string Fragment(MethodCallCodeFragment fragment, bool typeQualified, string? instanceIdentifier, int indent)
+    public virtual string Fragment(IMethodCallCodeFragment fragment, string? instanceIdentifier, bool typeQualified)
     {
-        var builder = new IndentedStringBuilder();
-        var current = fragment;
+        var builder = new StringBuilder();
 
         if (typeQualified)
         {
-            if (instanceIdentifier is null || fragment.MethodInfo is null || fragment.ChainedCall is not null)
+            if (instanceIdentifier is null || fragment.DeclaringType is null || fragment.ChainedCall is not null)
             {
                 throw new ArgumentException(DesignStrings.CannotGenerateTypeQualifiedMethodCall);
             }
 
             builder
-                .Append(fragment.DeclaringType!)
+                .Append(fragment.DeclaringType)
                 .Append('.')
                 .Append(fragment.Method)
                 .Append('(')
                 .Append(instanceIdentifier);
 
-            for (var i = 0; i < fragment.Arguments.Count; i++)
+            foreach (var argument in fragment.Arguments)
             {
                 builder.Append(", ");
-                Argument(fragment.Arguments[i]);
+
+                if (argument is NestedClosureCodeFragment nestedFragment)
+                {
+                    builder.Append(Fragment(nestedFragment, 1));
+                }
+                else
+                {
+                    builder.Append(UnknownLiteral(argument));
+                }
             }
 
             builder.Append(')');
@@ -1039,73 +1344,114 @@ public class CSharpHelper : ICSharpHelper
             return builder.ToString();
         }
 
-        // Non-type-qualified fragment
-
         if (instanceIdentifier is not null)
         {
             builder.Append(instanceIdentifier);
-
-            if (current.ChainedCall is not null)
-            {
-                builder
-                    .AppendLine()
-                    .IncrementIndent();
-            }
         }
 
-        while (true)
+        builder.Append(Fragment(fragment, indent: 1));
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual string Fragment(IMethodCallCodeFragment? fragment, int indent = 0)
+    {
+        if (fragment is null)
         {
-            builder
-                .Append('.')
-                .Append(current.Method)
-                .Append('(');
+            return string.Empty;
+        }
 
-            for (var i = 0; i < current.Arguments.Count; i++)
+        var builder = new IndentedStringBuilder();
+
+        if (fragment.ChainedCall is null)
+        {
+            AppendMethodCall(fragment);
+        }
+        else
+        {
+            for (var i = 0; i < indent; i++)
             {
-                if (i != 0)
-                {
-                    builder.Append(", ");
-                }
-
-                Argument(current.Arguments[i]);
+                builder.IncrementIndent();
             }
 
-            builder.Append(')');
-
-            if (current.ChainedCall is null)
+            var current = fragment;
+            do
             {
-                break;
-            }
+                builder.AppendLine();
+                AppendMethodCall(current);
 
-            builder.AppendLine();
-            current = current.ChainedCall;
+                current = current.ChainedCall;
+            }
+            while (current is not null);
         }
 
         return builder.ToString();
 
-        void Argument(object? argument)
+        void AppendMethodCall(IMethodCallCodeFragment current)
         {
-            if (argument is NestedClosureCodeFragment nestedFragment)
+            builder
+                .Append('.')
+                .Append(current.Method);
+
+            if (current.TypeArguments.Any())
             {
-                builder.Append(Fragment(nestedFragment, indent));
+                builder
+                    .Append("<")
+                    .Append(string.Join(", ", current.TypeArguments))
+                    .Append(">");
             }
-            else
+
+            builder
+                .Append('(');
+
+            var first = true;
+            foreach (var argument in current.Arguments)
             {
-                builder.Append(UnknownLiteral(argument));
+                if (first)
+                {
+                    first = false;
+                }
+                else
+                {
+                    builder.Append(", ");
+                }
+
+                if (argument is NestedClosureCodeFragment nestedFragment)
+                {
+                    builder.Append(Fragment(nestedFragment, indent + 1));
+                }
+                else
+                {
+                    builder.Append(UnknownLiteral(argument));
+                }
             }
+
+            builder.Append(')');
         }
     }
 
-    private string Fragment(NestedClosureCodeFragment fragment, int indent)
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual string Fragment(NestedClosureCodeFragment fragment, int indent = 0)
     {
         if (fragment.MethodCalls.Count == 1)
         {
-            return fragment.Parameter + " => " + Fragment(fragment.MethodCalls[0], typeQualified: false, fragment.Parameter, indent);
+            return fragment.Parameter + " => " + fragment.Parameter + Fragment(fragment.MethodCalls[0], indent);
         }
 
         var builder = new IndentedStringBuilder();
         builder.AppendLine(fragment.Parameter + " =>");
-        for (var i = -1; i < indent; i++)
+        for (var i = 0; i < indent - 1; i++)
         {
             builder.IncrementIndent();
         }
@@ -1115,85 +1461,207 @@ public class CSharpHelper : ICSharpHelper
         {
             foreach (var methodCall in fragment.MethodCalls)
             {
-                builder.AppendLines(Fragment(methodCall, typeQualified: false, fragment.Parameter, indent + 1), skipFinalNewline: true);
+                builder
+                    .Append(fragment.Parameter)
+                    .Append(Fragment(methodCall, indent + 1));
                 builder.AppendLine(";");
             }
         }
 
-        builder.AppendLine("}");
+        builder.Append("}");
 
         return builder.ToString();
     }
 
-    private static bool IsIdentifierStartCharacter(char ch)
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual string Fragment(PropertyAccessorCodeFragment fragment)
+        => Lambda(fragment.Properties, fragment.Parameter);
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual string Fragment(AttributeCodeFragment fragment)
     {
-        if (ch < 'a')
+        var builder = new StringBuilder();
+
+        var attributeName = fragment.Type.Name;
+        if (attributeName.EndsWith("Attribute", StringComparison.Ordinal))
         {
-            return ch >= 'A' && (ch <= 'Z'
-                || ch == '_');
+            attributeName = attributeName[..^9];
         }
 
-        if (ch <= 'z')
+        builder
+            .Append('[')
+            .Append(attributeName);
+
+        if (fragment.Arguments.Count != 0
+            || fragment.NamedArguments.Count != 0)
         {
-            return true;
+            builder.Append('(');
+
+            var first = true;
+            foreach (var value in fragment.Arguments)
+            {
+                if (!first)
+                {
+                    builder.Append(", ");
+                }
+                else
+                {
+                    first = false;
+                }
+
+                builder.Append(UnknownLiteral(value));
+            }
+
+            foreach (var item in fragment.NamedArguments)
+            {
+                if (!first)
+                {
+                    builder.Append(", ");
+                }
+                else
+                {
+                    first = false;
+                }
+
+                builder
+                    .Append(item.Key)
+                    .Append(" = ")
+                    .Append(UnknownLiteral(item.Value));
+            }
+
+            builder.Append(')');
         }
 
-        return ch > '\u007F' && IsLetterChar(CharUnicodeInfo.GetUnicodeCategory(ch));
+        builder.Append(']');
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual string XmlComment(string comment, int indent = 0)
+    {
+        var builder = new StringBuilder();
+
+        var first = true;
+        foreach (var line in comment.Split(["\r\n", "\r", "\n", "\u0085", "\u2028", "\u2029"], StringSplitOptions.None))
+        {
+            if (!first)
+            {
+                builder
+                    .AppendLine()
+                    .Append(' ', indent * 4)
+                    .Append("/// ");
+            }
+            else
+            {
+                first = false;
+            }
+
+            // Only escape the characters that are markup in XML text, so that quotes and apostrophes stay readable (#34714).
+            builder.Append(
+                line
+                    .Replace("&", "&amp;")
+                    .Replace("<", "&lt;")
+                    .Replace(">", "&gt;"));
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual string Arguments(IEnumerable<object> values)
+        => string.Join(", ", values.Select(UnknownLiteral));
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual IEnumerable<string> GetRequiredUsings(Type type)
+        => type.GetNamespaces();
+
+    private string ToSourceCode(SyntaxNode node)
+        => node.NormalizeWhitespace().ToFullString();
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual string Statement(
+        Expression node,
+        ISet<string> collectedNamespaces,
+        ISet<string> unsafeAccessors,
+        IReadOnlyDictionary<object, string>? constantReplacements,
+        IReadOnlyDictionary<MemberInfo, QualifiedName>? memberAccessReplacements)
+    {
+        var unsafeAccessorDeclarations = new HashSet<MethodDeclarationSyntax>();
+
+        var code = ToSourceCode(
+            _translator.TranslateStatement(
+                node,
+                constantReplacements,
+                memberAccessReplacements,
+                collectedNamespaces,
+                unsafeAccessorDeclarations));
+
+        // TODO: Possibly improve this (e.g. expose a single string that contains all the accessors concatenated?)
+        unsafeAccessors.UnionWith(unsafeAccessorDeclarations.Select(ToSourceCode));
+
+        return code;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual string Expression(
+        Expression node,
+        ISet<string> collectedNamespaces,
+        ISet<string> unsafeAccessors,
+        IReadOnlyDictionary<object, string>? constantReplacements,
+        IReadOnlyDictionary<MemberInfo, QualifiedName>? memberAccessReplacements)
+    {
+        var unsafeAccessorDeclarations = new HashSet<MethodDeclarationSyntax>();
+
+        var code = ToSourceCode(
+            _translator.TranslateExpression(
+                node,
+                constantReplacements,
+                memberAccessReplacements,
+                collectedNamespaces,
+                unsafeAccessorDeclarations));
+
+        // TODO: Possibly improve this (e.g. expose a single string that contains all the accessors concatenated?)
+        unsafeAccessors.UnionWith(unsafeAccessorDeclarations.Select(ToSourceCode));
+
+        return code;
     }
 
     private static bool IsIdentifierPartCharacter(char ch)
-    {
-        if (ch < 'a')
-        {
-            return ch < 'A'
-                ? ch >= '0'
-                && ch <= '9'
-                : ch <= 'Z'
-                || ch == '_';
-        }
-
-        if (ch <= 'z')
-        {
-            return true;
-        }
-
-        if (ch <= '\u007F')
-        {
-            return false;
-        }
-
-        var cat = CharUnicodeInfo.GetUnicodeCategory(ch);
-        if (IsLetterChar(cat))
-        {
-            return true;
-        }
-
-        switch (cat)
-        {
-            case UnicodeCategory.DecimalDigitNumber:
-            case UnicodeCategory.ConnectorPunctuation:
-            case UnicodeCategory.NonSpacingMark:
-            case UnicodeCategory.SpacingCombiningMark:
-            case UnicodeCategory.Format:
-                return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsLetterChar(UnicodeCategory cat)
-    {
-        switch (cat)
-        {
-            case UnicodeCategory.UppercaseLetter:
-            case UnicodeCategory.LowercaseLetter:
-            case UnicodeCategory.TitlecaseLetter:
-            case UnicodeCategory.ModifierLetter:
-            case UnicodeCategory.OtherLetter:
-            case UnicodeCategory.LetterNumber:
-                return true;
-        }
-
-        return false;
-    }
+        => char.IsLetter(ch) || char.IsAsciiDigit(ch) || ch == '_';
 }

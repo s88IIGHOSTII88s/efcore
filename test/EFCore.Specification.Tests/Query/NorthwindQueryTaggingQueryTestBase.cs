@@ -7,17 +7,12 @@ using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 // ReSharper disable AccessToDisposedClosure
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public abstract class NorthwindQueryTaggingQueryTestBase<TFixture> : IClassFixture<TFixture>
+public abstract class NorthwindQueryTaggingQueryTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : NorthwindQueryFixtureBase<NoopModelCustomizer>, new()
 {
-    protected NorthwindQueryTaggingQueryTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
+    protected TFixture Fixture { get; } = fixture;
 
-    protected TFixture Fixture { get; }
-
-    [ConditionalFact]
+    [Fact]
     public virtual void Single_query_tag()
     {
         using var context = CreateContext();
@@ -30,7 +25,7 @@ public abstract class NorthwindQueryTaggingQueryTestBase<TFixture> : IClassFixtu
         Assert.NotNull(customer);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Single_query_multiple_tags()
     {
         using var context = CreateContext();
@@ -44,7 +39,7 @@ public abstract class NorthwindQueryTaggingQueryTestBase<TFixture> : IClassFixtu
         Assert.NotNull(customer);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Duplicate_tags()
     {
         using var context = CreateContext();
@@ -58,7 +53,7 @@ public abstract class NorthwindQueryTaggingQueryTestBase<TFixture> : IClassFixtu
         Assert.NotNull(customer);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Tags_on_subquery()
     {
         using var context = CreateContext();
@@ -70,7 +65,7 @@ public abstract class NorthwindQueryTaggingQueryTestBase<TFixture> : IClassFixtu
         Assert.Equal(5, customers.Count);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Tag_on_include_query()
     {
         using var context = CreateContext();
@@ -84,7 +79,7 @@ public abstract class NorthwindQueryTaggingQueryTestBase<TFixture> : IClassFixtu
         Assert.NotNull(customer);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Tag_on_scalar_query()
     {
         using var context = CreateContext();
@@ -98,7 +93,7 @@ public abstract class NorthwindQueryTaggingQueryTestBase<TFixture> : IClassFixtu
         Assert.NotNull(customer);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Single_query_multiline_tag()
     {
         using var context = CreateContext();
@@ -114,7 +109,7 @@ Laurel")
         Assert.NotNull(customer);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Single_query_multiple_multiline_tag()
     {
         using var context = CreateContext();
@@ -135,7 +130,7 @@ Tag")
         Assert.NotNull(customer);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Single_query_multiline_tag_with_empty_lines()
     {
         using var context = CreateContext();
@@ -152,6 +147,8 @@ Laurel")
 
         Assert.NotNull(customer);
     }
+
+    // See also NorthwindGroupByQueryTestBase.Final_GroupBy_TagWith
 
     protected NorthwindContext CreateContext()
         => Fixture.CreateContext();

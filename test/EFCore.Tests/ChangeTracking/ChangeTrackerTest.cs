@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.EntityFrameworkCore.Diagnostics.Internal;
-using Microsoft.EntityFrameworkCore.InMemory.ValueGeneration.Internal;
 
 // ReSharper disable ClassNeverInstantiated.Local
 // ReSharper disable ParameterOnlyUsedForPreconditionCheck.Local
@@ -12,11 +11,11 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking;
 
 public class ChangeTrackerTest
 {
-    [ConditionalTheory]
-    [InlineData(0, 0)]
-    [InlineData(1, 0)]
-    [InlineData(0, 1)]
-    [InlineData(1, 1)]
+    [Theory,
+     InlineData(0, 0),
+     InlineData(1, 0),
+     InlineData(0, 1),
+     InlineData(1, 1)]
     public void Can_Add_with_identifying_relationships_dependent_first(int principalKeyValue, int dependentKeyValue)
     {
         using var context = new EarlyLearningCenter();
@@ -24,31 +23,31 @@ public class ChangeTrackerTest
         var added1 = context.Add(new DependentGG { Id = dependentKeyValue, PrincipalGG = new PrincipalGG { Id = principalKeyValue } })
             .Entity;
         Assert.Equal(EntityState.Added, context.Entry(added1).State);
-        Assert.Equal(EntityState.Added, context.Entry(added1.PrincipalGG).State);
+        Assert.Equal(EntityState.Added, context.Entry(added1.PrincipalGG!).State);
 
         var added2 = context.Add(new DependentNG { Id = dependentKeyValue, PrincipalNG = new PrincipalNG { Id = principalKeyValue } })
             .Entity;
         Assert.Equal(EntityState.Added, context.Entry(added2).State);
-        Assert.Equal(EntityState.Added, context.Entry(added2.PrincipalNG).State);
+        Assert.Equal(EntityState.Added, context.Entry(added2.PrincipalNG!).State);
 
         var added3 = context.Add(new DependentNN { Id = dependentKeyValue, PrincipalNN = new PrincipalNN { Id = principalKeyValue } })
             .Entity;
         Assert.Equal(EntityState.Added, context.Entry(added3).State);
-        Assert.Equal(EntityState.Added, context.Entry(added3.PrincipalNN).State);
+        Assert.Equal(EntityState.Added, context.Entry(added3.PrincipalNN!).State);
 
         var added4 = context.Add(new DependentGN { Id = dependentKeyValue, PrincipalGN = new PrincipalGN { Id = principalKeyValue } })
             .Entity;
         Assert.Equal(EntityState.Added, context.Entry(added4).State);
-        Assert.Equal(EntityState.Added, context.Entry(added4.PrincipalGN).State);
+        Assert.Equal(EntityState.Added, context.Entry(added4.PrincipalGN!).State);
 
         Assert.Equal(8, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalTheory]
-    [InlineData(0, 0)]
-    [InlineData(1, 0)]
-    [InlineData(0, 1)]
-    [InlineData(1, 1)]
+    [Theory,
+     InlineData(0, 0),
+     InlineData(1, 0),
+     InlineData(0, 1),
+     InlineData(1, 1)]
     public void Can_Add_with_identifying_relationships_principal_first(int principalKeyValue, int dependentKeyValue)
     {
         using var context = new EarlyLearningCenter();
@@ -56,219 +55,219 @@ public class ChangeTrackerTest
         var added1 = context.Add(new PrincipalGG { Id = principalKeyValue, DependentGG = new DependentGG { Id = dependentKeyValue } })
             .Entity;
         Assert.Equal(EntityState.Added, context.Entry(added1).State);
-        Assert.Equal(EntityState.Added, context.Entry(added1.DependentGG).State);
+        Assert.Equal(EntityState.Added, context.Entry(added1.DependentGG!).State);
 
         var added2 = context.Add(new PrincipalNG { Id = principalKeyValue, DependentNG = new DependentNG { Id = dependentKeyValue } })
             .Entity;
         Assert.Equal(EntityState.Added, context.Entry(added2).State);
-        Assert.Equal(EntityState.Added, context.Entry(added2.DependentNG).State);
+        Assert.Equal(EntityState.Added, context.Entry(added2.DependentNG!).State);
 
         var added3 = context.Add(new PrincipalNN { Id = principalKeyValue, DependentNN = new DependentNN { Id = dependentKeyValue } })
             .Entity;
         Assert.Equal(EntityState.Added, context.Entry(added3).State);
-        Assert.Equal(EntityState.Added, context.Entry(added3.DependentNN).State);
+        Assert.Equal(EntityState.Added, context.Entry(added3.DependentNN!).State);
 
         var added4 = context.Add(new PrincipalGN { Id = principalKeyValue, DependentGN = new DependentGN { Id = dependentKeyValue } })
             .Entity;
         Assert.Equal(EntityState.Added, context.Entry(added4).State);
-        Assert.Equal(EntityState.Added, context.Entry(added4.DependentGN).State);
+        Assert.Equal(EntityState.Added, context.Entry(added4.DependentGN!).State);
 
         Assert.Equal(8, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_Attach_with_identifying_relationships_dependent_first()
     {
         using var context = new EarlyLearningCenter();
 
         var added1 = context.Attach(new DependentGG { PrincipalGG = new PrincipalGG() }).Entity;
         Assert.Equal(EntityState.Added, context.Entry(added1).State);
-        Assert.Equal(EntityState.Added, context.Entry(added1.PrincipalGG).State);
+        Assert.Equal(EntityState.Added, context.Entry(added1.PrincipalGG!).State);
 
         var added2 = context.Attach(new DependentNG { PrincipalNG = new PrincipalNG() }).Entity;
         Assert.Equal(EntityState.Added, context.Entry(added2).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added2.PrincipalNG).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added2.PrincipalNG!).State);
 
         var added3 = context.Attach(new DependentNN { PrincipalNN = new PrincipalNN() }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added3).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added3.PrincipalNN).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added3.PrincipalNN!).State);
 
         var added4 = context.Attach(new DependentGN { PrincipalGN = new PrincipalGN() }).Entity;
         Assert.Equal(EntityState.Added, context.Entry(added4).State);
-        Assert.Equal(EntityState.Added, context.Entry(added4.PrincipalGN).State);
+        Assert.Equal(EntityState.Added, context.Entry(added4.PrincipalGN!).State);
 
         Assert.Equal(8, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_Attach_with_identifying_relationships_dependent_first_with_principal_keys_set()
     {
         using var context = new EarlyLearningCenter();
 
         var added1 = context.Attach(new DependentGG { PrincipalGG = new PrincipalGG { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Added, context.Entry(added1).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added1.PrincipalGG).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added1.PrincipalGG!).State);
 
         var added2 = context.Attach(new DependentNG { PrincipalNG = new PrincipalNG { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Added, context.Entry(added2).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added2.PrincipalNG).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added2.PrincipalNG!).State);
 
         var added3 = context.Attach(new DependentNN { PrincipalNN = new PrincipalNN { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added3).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added3.PrincipalNN).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added3.PrincipalNN!).State);
 
         var added4 = context.Attach(new DependentGN { PrincipalGN = new PrincipalGN { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Added, context.Entry(added4).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added4.PrincipalGN).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added4.PrincipalGN!).State);
 
         Assert.Equal(8, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_Attach_with_identifying_relationships_dependent_first_with_dependent_keys_set()
     {
         using var context = new EarlyLearningCenter();
 
         var added1 = context.Attach(new DependentGG { Id = 1, PrincipalGG = new PrincipalGG() }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added1).State);
-        Assert.Equal(EntityState.Added, context.Entry(added1.PrincipalGG).State);
+        Assert.Equal(EntityState.Added, context.Entry(added1.PrincipalGG!).State);
 
         var added2 = context.Attach(new DependentNG { Id = 1, PrincipalNG = new PrincipalNG() }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added2).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added2.PrincipalNG).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added2.PrincipalNG!).State);
 
         var added3 = context.Attach(new DependentNN { Id = 1, PrincipalNN = new PrincipalNN() }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added3).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added3.PrincipalNN).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added3.PrincipalNN!).State);
 
         var added4 = context.Attach(new DependentGN { Id = 1, PrincipalGN = new PrincipalGN() }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added4).State);
-        Assert.Equal(EntityState.Added, context.Entry(added4.PrincipalGN).State);
+        Assert.Equal(EntityState.Added, context.Entry(added4.PrincipalGN!).State);
 
         Assert.Equal(8, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_Attach_with_identifying_relationships_dependent_first_with_all_keys_set()
     {
         using var context = new EarlyLearningCenter();
 
         var added1 = context.Attach(new DependentGG { Id = 1, PrincipalGG = new PrincipalGG { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added1).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added1.PrincipalGG).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added1.PrincipalGG!).State);
 
         var added2 = context.Attach(new DependentNG { Id = 1, PrincipalNG = new PrincipalNG { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added2).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added2.PrincipalNG).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added2.PrincipalNG!).State);
 
         var added3 = context.Attach(new DependentNN { Id = 1, PrincipalNN = new PrincipalNN { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added3).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added3.PrincipalNN).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added3.PrincipalNN!).State);
 
         var added4 = context.Attach(new DependentGN { Id = 1, PrincipalGN = new PrincipalGN { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added4).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added4.PrincipalGN).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added4.PrincipalGN!).State);
 
         Assert.Equal(8, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_Attach_with_identifying_relationships_principal_first()
     {
         using var context = new EarlyLearningCenter();
 
         var added1 = context.Attach(new PrincipalGG { DependentGG = new DependentGG() }).Entity;
         Assert.Equal(EntityState.Added, context.Entry(added1).State);
-        Assert.Equal(EntityState.Added, context.Entry(added1.DependentGG).State);
+        Assert.Equal(EntityState.Added, context.Entry(added1.DependentGG!).State);
 
         var added2 = context.Attach(new PrincipalNG { DependentNG = new DependentNG() }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added2).State);
-        Assert.Equal(EntityState.Added, context.Entry(added2.DependentNG).State);
+        Assert.Equal(EntityState.Added, context.Entry(added2.DependentNG!).State);
 
         var added3 = context.Attach(new PrincipalNN { DependentNN = new DependentNN() }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added3).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added3.DependentNN).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added3.DependentNN!).State);
 
         var added4 = context.Attach(new PrincipalGN { DependentGN = new DependentGN() }).Entity;
         Assert.Equal(EntityState.Added, context.Entry(added4).State);
-        Assert.Equal(EntityState.Added, context.Entry(added4.DependentGN).State);
+        Assert.Equal(EntityState.Added, context.Entry(added4.DependentGN!).State);
 
         Assert.Equal(8, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_Attach_with_identifying_relationships_principal_first_with_principal_keys_set()
     {
         using var context = new EarlyLearningCenter();
 
         var added1 = context.Attach(new PrincipalGG { Id = 1, DependentGG = new DependentGG() }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added1).State);
-        Assert.Equal(EntityState.Added, context.Entry(added1.DependentGG).State);
+        Assert.Equal(EntityState.Added, context.Entry(added1.DependentGG!).State);
 
         var added2 = context.Attach(new PrincipalNG { Id = 1, DependentNG = new DependentNG() }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added2).State);
-        Assert.Equal(EntityState.Added, context.Entry(added2.DependentNG).State);
+        Assert.Equal(EntityState.Added, context.Entry(added2.DependentNG!).State);
 
         var added3 = context.Attach(new PrincipalNN { Id = 1, DependentNN = new DependentNN() }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added3).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added3.DependentNN).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added3.DependentNN!).State);
 
         var added4 = context.Attach(new PrincipalGN { Id = 1, DependentGN = new DependentGN() }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added4).State);
-        Assert.Equal(EntityState.Added, context.Entry(added4.DependentGN).State);
+        Assert.Equal(EntityState.Added, context.Entry(added4.DependentGN!).State);
 
         Assert.Equal(8, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_Attach_with_identifying_relationships_principal_first_with_dependent_keys_set()
     {
         using var context = new EarlyLearningCenter();
 
         var added1 = context.Attach(new PrincipalGG { DependentGG = new DependentGG { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Added, context.Entry(added1).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added1.DependentGG).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added1.DependentGG!).State);
 
         var added2 = context.Attach(new PrincipalNG { DependentNG = new DependentNG { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added2).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added2.DependentNG).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added2.DependentNG!).State);
 
         var added3 = context.Attach(new PrincipalNN { DependentNN = new DependentNN { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added3).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added3.DependentNN).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added3.DependentNN!).State);
 
         var added4 = context.Attach(new PrincipalGN { DependentGN = new DependentGN { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Added, context.Entry(added4).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added4.DependentGN).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added4.DependentGN!).State);
 
         Assert.Equal(8, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_Attach_with_identifying_relationships_principal_first_with_all_keys_set()
     {
         using var context = new EarlyLearningCenter();
 
         var added1 = context.Attach(new PrincipalGG { Id = 1, DependentGG = new DependentGG { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added1).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added1.DependentGG).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added1.DependentGG!).State);
 
         var added2 = context.Attach(new PrincipalNG { Id = 1, DependentNG = new DependentNG { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added2).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added2.DependentNG).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added2.DependentNG!).State);
 
         var added3 = context.Attach(new PrincipalNN { Id = 1, DependentNN = new DependentNN { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added3).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added3.DependentNN).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added3.DependentNN!).State);
 
         var added4 = context.Attach(new PrincipalGN { Id = 1, DependentGN = new DependentGN { Id = 1 } }).Entity;
         Assert.Equal(EntityState.Unchanged, context.Entry(added4).State);
-        Assert.Equal(EntityState.Unchanged, context.Entry(added4.DependentGN).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(added4.DependentGN!).State);
 
         Assert.Equal(8, context.ChangeTracker.Entries().Count());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Change_tracker_can_be_cleared()
     {
         Seed();
@@ -281,9 +280,11 @@ public class ChangeTrackerTest
         Assert.Equal(3, context.ChangeTracker.Entries().Count());
         Assert.Equal(EntityState.Unchanged, context.Entry(cats[0]).State);
         Assert.Equal(EntityState.Unchanged, context.Entry(hats[0]).State);
+        Assert.NotNull(cats[0].EntityType);
 
         context.ChangeTracker.Clear();
 
+        Assert.Null(cats[0].EntityType);
         Assert.Empty(context.ChangeTracker.Entries());
         Assert.Equal(EntityState.Detached, context.Entry(cats[0]).State);
         Assert.Equal(EntityState.Detached, context.Entry(hats[0]).State);
@@ -291,17 +292,19 @@ public class ChangeTrackerTest
         var catsAgain = context.Cats.ToList();
         var hatsAgain = context.Set<Hat>().ToList();
 
+        Assert.NotNull(catsAgain[0].EntityType);
         Assert.Equal(3, context.ChangeTracker.Entries().Count());
         Assert.Equal(EntityState.Unchanged, context.Entry(catsAgain[0]).State);
         Assert.Equal(EntityState.Unchanged, context.Entry(hatsAgain[0]).State);
 
+        Assert.Null(cats[0].EntityType);
         Assert.Equal(EntityState.Detached, context.Entry(cats[0]).State);
         Assert.Equal(EntityState.Detached, context.Entry(hats[0]).State);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
     public async Task Keys_generated_on_behalf_of_a_principal_are_not_saved(bool async)
     {
         using var context = new WeakHerosContext();
@@ -321,14 +324,14 @@ public class ChangeTrackerTest
 
         Assert.Equal(
             CoreStrings.UnknownKeyValue(nameof(Weak), nameof(Weak.HeroId)),
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                async () => _ = async ? await context.SaveChangesAsync() : context.SaveChanges()))
+            (await Assert.ThrowsAsync<InvalidOperationException>(async ()
+                => _ = async ? await context.SaveChangesAsync() : context.SaveChanges()))
             .Message);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
     public async Task Attached_owned_entity_without_owner_not_saved(bool async)
     {
         using var context = new WeakHerosContext();
@@ -346,14 +349,14 @@ public class ChangeTrackerTest
 
         Assert.Equal(
             CoreStrings.SaveOwnedWithoutOwner(nameof(Skinner)),
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                async () => _ = async ? await context.SaveChangesAsync() : context.SaveChanges()))
+            (await Assert.ThrowsAsync<InvalidOperationException>(async ()
+                => _ = async ? await context.SaveChangesAsync() : context.SaveChanges()))
             .Message);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
     public async Task Attached_owned_collection_entity_without_owner_not_saved(bool async)
     {
         using var context = new WeakHerosContext();
@@ -371,15 +374,15 @@ public class ChangeTrackerTest
 
         Assert.Equal(
             CoreStrings.SaveOwnedWithoutOwner(nameof(TheStreets)),
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                async () => _ = async ? await context.SaveChangesAsync() : context.SaveChanges()))
+            (await Assert.ThrowsAsync<InvalidOperationException>(async ()
+                => _ = async ? await context.SaveChangesAsync() : context.SaveChanges()))
             .Message);
     }
 
     public class Hero
     {
         public Guid Id { get; set; }
-        public ICollection<Weak> Weaks { get; set; }
+        public ICollection<Weak> Weaks { get; } = new List<Weak>();
     }
 
     public class Weak
@@ -387,48 +390,42 @@ public class ChangeTrackerTest
         public Guid Id { get; set; }
         public Guid HeroId { get; set; }
 
-        public Hero Hero { get; set; }
+        public Hero? Hero { get; set; }
     }
 
     public class Mike
     {
         public Guid Id { get; set; }
-        public ICollection<TheStreets> TheStreets { get; set; }
-        public Skinner TheHero { get; set; }
+        public ICollection<TheStreets> TheStreets { get; } = new List<TheStreets>();
+        public Skinner? TheHero { get; set; }
     }
 
-    public class Skinner
-    {
-    }
+    public class Skinner;
 
-    public class TheStreets
-    {
-    }
+    public class TheStreets;
 
     public class WeakHerosContext : DbContext
     {
         protected internal override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Weak>(
-                b =>
-                {
-                    b.HasKey(e => new { e.Id, e.HeroId });
-                    b.HasOne(e => e.Hero).WithMany(e => e.Weaks).HasForeignKey(e => e.HeroId);
-                });
+            modelBuilder.Entity<Weak>(b =>
+            {
+                b.HasKey(e => new { e.Id, e.HeroId });
+                b.HasOne(e => e.Hero).WithMany(e => e.Weaks).HasForeignKey(e => e.HeroId);
+            });
 
-            modelBuilder.Entity<Mike>(
-                b =>
-                {
-                    b.OwnsOne(e => e.TheHero);
-                    b.OwnsMany(e => e.TheStreets);
-                });
+            modelBuilder.Entity<Mike>(b =>
+            {
+                b.OwnsOne(e => e.TheHero);
+                b.OwnsMany(e => e.TheStreets);
+            });
         }
 
         protected internal override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder.UseInMemoryDatabase(nameof(WeakHerosContext));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void DetectChanges_is_logged()
     {
         Seed();
@@ -451,17 +448,17 @@ public class ChangeTrackerTest
                 .GenerateMessage(nameof(LikeAZooContext)), message);
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
+    [Theory,
+     InlineData(false, false),
+     InlineData(true, false),
+     InlineData(false, true),
+     InlineData(true, true)]
     public void Detect_property_change_is_logged(bool sensitive, bool callDetectChangesTwice)
     {
         Seed(sensitive);
 
         using var context = sensitive ? new LikeAZooContextSensitive() : new LikeAZooContext();
-        var cat = context.Cats.Find(1);
+        var cat = context.Cats.Find(1)!;
 
         _loggerFactory.Log.Clear();
 
@@ -495,20 +492,74 @@ public class ChangeTrackerTest
             context.ChangeTracker.DetectChanges();
         }
 
-        Assert.Empty(_loggerFactory.Log.Where(e => e.Id.Id == CoreEventId.PropertyChangeDetected.Id));
+        Assert.DoesNotContain(_loggerFactory.Log, e => e.Id.Id == CoreEventId.PropertyChangeDetected.Id);
     }
 
-    [ConditionalTheory] // Issue #21896
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
+    [Theory,
+     InlineData(false, false),
+     InlineData(true, false),
+     InlineData(false, true),
+     InlineData(true, true)]
+    public void Detect_nested_property_change_is_logged(bool sensitive, bool callDetectChangesTwice)
+    {
+        var wocket = new Wocket
+        {
+            Id = 1,
+            Name = "Gollum",
+            Pocket = new Pocket { Contents = "Handsies" }
+        };
+
+        using var context = sensitive ? new LikeAZooContextSensitive() : new LikeAZooContext();
+        context.Database.EnsureDeleted();
+        context.Add(wocket);
+        context.SaveChanges();
+
+        _loggerFactory.Log.Clear();
+
+        wocket.Pocket.Contents = "Fishies";
+
+        context.ChangeTracker.DetectChanges();
+
+        if (callDetectChangesTwice)
+        {
+            context.ChangeTracker.DetectChanges();
+        }
+
+        var (level, _, message, _, _) = _loggerFactory.Log.Single(e => e.Id.Id == CoreEventId.PropertyChangeDetected.Id);
+        Assert.Equal(LogLevel.Debug, level);
+        Assert.Equal(
+            sensitive
+                ? CoreResources.LogPropertyChangeDetectedSensitive(new TestLogger<TestLoggingDefinitions>()).GenerateMessage(
+                    nameof(Wocket) + "." + nameof(Pocket), nameof(Pocket.Contents), "Handsies", "Fishies", "{Id: 1}")
+                : CoreResources.LogPropertyChangeDetected(new TestLogger<TestLoggingDefinitions>())
+                    .GenerateMessage(nameof(Wocket) + "." + nameof(Pocket), nameof(Pocket.Contents)),
+            message);
+
+        _loggerFactory.Log.Clear();
+
+        wocket.Pocket.Contents = "String...or nothing!";
+
+        context.ChangeTracker.DetectChanges();
+
+        if (callDetectChangesTwice)
+        {
+            context.ChangeTracker.DetectChanges();
+        }
+
+        Assert.DoesNotContain(_loggerFactory.Log, e => e.Id.Id == CoreEventId.PropertyChangeDetected.Id);
+    }
+
+    [Theory,
+     InlineData(false, false),
+     InlineData(true, false),
+     InlineData(false, true),
+     InlineData(true, true)] // Issue #21896
     public void Property_changes_on_Deleted_entities_are_not_continually_detected(bool sensitive, bool callDetectChangesTwice)
     {
         Seed(sensitive);
 
         using var context = sensitive ? new LikeAZooContextSensitive() : new LikeAZooContext();
-        var cat = context.Cats.Find(1);
+        var cat = context.Cats.Find(1)!;
 
         _loggerFactory.Log.Clear();
 
@@ -523,7 +574,7 @@ public class ChangeTrackerTest
             context.ChangeTracker.DetectChanges();
         }
 
-        Assert.Empty(_loggerFactory.Log.Where(e => e.Id.Id == CoreEventId.PropertyChangeDetected.Id));
+        Assert.DoesNotContain(_loggerFactory.Log, e => e.Id.Id == CoreEventId.PropertyChangeDetected.Id);
 
         _loggerFactory.Log.Clear();
 
@@ -536,14 +587,14 @@ public class ChangeTrackerTest
             context.ChangeTracker.DetectChanges();
         }
 
-        Assert.Empty(_loggerFactory.Log.Where(e => e.Id.Id == CoreEventId.PropertyChangeDetected.Id));
+        Assert.DoesNotContain(_loggerFactory.Log, e => e.Id.Id == CoreEventId.PropertyChangeDetected.Id);
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
+    [Theory,
+     InlineData(false, false),
+     InlineData(true, false),
+     InlineData(false, true),
+     InlineData(true, true)]
     public void Detect_foreign_key_property_change_is_logged(bool sensitive, bool callDetectChangesTwice)
     {
         Seed(sensitive);
@@ -595,11 +646,11 @@ public class ChangeTrackerTest
             message);
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
+    [Theory,
+     InlineData(false, false),
+     InlineData(true, false),
+     InlineData(false, true),
+     InlineData(true, true)]
     public void Detect_collection_change_is_logged(bool sensitive, bool callDetectChangesTwice)
     {
         Seed(sensitive);
@@ -651,11 +702,11 @@ public class ChangeTrackerTest
             message);
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
+    [Theory,
+     InlineData(false, false),
+     InlineData(true, false),
+     InlineData(false, true),
+     InlineData(true, true)]
     public void Detect_skip_collection_change_is_logged(bool sensitive, bool callDetectChangesTwice)
     {
         Seed(sensitive);
@@ -707,11 +758,11 @@ public class ChangeTrackerTest
             message);
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
+    [Theory,
+     InlineData(false, false),
+     InlineData(true, false),
+     InlineData(false, true),
+     InlineData(true, true)]
     public void Detect_reference_change_is_logged(bool sensitive, bool callDetectChangesTwice)
     {
         Seed(sensitive);
@@ -763,9 +814,9 @@ public class ChangeTrackerTest
             message);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
     public void Start_tracking_is_logged_from_query(bool sensitive)
     {
         Seed(sensitive);
@@ -785,9 +836,9 @@ public class ChangeTrackerTest
             message);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
     public void Start_tracking_is_logged_from_attach(bool sensitive)
     {
         using var context = sensitive ? new LikeAZooContextSensitive() : new LikeAZooContext();
@@ -805,15 +856,15 @@ public class ChangeTrackerTest
             message);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
     public void State_change_is_logged(bool sensitive)
     {
         Seed(sensitive);
 
         using var context = sensitive ? new LikeAZooContextSensitive() : new LikeAZooContext();
-        var cat = context.Cats.Find(1);
+        var cat = context.Cats.Find(1)!;
 
         _loggerFactory.Log.Clear();
 
@@ -830,21 +881,21 @@ public class ChangeTrackerTest
             message);
     }
 
-    [ConditionalTheory]
-    [InlineData(false, false, false)]
-    [InlineData(true, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, true)]
-    [InlineData(true, false, true)]
-    [InlineData(false, true, true)]
-    [InlineData(true, true, true)]
+    [Theory,
+     InlineData(false, false, false),
+     InlineData(true, false, false),
+     InlineData(false, true, false),
+     InlineData(true, true, false),
+     InlineData(false, false, true),
+     InlineData(true, false, true),
+     InlineData(false, true, true),
+     InlineData(true, true, true)]
     public async Task Value_generation_is_logged(bool sensitive, bool async, bool temporary)
     {
         using var context = sensitive ? new LikeAZooContextSensitive() : new LikeAZooContext();
         ResetValueGenerator(
             context,
-            context.Model.FindEntityType(typeof(Hat)).FindProperty(nameof(Hat.Id)),
+            context.Model.FindEntityType(typeof(Hat))!.FindProperty(nameof(Hat.Id))!,
             temporary);
 
         _loggerFactory.Log.Clear();
@@ -866,9 +917,9 @@ public class ChangeTrackerTest
             Assert.Equal(
                 sensitive
                     ? CoreResources.LogTempValueGeneratedSensitive(new TestLogger<TestLoggingDefinitions>()).GenerateMessage(
-                        nameof(LikeAZooContextSensitive), 1, nameof(Hat.Id), nameof(Hat))
+                        nameof(LikeAZooContextSensitive), 1, nameof(Hat), nameof(Hat.Id))
                     : CoreResources.LogTempValueGenerated(new TestLogger<TestLoggingDefinitions>()).GenerateMessage(
-                        nameof(LikeAZooContext), nameof(Hat.Id), nameof(Hat)),
+                        nameof(LikeAZooContext), nameof(Hat), nameof(Hat.Id)),
                 message);
         }
         else
@@ -876,9 +927,9 @@ public class ChangeTrackerTest
             Assert.Equal(
                 sensitive
                     ? CoreResources.LogValueGeneratedSensitive(new TestLogger<TestLoggingDefinitions>()).GenerateMessage(
-                        nameof(LikeAZooContextSensitive), 1, nameof(Hat.Id), nameof(Hat))
+                        nameof(LikeAZooContextSensitive), 1, nameof(Hat), nameof(Hat.Id))
                     : CoreResources.LogValueGenerated(new TestLogger<TestLoggingDefinitions>()).GenerateMessage(
-                        nameof(LikeAZooContext), nameof(Hat.Id), nameof(Hat)),
+                        nameof(LikeAZooContext), nameof(Hat), nameof(Hat.Id)),
                 message);
         }
     }
@@ -889,8 +940,8 @@ public class ChangeTrackerTest
 
         var generator = (ResettableValueGenerator)cache.GetOrAdd(
             property,
-            property.DeclaringEntityType,
-            (p, e) => new ResettableValueGenerator());
+            property.DeclaringType,
+            (p, e) => new ResettableValueGenerator())!;
 
         generator.Reset(generateTemporaryValues);
     }
@@ -913,39 +964,39 @@ public class ChangeTrackerTest
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false, CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges)]
-    [InlineData(false, CascadeTiming.OnSaveChanges, CascadeTiming.Immediate)]
-    [InlineData(false, CascadeTiming.OnSaveChanges, CascadeTiming.Never)]
-    [InlineData(false, CascadeTiming.OnSaveChanges, null)]
-    [InlineData(false, CascadeTiming.Immediate, CascadeTiming.OnSaveChanges)]
-    [InlineData(false, CascadeTiming.Immediate, CascadeTiming.Immediate)]
-    [InlineData(false, CascadeTiming.Immediate, CascadeTiming.Never)]
-    [InlineData(false, CascadeTiming.Immediate, null)]
-    [InlineData(false, CascadeTiming.Never, CascadeTiming.OnSaveChanges)]
-    [InlineData(false, CascadeTiming.Never, CascadeTiming.Immediate)]
-    [InlineData(false, CascadeTiming.Never, CascadeTiming.Never)]
-    [InlineData(false, CascadeTiming.Never, null)]
-    [InlineData(false, null, CascadeTiming.OnSaveChanges)]
-    [InlineData(false, null, CascadeTiming.Immediate)]
-    [InlineData(false, null, CascadeTiming.Never)]
-    [InlineData(false, null, null)]
-    [InlineData(true, CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges)]
-    [InlineData(true, CascadeTiming.OnSaveChanges, CascadeTiming.Immediate)]
-    [InlineData(true, CascadeTiming.OnSaveChanges, CascadeTiming.Never)]
-    [InlineData(true, CascadeTiming.OnSaveChanges, null)]
-    [InlineData(true, CascadeTiming.Immediate, CascadeTiming.OnSaveChanges)]
-    [InlineData(true, CascadeTiming.Immediate, CascadeTiming.Immediate)]
-    [InlineData(true, CascadeTiming.Immediate, CascadeTiming.Never)]
-    [InlineData(true, CascadeTiming.Immediate, null)]
-    [InlineData(true, CascadeTiming.Never, CascadeTiming.OnSaveChanges)]
-    [InlineData(true, CascadeTiming.Never, CascadeTiming.Immediate)]
-    [InlineData(true, CascadeTiming.Never, CascadeTiming.Never)]
-    [InlineData(true, CascadeTiming.Never, null)]
-    [InlineData(true, null, CascadeTiming.OnSaveChanges)]
-    [InlineData(true, null, CascadeTiming.Immediate)]
-    [InlineData(true, null, CascadeTiming.Never)]
-    [InlineData(true, null, null)]
+    [Theory,
+     InlineData(false, CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges),
+     InlineData(false, CascadeTiming.OnSaveChanges, CascadeTiming.Immediate),
+     InlineData(false, CascadeTiming.OnSaveChanges, CascadeTiming.Never),
+     InlineData(false, CascadeTiming.OnSaveChanges, null),
+     InlineData(false, CascadeTiming.Immediate, CascadeTiming.OnSaveChanges),
+     InlineData(false, CascadeTiming.Immediate, CascadeTiming.Immediate),
+     InlineData(false, CascadeTiming.Immediate, CascadeTiming.Never),
+     InlineData(false, CascadeTiming.Immediate, null),
+     InlineData(false, CascadeTiming.Never, CascadeTiming.OnSaveChanges),
+     InlineData(false, CascadeTiming.Never, CascadeTiming.Immediate),
+     InlineData(false, CascadeTiming.Never, CascadeTiming.Never),
+     InlineData(false, CascadeTiming.Never, null),
+     InlineData(false, null, CascadeTiming.OnSaveChanges),
+     InlineData(false, null, CascadeTiming.Immediate),
+     InlineData(false, null, CascadeTiming.Never),
+     InlineData(false, null, null),
+     InlineData(true, CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges),
+     InlineData(true, CascadeTiming.OnSaveChanges, CascadeTiming.Immediate),
+     InlineData(true, CascadeTiming.OnSaveChanges, CascadeTiming.Never),
+     InlineData(true, CascadeTiming.OnSaveChanges, null),
+     InlineData(true, CascadeTiming.Immediate, CascadeTiming.OnSaveChanges),
+     InlineData(true, CascadeTiming.Immediate, CascadeTiming.Immediate),
+     InlineData(true, CascadeTiming.Immediate, CascadeTiming.Never),
+     InlineData(true, CascadeTiming.Immediate, null),
+     InlineData(true, CascadeTiming.Never, CascadeTiming.OnSaveChanges),
+     InlineData(true, CascadeTiming.Never, CascadeTiming.Immediate),
+     InlineData(true, CascadeTiming.Never, CascadeTiming.Never),
+     InlineData(true, CascadeTiming.Never, null),
+     InlineData(true, null, CascadeTiming.OnSaveChanges),
+     InlineData(true, null, CascadeTiming.Immediate),
+     InlineData(true, null, CascadeTiming.Never),
+     InlineData(true, null, null)]
     public void Cascade_delete_is_logged(
         bool sensitive,
         CascadeTiming? cascadeDeleteTiming,
@@ -967,8 +1018,8 @@ public class ChangeTrackerTest
         var cat = context.Cats.Include(e => e.Hats).Single(e => e.Id == 1);
 
         LogLevel? cascadeDeleteLevel = null;
-        string cascadeDeleteMessage = null;
-        string deleteOrphansMessage = null;
+        string? cascadeDeleteMessage = null;
+        string? deleteOrphansMessage = null;
 
         void CaptureMessages()
         {
@@ -1032,39 +1083,39 @@ public class ChangeTrackerTest
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false, CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges)]
-    [InlineData(false, CascadeTiming.OnSaveChanges, CascadeTiming.Immediate)]
-    [InlineData(false, CascadeTiming.OnSaveChanges, CascadeTiming.Never)]
-    [InlineData(false, CascadeTiming.OnSaveChanges, null)]
-    [InlineData(false, CascadeTiming.Immediate, CascadeTiming.OnSaveChanges)]
-    [InlineData(false, CascadeTiming.Immediate, CascadeTiming.Immediate)]
-    [InlineData(false, CascadeTiming.Immediate, CascadeTiming.Never)]
-    [InlineData(false, CascadeTiming.Immediate, null)]
-    [InlineData(false, CascadeTiming.Never, CascadeTiming.OnSaveChanges)]
-    [InlineData(false, CascadeTiming.Never, CascadeTiming.Immediate)]
-    [InlineData(false, CascadeTiming.Never, CascadeTiming.Never)]
-    [InlineData(false, CascadeTiming.Never, null)]
-    [InlineData(false, null, CascadeTiming.OnSaveChanges)]
-    [InlineData(false, null, CascadeTiming.Immediate)]
-    [InlineData(false, null, CascadeTiming.Never)]
-    [InlineData(false, null, null)]
-    [InlineData(true, CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges)]
-    [InlineData(true, CascadeTiming.OnSaveChanges, CascadeTiming.Immediate)]
-    [InlineData(true, CascadeTiming.OnSaveChanges, CascadeTiming.Never)]
-    [InlineData(true, CascadeTiming.OnSaveChanges, null)]
-    [InlineData(true, CascadeTiming.Immediate, CascadeTiming.OnSaveChanges)]
-    [InlineData(true, CascadeTiming.Immediate, CascadeTiming.Immediate)]
-    [InlineData(true, CascadeTiming.Immediate, CascadeTiming.Never)]
-    [InlineData(true, CascadeTiming.Immediate, null)]
-    [InlineData(true, CascadeTiming.Never, CascadeTiming.OnSaveChanges)]
-    [InlineData(true, CascadeTiming.Never, CascadeTiming.Immediate)]
-    [InlineData(true, CascadeTiming.Never, CascadeTiming.Never)]
-    [InlineData(true, CascadeTiming.Never, null)]
-    [InlineData(true, null, CascadeTiming.OnSaveChanges)]
-    [InlineData(true, null, CascadeTiming.Immediate)]
-    [InlineData(true, null, CascadeTiming.Never)]
-    [InlineData(true, null, null)]
+    [Theory,
+     InlineData(false, CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges),
+     InlineData(false, CascadeTiming.OnSaveChanges, CascadeTiming.Immediate),
+     InlineData(false, CascadeTiming.OnSaveChanges, CascadeTiming.Never),
+     InlineData(false, CascadeTiming.OnSaveChanges, null),
+     InlineData(false, CascadeTiming.Immediate, CascadeTiming.OnSaveChanges),
+     InlineData(false, CascadeTiming.Immediate, CascadeTiming.Immediate),
+     InlineData(false, CascadeTiming.Immediate, CascadeTiming.Never),
+     InlineData(false, CascadeTiming.Immediate, null),
+     InlineData(false, CascadeTiming.Never, CascadeTiming.OnSaveChanges),
+     InlineData(false, CascadeTiming.Never, CascadeTiming.Immediate),
+     InlineData(false, CascadeTiming.Never, CascadeTiming.Never),
+     InlineData(false, CascadeTiming.Never, null),
+     InlineData(false, null, CascadeTiming.OnSaveChanges),
+     InlineData(false, null, CascadeTiming.Immediate),
+     InlineData(false, null, CascadeTiming.Never),
+     InlineData(false, null, null),
+     InlineData(true, CascadeTiming.OnSaveChanges, CascadeTiming.OnSaveChanges),
+     InlineData(true, CascadeTiming.OnSaveChanges, CascadeTiming.Immediate),
+     InlineData(true, CascadeTiming.OnSaveChanges, CascadeTiming.Never),
+     InlineData(true, CascadeTiming.OnSaveChanges, null),
+     InlineData(true, CascadeTiming.Immediate, CascadeTiming.OnSaveChanges),
+     InlineData(true, CascadeTiming.Immediate, CascadeTiming.Immediate),
+     InlineData(true, CascadeTiming.Immediate, CascadeTiming.Never),
+     InlineData(true, CascadeTiming.Immediate, null),
+     InlineData(true, CascadeTiming.Never, CascadeTiming.OnSaveChanges),
+     InlineData(true, CascadeTiming.Never, CascadeTiming.Immediate),
+     InlineData(true, CascadeTiming.Never, CascadeTiming.Never),
+     InlineData(true, CascadeTiming.Never, null),
+     InlineData(true, null, CascadeTiming.OnSaveChanges),
+     InlineData(true, null, CascadeTiming.Immediate),
+     InlineData(true, null, CascadeTiming.Never),
+     InlineData(true, null, null)]
     public void Cascade_delete_orphan_is_logged(
         bool sensitive,
         CascadeTiming? cascadeDeleteTiming,
@@ -1086,8 +1137,8 @@ public class ChangeTrackerTest
         var cat = context.Cats.Include(e => e.Hats).Single(e => e.Id == 1);
 
         LogLevel? deleteOrphansLevel = null;
-        string cascadeDeleteMessage = null;
-        string deleteOrphansMessage = null;
+        string? cascadeDeleteMessage = null;
+        string? deleteOrphansMessage = null;
 
         void CaptureMessages()
         {
@@ -1153,15 +1204,15 @@ public class ChangeTrackerTest
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
     public async Task SaveChanges_is_logged(bool async)
     {
         Seed();
 
         using var context = new LikeAZooContext();
-        var cat = context.Cats.Find(1);
+        var cat = context.Cats.Find(1)!;
 
         context.Entry(cat).State = EntityState.Deleted;
 
@@ -1189,7 +1240,7 @@ public class ChangeTrackerTest
                 .GenerateMessage(nameof(LikeAZooContext), 1), message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Context_Dispose_is_logged()
     {
         using (var context = new LikeAZooContext())
@@ -1206,32 +1257,36 @@ public class ChangeTrackerTest
             message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void State_change_events_fire_from_query()
     {
+        var tracking = new List<EntityTrackingEventArgs>();
         var tracked = new List<EntityTrackedEventArgs>();
+        var changing = new List<EntityStateChangingEventArgs>();
         var changed = new List<EntityStateChangedEventArgs>();
 
         Seed(usePool: true);
 
         using (var scope = _poolProvider.CreateScope())
         {
-            var context = scope.ServiceProvider.GetService<LikeAZooContextPooled>();
+            var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
 
-            RegisterEvents(context, tracked, changed);
+            RegisterEvents(context, tracking, tracked, changing, changed);
 
             Assert.Equal(2, context.Cats.OrderBy(e => e.Id).ToList().Count);
 
+            Assert.Equal(2, tracking.Count);
             Assert.Equal(2, tracked.Count);
+            Assert.Empty(changing);
             Assert.Empty(changed);
 
-            AssertTrackedEvent(context, 1, EntityState.Unchanged, tracked[0], fromQuery: true);
-            AssertTrackedEvent(context, 2, EntityState.Unchanged, tracked[1], fromQuery: true);
+            AssertTrackedEvent(context, 1, EntityState.Unchanged, tracking[0], tracked[0], fromQuery: true);
+            AssertTrackedEvent(context, 2, EntityState.Unchanged, tracking[1], tracked[1], fromQuery: true);
         }
 
         using (var scope = _poolProvider.CreateScope())
         {
-            var context = scope.ServiceProvider.GetService<LikeAZooContextPooled>();
+            var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
 
             Assert.Equal(2, context.Cats.OrderBy(e => e.Id).ToList().Count);
 
@@ -1240,16 +1295,18 @@ public class ChangeTrackerTest
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void State_change_events_fire_from_Attach()
     {
+        var tracking = new List<EntityTrackingEventArgs>();
         var tracked = new List<EntityTrackedEventArgs>();
+        var changing = new List<EntityStateChangingEventArgs>();
         var changed = new List<EntityStateChangedEventArgs>();
 
         using var scope = _poolProvider.CreateScope();
-        var context = scope.ServiceProvider.GetService<LikeAZooContextPooled>();
+        var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
 
-        RegisterEvents(context, tracked, changed);
+        RegisterEvents(context, tracking, tracked, changing, changed);
 
         context.Attach(new Cat(1));
 
@@ -1258,7 +1315,7 @@ public class ChangeTrackerTest
         Assert.Single(tracked);
         Assert.Empty(changed);
 
-        AssertTrackedEvent(context, 1, EntityState.Unchanged, tracked[0], fromQuery: false);
+        AssertTrackedEvent(context, 1, EntityState.Unchanged, tracking[0], tracked[0], fromQuery: false);
 
         context.Entry(new Cat(2)).State = EntityState.Unchanged;
 
@@ -1267,19 +1324,21 @@ public class ChangeTrackerTest
         Assert.Equal(2, tracked.Count);
         Assert.Empty(changed);
 
-        AssertTrackedEvent(context, 2, EntityState.Unchanged, tracked[1], fromQuery: false);
+        AssertTrackedEvent(context, 2, EntityState.Unchanged, tracking[1], tracked[1], fromQuery: false);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void State_change_events_fire_from_Add()
     {
+        var tracking = new List<EntityTrackingEventArgs>();
         var tracked = new List<EntityTrackedEventArgs>();
+        var changing = new List<EntityStateChangingEventArgs>();
         var changed = new List<EntityStateChangedEventArgs>();
 
         using var scope = _poolProvider.CreateScope();
-        var context = scope.ServiceProvider.GetService<LikeAZooContextPooled>();
+        var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
 
-        RegisterEvents(context, tracked, changed);
+        RegisterEvents(context, tracking, tracked, changing, changed);
 
         context.Add(new Cat(1));
 
@@ -1288,7 +1347,7 @@ public class ChangeTrackerTest
         Assert.Single(tracked);
         Assert.Empty(changed);
 
-        AssertTrackedEvent(context, 1, EntityState.Added, tracked[0], fromQuery: false);
+        AssertTrackedEvent(context, 1, EntityState.Added, tracking[0], tracked[0], fromQuery: false);
 
         context.Entry(new Cat(2)).State = EntityState.Added;
 
@@ -1297,19 +1356,21 @@ public class ChangeTrackerTest
         Assert.Equal(2, tracked.Count);
         Assert.Empty(changed);
 
-        AssertTrackedEvent(context, 2, EntityState.Added, tracked[1], fromQuery: false);
+        AssertTrackedEvent(context, 2, EntityState.Added, tracking[1], tracked[1], fromQuery: false);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void State_change_events_fire_from_Update()
     {
+        var tracking = new List<EntityTrackingEventArgs>();
         var tracked = new List<EntityTrackedEventArgs>();
+        var changing = new List<EntityStateChangingEventArgs>();
         var changed = new List<EntityStateChangedEventArgs>();
 
         using var scope = _poolProvider.CreateScope();
-        var context = scope.ServiceProvider.GetService<LikeAZooContextPooled>();
+        var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
 
-        RegisterEvents(context, tracked, changed);
+        RegisterEvents(context, tracking, tracked, changing, changed);
 
         context.Update(new Cat(1));
 
@@ -1318,7 +1379,7 @@ public class ChangeTrackerTest
         Assert.Single(tracked);
         Assert.Empty(changed);
 
-        AssertTrackedEvent(context, 1, EntityState.Modified, tracked[0], fromQuery: false);
+        AssertTrackedEvent(context, 1, EntityState.Modified, tracking[0], tracked[0], fromQuery: false);
 
         context.Entry(new Cat(2)).State = EntityState.Modified;
 
@@ -1327,20 +1388,22 @@ public class ChangeTrackerTest
         Assert.Equal(2, tracked.Count);
         Assert.Empty(changed);
 
-        AssertTrackedEvent(context, 2, EntityState.Modified, tracked[1], fromQuery: false);
+        AssertTrackedEvent(context, 2, EntityState.Modified, tracking[1], tracked[1], fromQuery: false);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void State_change_events_fire_for_tracked_state_changes()
     {
+        var tracking = new List<EntityTrackingEventArgs>();
         var tracked = new List<EntityTrackedEventArgs>();
+        var changing = new List<EntityStateChangingEventArgs>();
         var changed = new List<EntityStateChangedEventArgs>();
 
         using (var scope = _poolProvider.CreateScope())
         {
-            var context = scope.ServiceProvider.GetService<LikeAZooContextPooled>();
+            var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
 
-            RegisterEvents(context, tracked, changed);
+            RegisterEvents(context, tracking, tracked, changing, changed);
 
             context.AddRange(new Cat(1), new Cat(2));
 
@@ -1349,82 +1412,84 @@ public class ChangeTrackerTest
             Assert.Equal(2, tracked.Count);
             Assert.Empty(changed);
 
-            AssertTrackedEvent(context, 1, EntityState.Added, tracked[0], fromQuery: false);
-            AssertTrackedEvent(context, 2, EntityState.Added, tracked[1], fromQuery: false);
+            AssertTrackedEvent(context, 1, EntityState.Added, tracking[0], tracked[0], fromQuery: false);
+            AssertTrackedEvent(context, 2, EntityState.Added, tracking[1], tracked[1], fromQuery: false);
 
-            context.Entry(context.Cats.Find(1)).State = EntityState.Unchanged;
-            context.Entry(context.Cats.Find(2)).State = EntityState.Modified;
+            context.Entry(context.Cats.Find(1)!).State = EntityState.Unchanged;
+            context.Entry(context.Cats.Find(2)!).State = EntityState.Modified;
 
             Assert.Equal(2, tracked.Count);
             Assert.Equal(2, changed.Count);
 
             Assert.True(context.ChangeTracker.HasChanges());
 
-            AssertChangedEvent(context, 1, EntityState.Added, EntityState.Unchanged, changed[0]);
-            AssertChangedEvent(context, 2, EntityState.Added, EntityState.Modified, changed[1]);
+            AssertChangedEvent(context, 1, EntityState.Added, EntityState.Unchanged, changing[0], changed[0]);
+            AssertChangedEvent(context, 2, EntityState.Added, EntityState.Modified, changing[1], changed[1]);
 
-            context.Entry(context.Cats.Find(1)).State = EntityState.Added;
-            context.Entry(context.Cats.Find(2)).State = EntityState.Deleted;
+            context.Entry(context.Cats.Find(1)!).State = EntityState.Added;
+            context.Entry(context.Cats.Find(2)!).State = EntityState.Deleted;
 
             Assert.Equal(2, tracked.Count);
             Assert.Equal(4, changed.Count);
 
-            AssertChangedEvent(context, 1, EntityState.Unchanged, EntityState.Added, changed[2]);
-            AssertChangedEvent(context, 2, EntityState.Modified, EntityState.Deleted, changed[3]);
+            AssertChangedEvent(context, 1, EntityState.Unchanged, EntityState.Added, changing[2], changed[2]);
+            AssertChangedEvent(context, 2, EntityState.Modified, EntityState.Deleted, changing[3], changed[3]);
 
-            context.Remove(context.Cats.Find(1));
-            context.Entry(context.Cats.Find(2)).State = EntityState.Detached;
+            context.Remove(context.Cats.Find(1)!);
+            context.Entry(context.Cats.Find(2)!).State = EntityState.Detached;
 
             Assert.False(context.ChangeTracker.HasChanges());
 
             Assert.Equal(2, tracked.Count);
             Assert.Equal(6, changed.Count);
 
-            AssertChangedEvent(context, null, EntityState.Added, EntityState.Detached, changed[4]);
-            AssertChangedEvent(context, null, EntityState.Deleted, EntityState.Detached, changed[5]);
+            AssertChangedEvent(context, null, EntityState.Added, EntityState.Detached, changing[4], changed[4]);
+            AssertChangedEvent(context, null, EntityState.Deleted, EntityState.Detached, changing[5], changed[5]);
         }
 
         using (var scope = _poolProvider.CreateScope())
         {
-            var context = scope.ServiceProvider.GetService<LikeAZooContextPooled>();
+            var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
 
             context.AddRange(new Cat(1), new Cat(2));
 
-            context.Entry(context.Cats.Find(1)).State = EntityState.Unchanged;
-            context.Entry(context.Cats.Find(2)).State = EntityState.Modified;
+            context.Entry(context.Cats.Find(1)!).State = EntityState.Unchanged;
+            context.Entry(context.Cats.Find(2)!).State = EntityState.Modified;
 
-            context.Entry(context.Cats.Find(1)).State = EntityState.Added;
-            context.Entry(context.Cats.Find(2)).State = EntityState.Deleted;
+            context.Entry(context.Cats.Find(1)!).State = EntityState.Added;
+            context.Entry(context.Cats.Find(2)!).State = EntityState.Deleted;
 
-            context.Remove(context.Cats.Find(1));
-            context.Entry(context.Cats.Find(2)).State = EntityState.Detached;
+            context.Remove(context.Cats.Find(1)!);
+            context.Entry(context.Cats.Find(2)!).State = EntityState.Detached;
 
             Assert.Equal(2, tracked.Count);
             Assert.Equal(6, changed.Count);
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
     public void State_change_events_fire_when_saving_changes(bool callDetectChangesTwice)
     {
+        var tracking = new List<EntityTrackingEventArgs>();
         var tracked = new List<EntityTrackedEventArgs>();
+        var changing = new List<EntityStateChangingEventArgs>();
         var changed = new List<EntityStateChangedEventArgs>();
 
         Seed(usePool: true);
 
         using var scope = _poolProvider.CreateScope();
-        var context = scope.ServiceProvider.GetService<LikeAZooContextPooled>();
+        var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
 
-        RegisterEvents(context, tracked, changed);
+        RegisterEvents(context, tracking, tracked, changing, changed);
 
-        var cat1 = context.Cats.Find(1);
+        var cat1 = context.Cats.Find(1)!;
 
         Assert.Single(tracked);
         Assert.Empty(changed);
 
-        AssertTrackedEvent(context, 1, EntityState.Unchanged, tracked[0], fromQuery: true);
+        AssertTrackedEvent(context, 1, EntityState.Unchanged, tracking[0], tracked[0], fromQuery: true);
 
         context.Add(new Cat(3));
         cat1.Name = "Clippy";
@@ -1439,8 +1504,8 @@ public class ChangeTrackerTest
         Assert.Equal(2, tracked.Count);
         Assert.Single(changed);
 
-        AssertTrackedEvent(context, 3, EntityState.Added, tracked[1], fromQuery: false);
-        AssertChangedEvent(context, 1, EntityState.Unchanged, EntityState.Modified, changed[0]);
+        AssertTrackedEvent(context, 3, EntityState.Added, tracking[1], tracked[1], fromQuery: false);
+        AssertChangedEvent(context, 1, EntityState.Unchanged, EntityState.Modified, changing[0], changed[0]);
 
         Assert.True(context.ChangeTracker.HasChanges());
 
@@ -1451,22 +1516,24 @@ public class ChangeTrackerTest
         Assert.Equal(2, tracked.Count);
         Assert.Equal(3, changed.Count);
 
-        AssertChangedEvent(context, 1, EntityState.Modified, EntityState.Unchanged, changed[2]);
-        AssertChangedEvent(context, 3, EntityState.Added, EntityState.Unchanged, changed[1]);
+        AssertChangedEvent(context, 1, EntityState.Modified, EntityState.Unchanged, changing[2], changed[2]);
+        AssertChangedEvent(context, 3, EntityState.Added, EntityState.Unchanged, changing[1], changed[1]);
 
         context.Database.EnsureDeleted();
     }
 
-    [ConditionalFact]
+    [Fact]
     public void State_change_events_fire_when_property_modified_flags_cause_state_change()
     {
+        var tracking = new List<EntityTrackingEventArgs>();
         var tracked = new List<EntityTrackedEventArgs>();
+        var changing = new List<EntityStateChangingEventArgs>();
         var changed = new List<EntityStateChangedEventArgs>();
 
         using var scope = _poolProvider.CreateScope();
-        var context = scope.ServiceProvider.GetService<LikeAZooContextPooled>();
+        var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
 
-        RegisterEvents(context, tracked, changed);
+        RegisterEvents(context, tracking, tracked, changing, changed);
 
         var cat = context.Attach(
             new Cat(3) { Name = "Achilles" }).Entity;
@@ -1476,7 +1543,7 @@ public class ChangeTrackerTest
         Assert.Single(tracked);
         Assert.Empty(changed);
 
-        AssertTrackedEvent(context, 3, EntityState.Unchanged, tracked[0], fromQuery: false);
+        AssertTrackedEvent(context, 3, EntityState.Unchanged, tracking[0], tracked[0], fromQuery: false);
 
         context.Entry(cat).Property(e => e.Name).IsModified = true;
 
@@ -1485,7 +1552,7 @@ public class ChangeTrackerTest
         Assert.Single(tracked);
         Assert.Single(changed);
 
-        AssertChangedEvent(context, 3, EntityState.Unchanged, EntityState.Modified, changed[0]);
+        AssertChangedEvent(context, 3, EntityState.Unchanged, EntityState.Modified, changing[0], changed[0]);
 
         context.Entry(cat).Property(e => e.Name).IsModified = false;
 
@@ -1494,36 +1561,40 @@ public class ChangeTrackerTest
         Assert.Single(tracked);
         Assert.Equal(2, changed.Count);
 
-        AssertChangedEvent(context, 3, EntityState.Modified, EntityState.Unchanged, changed[1]);
+        AssertChangedEvent(context, 3, EntityState.Modified, EntityState.Unchanged, changing[1], changed[1]);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void State_change_events_are_limited_to_the_current_context()
     {
+        var tracking1 = new List<EntityTrackingEventArgs>();
         var tracked1 = new List<EntityTrackedEventArgs>();
+        var changing1 = new List<EntityStateChangingEventArgs>();
         var changed1 = new List<EntityStateChangedEventArgs>();
+        var tracking2 = new List<EntityTrackingEventArgs>();
         var tracked2 = new List<EntityTrackedEventArgs>();
+        var changing2 = new List<EntityStateChangingEventArgs>();
         var changed2 = new List<EntityStateChangedEventArgs>();
 
         Seed(usePool: true);
 
         using var scope = _poolProvider.CreateScope();
-        var context = scope.ServiceProvider.GetService<LikeAZooContextPooled>();
+        var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
 
-        RegisterEvents(context, tracked1, changed1);
+        RegisterEvents(context, tracking1, tracked1, changing1, changed1);
 
         using (var scope2 = _poolProvider.CreateScope())
         {
-            var context2 = scope2.ServiceProvider.GetService<LikeAZooContextPooled>();
+            var context2 = scope2.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
 
-            RegisterEvents(context2, tracked2, changed2);
+            RegisterEvents(context2, tracking2, tracked2, changing2, changed2);
 
             Assert.Equal(2, context2.Cats.OrderBy(e => e.Id).ToList().Count);
 
             Assert.Equal(2, tracked2.Count);
             Assert.Empty(changed2);
 
-            context2.Entry(context2.Cats.Find(1)).State = EntityState.Modified;
+            context2.Entry(context2.Cats.Find(1)!).State = EntityState.Modified;
 
             Assert.Equal(2, tracked2.Count);
             Assert.Single(changed2);
@@ -1537,7 +1608,7 @@ public class ChangeTrackerTest
         Assert.Equal(2, tracked1.Count);
         Assert.Empty(changed1);
 
-        context.Entry(context.Cats.Find(1)).State = EntityState.Modified;
+        context.Entry(context.Cats.Find(1)!).State = EntityState.Modified;
 
         Assert.Equal(2, tracked1.Count);
         Assert.Single(changed1);
@@ -1548,14 +1619,455 @@ public class ChangeTrackerTest
         context.Database.EnsureDeleted();
     }
 
+    [Fact]
+    public void DetectChanges_events_fire_for_no_change()
+    {
+        var detectingAll = new List<DetectChangesEventArgs>();
+        var detectedAll = new List<DetectedChangesEventArgs>();
+        var detectingEntity = new List<DetectEntityChangesEventArgs>();
+        var detectedEntity = new List<DetectedEntityChangesEventArgs>();
+
+        using var scope = _poolProvider.CreateScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
+
+        RegisterDetectAllEvents(context, detectingAll, detectedAll);
+        RegisterDetectEntityEvents(context, detectingEntity, detectedEntity);
+
+        context.AttachRange(new Cat(1), new Cat(2));
+
+        Assert.Empty(detectingAll);
+        Assert.Empty(detectedAll);
+
+        Assert.False(context.ChangeTracker.HasChanges());
+
+        Assert.Single(detectingAll);
+        Assert.Single(detectedAll);
+        Assert.Equal(2, detectingEntity.Count);
+        Assert.Equal(2, detectedEntity.Count);
+
+        Assert.False(detectedAll[0].ChangesFound);
+        Assert.False(detectedEntity[0].ChangesFound);
+        Assert.False(detectedEntity[1].ChangesFound);
+    }
+
+    [Fact]
+    public void DetectChanges_events_fire_for_property_change()
+    {
+        var detectingAll = new List<DetectChangesEventArgs>();
+        var detectedAll = new List<DetectedChangesEventArgs>();
+        var detectingEntity = new List<DetectEntityChangesEventArgs>();
+        var detectedEntity = new List<DetectedEntityChangesEventArgs>();
+
+        using var scope = _poolProvider.CreateScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
+
+        RegisterDetectAllEvents(context, detectingAll, detectedAll);
+        RegisterDetectEntityEvents(context, detectingEntity, detectedEntity);
+
+        var cat = new Cat(1);
+        context.AttachRange(cat, new Cat(2));
+        cat.Name = "Alice";
+
+        Assert.Empty(detectingAll);
+        Assert.Empty(detectedAll);
+
+        Assert.True(context.ChangeTracker.HasChanges());
+
+        Assert.Single(detectingAll);
+        Assert.Single(detectedAll);
+        Assert.Equal(2, detectingEntity.Count);
+        Assert.Equal(2, detectedEntity.Count);
+
+        Assert.True(detectedAll[0].ChangesFound);
+        Assert.True(detectedEntity[0].ChangesFound);
+        Assert.False(detectedEntity[1].ChangesFound);
+    }
+
+    [Fact]
+    public void DetectChanges_events_fire_for_fk_change()
+    {
+        var detectingAll = new List<DetectChangesEventArgs>();
+        var detectedAll = new List<DetectedChangesEventArgs>();
+        var detectingEntity = new List<DetectEntityChangesEventArgs>();
+        var detectedEntity = new List<DetectedEntityChangesEventArgs>();
+
+        using var scope = _poolProvider.CreateScope();
+
+        using var context = new EarlyLearningCenter();
+
+        RegisterDetectAllEvents(context, detectingAll, detectedAll);
+        RegisterDetectEntityEvents(context, detectingEntity, detectedEntity);
+
+        var product = new Product { Category = new Category() };
+        context.Attach(product);
+        product.CategoryId = 2;
+
+        Assert.Empty(detectingAll);
+        Assert.Empty(detectedAll);
+
+        Assert.True(context.ChangeTracker.HasChanges());
+
+        Assert.Single(detectingAll);
+        Assert.Single(detectedAll);
+        Assert.Equal(2, detectingEntity.Count);
+        Assert.Equal(2, detectedEntity.Count);
+
+        Assert.True(detectedAll[0].ChangesFound);
+        Assert.True(detectedEntity[0].ChangesFound);
+        Assert.False(detectedEntity[1].ChangesFound);
+    }
+
+    [Fact]
+    public void DetectChanges_events_fire_for_reference_navigation_change()
+    {
+        var detectingAll = new List<DetectChangesEventArgs>();
+        var detectedAll = new List<DetectedChangesEventArgs>();
+        var detectingEntity = new List<DetectEntityChangesEventArgs>();
+        var detectedEntity = new List<DetectedEntityChangesEventArgs>();
+
+        using var scope = _poolProvider.CreateScope();
+
+        using var context = new EarlyLearningCenter();
+
+        RegisterDetectAllEvents(context, detectingAll, detectedAll);
+        RegisterDetectEntityEvents(context, detectingEntity, detectedEntity);
+
+        var product = new Product { Category = new Category() };
+        context.Attach(product);
+        product.Category = null;
+
+        Assert.Empty(detectingAll);
+        Assert.Empty(detectedAll);
+
+        Assert.True(context.ChangeTracker.HasChanges());
+
+        Assert.Single(detectingAll);
+        Assert.Single(detectedAll);
+        Assert.Equal(2, detectingEntity.Count);
+        Assert.Equal(2, detectedEntity.Count);
+
+        Assert.True(detectedAll[0].ChangesFound);
+        Assert.True(detectedEntity[0].ChangesFound);
+        Assert.False(detectedEntity[1].ChangesFound);
+    }
+
+    [Fact]
+    public void DetectChanges_events_fire_for_collection_navigation_change()
+    {
+        var detectingAll = new List<DetectChangesEventArgs>();
+        var detectedAll = new List<DetectedChangesEventArgs>();
+        var detectingEntity = new List<DetectEntityChangesEventArgs>();
+        var detectedEntity = new List<DetectedEntityChangesEventArgs>();
+
+        using var scope = _poolProvider.CreateScope();
+
+        using var context = new EarlyLearningCenter();
+
+        RegisterDetectAllEvents(context, detectingAll, detectedAll);
+        RegisterDetectEntityEvents(context, detectingEntity, detectedEntity);
+
+        var product = new Product { Category = new Category() };
+        context.Attach(product);
+        product.Category.Products.Clear();
+
+        Assert.Empty(detectingAll);
+        Assert.Empty(detectedAll);
+
+        Assert.True(context.ChangeTracker.HasChanges());
+
+        Assert.Single(detectingAll);
+        Assert.Single(detectedAll);
+        Assert.Equal(2, detectingEntity.Count);
+        Assert.Equal(2, detectedEntity.Count);
+
+        Assert.True(detectedAll[0].ChangesFound);
+        Assert.False(detectedEntity[0].ChangesFound);
+        Assert.True(detectedEntity[1].ChangesFound);
+    }
+
+    [Fact]
+    public void DetectChanges_events_fire_for_skip_navigation_change()
+    {
+        var detectingAll = new List<DetectChangesEventArgs>();
+        var detectedAll = new List<DetectedChangesEventArgs>();
+        var detectingEntity = new List<DetectEntityChangesEventArgs>();
+        var detectedEntity = new List<DetectedEntityChangesEventArgs>();
+
+        using var scope = _poolProvider.CreateScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
+
+        RegisterDetectAllEvents(context, detectingAll, detectedAll);
+        RegisterDetectEntityEvents(context, detectingEntity, detectedEntity);
+
+        var cat = new Cat(1) { Hats = { new Hat(2) } };
+        context.Attach(cat);
+        cat.Hats.Clear();
+
+        Assert.Empty(detectingAll);
+        Assert.Empty(detectedAll);
+
+        Assert.True(context.ChangeTracker.HasChanges());
+
+        Assert.Single(detectingAll);
+        Assert.Single(detectedAll);
+        Assert.Equal(2, detectingEntity.Count);
+        Assert.Equal(2, detectedEntity.Count);
+
+        Assert.True(detectedAll[0].ChangesFound);
+        Assert.True(detectedEntity[0].ChangesFound);
+        Assert.False(detectedEntity[1].ChangesFound);
+    }
+
+    [Fact]
+    public void Local_DetectChanges_events_fire_for_no_change()
+    {
+        var detectingAll = new List<DetectChangesEventArgs>();
+        var detectedAll = new List<DetectedChangesEventArgs>();
+        var detectingEntity = new List<DetectEntityChangesEventArgs>();
+        var detectedEntity = new List<DetectedEntityChangesEventArgs>();
+
+        using var scope = _poolProvider.CreateScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
+
+        RegisterDetectAllEvents(context, detectingAll, detectedAll);
+        RegisterDetectEntityEvents(context, detectingEntity, detectedEntity);
+
+        var cat = new Cat(1);
+        context.AttachRange(cat, new Cat(2));
+
+        Assert.Empty(detectingEntity);
+        Assert.Empty(detectedEntity);
+
+        _ = context.Entry(cat);
+
+        Assert.Empty(detectingAll);
+        Assert.Empty(detectedAll);
+        Assert.Single(detectingEntity);
+        Assert.Single(detectedEntity);
+
+        AssertLocalDetectChangesEvent(changesFound: false, detectingEntity[0], detectedEntity[0]);
+    }
+
+    [Fact]
+    public void Local_DetectChanges_events_fire_for_property_change()
+    {
+        var detectingAll = new List<DetectChangesEventArgs>();
+        var detectedAll = new List<DetectedChangesEventArgs>();
+        var detectingEntity = new List<DetectEntityChangesEventArgs>();
+        var detectedEntity = new List<DetectedEntityChangesEventArgs>();
+
+        using var scope = _poolProvider.CreateScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
+
+        RegisterDetectAllEvents(context, detectingAll, detectedAll);
+        RegisterDetectEntityEvents(context, detectingEntity, detectedEntity);
+
+        var cat = new Cat(1);
+        context.AttachRange(cat, new Cat(2));
+        cat.Name = "Alice";
+
+        Assert.Empty(detectingEntity);
+        Assert.Empty(detectedEntity);
+
+        _ = context.Entry(cat);
+
+        Assert.Empty(detectingAll);
+        Assert.Empty(detectedAll);
+        Assert.Single(detectingEntity);
+        Assert.Single(detectedEntity);
+
+        AssertLocalDetectChangesEvent(changesFound: true, detectingEntity[0], detectedEntity[0]);
+    }
+
+    [Fact]
+    public void Local_DetectChanges_events_fire_for_fk_change()
+    {
+        var detectingAll = new List<DetectChangesEventArgs>();
+        var detectedAll = new List<DetectedChangesEventArgs>();
+        var detectingEntity = new List<DetectEntityChangesEventArgs>();
+        var detectedEntity = new List<DetectedEntityChangesEventArgs>();
+
+        using var scope = _poolProvider.CreateScope();
+
+        using var context = new EarlyLearningCenter();
+
+        RegisterDetectAllEvents(context, detectingAll, detectedAll);
+        RegisterDetectEntityEvents(context, detectingEntity, detectedEntity);
+
+        var product = new Product { Category = new Category() };
+        context.Attach(product);
+        product.CategoryId = 2;
+
+        Assert.Empty(detectingEntity);
+        Assert.Empty(detectedEntity);
+
+        _ = context.Entry(product);
+
+        Assert.Empty(detectingAll);
+        Assert.Empty(detectedAll);
+        Assert.Single(detectingEntity);
+        Assert.Single(detectedEntity);
+
+        AssertLocalDetectChangesEvent(changesFound: true, detectingEntity[0], detectedEntity[0]);
+    }
+
+    [Fact]
+    public void Local_DetectChanges_events_fire_for_reference_navigation_change()
+    {
+        var detectingAll = new List<DetectChangesEventArgs>();
+        var detectedAll = new List<DetectedChangesEventArgs>();
+        var detectingEntity = new List<DetectEntityChangesEventArgs>();
+        var detectedEntity = new List<DetectedEntityChangesEventArgs>();
+
+        using var scope = _poolProvider.CreateScope();
+
+        using var context = new EarlyLearningCenter();
+
+        RegisterDetectAllEvents(context, detectingAll, detectedAll);
+        RegisterDetectEntityEvents(context, detectingEntity, detectedEntity);
+
+        var product = new Product { Category = new Category() };
+        context.Attach(product);
+        product.Category = null;
+
+        Assert.Empty(detectingEntity);
+        Assert.Empty(detectedEntity);
+
+        _ = context.Entry(product);
+
+        Assert.Empty(detectingAll);
+        Assert.Empty(detectedAll);
+        Assert.Equal(2, detectingEntity.Count);
+        Assert.Equal(2, detectedEntity.Count);
+
+        AssertLocalDetectChangesEvent(changesFound: false, detectingEntity[0], detectedEntity[0]);
+        AssertLocalDetectChangesEvent(changesFound: true, detectingEntity[1], detectedEntity[1]);
+    }
+
+    [Fact]
+    public void Local_DetectChanges_events_fire_for_collection_navigation_change()
+    {
+        var detectingAll = new List<DetectChangesEventArgs>();
+        var detectedAll = new List<DetectedChangesEventArgs>();
+        var detectingEntity = new List<DetectEntityChangesEventArgs>();
+        var detectedEntity = new List<DetectedEntityChangesEventArgs>();
+
+        using var scope = _poolProvider.CreateScope();
+
+        using var context = new EarlyLearningCenter();
+
+        RegisterDetectAllEvents(context, detectingAll, detectedAll);
+        RegisterDetectEntityEvents(context, detectingEntity, detectedEntity);
+
+        var product = new Product { Category = new Category() };
+        context.Attach(product);
+        product.Category.Products.Clear();
+
+        Assert.Empty(detectingEntity);
+        Assert.Empty(detectedEntity);
+
+        _ = context.Entry(product.Category);
+
+        Assert.Empty(detectingAll);
+        Assert.Empty(detectedAll);
+        Assert.Single(detectingEntity);
+        Assert.Single(detectedEntity);
+
+        AssertLocalDetectChangesEvent(changesFound: true, detectingEntity[0], detectedEntity[0]);
+    }
+
+    [Fact]
+    public void Local_DetectChanges_events_fire_for_skip_navigation_change()
+    {
+        var detectingAll = new List<DetectChangesEventArgs>();
+        var detectedAll = new List<DetectedChangesEventArgs>();
+        var detectingEntity = new List<DetectEntityChangesEventArgs>();
+        var detectedEntity = new List<DetectedEntityChangesEventArgs>();
+
+        using var scope = _poolProvider.CreateScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
+
+        RegisterDetectAllEvents(context, detectingAll, detectedAll);
+        RegisterDetectEntityEvents(context, detectingEntity, detectedEntity);
+
+        var cat = new Cat(1) { Hats = { new Hat(2) } };
+        context.Attach(cat);
+        cat.Hats.Clear();
+
+        Assert.Empty(detectingEntity);
+        Assert.Empty(detectedEntity);
+
+        _ = context.Entry(cat);
+
+        Assert.Empty(detectingAll);
+        Assert.Empty(detectedAll);
+        Assert.Single(detectingEntity);
+        Assert.Single(detectedEntity);
+
+        AssertLocalDetectChangesEvent(changesFound: true, detectingEntity[0], detectedEntity[0]);
+    }
+
+    [Fact] // Issue #26506
+    public void DetectChanges_event_can_be_used_to_know_when_all_properties_have_changed()
+    {
+        using var scope = _poolProvider.CreateScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>();
+
+        var hat = new Hat(2) { Color = "Orange" };
+        var cat1 = new Cat(1) { Hats = { hat } };
+        var cat2 = new Cat(2);
+        context.AttachRange(cat1, cat2);
+
+        var stateChangedCalled = false;
+        context.ChangeTracker.StateChanged += (s, a) =>
+        {
+            stateChangedCalled = true;
+            Assert.Equal("Black", a.Entry.Property(nameof(Hat.Color)).CurrentValue);
+            Assert.Equal(1, a.Entry.Property(nameof(Hat.CatId)).CurrentValue);
+        };
+
+        var detectedChangesCalled = false;
+        context.ChangeTracker.DetectedEntityChanges += (s, a) =>
+        {
+            if (a.ChangesFound)
+            {
+                detectedChangesCalled = true;
+
+                Assert.Equal("Black", a.Entry.Property(nameof(Hat.Color)).CurrentValue);
+                Assert.Equal(2, a.Entry.Property(nameof(Hat.CatId)).CurrentValue);
+            }
+        };
+
+        hat.Cat = cat2;
+        hat.Color = "Black";
+
+        context.ChangeTracker.DetectChanges();
+
+        Assert.True(stateChangedCalled);
+        Assert.True(detectedChangesCalled);
+
+        Assert.Equal(2, hat.CatId);
+    }
+
     private static void AssertTrackedEvent(
         LikeAZooContext context,
         int id,
         EntityState newState,
+        EntityTrackingEventArgs tracking,
         EntityTrackedEventArgs tracked,
         bool fromQuery)
     {
+        Assert.Same(tracking.Entry.Entity, tracked.Entry.Entity);
+        Assert.Equal(newState, tracking.State);
         Assert.Equal(newState, tracked.Entry.State);
+        Assert.Equal(fromQuery, tracking.FromQuery);
         Assert.Equal(fromQuery, tracked.FromQuery);
         Assert.Same(context.Cats.Find(id), tracked.Entry.Entity);
     }
@@ -1565,8 +2077,12 @@ public class ChangeTrackerTest
         int? id,
         EntityState oldState,
         EntityState newState,
+        EntityStateChangingEventArgs changing,
         EntityStateChangedEventArgs changed)
     {
+        Assert.Same(changing.Entry.Entity, changed.Entry.Entity);
+        Assert.Equal(oldState, changing.OldState);
+        Assert.Equal(newState, changing.NewState);
         Assert.Equal(oldState, changed.OldState);
         Assert.Equal(newState, changed.NewState);
         Assert.Equal(newState, changed.Entry.State);
@@ -1577,15 +2093,39 @@ public class ChangeTrackerTest
         }
     }
 
+    private static void AssertLocalDetectChangesEvent(
+        bool changesFound,
+        DetectEntityChangesEventArgs detectingEntity,
+        DetectedEntityChangesEventArgs detectedEntity)
+    {
+        Assert.Same(detectingEntity.Entry.Entity, detectedEntity.Entry.Entity);
+        Assert.Equal(changesFound, detectedEntity.ChangesFound);
+    }
+
     private static void RegisterEvents(
-        LikeAZooContext context,
+        DbContext context,
+        IList<EntityTrackingEventArgs> tracking,
         IList<EntityTrackedEventArgs> tracked,
+        IList<EntityStateChangingEventArgs> changing,
         IList<EntityStateChangedEventArgs> changed)
     {
+        context.ChangeTracker.Tracking += (s, e) =>
+        {
+            Assert.Same(context.ChangeTracker, s);
+            tracking.Add(e);
+        };
+
         context.ChangeTracker.Tracked += (s, e) =>
         {
             Assert.Same(context.ChangeTracker, s);
             tracked.Add(e);
+        };
+
+        context.ChangeTracker.StateChanging += (s, e) =>
+        {
+            Assert.Same(context.ChangeTracker, s);
+            Assert.Equal(e.OldState, e.Entry.State);
+            changing.Add(e);
         };
 
         context.ChangeTracker.StateChanged += (s, e) =>
@@ -1596,48 +2136,89 @@ public class ChangeTrackerTest
         };
     }
 
-    private class Cat
+    private static void RegisterDetectAllEvents(
+        DbContext context,
+        IList<DetectChangesEventArgs> detectingAll,
+        IList<DetectedChangesEventArgs> detectedAll)
     {
-        public Cat(int id)
+        context.ChangeTracker.DetectingAllChanges += (s, e) =>
         {
-            Id = id;
-        }
+            _ = context.ChangeTracker.Entries().ToList(); // Should not recursively call DetectChanges
+            Assert.Same(context.ChangeTracker, s);
+            detectingAll.Add(e);
+        };
+
+        context.ChangeTracker.DetectedAllChanges += (s, e) =>
+        {
+            _ = context.ChangeTracker.Entries().ToList(); // Should not recursively call DetectChanges
+            Assert.Same(context.ChangeTracker, s);
+            detectedAll.Add(e);
+        };
+    }
+
+    private static void RegisterDetectEntityEvents(
+        DbContext context,
+        IList<DetectEntityChangesEventArgs> detectingEntity,
+        IList<DetectedEntityChangesEventArgs> detectedEntity)
+    {
+        context.ChangeTracker.DetectingEntityChanges += (s, e) =>
+        {
+            _ = context.ChangeTracker.Entries().ToList(); // Should not recursively call DetectChanges
+            Assert.Same(context.ChangeTracker, s);
+            Assert.NotNull(e.Entry);
+            detectingEntity.Add(e);
+        };
+
+        context.ChangeTracker.DetectedEntityChanges += (s, e) =>
+        {
+            _ = context.ChangeTracker.Entries().ToList(); // Should not recursively call DetectChanges
+            Assert.Same(context.ChangeTracker, s);
+            Assert.NotNull(e.Entry);
+            detectedEntity.Add(e);
+        };
+    }
+
+    private class Wocket
+    {
+        public int Id { get; set; }
+        public string? Name { get; set; }
+        public required Pocket Pocket { get; set; }
+    }
+
+    private class Pocket
+    {
+        public string? Contents { get; set; }
+    }
+
+    private class Cat(int id)
+    {
+        public IEntityType? EntityType { get; set; }
 
         // ReSharper disable once AutoPropertyCanBeMadeGetOnly.Local
-        public int Id { get; private set; }
+        public int Id { get; private set; } = id;
 
-        public string Name { get; set; }
+        public string? Name { get; set; }
 
         public ICollection<Hat> Hats { get; } = new List<Hat>();
 
         public ICollection<Mat> Mats { get; } = new List<Mat>();
     }
 
-    private class Hat
+    private class Hat(int id)
     {
-        public Hat(int id)
-        {
-            Id = id;
-        }
-
         // ReSharper disable once AutoPropertyCanBeMadeGetOnly.Local
-        public int Id { get; private set; }
+        public int Id { get; private set; } = id;
 
-        public string Color { get; set; }
+        public string? Color { get; set; }
 
         public int CatId { get; set; }
-        public Cat Cat { get; set; }
+        public Cat? Cat { get; set; }
     }
 
-    private class Mat
+    private class Mat(int id)
     {
-        public Mat(int id)
-        {
-            Id = id;
-        }
-
         // ReSharper disable once AutoPropertyCanBeMadeGetOnly.Local
-        public int Id { get; private set; }
+        public int Id { get; private set; } = id;
 
         public ICollection<Cat> Cats { get; } = new List<Cat>();
     }
@@ -1658,18 +2239,12 @@ public class ChangeTrackerTest
 
     private static readonly IServiceProvider _poolProvider
         = new ServiceCollection()
-            .AddDbContextPool<LikeAZooContextPooled>(
-                p => p.UseInMemoryDatabase(nameof(LikeAZooContextPooled))
-                    .UseInternalServiceProvider(InMemoryFixture.BuildServiceProvider(_loggerFactory)))
+            .AddDbContextPool<LikeAZooContextPooled>(p => p.UseInMemoryDatabase(nameof(LikeAZooContextPooled))
+                .UseInternalServiceProvider(InMemoryFixture.BuildServiceProvider(_loggerFactory)))
             .BuildServiceProvider(validateScopes: true);
 
-    private class LikeAZooContextPooled : LikeAZooContext
+    private class LikeAZooContextPooled(DbContextOptions<LikeAZooContextPooled> options) : LikeAZooContext(options)
     {
-        public LikeAZooContextPooled(DbContextOptions<LikeAZooContextPooled> options)
-            : base(options)
-        {
-        }
-
         protected internal override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
         }
@@ -1686,7 +2261,8 @@ public class ChangeTrackerTest
         {
         }
 
-        public DbSet<Cat> Cats { get; set; }
+        public DbSet<Cat> Cats
+            => Set<Cat>();
 
         protected internal override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder
@@ -1698,24 +2274,25 @@ public class ChangeTrackerTest
             modelBuilder
                 .Entity<Cat>()
                 .Property(e => e.Id)
-                .HasValueGenerator<InMemoryIntegerValueGenerator<int>>();
+                .HasValueGenerator((_, __) => new ResettableValueGenerator());
 
             modelBuilder
                 .Entity<Hat>()
                 .Property(e => e.Id)
-                .HasValueGenerator<InMemoryIntegerValueGenerator<int>>();
+                .HasValueGenerator((_, __) => new ResettableValueGenerator());
 
-            modelBuilder.Entity<Mat>(
-                b =>
-                {
-                    b.Property(e => e.Id).HasValueGenerator<InMemoryIntegerValueGenerator<int>>();
-                    b.HasMany(e => e.Cats)
-                        .WithMany(e => e.Mats)
-                        .UsingEntity<CatMat>(
-                            ts => ts.HasOne<Cat>().WithMany(),
-                            ts => ts.HasOne<Mat>().WithMany())
-                        .HasKey(ts => new { ts.CatId, ts.MatId });
-                });
+            modelBuilder.Entity<Mat>(b =>
+            {
+                b.Property(e => e.Id).HasValueGenerator((_, __) => new ResettableValueGenerator());
+                b.HasMany(e => e.Cats)
+                    .WithMany(e => e.Mats)
+                    .UsingEntity<CatMat>(
+                        ts => ts.HasOne<Cat>().WithMany(),
+                        ts => ts.HasOne<Mat>().WithMany())
+                    .HasKey(ts => new { ts.CatId, ts.MatId });
+            });
+
+            modelBuilder.Entity<Wocket>().ComplexProperty(e => e.Pocket);
         }
     }
 
@@ -1751,7 +2328,7 @@ public class ChangeTrackerTest
         if (usePool)
         {
             using var scope = _poolProvider.CreateScope();
-            Seed(scope.ServiceProvider.GetService<LikeAZooContextPooled>());
+            Seed(scope.ServiceProvider.GetRequiredService<LikeAZooContextPooled>());
         }
         else
         {
@@ -1760,9 +2337,9 @@ public class ChangeTrackerTest
         }
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
     public void Can_remove_dependent_identifying_one_to_many(bool saveEntities)
     {
         using var context = new EarlyLearningCenter();
@@ -1804,7 +2381,29 @@ public class ChangeTrackerTest
         Assert.Empty(order.OrderDetails);
     }
 
-    [ConditionalFact]
+    [Fact] // Issue #26827
+    public void Setting_dependent_to_null_for_client_cascaded_optional_is_not_overwritten_by_DetectChanges()
+    {
+        using var context = new EarlyLearningCenter();
+        var bobby = context.Add(new Bobby { Buggy = new Buggy() }).Entity;
+
+        context.SaveChanges();
+        context.ChangeTracker.Clear();
+
+        bobby = context.Set<Bobby>().Include(e => e.Buggy).Single(e => e.Id == bobby.Id);
+
+        Assert.NotNull(bobby.Buggy);
+
+        bobby.Buggy = null;
+
+        Assert.Null(bobby.Buggy);
+
+        context.ChangeTracker.DetectChanges();
+
+        Assert.Null(bobby.Buggy);
+    }
+
+    [Fact]
     public void Keyless_type_negative_cases()
     {
         using var context = new EarlyLearningCenter();
@@ -1839,7 +2438,7 @@ public class ChangeTrackerTest
             Assert.Throws<InvalidOperationException>(() => context.Entry(whoAmI)).Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_all_entries()
     {
         using var context = new EarlyLearningCenter();
@@ -1847,11 +2446,11 @@ public class ChangeTrackerTest
         var product = context.Add(new Product()).Entity;
 
         Assert.Equal(
-            new object[] { category, product },
+            [category, product],
             context.ChangeTracker.Entries().Select(e => e.Entity).OrderBy(e => e.GetType().Name));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_all_entities_for_an_entity_of_a_given_type()
     {
         using var context = new EarlyLearningCenter();
@@ -1867,22 +2466,22 @@ public class ChangeTrackerTest
             context.ChangeTracker.Entries<Category>().Select(e => e.Entity).OrderBy(e => e.GetType().Name));
 
         Assert.Equal(
-            new object[] { category, product },
+            [category, product],
             context.ChangeTracker.Entries<object>().Select(e => e.Entity).OrderBy(e => e.GetType().Name));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_get_Context()
     {
         using var context = new EarlyLearningCenter();
         Assert.Same(context, context.ChangeTracker.Context);
     }
 
-    [ConditionalTheory] // Issue #17828
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
+    [Theory,
+     InlineData(false, false),
+     InlineData(true, false),
+     InlineData(false, true),
+     InlineData(true, true)] // Issue #17828
     public void DetectChanges_reparents_even_when_immediate_cascade_enabled(bool delayCascade, bool callDetectChangesTwice)
     {
         using var context = new EarlyLearningCenter();
@@ -1922,23 +2521,23 @@ public class ChangeTrackerTest
         Assert.Equal(EntityState.Modified, context.Entry(child).State);
     }
 
-    [ConditionalTheory] // Issue #19203
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
+    [Theory,
+     InlineData(false, false),
+     InlineData(false, true),
+     InlineData(true, false),
+     InlineData(true, true)] // Issue #19203
     public void Dependent_FKs_are_not_nulled_when_principal_is_detached(bool delayCascade, bool trackNewDependents)
     {
-        using var context = new EarlyLearningCenter();
+        using var context = new EarlyLearningCenter(new UpdatingIdentityResolutionInterceptor());
 
         var category = new OptionalCategory
         {
             Id = 1,
-            Products = new List<OptionalProduct>
+            Products =
             {
-                new() { Id = 1 },
-                new() { Id = 2 },
-                new() { Id = 3 }
+                new OptionalProduct { Id = 1 },
+                new OptionalProduct { Id = 2 },
+                new OptionalProduct { Id = 3 }
             }
         };
 
@@ -1971,108 +2570,99 @@ public class ChangeTrackerTest
 
         if (trackNewDependents)
         {
-            newCategory.Products = new List<OptionalProduct>
-            {
-                new() { Id = 1 },
-                new() { Id = 2 },
-                new() { Id = 3 }
-            };
+            newCategory.Products.AddRange(
+            [
+                new OptionalProduct { Id = 1, CategoryId = category.Id },
+                new OptionalProduct { Id = 2, CategoryId = category.Id },
+                new OptionalProduct { Id = 3, CategoryId = category.Id }
+            ]);
         }
 
-        if (trackNewDependents)
-        {
-            Assert.Equal(
-                CoreStrings.IdentityConflict(nameof(OptionalProduct), "{'Id'}"),
-                Assert.Throws<InvalidOperationException>(() => context.Attach(newCategory)).Message);
-        }
-        else
-        {
-            context.Update(newCategory);
+        context.Update(newCategory);
 
-            Assert.Equal(4, context.ChangeTracker.Entries().Count());
+        Assert.Equal(4, context.ChangeTracker.Entries().Count());
 
-            categoryEntry = context.Entry(newCategory);
-            product0Entry = context.Entry(newCategory.Products[0]);
-            product1Entry = context.Entry(newCategory.Products[1]);
-            product2Entry = context.Entry(newCategory.Products[2]);
+        categoryEntry = context.Entry(newCategory);
+        product0Entry = context.Entry(newCategory.Products[0]);
+        product1Entry = context.Entry(newCategory.Products[1]);
+        product2Entry = context.Entry(newCategory.Products[2]);
 
-            Assert.Equal(EntityState.Modified, categoryEntry.State);
+        Assert.Equal(EntityState.Modified, categoryEntry.State);
 
-            Assert.Equal(EntityState.Unchanged, product0Entry.State);
-            Assert.Equal(EntityState.Unchanged, product1Entry.State);
-            Assert.Equal(EntityState.Unchanged, product2Entry.State);
+        Assert.Equal(EntityState.Unchanged, product0Entry.State);
+        Assert.Equal(EntityState.Unchanged, product1Entry.State);
+        Assert.Equal(EntityState.Unchanged, product2Entry.State);
 
-            Assert.Same(newCategory.Products[0], category.Products[0]);
-            Assert.Same(newCategory.Products[1], category.Products[1]);
-            Assert.Same(newCategory.Products[2], category.Products[2]);
+        Assert.Same(newCategory.Products[0], category.Products[0]);
+        Assert.Same(newCategory.Products[1], category.Products[1]);
+        Assert.Same(newCategory.Products[2], category.Products[2]);
 
-            Assert.Same(newCategory, newCategory.Products[0].Category);
-            Assert.Same(newCategory, newCategory.Products[1].Category);
-            Assert.Same(newCategory, newCategory.Products[2].Category);
+        Assert.Same(newCategory, newCategory.Products[0].Category);
+        Assert.Same(newCategory, newCategory.Products[1].Category);
+        Assert.Same(newCategory, newCategory.Products[2].Category);
 
-            Assert.Equal(newCategory.Id, product0Entry.Property("CategoryId").CurrentValue);
-            Assert.Equal(newCategory.Id, product1Entry.Property("CategoryId").CurrentValue);
-            Assert.Equal(newCategory.Id, product2Entry.Property("CategoryId").CurrentValue);
-        }
+        Assert.Equal(newCategory.Id, product0Entry.Property("CategoryId").CurrentValue);
+        Assert.Equal(newCategory.Id, product1Entry.Property("CategoryId").CurrentValue);
+        Assert.Equal(newCategory.Id, product2Entry.Property("CategoryId").CurrentValue);
     }
 
-    [ConditionalTheory] // Issues #16546 #25360; Change reverted in #27174.
-    [InlineData(null, false, false, true, false, false)]
-    [InlineData(null, true, false, true, false, false)]
-    [InlineData(null, false, true, true, false, false)]
-    [InlineData(null, true, false, false, true, false)]
-    [InlineData(null, false, true, false, true, false)]
-    [InlineData(null, true, false, true, true, false)]
-    [InlineData(null, false, true, true, true, false)]
-    [InlineData(CascadeTiming.Immediate, false, false, true, false, false)]
-    [InlineData(CascadeTiming.Immediate, true, false, true, false, false)]
-    [InlineData(CascadeTiming.Immediate, false, true, true, false, false)]
-    [InlineData(CascadeTiming.Immediate, true, false, false, true, false)]
-    [InlineData(CascadeTiming.Immediate, false, true, false, true, false)]
-    [InlineData(CascadeTiming.Immediate, true, false, true, true, false)]
-    [InlineData(CascadeTiming.Immediate, false, true, true, true, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, false, true, false, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, true, false, true, false, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, true, true, false, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, true, false, false, true, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, true, false, true, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, true, false, true, true, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, true, true, true, false)]
-    [InlineData(CascadeTiming.Never, false, false, true, false, false)]
-    [InlineData(CascadeTiming.Never, true, false, true, false, false)]
-    [InlineData(CascadeTiming.Never, false, true, true, false, false)]
-    [InlineData(CascadeTiming.Never, true, false, false, true, false)]
-    [InlineData(CascadeTiming.Never, false, true, false, true, false)]
-    [InlineData(CascadeTiming.Never, true, false, true, true, false)]
-    [InlineData(CascadeTiming.Never, false, true, true, true, false)]
-    [InlineData(null, false, false, true, false, true)]
-    [InlineData(null, true, false, true, false, true)]
-    [InlineData(null, false, true, true, false, true)]
-    [InlineData(null, true, false, false, true, true)]
-    [InlineData(null, false, true, false, true, true)]
-    [InlineData(null, true, false, true, true, true)]
-    [InlineData(null, false, true, true, true, true)]
-    [InlineData(CascadeTiming.Immediate, false, false, true, false, true)]
-    [InlineData(CascadeTiming.Immediate, true, false, true, false, true)]
-    [InlineData(CascadeTiming.Immediate, false, true, true, false, true)]
-    [InlineData(CascadeTiming.Immediate, true, false, false, true, true)]
-    [InlineData(CascadeTiming.Immediate, false, true, false, true, true)]
-    [InlineData(CascadeTiming.Immediate, true, false, true, true, true)]
-    [InlineData(CascadeTiming.Immediate, false, true, true, true, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, false, true, false, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, true, false, true, false, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, true, true, false, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, true, false, false, true, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, true, false, true, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, true, false, true, true, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, true, true, true, true)]
-    [InlineData(CascadeTiming.Never, false, false, true, false, true)]
-    [InlineData(CascadeTiming.Never, true, false, true, false, true)]
-    [InlineData(CascadeTiming.Never, false, true, true, false, true)]
-    [InlineData(CascadeTiming.Never, true, false, false, true, true)]
-    [InlineData(CascadeTiming.Never, false, true, false, true, true)]
-    [InlineData(CascadeTiming.Never, true, false, true, true, true)]
-    [InlineData(CascadeTiming.Never, false, true, true, true, true)]
+    [Theory,
+     InlineData(null, false, false, true, false, false),
+     InlineData(null, true, false, true, false, false),
+     InlineData(null, false, true, true, false, false),
+     InlineData(null, true, false, false, true, false),
+     InlineData(null, false, true, false, true, false),
+     InlineData(null, true, false, true, true, false),
+     InlineData(null, false, true, true, true, false),
+     InlineData(CascadeTiming.Immediate, false, false, true, false, false),
+     InlineData(CascadeTiming.Immediate, true, false, true, false, false),
+     InlineData(CascadeTiming.Immediate, false, true, true, false, false),
+     InlineData(CascadeTiming.Immediate, true, false, false, true, false),
+     InlineData(CascadeTiming.Immediate, false, true, false, true, false),
+     InlineData(CascadeTiming.Immediate, true, false, true, true, false),
+     InlineData(CascadeTiming.Immediate, false, true, true, true, false),
+     InlineData(CascadeTiming.OnSaveChanges, false, false, true, false, false),
+     InlineData(CascadeTiming.OnSaveChanges, true, false, true, false, false),
+     InlineData(CascadeTiming.OnSaveChanges, false, true, true, false, false),
+     InlineData(CascadeTiming.OnSaveChanges, true, false, false, true, false),
+     InlineData(CascadeTiming.OnSaveChanges, false, true, false, true, false),
+     InlineData(CascadeTiming.OnSaveChanges, true, false, true, true, false),
+     InlineData(CascadeTiming.OnSaveChanges, false, true, true, true, false),
+     InlineData(CascadeTiming.Never, false, false, true, false, false),
+     InlineData(CascadeTiming.Never, true, false, true, false, false),
+     InlineData(CascadeTiming.Never, false, true, true, false, false),
+     InlineData(CascadeTiming.Never, true, false, false, true, false),
+     InlineData(CascadeTiming.Never, false, true, false, true, false),
+     InlineData(CascadeTiming.Never, true, false, true, true, false),
+     InlineData(CascadeTiming.Never, false, true, true, true, false),
+     InlineData(null, false, false, true, false, true),
+     InlineData(null, true, false, true, false, true),
+     InlineData(null, false, true, true, false, true),
+     InlineData(null, true, false, false, true, true),
+     InlineData(null, false, true, false, true, true),
+     InlineData(null, true, false, true, true, true),
+     InlineData(null, false, true, true, true, true),
+     InlineData(CascadeTiming.Immediate, false, false, true, false, true),
+     InlineData(CascadeTiming.Immediate, true, false, true, false, true),
+     InlineData(CascadeTiming.Immediate, false, true, true, false, true),
+     InlineData(CascadeTiming.Immediate, true, false, false, true, true),
+     InlineData(CascadeTiming.Immediate, false, true, false, true, true),
+     InlineData(CascadeTiming.Immediate, true, false, true, true, true),
+     InlineData(CascadeTiming.Immediate, false, true, true, true, true),
+     InlineData(CascadeTiming.OnSaveChanges, false, false, true, false, true),
+     InlineData(CascadeTiming.OnSaveChanges, true, false, true, false, true),
+     InlineData(CascadeTiming.OnSaveChanges, false, true, true, false, true),
+     InlineData(CascadeTiming.OnSaveChanges, true, false, false, true, true),
+     InlineData(CascadeTiming.OnSaveChanges, false, true, false, true, true),
+     InlineData(CascadeTiming.OnSaveChanges, true, false, true, true, true),
+     InlineData(CascadeTiming.OnSaveChanges, false, true, true, true, true),
+     InlineData(CascadeTiming.Never, false, false, true, false, true),
+     InlineData(CascadeTiming.Never, true, false, true, false, true),
+     InlineData(CascadeTiming.Never, false, true, true, false, true),
+     InlineData(CascadeTiming.Never, true, false, false, true, true),
+     InlineData(CascadeTiming.Never, false, true, false, true, true),
+     InlineData(CascadeTiming.Never, true, false, true, true, true),
+     InlineData(CascadeTiming.Never, false, true, true, true, true)] // Issues #16546 #25360; Change reverted in #27174.
     public void Optional_relationship_with_cascade_does_not_delete_orphans(
         CascadeTiming? orphanTiming,
         bool setProperty,
@@ -2117,7 +2707,7 @@ public class ChangeTrackerTest
             Assert.Equal(3, context.ChangeTracker.Entries().Count());
             Assert.Equal(EntityState.Unchanged, context.Entry(attachedContainer).State);
             Assert.Equal(EntityState.Unchanged, context.Entry(attachedRoom).State);
-            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct).State);
+            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct!).State);
 
             if (orphanTiming != null)
             {
@@ -2157,7 +2747,7 @@ public class ChangeTrackerTest
 
             Assert.Equal(3, context.ChangeTracker.Entries().Count());
             Assert.Equal(EntityState.Unchanged, context.Entry(attachedContainer).State);
-            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct).State);
+            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct!).State);
             Assert.Equal(EntityState.Modified, context.Entry(attachedRoom).State);
 
             if (forceCascade)
@@ -2167,75 +2757,75 @@ public class ChangeTrackerTest
 
             Assert.Equal(3, context.ChangeTracker.Entries().Count());
             Assert.Equal(EntityState.Unchanged, context.Entry(attachedContainer).State);
-            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct).State);
+            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct!).State);
             Assert.Equal(EntityState.Modified, context.Entry(attachedRoom).State);
 
             context.SaveChanges();
 
             Assert.Equal(3, context.ChangeTracker.Entries().Count());
             Assert.Equal(EntityState.Unchanged, context.Entry(attachedContainer).State);
-            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct).State);
+            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct!).State);
             Assert.Equal(EntityState.Unchanged, context.Entry(attachedRoom).State);
         }
     }
 
-    [ConditionalTheory] // Issues #16546 #25360; Change reverted in #27174.
-    [InlineData(null, false, false, true, false, false)]
-    [InlineData(null, true, false, true, false, false)]
-    [InlineData(null, false, true, true, false, false)]
-    [InlineData(null, true, false, false, true, false)]
-    [InlineData(null, false, true, false, true, false)]
-    [InlineData(null, true, false, true, true, false)]
-    [InlineData(null, false, true, true, true, false)]
-    [InlineData(CascadeTiming.Immediate, false, false, true, false, false)]
-    [InlineData(CascadeTiming.Immediate, true, false, true, false, false)]
-    [InlineData(CascadeTiming.Immediate, false, true, true, false, false)]
-    [InlineData(CascadeTiming.Immediate, true, false, false, true, false)]
-    [InlineData(CascadeTiming.Immediate, false, true, false, true, false)]
-    [InlineData(CascadeTiming.Immediate, true, false, true, true, false)]
-    [InlineData(CascadeTiming.Immediate, false, true, true, true, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, false, true, false, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, true, false, true, false, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, true, true, false, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, true, false, false, true, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, true, false, true, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, true, false, true, true, false)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, true, true, true, false)]
-    [InlineData(CascadeTiming.Never, false, false, true, false, false)]
-    [InlineData(CascadeTiming.Never, true, false, true, false, false)]
-    [InlineData(CascadeTiming.Never, false, true, true, false, false)]
-    [InlineData(CascadeTiming.Never, true, false, false, true, false)]
-    [InlineData(CascadeTiming.Never, false, true, false, true, false)]
-    [InlineData(CascadeTiming.Never, true, false, true, true, false)]
-    [InlineData(CascadeTiming.Never, false, true, true, true, false)]
-    [InlineData(null, false, false, true, false, true)]
-    [InlineData(null, true, false, true, false, true)]
-    [InlineData(null, false, true, true, false, true)]
-    [InlineData(null, true, false, false, true, true)]
-    [InlineData(null, false, true, false, true, true)]
-    [InlineData(null, true, false, true, true, true)]
-    [InlineData(null, false, true, true, true, true)]
-    [InlineData(CascadeTiming.Immediate, false, false, true, false, true)]
-    [InlineData(CascadeTiming.Immediate, true, false, true, false, true)]
-    [InlineData(CascadeTiming.Immediate, false, true, true, false, true)]
-    [InlineData(CascadeTiming.Immediate, true, false, false, true, true)]
-    [InlineData(CascadeTiming.Immediate, false, true, false, true, true)]
-    [InlineData(CascadeTiming.Immediate, true, false, true, true, true)]
-    [InlineData(CascadeTiming.Immediate, false, true, true, true, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, false, true, false, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, true, false, true, false, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, true, true, false, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, true, false, false, true, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, true, false, true, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, true, false, true, true, true)]
-    [InlineData(CascadeTiming.OnSaveChanges, false, true, true, true, true)]
-    [InlineData(CascadeTiming.Never, false, false, true, false, true)]
-    [InlineData(CascadeTiming.Never, true, false, true, false, true)]
-    [InlineData(CascadeTiming.Never, false, true, true, false, true)]
-    [InlineData(CascadeTiming.Never, true, false, false, true, true)]
-    [InlineData(CascadeTiming.Never, false, true, false, true, true)]
-    [InlineData(CascadeTiming.Never, true, false, true, true, true)]
-    [InlineData(CascadeTiming.Never, false, true, true, true, true)]
+    [Theory,
+     InlineData(null, false, false, true, false, false),
+     InlineData(null, true, false, true, false, false),
+     InlineData(null, false, true, true, false, false),
+     InlineData(null, true, false, false, true, false),
+     InlineData(null, false, true, false, true, false),
+     InlineData(null, true, false, true, true, false),
+     InlineData(null, false, true, true, true, false),
+     InlineData(CascadeTiming.Immediate, false, false, true, false, false),
+     InlineData(CascadeTiming.Immediate, true, false, true, false, false),
+     InlineData(CascadeTiming.Immediate, false, true, true, false, false),
+     InlineData(CascadeTiming.Immediate, true, false, false, true, false),
+     InlineData(CascadeTiming.Immediate, false, true, false, true, false),
+     InlineData(CascadeTiming.Immediate, true, false, true, true, false),
+     InlineData(CascadeTiming.Immediate, false, true, true, true, false),
+     InlineData(CascadeTiming.OnSaveChanges, false, false, true, false, false),
+     InlineData(CascadeTiming.OnSaveChanges, true, false, true, false, false),
+     InlineData(CascadeTiming.OnSaveChanges, false, true, true, false, false),
+     InlineData(CascadeTiming.OnSaveChanges, true, false, false, true, false),
+     InlineData(CascadeTiming.OnSaveChanges, false, true, false, true, false),
+     InlineData(CascadeTiming.OnSaveChanges, true, false, true, true, false),
+     InlineData(CascadeTiming.OnSaveChanges, false, true, true, true, false),
+     InlineData(CascadeTiming.Never, false, false, true, false, false),
+     InlineData(CascadeTiming.Never, true, false, true, false, false),
+     InlineData(CascadeTiming.Never, false, true, true, false, false),
+     InlineData(CascadeTiming.Never, true, false, false, true, false),
+     InlineData(CascadeTiming.Never, false, true, false, true, false),
+     InlineData(CascadeTiming.Never, true, false, true, true, false),
+     InlineData(CascadeTiming.Never, false, true, true, true, false),
+     InlineData(null, false, false, true, false, true),
+     InlineData(null, true, false, true, false, true),
+     InlineData(null, false, true, true, false, true),
+     InlineData(null, true, false, false, true, true),
+     InlineData(null, false, true, false, true, true),
+     InlineData(null, true, false, true, true, true),
+     InlineData(null, false, true, true, true, true),
+     InlineData(CascadeTiming.Immediate, false, false, true, false, true),
+     InlineData(CascadeTiming.Immediate, true, false, true, false, true),
+     InlineData(CascadeTiming.Immediate, false, true, true, false, true),
+     InlineData(CascadeTiming.Immediate, true, false, false, true, true),
+     InlineData(CascadeTiming.Immediate, false, true, false, true, true),
+     InlineData(CascadeTiming.Immediate, true, false, true, true, true),
+     InlineData(CascadeTiming.Immediate, false, true, true, true, true),
+     InlineData(CascadeTiming.OnSaveChanges, false, false, true, false, true),
+     InlineData(CascadeTiming.OnSaveChanges, true, false, true, false, true),
+     InlineData(CascadeTiming.OnSaveChanges, false, true, true, false, true),
+     InlineData(CascadeTiming.OnSaveChanges, true, false, false, true, true),
+     InlineData(CascadeTiming.OnSaveChanges, false, true, false, true, true),
+     InlineData(CascadeTiming.OnSaveChanges, true, false, true, true, true),
+     InlineData(CascadeTiming.OnSaveChanges, false, true, true, true, true),
+     InlineData(CascadeTiming.Never, false, false, true, false, true),
+     InlineData(CascadeTiming.Never, true, false, true, false, true),
+     InlineData(CascadeTiming.Never, false, true, true, false, true),
+     InlineData(CascadeTiming.Never, true, false, false, true, true),
+     InlineData(CascadeTiming.Never, false, true, false, true, true),
+     InlineData(CascadeTiming.Never, true, false, true, true, true),
+     InlineData(CascadeTiming.Never, false, true, true, true, true)] // Issues #16546 #25360; Change reverted in #27174.
     public void Optional_relationship_with_cascade_can_be_forced_to_delete_orphans(
         CascadeTiming? orphanTiming,
         bool setProperty,
@@ -2280,7 +2870,7 @@ public class ChangeTrackerTest
             Assert.Equal(3, context.ChangeTracker.Entries().Count());
             Assert.Equal(EntityState.Unchanged, context.Entry(attachedContainer).State);
             Assert.Equal(EntityState.Unchanged, context.Entry(attachedRoom).State);
-            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct).State);
+            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct!).State);
 
             if (orphanTiming != null)
             {
@@ -2323,10 +2913,9 @@ public class ChangeTrackerTest
 
             Assert.Equal(3, context.ChangeTracker.Entries().Count());
             Assert.Equal(EntityState.Unchanged, context.Entry(attachedContainer).State);
-            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct).State);
+            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct!).State);
 
-            if (orphanTiming == null
-                || orphanTiming == CascadeTiming.Immediate)
+            if (orphanTiming is null or CascadeTiming.Immediate)
             {
                 Assert.Equal(EntityState.Deleted, context.Entry(attachedRoom).State);
             }
@@ -2342,7 +2931,7 @@ public class ChangeTrackerTest
 
             Assert.Equal(3, context.ChangeTracker.Entries().Count());
             Assert.Equal(EntityState.Unchanged, context.Entry(attachedContainer).State);
-            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct).State);
+            Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct!).State);
 
             if (orphanTiming == null
                 || orphanTiming == CascadeTiming.Immediate
@@ -2360,12 +2949,11 @@ public class ChangeTrackerTest
             {
                 Assert.Equal(
                     CoreStrings.RelationshipConceptualNull(nameof(Troduct), nameof(KontainerRoom)),
-                    Assert.Throws<InvalidOperationException>(
-                        () => context.SaveChanges()).Message);
+                    Assert.Throws<InvalidOperationException>(() => context.SaveChanges()).Message);
 
                 Assert.Equal(3, context.ChangeTracker.Entries().Count());
                 Assert.Equal(EntityState.Unchanged, context.Entry(attachedContainer).State);
-                Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct).State);
+                Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct!).State);
                 Assert.Equal(EntityState.Modified, context.Entry(attachedRoom).State);
             }
             else
@@ -2373,7 +2961,7 @@ public class ChangeTrackerTest
                 context.SaveChanges();
                 Assert.Equal(2, context.ChangeTracker.Entries().Count());
                 Assert.Equal(EntityState.Unchanged, context.Entry(attachedContainer).State);
-                Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct).State);
+                Assert.Equal(EntityState.Unchanged, context.Entry(attachedTroduct!).State);
                 Assert.Equal(EntityState.Detached, context.Entry(attachedRoom).State);
             }
         }
@@ -2382,8 +2970,8 @@ public class ChangeTrackerTest
     private class Kontainer
     {
         public int Id { get; set; }
-        public string Name { get; set; }
-        public List<KontainerRoom> Rooms { get; } = new();
+        public string? Name { get; set; }
+        public List<KontainerRoom> Rooms { get; } = [];
     }
 
     private class KontainerRoom
@@ -2391,16 +2979,16 @@ public class ChangeTrackerTest
         public int Id { get; set; }
         public int Number { get; set; }
         public int KontainerId { get; set; }
-        public Kontainer Kontainer { get; set; }
+        public Kontainer? Kontainer { get; set; }
         public int? TroductId { get; set; }
-        public Troduct Troduct { get; set; }
+        public Troduct? Troduct { get; set; }
     }
 
     private class Troduct
     {
         public int Id { get; set; }
-        public string Description { get; set; }
-        public List<KontainerRoom> Rooms { get; } = new();
+        public string? Description { get; set; }
+        public List<KontainerRoom> Rooms { get; } = [];
     }
 
     private class KontainerContext : DbContext
@@ -2419,9 +3007,9 @@ public class ChangeTrackerTest
                 .UseInMemoryDatabase(nameof(KontainerContext));
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
     public void Adding_derived_owned_throws(bool useAdd)
     {
         using var context = new EarlyLearningCenter();
@@ -2439,19 +3027,18 @@ public class ChangeTrackerTest
         {
             Assert.Equal(
                 CoreStrings.TrackingTypeMismatch(nameof(OfThis), "Dreams.Are#AreMade"),
-                Assert.Throws<InvalidOperationException>(
-                    () =>
-                        context.ChangeTracker.TrackGraph(
-                            dreams, e =>
-                            {
-                                e.Entry.State = e.Entry.IsKeySet && !e.Entry.Metadata.IsOwned()
-                                    ? EntityState.Unchanged
-                                    : EntityState.Added;
-                            })).Message);
+                Assert.Throws<InvalidOperationException>(() =>
+                    context.ChangeTracker.TrackGraph(
+                        dreams, e =>
+                        {
+                            e.Entry.State = e.Entry.IsKeySet && !e.Entry.Metadata.IsOwned()
+                                ? EntityState.Unchanged
+                                : EntityState.Added;
+                        })).Message);
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Moving_derived_owned_to_non_derived_reference_throws()
     {
         using var context = new EarlyLearningCenter();
@@ -2468,7 +3055,7 @@ public class ChangeTrackerTest
             Assert.Throws<InvalidOperationException>(() => context.Entry(dreams)).Message);
     }
 
-    [ConditionalFact] // Issue #1207
+    [Fact] // Issue #1207
     public void Can_add_principal_and_then_identifying_dependents_with_key_generation()
     {
         using var context = new EarlyLearningCenter();
@@ -2493,7 +3080,7 @@ public class ChangeTrackerTest
         AssertProductAndDetailsFixedUp(context, product1.Details.Tag.TagDetails, product2.Details.Tag.TagDetails);
     }
 
-    [ConditionalFact] // Issue #1207
+    [Fact] // Issue #1207
     public void Can_add_identifying_dependents_and_then_principal_with_key_generation()
     {
         using var context = new EarlyLearningCenter();
@@ -2519,7 +3106,7 @@ public class ChangeTrackerTest
         AssertProductAndDetailsFixedUp(context, tagDetails1, tagDetails2);
     }
 
-    [ConditionalFact] // Issue #1207
+    [Fact] // Issue #1207
     public void Can_add_identifying_dependents_and_then_principal_interleaved_with_key_generation()
     {
         using var context = new EarlyLearningCenter();
@@ -2545,7 +3132,7 @@ public class ChangeTrackerTest
         AssertProductAndDetailsFixedUp(context, tagDetails1, tagDetails2);
     }
 
-    [ConditionalFact] // Issue #1207
+    [Fact] // Issue #1207
     public void Can_add_identifying_dependents_and_principal_starting_in_the_middle_with_key_generation()
     {
         using var context = new EarlyLearningCenter();
@@ -2571,7 +3158,7 @@ public class ChangeTrackerTest
         AssertProductAndDetailsFixedUp(context, tagDetails1, tagDetails2);
     }
 
-    [ConditionalFact] // Issue #1207
+    [Fact] // Issue #1207
     public void Can_add_principal_and_identifying_dependents_starting_in_the_middle_with_key_generation()
     {
         using var context = new EarlyLearningCenter();
@@ -2596,9 +3183,9 @@ public class ChangeTrackerTest
         AssertProductAndDetailsFixedUp(context, product1.Details.Tag.TagDetails, product2.Details.Tag.TagDetails);
     }
 
-    [ConditionalTheory] // Issue #1207
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)] // Issue #1207
     public void Can_add_identifying_dependents_and_principal_with_post_nav_fixup_with_key_generation(bool callDetectChangesTwice)
     {
         using var context = new EarlyLearningCenter();
@@ -2639,9 +3226,9 @@ public class ChangeTrackerTest
         AssertProductAndDetailsFixedUp(context, product1.Details.Tag.TagDetails, product2.Details.Tag.TagDetails);
     }
 
-    [ConditionalTheory] // Issue #1207
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)] // Issue #1207
     public void Can_add_identifying_dependents_and_principal_with_reverse_post_nav_fixup_with_key_generation(
         bool callDetectChangesTwice)
     {
@@ -2680,7 +3267,7 @@ public class ChangeTrackerTest
             context.ChangeTracker.DetectChanges();
         }
 
-        AssertProductAndDetailsFixedUp(context, product1.Details.Tag.TagDetails, product2.Details.Tag.TagDetails);
+        AssertProductAndDetailsFixedUp(context, product1.Details!.Tag.TagDetails, product2.Details!.Tag.TagDetails);
     }
 
     private static void AssertProductAndDetailsFixedUp(
@@ -2691,13 +3278,13 @@ public class ChangeTrackerTest
         Assert.Equal(8, context.ChangeTracker.Entries().Count());
 
         Assert.Equal(EntityState.Added, context.Entry(tagDetails1).State);
-        Assert.Equal(EntityState.Added, context.Entry(tagDetails1.Tag).State);
-        Assert.Equal(EntityState.Added, context.Entry(tagDetails1.Tag.Details).State);
+        Assert.Equal(EntityState.Added, context.Entry(tagDetails1.Tag!).State);
+        Assert.Equal(EntityState.Added, context.Entry(tagDetails1.Tag!.Details).State);
         Assert.Equal(EntityState.Added, context.Entry(tagDetails1.Tag.Details.Product).State);
 
         Assert.Equal(EntityState.Added, context.Entry(tagDetails2).State);
-        Assert.Equal(EntityState.Added, context.Entry(tagDetails2.Tag).State);
-        Assert.Equal(EntityState.Added, context.Entry(tagDetails2.Tag.Details).State);
+        Assert.Equal(EntityState.Added, context.Entry(tagDetails2.Tag!).State);
+        Assert.Equal(EntityState.Added, context.Entry(tagDetails2.Tag!.Details).State);
         Assert.Equal(EntityState.Added, context.Entry(tagDetails2.Tag.Details.Product).State);
 
         Assert.Equal(tagDetails1.Id, tagDetails1.Tag.Id);
@@ -2719,17 +3306,17 @@ public class ChangeTrackerTest
         Assert.Same(tagDetails2.Tag.Details, tagDetails2.Tag.Details.Product.Details);
 
         var product1 = tagDetails1.Tag.Details.Product;
-        Assert.Same(product1, product1.Details.Product);
+        Assert.Same(product1, product1.Details!.Product);
         Assert.Same(product1.Details, product1.Details.Tag.Details);
         Assert.Same(product1.Details.Tag, product1.Details.Tag.TagDetails.Tag);
 
         var product2 = tagDetails2.Tag.Details.Product;
-        Assert.Same(product2, product2.Details.Product);
+        Assert.Same(product2, product2.Details!.Product);
         Assert.Same(product2.Details, product2.Details.Tag.Details);
         Assert.Same(product2.Details.Tag, product2.Details.Tag.TagDetails.Tag);
     }
 
-    [ConditionalFact] // Issue #1207
+    [Fact] // Issue #1207
     public void Can_add_identifying_one_to_many_via_principal_with_key_generation()
     {
         using var context = new EarlyLearningCenter();
@@ -2756,7 +3343,7 @@ public class ChangeTrackerTest
         AssertOrderAndDetailsFixedUp(context, orderDetails1a, orderDetails1b, orderDetails2a, orderDetails2b);
     }
 
-    [ConditionalFact] // Issue #1207
+    [Fact] // Issue #1207
     public void Can_add_identifying_one_to_many_via_dependents_with_key_generation()
     {
         using var context = new EarlyLearningCenter();
@@ -2843,9 +3430,9 @@ public class ChangeTrackerTest
         Assert.Contains(orderDetails2b, orderDetails1b.Product.OrderDetails);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
     public void Entries_calls_DetectChanges_by_default(bool useGenericOverload)
     {
         using var context = new EarlyLearningCenter();
@@ -2868,9 +3455,9 @@ public class ChangeTrackerTest
         Assert.Equal(EntityState.Modified, entry.State);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
     public void Auto_DetectChanges_for_Entries_can_be_switched_off(bool useGenericOverload)
     {
         using var context = new EarlyLearningCenter();
@@ -2895,9 +3482,84 @@ public class ChangeTrackerTest
         Assert.Equal(EntityState.Unchanged, entry.State);
     }
 
-    [ConditionalTheory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
+    public void GetEntriesForState_does_not_call_DetectChanges(bool useGenericOverload)
+    {
+        using var context = new EarlyLearningCenter();
+        var entry = context.Attach(
+            new Product { Id = 1, CategoryId = 66 });
+
+        entry.Entity.CategoryId = 77;
+
+        Assert.Equal(EntityState.Unchanged, entry.State);
+
+        if (useGenericOverload)
+        {
+            _ = context.ChangeTracker.GetEntriesForState<Product>(unchanged: true).ToList();
+        }
+        else
+        {
+            _ = context.ChangeTracker.GetEntriesForState(unchanged: true).ToList();
+        }
+
+        Assert.Equal(EntityState.Unchanged, entry.State);
+    }
+
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
+    public void GetEntriesForState_returns_only_entries_with_matching_state(bool useGenericOverload)
+    {
+        using var context = new EarlyLearningCenter();
+
+        context.Add(new Product { Id = 1, CategoryId = 1 });
+        context.Attach(new Product { Id = 2, CategoryId = 2 });
+        var modifiedEntry = context.Attach(new Product { Id = 3, CategoryId = 3 });
+        modifiedEntry.State = EntityState.Modified;
+        var deletedEntry = context.Attach(new Product { Id = 4, CategoryId = 4 });
+        deletedEntry.State = EntityState.Deleted;
+
+        if (useGenericOverload)
+        {
+            Assert.Single(context.ChangeTracker.GetEntriesForState<Product>(added: true));
+            Assert.Single(context.ChangeTracker.GetEntriesForState<Product>(unchanged: true));
+            Assert.Single(context.ChangeTracker.GetEntriesForState<Product>(modified: true));
+            Assert.Single(context.ChangeTracker.GetEntriesForState<Product>(deleted: true));
+            Assert.Equal(2, context.ChangeTracker.GetEntriesForState<Product>(added: true, modified: true).Count());
+            Assert.Equal(
+                4, context.ChangeTracker.GetEntriesForState<Product>(added: true, modified: true, deleted: true, unchanged: true).Count());
+            Assert.Empty(context.ChangeTracker.GetEntriesForState<Product>());
+        }
+        else
+        {
+            Assert.Single(context.ChangeTracker.GetEntriesForState(added: true));
+            Assert.Single(context.ChangeTracker.GetEntriesForState(unchanged: true));
+            Assert.Single(context.ChangeTracker.GetEntriesForState(modified: true));
+            Assert.Single(context.ChangeTracker.GetEntriesForState(deleted: true));
+            Assert.Equal(2, context.ChangeTracker.GetEntriesForState(added: true, modified: true).Count());
+            Assert.Equal(4, context.ChangeTracker.GetEntriesForState(added: true, modified: true, deleted: true, unchanged: true).Count());
+            Assert.Empty(context.ChangeTracker.GetEntriesForState());
+        }
+    }
+
+    [Fact]
+    public void GetEntriesForState_generic_filters_by_type()
+    {
+        using var context = new EarlyLearningCenter();
+
+        context.Add(new Product { Id = 1, CategoryId = 1 });
+        context.Add(new Category { Id = 1 });
+
+        Assert.Single(context.ChangeTracker.GetEntriesForState<Product>(added: true));
+        Assert.Single(context.ChangeTracker.GetEntriesForState<Category>(added: true));
+        Assert.Equal(2, context.ChangeTracker.GetEntriesForState(added: true).Count());
+    }
+
+    [Theory,
+     InlineData(false),
+     InlineData(true)]
     public void Explicitly_calling_DetectChanges_works_even_if_auto_DetectChanges_is_switched_off(bool callDetectChangesTwice)
     {
         using var context = new EarlyLearningCenter();
@@ -2920,7 +3582,7 @@ public class ChangeTrackerTest
         Assert.Equal(EntityState.Modified, entry.State);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Does_not_throw_when_instance_of_unmapped_derived_type_is_used()
     {
         using var context = new EarlyLearningCenter();
@@ -2929,7 +3591,7 @@ public class ChangeTrackerTest
             context.Add(new SpecialProduct()).Metadata);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Shadow_properties_are_not_included_in_update_unless_value_explicitly_set()
     {
         int id;
@@ -2980,7 +3642,7 @@ public class ChangeTrackerTest
             entry.Property<int>("Id").CurrentValue = id;
             entry.State = EntityState.Modified;
             entry.Property<int>("SomeInt").CurrentValue = 0;
-            entry.Property<string>("SomeString").CurrentValue = null;
+            entry.Property<string?>("SomeString").CurrentValue = null;
 
             context.SaveChanges();
         }
@@ -2988,7 +3650,37 @@ public class ChangeTrackerTest
         AssertValuesSaved(id, 0, null);
     }
 
-    private static void AssertValuesSaved(int id, int someInt, string someString)
+    [Fact]
+    public void Clearing_change_tracker_resets_local_view_count()
+    {
+        using var context = new LikeAZooContext();
+
+        var originalCount = context.Cats.Local.Count;
+        context.Cats.Add(new Cat(3));
+
+        context.ChangeTracker.Clear();
+
+        Assert.Equal(originalCount, context.Cats.Local.Count);
+    }
+
+    [Fact] // Issue #26448
+    public void Stable_generated_values_do_not_force_Added_state()
+    {
+        using var context = new EarlyLearningCenter();
+
+        Assert.Equal(EntityState.Added, context.Add(new Stable()).State);
+
+        context.ChangeTracker.Clear();
+        Assert.Equal(EntityState.Modified, context.Update(new Stable()).State);
+
+        context.ChangeTracker.Clear();
+        Assert.Equal(EntityState.Unchanged, context.Attach(new Stable()).State);
+
+        context.ChangeTracker.Clear();
+        Assert.Equal(EntityState.Deleted, context.Remove(new Stable()).State);
+    }
+
+    private static void AssertValuesSaved(int id, int someInt, string? someString)
     {
         using var context = new TheShadows();
         var entry = context.Entry(context.Set<Dark>().Single(e => EF.Property<int>(e, "Id") == id));
@@ -3001,13 +3693,12 @@ public class ChangeTrackerTest
     private class TheShadows : DbContext
     {
         protected internal override void OnModelCreating(ModelBuilder modelBuilder)
-            => modelBuilder.Entity<Dark>(
-                b =>
-                {
-                    b.Property<int>("Id").ValueGeneratedOnAdd();
-                    b.Property<int>("SomeInt");
-                    b.Property<string>("SomeString");
-                });
+            => modelBuilder.Entity<Dark>(b =>
+            {
+                b.Property<int>("Id").ValueGeneratedOnAdd();
+                b.Property<int>("SomeInt");
+                b.Property<string>("SomeString");
+            });
 
         protected internal override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder
@@ -3015,15 +3706,13 @@ public class ChangeTrackerTest
                 .UseInMemoryDatabase(nameof(TheShadows));
     }
 
-    private class Dark
-    {
-    }
+    private class Dark;
 
     private class Category
     {
         public int Id { get; set; }
 
-        public List<Product> Products { get; set; }
+        public List<Product> Products { get; } = [];
     }
 
     private class Product
@@ -3031,20 +3720,20 @@ public class ChangeTrackerTest
         public int Id { get; set; }
 
         public int CategoryId { get; set; }
-        public Category Category { get; set; }
+        public Category? Category { get; set; }
 
-        public ProductDetails Details { get; set; }
+        public ProductDetails? Details { get; set; }
 
         // ReSharper disable once CollectionNeverUpdated.Local
         // ReSharper disable once MemberHidesStaticFromOuterClass
-        public List<OrderDetails> OrderDetails { get; set; }
+        public List<OrderDetails> OrderDetails { get; } = [];
     }
 
     private class OptionalCategory
     {
         public int Id { get; set; }
 
-        public List<OptionalProduct> Products { get; set; }
+        public List<OptionalProduct> Products { get; } = [];
     }
 
     private class OptionalProduct
@@ -3052,36 +3741,34 @@ public class ChangeTrackerTest
         public int Id { get; set; }
 
         public int? CategoryId { get; set; }
-        public OptionalCategory Category { get; set; }
+        public OptionalCategory? Category { get; set; }
     }
 
-    private class SpecialProduct : Product
-    {
-    }
+    private class SpecialProduct : Product;
 
     private class ProductDetails
     {
         public int Id { get; set; }
 
-        public Product Product { get; set; }
+        public Product Product { get; set; } = null!;
 
-        public ProductDetailsTag Tag { get; set; }
+        public ProductDetailsTag Tag { get; set; } = null!;
     }
 
     private class ProductDetailsTag
     {
         public int Id { get; set; }
 
-        public ProductDetails Details { get; set; }
+        public ProductDetails Details { get; set; } = null!;
 
-        public ProductDetailsTagDetails TagDetails { get; set; }
+        public ProductDetailsTagDetails TagDetails { get; set; } = null!;
     }
 
     private class ProductDetailsTagDetails
     {
         public int Id { get; set; }
 
-        public ProductDetailsTag Tag { get; set; }
+        public ProductDetailsTag? Tag { get; set; }
     }
 
     private class Order
@@ -3090,7 +3777,7 @@ public class ChangeTrackerTest
 
         // ReSharper disable once CollectionNeverUpdated.Local
         // ReSharper disable once MemberHidesStaticFromOuterClass
-        public List<OrderDetails> OrderDetails { get; set; }
+        public List<OrderDetails> OrderDetails { get; } = [];
     }
 
     private class OrderDetails
@@ -3098,93 +3785,113 @@ public class ChangeTrackerTest
         public int OrderId { get; set; }
         public int ProductId { get; set; }
 
-        public Order Order { get; set; }
-        public Product Product { get; set; }
+        public Order Order { get; set; } = null!;
+        public Product Product { get; set; } = null!;
     }
 
     private class Sweet
     {
         public int? Id { get; set; }
-        public Dreams Dreams { get; set; }
+        public Dreams? Dreams { get; set; }
     }
 
     private class Dreams
     {
-        public Sweet Sweet { get; set; }
-        public AreMade Are { get; set; }
-        public AreMade Made { get; set; }
-        public OfThis OfThis { get; set; }
+        public Sweet? Sweet { get; set; }
+        public AreMade? Are { get; set; }
+        public AreMade? Made { get; set; }
+        public OfThis? OfThis { get; set; }
     }
 
-    private class AreMade
-    {
-    }
+    private class AreMade;
 
-    private class OfThis : AreMade
-    {
-    }
+    private class OfThis : AreMade;
 
     private class WhoAmI
     {
-        public string ToDisagree { get; set; }
+        public string? ToDisagree { get; set; }
     }
 
     private class PrincipalGG
     {
         public int Id { get; set; }
-        public DependentGG DependentGG { get; set; }
+        public DependentGG? DependentGG { get; set; }
     }
 
     private class DependentGG
     {
         public int Id { get; set; }
-        public PrincipalGG PrincipalGG { get; set; }
+        public PrincipalGG? PrincipalGG { get; set; }
     }
 
     private class PrincipalNN
     {
         public int Id { get; set; }
-        public DependentNN DependentNN { get; set; }
+        public DependentNN? DependentNN { get; set; }
     }
 
     private class DependentNN
     {
         public int Id { get; set; }
-        public PrincipalNN PrincipalNN { get; set; }
+        public PrincipalNN? PrincipalNN { get; set; }
     }
 
     private class PrincipalNG
     {
         public int Id { get; set; }
-        public DependentNG DependentNG { get; set; }
+        public DependentNG? DependentNG { get; set; }
     }
 
     private class DependentNG
     {
         public int Id { get; set; }
-        public PrincipalNG PrincipalNG { get; set; }
+        public PrincipalNG? PrincipalNG { get; set; }
     }
 
     private class PrincipalGN
     {
         public int Id { get; set; }
-        public DependentGN DependentGN { get; set; }
+        public DependentGN? DependentGN { get; set; }
     }
 
     private class DependentGN
     {
         public int Id { get; set; }
-        public PrincipalGN PrincipalGN { get; set; }
+        public PrincipalGN? PrincipalGN { get; set; }
     }
 
-    private class EarlyLearningCenter : DbContext
+    public class Bobby
     {
-        private readonly IServiceProvider _serviceProvider;
+        public int Id { get; set; }
+        public Buggy? Buggy { get; set; }
+    }
 
-        public EarlyLearningCenter()
-        {
-            _serviceProvider = InMemoryTestHelpers.Instance.CreateServiceProvider();
-        }
+    public class Buggy
+    {
+        public int Id { get; set; }
+    }
+
+    private class Stable
+    {
+        public Guid Id { get; set; }
+    }
+
+    private class TenantIdGenerator : ValueGenerator<Guid>
+    {
+        public override Guid Next(EntityEntry entry)
+            => Guid.Parse("98D06A82-C691-4988-EA39-08D98E2C8D8F");
+
+        public override bool GeneratesTemporaryValues
+            => false;
+
+        public override bool GeneratesStableValues
+            => true;
+    }
+
+    private class EarlyLearningCenter(params IInterceptor[] interceptors) : DbContext
+    {
+        private readonly IInterceptor[] _interceptors = interceptors;
+        private readonly IServiceProvider _serviceProvider = InMemoryTestHelpers.Instance.CreateServiceProvider();
 
         protected internal override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -3214,64 +3921,71 @@ public class ChangeTrackerTest
                 .Entity<Product>().HasOne(e => e.Details).WithOne(e => e.Product)
                 .HasForeignKey<ProductDetails>(e => e.Id);
 
-            modelBuilder.Entity<OrderDetails>(
-                b =>
-                {
-                    b.HasKey(
-                        e => new { e.OrderId, e.ProductId });
-                    b.HasOne(e => e.Order).WithMany(e => e.OrderDetails).HasForeignKey(e => e.OrderId);
-                    b.HasOne(e => e.Product).WithMany(e => e.OrderDetails).HasForeignKey(e => e.ProductId);
-                });
+            modelBuilder.Entity<OrderDetails>(b =>
+            {
+                b.HasKey(e => new { e.OrderId, e.ProductId });
+                b.HasOne(e => e.Order).WithMany(e => e.OrderDetails).HasForeignKey(e => e.OrderId);
+                b.HasOne(e => e.Product).WithMany(e => e.OrderDetails).HasForeignKey(e => e.ProductId);
+            });
 
             modelBuilder.Entity<OptionalProduct>();
 
-            modelBuilder.Entity<PrincipalNN>(
-                b =>
-                {
-                    b.HasOne(e => e.DependentNN)
-                        .WithOne(e => e.PrincipalNN)
-                        .HasForeignKey<DependentNN>(e => e.Id);
+            modelBuilder.Entity<PrincipalNN>(b =>
+            {
+                b.HasOne(e => e.DependentNN)
+                    .WithOne(e => e.PrincipalNN)
+                    .HasForeignKey<DependentNN>(e => e.Id);
 
-                    b.Property(e => e.Id).ValueGeneratedNever();
-                });
+                b.Property(e => e.Id).ValueGeneratedNever();
+            });
 
             modelBuilder.Entity<DependentNN>().Property(e => e.Id).ValueGeneratedNever();
 
-            modelBuilder.Entity<PrincipalGG>(
-                b =>
-                {
-                    b.HasOne(e => e.DependentGG)
-                        .WithOne(e => e.PrincipalGG)
-                        .HasForeignKey<DependentGG>(e => e.Id);
+            modelBuilder.Entity<PrincipalGG>(b =>
+            {
+                b.HasOne(e => e.DependentGG)
+                    .WithOne(e => e.PrincipalGG)
+                    .HasForeignKey<DependentGG>(e => e.Id);
 
-                    b.Property(e => e.Id).ValueGeneratedOnAdd();
-                });
+                b.Property(e => e.Id).ValueGeneratedOnAdd();
+            });
 
             modelBuilder.Entity<DependentGG>().Property(e => e.Id).ValueGeneratedOnAdd();
 
-            modelBuilder.Entity<PrincipalNG>(
-                b =>
-                {
-                    b.HasOne(e => e.DependentNG)
-                        .WithOne(e => e.PrincipalNG)
-                        .HasForeignKey<DependentNG>(e => e.Id);
+            modelBuilder.Entity<PrincipalNG>(b =>
+            {
+                b.HasOne(e => e.DependentNG)
+                    .WithOne(e => e.PrincipalNG)
+                    .HasForeignKey<DependentNG>(e => e.Id);
 
-                    b.Property(e => e.Id).ValueGeneratedNever();
-                });
+                b.Property(e => e.Id).ValueGeneratedNever();
+            });
 
             modelBuilder.Entity<DependentNG>().Property(e => e.Id).HasValueGenerator<DummyValueGenerator>();
 
-            modelBuilder.Entity<PrincipalGN>(
-                b =>
-                {
-                    b.HasOne(e => e.DependentGN)
-                        .WithOne(e => e.PrincipalGN)
-                        .HasForeignKey<DependentGN>(e => e.Id);
+            modelBuilder.Entity<PrincipalGN>(b =>
+            {
+                b.HasOne(e => e.DependentGN)
+                    .WithOne(e => e.PrincipalGN)
+                    .HasForeignKey<DependentGN>(e => e.Id);
 
-                    b.Property(e => e.Id).ValueGeneratedOnAdd();
-                });
+                b.Property(e => e.Id).ValueGeneratedOnAdd();
+            });
 
             modelBuilder.Entity<DependentGN>().Property(e => e.Id).ValueGeneratedNever();
+
+            modelBuilder.Entity<Buggy>(entity =>
+            {
+                entity.Property<int?>("BobbyId");
+                entity.HasOne<Bobby>()
+                    .WithOne(p => p.Buggy)
+                    .HasForeignKey<Buggy>("BobbyId")
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<Stable>()
+                .Property(e => e.Id)
+                .HasValueGenerator<TenantIdGenerator>();
         }
 
         private class DummyValueGenerator : ValueGenerator<int>
@@ -3287,6 +4001,7 @@ public class ChangeTrackerTest
 
         protected internal override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder
+                .AddInterceptors(_interceptors)
                 .UseInternalServiceProvider(_serviceProvider)
                 .UseInMemoryDatabase(nameof(EarlyLearningCenter));
     }

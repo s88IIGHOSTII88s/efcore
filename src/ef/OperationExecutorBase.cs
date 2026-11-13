@@ -1,11 +1,9 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Design.Internal;
 using Microsoft.EntityFrameworkCore.Tools.Properties;
 
 namespace Microsoft.EntityFrameworkCore.Tools;
@@ -18,9 +16,11 @@ internal abstract class OperationExecutorBase : IOperationExecutor
     private static readonly IDictionary EmptyArguments = new Dictionary<string, object>(0);
     public string AppBasePath { get; }
 
-    protected string AssemblyFileName { get; set; }
-    protected string StartupAssemblyFileName { get; set; }
+    protected string AssemblyFileName { get; }
+    protected string StartupAssemblyFileName { get; }
+    protected string? DesignAssemblyPath { get; }
     protected string ProjectDirectory { get; }
+    protected string Project { get; }
     protected string RootNamespace { get; }
     protected string? Language { get; }
     protected bool Nullable { get; }
@@ -29,34 +29,42 @@ internal abstract class OperationExecutorBase : IOperationExecutor
     protected OperationExecutorBase(
         string assembly,
         string? startupAssembly,
+        string? designAssembly,
+        string? project,
         string? projectDir,
         string? rootNamespace,
         string? language,
         bool nullable,
-        string[] remainingArguments)
+        string[] remainingArguments,
+        IOperationReportHandler reportHandler)
     {
         AssemblyFileName = Path.GetFileNameWithoutExtension(assembly);
         StartupAssemblyFileName = startupAssembly == null
             ? AssemblyFileName
             : Path.GetFileNameWithoutExtension(startupAssembly);
+        DesignAssemblyPath = designAssembly;
 
         AppBasePath = Path.GetFullPath(
             Path.Combine(Directory.GetCurrentDirectory(), Path.GetDirectoryName(startupAssembly ?? assembly)!));
 
         RootNamespace = rootNamespace ?? AssemblyFileName;
+        Project = project ?? "";
         ProjectDirectory = projectDir ?? Directory.GetCurrentDirectory();
         Language = language;
         Nullable = nullable;
-        RemainingArguments = remainingArguments ?? Array.Empty<string>();
+        RemainingArguments = remainingArguments ?? [];
 
-        Reporter.WriteVerbose(Resources.UsingAssembly(AssemblyFileName));
-        Reporter.WriteVerbose(Resources.UsingStartupAssembly(StartupAssemblyFileName));
-        Reporter.WriteVerbose(Resources.UsingApplicationBase(AppBasePath));
-        Reporter.WriteVerbose(Resources.UsingWorkingDirectory(Directory.GetCurrentDirectory()));
-        Reporter.WriteVerbose(Resources.UsingRootNamespace(RootNamespace));
-        Reporter.WriteVerbose(Resources.UsingProjectDir(ProjectDirectory));
-        Reporter.WriteVerbose(Resources.RemainingArguments(string.Join(",", RemainingArguments.Select(s => "'" + s + "'"))));
+        var reporter = new OperationReporter(reportHandler);
+        reporter.WriteVerbose(Resources.UsingAssembly(AssemblyFileName));
+        reporter.WriteVerbose(Resources.UsingStartupAssembly(StartupAssemblyFileName));
+        reporter.WriteVerbose(Resources.UsingApplicationBase(AppBasePath));
+        reporter.WriteVerbose(Resources.UsingWorkingDirectory(Directory.GetCurrentDirectory()));
+        reporter.WriteVerbose(Resources.UsingRootNamespace(RootNamespace));
+        reporter.WriteVerbose(Resources.UsingProjectDir(ProjectDirectory));
+        reporter.WriteVerbose(Resources.RemainingArguments(string.Join(",", RemainingArguments.Select(s => "'" + s + "'"))));
     }
+
+    public abstract string? EFCoreVersion { get; }
 
     public virtual void Dispose()
     {
@@ -102,10 +110,16 @@ internal abstract class OperationExecutorBase : IOperationExecutor
                 ["namespace"] = @namespace
             });
 
-    public IDictionary RemoveMigration(string? contextType, bool force)
+    public IDictionary RemoveMigration(string? contextType, bool force, bool offline, string? connectionString)
         => InvokeOperation<IDictionary>(
             "RemoveMigration",
-            new Dictionary<string, object?> { ["contextType"] = contextType, ["force"] = force });
+            new Dictionary<string, object?>
+            {
+                ["contextType"] = contextType,
+                ["force"] = force,
+                ["offline"] = offline,
+                ["connectionString"] = connectionString
+            });
 
     public IEnumerable<IDictionary> GetMigrations(string? contextType, string? connectionString, bool noConnect)
         => InvokeOperation<IEnumerable<IDictionary>>(
@@ -117,15 +131,15 @@ internal abstract class OperationExecutorBase : IOperationExecutor
                 ["noConnect"] = noConnect
             });
 
-    public void DropDatabase(string? contextType)
+    public void DropDatabase(string? contextType, string? connectionString)
         => InvokeOperation(
             "DropDatabase",
-            new Dictionary<string, object?> { ["contextType"] = contextType });
+            new Dictionary<string, object?> { ["contextType"] = contextType, ["connectionString"] = connectionString });
 
-    public IDictionary GetContextInfo(string? name)
+    public IDictionary GetContextInfo(string? name, string? connectionString = null)
         => InvokeOperation<IDictionary>(
             "GetContextInfo",
-            new Dictionary<string, object?> { ["contextType"] = name });
+            new Dictionary<string, object?> { ["contextType"] = name, ["connectionString"] = connectionString });
 
     public void UpdateDatabase(string? migration, string? connectionString, string? contextType)
         => InvokeOperation(
@@ -137,17 +151,47 @@ internal abstract class OperationExecutorBase : IOperationExecutor
                 ["contextType"] = contextType
             });
 
+    public IDictionary AddAndApplyMigration(
+        string name,
+        string? outputDir,
+        string? contextType,
+        string? @namespace,
+        string? connectionString)
+        => InvokeOperation<IDictionary>(
+            "AddAndApplyMigration",
+            new Dictionary<string, object?>
+            {
+                ["name"] = name,
+                ["outputDir"] = outputDir,
+                ["contextType"] = contextType,
+                ["namespace"] = @namespace,
+                ["connectionString"] = connectionString
+            });
+
     public IEnumerable<IDictionary> GetContextTypes()
         => InvokeOperation<IEnumerable<IDictionary>>("GetContextTypes");
 
-    public void OptimizeContext(string? outputDir, string? modelNamespace, string? contextType)
-        => InvokeOperation(
+    public IEnumerable<string> OptimizeContext(
+        string? outputDir,
+        string? modelNamespace,
+        string? contextType,
+        string? suffix,
+        bool scaffoldModel,
+        bool precompileQueries,
+        bool nativeAot,
+        string? langVersion)
+        => InvokeOperation<IEnumerable<string>>(
             "OptimizeContext",
             new Dictionary<string, object?>
             {
                 ["outputDir"] = outputDir,
                 ["modelNamespace"] = modelNamespace,
-                ["contextType"] = contextType
+                ["contextType"] = contextType,
+                ["suffix"] = suffix,
+                ["scaffoldModel"] = scaffoldModel,
+                ["precompileQueries"] = precompileQueries,
+                ["nativeAot"] = nativeAot,
+                ["langVersion"] = langVersion
             });
 
     public IDictionary ScaffoldContext(
@@ -205,5 +249,10 @@ internal abstract class OperationExecutorBase : IOperationExecutor
     public string ScriptDbContext(string? contextType)
         => InvokeOperation<string>(
             "ScriptDbContext",
+            new Dictionary<string, object?> { ["contextType"] = contextType });
+
+    public void HasPendingModelChanges(string? contextType)
+        => InvokeOperation<string>(
+            "HasPendingModelChanges",
             new Dictionary<string, object?> { ["contextType"] = contextType });
 }

@@ -21,7 +21,7 @@ public class InMemoryProjectionBindingExpressionVisitor : ExpressionVisitor
 
     private Dictionary<EntityProjectionExpression, ProjectionBindingExpression>? _entityProjectionCache;
 
-    private readonly Dictionary<ProjectionMember, Expression> _projectionMapping = new();
+    private readonly Dictionary<ProjectionMember, Expression> _projectionMapping = [];
     private List<Expression>? _clientProjections;
     private readonly Stack<ProjectionMember> _projectionMembers = new();
 
@@ -58,8 +58,8 @@ public class InMemoryProjectionBindingExpressionVisitor : ExpressionVisitor
         {
             _indexBasedBinding = true;
             _projectionMapping.Clear();
-            _entityProjectionCache = new Dictionary<EntityProjectionExpression, ProjectionBindingExpression>();
-            _clientProjections = new List<Expression>();
+            _entityProjectionCache = [];
+            _clientProjections = [];
 
             result = Visit(expression);
 
@@ -85,7 +85,7 @@ public class InMemoryProjectionBindingExpressionVisitor : ExpressionVisitor
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    [return: NotNullIfNotNull("expression")]
+    [return: NotNullIfNotNull(nameof(expression))]
     public override Expression? Visit(Expression? expression)
     {
         if (expression == null)
@@ -93,10 +93,7 @@ public class InMemoryProjectionBindingExpressionVisitor : ExpressionVisitor
             return null;
         }
 
-        if (!(expression is NewExpression
-                || expression is MemberInitExpression
-                || expression is EntityShaperExpression
-                || expression is IncludeExpression))
+        if (expression is not (NewExpression or MemberInitExpression or StructuralTypeShaperExpression or IncludeExpression))
         {
             if (_indexBasedBinding)
             {
@@ -242,6 +239,19 @@ public class InMemoryProjectionBindingExpressionVisitor : ExpressionVisitor
         ifTrue = MatchTypes(ifTrue, conditionalExpression.IfTrue.Type);
         ifFalse = MatchTypes(ifFalse, conditionalExpression.IfFalse.Type);
 
+        // Edge case when one branch of a conditional is null, the other is a queryable
+        // that gets translated into a client-side collection Type,
+        // conditionalExpression.Update throws Error in this case
+        if (!conditionalExpression.IfTrue.Type.IsAssignableFrom(ifTrue.Type) && ifFalse is ConstantExpression { Value: null })
+        {
+            return Expression.Condition(test, ifTrue, Expression.Constant(null, ifTrue.Type));
+        }
+
+        if (!conditionalExpression.IfFalse.Type.IsAssignableFrom(ifFalse.Type) && ifTrue is ConstantExpression { Value: null })
+        {
+            return Expression.Condition(test, Expression.Constant(null, ifFalse.Type), ifFalse);
+        }
+
         return conditionalExpression.Update(test, ifTrue, ifFalse);
     }
 
@@ -253,20 +263,12 @@ public class InMemoryProjectionBindingExpressionVisitor : ExpressionVisitor
     /// </summary>
     protected override Expression VisitExtension(Expression extensionExpression)
     {
-        if (extensionExpression is EntityShaperExpression entityShaperExpression)
+        if (extensionExpression is StructuralTypeShaperExpression shaper)
         {
-            EntityProjectionExpression entityProjectionExpression;
-            if (entityShaperExpression.ValueBufferExpression is ProjectionBindingExpression projectionBindingExpression)
-            {
-                entityProjectionExpression =
-                    (EntityProjectionExpression)((InMemoryQueryExpression)projectionBindingExpression.QueryExpression)
-                    .GetProjection(projectionBindingExpression);
-            }
-            else
-            {
-                entityProjectionExpression = (EntityProjectionExpression)entityShaperExpression.ValueBufferExpression;
-            }
-
+            var entityProjectionExpression = shaper.ValueBufferExpression is ProjectionBindingExpression projectionBindingExpression
+                ? (EntityProjectionExpression)((InMemoryQueryExpression)projectionBindingExpression.QueryExpression)
+                .GetProjection(projectionBindingExpression)
+                : (EntityProjectionExpression)shaper.ValueBufferExpression;
             if (_indexBasedBinding)
             {
                 if (!_entityProjectionCache!.TryGetValue(entityProjectionExpression, out var entityProjectionBinding))
@@ -275,23 +277,20 @@ public class InMemoryProjectionBindingExpressionVisitor : ExpressionVisitor
                     _entityProjectionCache[entityProjectionExpression] = entityProjectionBinding;
                 }
 
-                return entityShaperExpression.Update(entityProjectionBinding);
+                return shaper.Update(entityProjectionBinding);
             }
 
             _projectionMapping[_projectionMembers.Peek()] = entityProjectionExpression;
 
-            return entityShaperExpression.Update(
+            return shaper.Update(
                 new ProjectionBindingExpression(_queryExpression, _projectionMembers.Peek(), typeof(ValueBuffer)));
         }
 
-        if (extensionExpression is IncludeExpression includeExpression)
-        {
-            return _indexBasedBinding
+        return extensionExpression is IncludeExpression includeExpression
+            ? _indexBasedBinding
                 ? base.VisitExtension(includeExpression)
-                : QueryCompilationContext.NotTranslatedExpression;
-        }
-
-        throw new InvalidOperationException(CoreStrings.TranslationFailed(extensionExpression.Print()));
+                : QueryCompilationContext.NotTranslatedExpression
+            : throw new InvalidOperationException(CoreStrings.TranslationFailed(extensionExpression.Print()));
     }
 
     /// <summary>
@@ -388,8 +387,7 @@ public class InMemoryProjectionBindingExpressionVisitor : ExpressionVisitor
             }
 
             newBindings[i] = VisitMemberBinding(memberInitExpression.Bindings[i]);
-            if (((MemberAssignment)newBindings[i]).Expression is UnaryExpression unaryExpression
-                && unaryExpression.NodeType == ExpressionType.Convert
+            if (((MemberAssignment)newBindings[i]).Expression is UnaryExpression { NodeType: ExpressionType.Convert } unaryExpression
                 && unaryExpression.Operand == QueryCompilationContext.NotTranslatedExpression)
             {
                 return QueryCompilationContext.NotTranslatedExpression;
@@ -503,8 +501,7 @@ public class InMemoryProjectionBindingExpressionVisitor : ExpressionVisitor
     {
         var operand = Visit(unaryExpression.Operand);
 
-        return (unaryExpression.NodeType == ExpressionType.Convert
-                || unaryExpression.NodeType == ExpressionType.ConvertChecked)
+        return unaryExpression.NodeType is ExpressionType.Convert or ExpressionType.ConvertChecked
             && unaryExpression.Type == operand.Type
                 ? operand
                 : unaryExpression.Update(MatchTypes(operand, unaryExpression.Operand.Type));

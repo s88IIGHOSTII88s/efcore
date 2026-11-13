@@ -25,6 +25,8 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
 {
     private IServiceProvider? _internalServiceProvider;
     private IServiceProvider? _applicationServiceProvider;
+    private IServiceProvider? _rootApplicationServiceProvider;
+    private bool _autoResolveResolveRootProvider;
     private IModel? _model;
     private ILoggerFactory? _loggerFactory;
     private IDbContextLogger? _contextLogger;
@@ -37,14 +39,17 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
     private int? _maxPoolSize;
     private TimeSpan _loggingCacheTime = DefaultLoggingCacheTime;
     private bool _serviceProviderCachingEnabled = true;
-    private DbContextOptionsExtensionInfo? _info;
-    private IEnumerable<IInterceptor>? _interceptors;
+    private List<IInterceptor>? _interceptors;
+    private List<ISingletonInterceptor>? _singletonInterceptors;
+    private Action<DbContext, bool>? _seed;
+    private Func<DbContext, bool, CancellationToken, Task>? _seedAsync;
 
     private static readonly TimeSpan DefaultLoggingCacheTime = TimeSpan.FromSeconds(1);
 
     private WarningsConfiguration _warningsConfiguration
         = new WarningsConfiguration()
             .TryWithExplicit(CoreEventId.ManyServiceProvidersCreatedWarning, WarningBehavior.Throw)
+            .TryWithExplicit(CoreEventId.AccidentalEntityType, WarningBehavior.Throw)
             .TryWithExplicit(CoreEventId.LazyLoadOnDisposedContextWarning, WarningBehavior.Throw)
             .TryWithExplicit(CoreEventId.DetachedLazyLoadingWarning, WarningBehavior.Throw)
             .TryWithExplicit(CoreEventId.InvalidIncludePathError, WarningBehavior.Throw)
@@ -65,6 +70,8 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
     {
         _internalServiceProvider = copyFrom.InternalServiceProvider;
         _applicationServiceProvider = copyFrom.ApplicationServiceProvider;
+        _rootApplicationServiceProvider = copyFrom.RootApplicationServiceProvider;
+        _autoResolveResolveRootProvider = copyFrom.AutoResolveRootProvider;
         _model = copyFrom.Model;
         _loggerFactory = copyFrom.LoggerFactory;
         _contextLogger = copyFrom.DbContextLogger;
@@ -78,18 +85,22 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
         _loggingCacheTime = copyFrom.LoggingCacheTime;
         _serviceProviderCachingEnabled = copyFrom.ServiceProviderCachingEnabled;
         _interceptors = copyFrom.Interceptors?.ToList();
+        _singletonInterceptors = copyFrom.SingletonInterceptors?.ToList();
+        _seed = copyFrom._seed;
+        _seedAsync = copyFrom._seedAsync;
 
         if (copyFrom._replacedServices != null)
         {
-            _replacedServices = new Dictionary<(Type, Type?), Type>(copyFrom._replacedServices);
+            _replacedServices = [with(copyFrom._replacedServices)];
         }
     }
 
     /// <summary>
     ///     Information/metadata about the extension.
     /// </summary>
+    [field: AllowNull, MaybeNull]
     public virtual DbContextOptionsExtensionInfo Info
-        => _info ??= new ExtensionInfo(this);
+        => field ??= new ExtensionInfo(this);
 
     /// <summary>
     ///     Override this method in a derived class to ensure that any clone created is also of that class.
@@ -124,6 +135,42 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
         var clone = Clone();
 
         clone._applicationServiceProvider = applicationServiceProvider;
+        clone._rootApplicationServiceProvider ??= _autoResolveResolveRootProvider
+            ? applicationServiceProvider?.GetService<ServiceProviderAccessor>()?.RootServiceProvider
+            : null;
+
+        return clone;
+    }
+
+    /// <summary>
+    ///     Creates a new instance with all options the same as for this instance, but with the given option changed.
+    ///     It is unusual to call this method directly. Instead use <see cref="DbContextOptionsBuilder" />.
+    /// </summary>
+    /// <param name="rootApplicationServiceProvider">The option to change.</param>
+    /// <returns>A new instance with the option changed.</returns>
+    public virtual CoreOptionsExtension WithRootApplicationServiceProvider(IServiceProvider? rootApplicationServiceProvider)
+    {
+        var clone = Clone();
+
+        clone._rootApplicationServiceProvider = rootApplicationServiceProvider;
+
+        return clone;
+    }
+
+    /// <summary>
+    ///     Creates a new instance with all options the same as for this instance, but with the given option changed.
+    ///     It is unusual to call this method directly. Instead use <see cref="DbContextOptionsBuilder" />.
+    /// </summary>
+    /// <param name="autoResolve">The option to change.</param>
+    /// <returns>A new instance with the option changed.</returns>
+    public virtual CoreOptionsExtension WithRootApplicationServiceProvider(bool autoResolve = true)
+    {
+        var clone = Clone();
+
+        clone._autoResolveResolveRootProvider = autoResolve;
+        clone._rootApplicationServiceProvider ??= autoResolve
+            ? _applicationServiceProvider?.GetService<ServiceProviderAccessor>()?.RootServiceProvider
+            : null;
 
         return clone;
     }
@@ -263,7 +310,7 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
     {
         var clone = Clone();
 
-        clone._replacedServices ??= new Dictionary<(Type, Type?), Type>();
+        clone._replacedServices ??= [];
 
         clone._replacedServices[(serviceType, currentImplementationType)] = newImplementationType;
 
@@ -341,8 +388,55 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
         var clone = Clone();
 
         clone._interceptors = _interceptors == null
-            ? interceptors
-            : _interceptors.Concat(interceptors);
+            ? [.. interceptors]
+            : [.. _interceptors, .. interceptors];
+
+        return clone;
+    }
+
+    /// <summary>
+    ///     Creates a new instance with all options the same as for this instance, but with the given option changed.
+    ///     It is unusual to call this method directly. Instead use <see cref="DbContextOptionsBuilder" />.
+    /// </summary>
+    /// <param name="interceptors">The option to change.</param>
+    /// <returns>A new instance with the option changed.</returns>
+    public virtual CoreOptionsExtension WithSingletonInterceptors(IEnumerable<ISingletonInterceptor> interceptors)
+    {
+        var clone = Clone();
+
+        clone._singletonInterceptors = _singletonInterceptors == null
+            ? [.. interceptors]
+            : [.. _singletonInterceptors, .. interceptors];
+
+        return clone;
+    }
+
+    /// <summary>
+    ///     Creates a new instance with all options the same as for this instance, but with the given option changed.
+    ///     It is unusual to call this method directly. Instead use <see cref="DbContextOptionsBuilder" />.
+    /// </summary>
+    /// <param name="seed">The option to change.</param>
+    /// <returns>A new instance with the option changed.</returns>
+    public virtual CoreOptionsExtension WithSeeding(Action<DbContext, bool> seed)
+    {
+        var clone = Clone();
+
+        clone._seed = seed;
+
+        return clone;
+    }
+
+    /// <summary>
+    ///     Creates a new instance with all options the same as for this instance, but with the given option changed.
+    ///     It is unusual to call this method directly. Instead use <see cref="DbContextOptionsBuilder" />.
+    /// </summary>
+    /// <param name="seedAsync">The option to change.</param>
+    /// <returns>A new instance with the option changed.</returns>
+    public virtual CoreOptionsExtension WithAsyncSeeding(Func<DbContext, bool, CancellationToken, Task> seedAsync)
+    {
+        var clone = Clone();
+
+        clone._seedAsync = seedAsync;
 
         return clone;
     }
@@ -402,6 +496,18 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
         => _applicationServiceProvider;
 
     /// <summary>
+    ///     The option set from the <see cref="DbContextOptionsBuilder.UseRootApplicationServiceProvider(IServiceProvider?)" /> method.
+    /// </summary>
+    public virtual IServiceProvider? RootApplicationServiceProvider
+        => _rootApplicationServiceProvider;
+
+    /// <summary>
+    ///     The option set from the <see cref="DbContextOptionsBuilder.UseRootApplicationServiceProvider(IServiceProvider?)" /> method.
+    /// </summary>
+    public virtual bool AutoResolveRootProvider
+        => _autoResolveResolveRootProvider;
+
+    /// <summary>
     ///     The options set from the <see cref="DbContextOptionsBuilder.ConfigureWarnings" /> method.
     /// </summary>
     public virtual WarningsConfiguration WarningsConfiguration
@@ -444,16 +550,42 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
         => _loggingCacheTime;
 
     /// <summary>
-    ///     The options set from the <see cref="DbContextOptionsBuilder.AddInterceptors(IEnumerable{IInterceptor})" /> method.
+    ///     The options set from the <see cref="DbContextOptionsBuilder.AddInterceptors(IEnumerable{IInterceptor})" /> method
+    ///     for scoped interceptors.
     /// </summary>
     public virtual IEnumerable<IInterceptor>? Interceptors
         => _interceptors;
 
     /// <summary>
+    ///     The options set from the <see cref="DbContextOptionsBuilder.AddInterceptors(IEnumerable{IInterceptor})" /> method
+    ///     for singleton interceptors.
+    /// </summary>
+    public virtual IEnumerable<ISingletonInterceptor>? SingletonInterceptors
+        => _singletonInterceptors;
+
+    /// <summary>
+    ///     The option set from the
+    ///     <see
+    ///         cref="DbContextOptionsBuilder.UseSeeding(Action{DbContext, bool})" />
+    ///     method.
+    /// </summary>
+    public virtual Action<DbContext, bool>? Seeder
+        => _seed;
+
+    /// <summary>
+    ///     The option set from the
+    ///     <see
+    ///         cref="DbContextOptionsBuilder.UseAsyncSeeding(Func{DbContext, bool, CancellationToken, Task})" />
+    ///     method.
+    /// </summary>
+    public virtual Func<DbContext, bool, CancellationToken, Task>? AsyncSeeder
+        => _seedAsync;
+
+    /// <summary>
     ///     Adds the services required to make the selected options work. This is used when there
     ///     is no external <see cref="IServiceProvider" /> and EF is maintaining its own service
     ///     provider internally. This allows database providers (and other extensions) to register their
-    ///     required services when EF is creating an service provider.
+    ///     required services when EF is creating a service provider.
     /// </summary>
     /// <param name="services">The collection to add services to.</param>
     public virtual void ApplyServices(IServiceCollection services)
@@ -462,6 +594,14 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
         if (memoryCache != null)
         {
             services.AddSingleton(memoryCache);
+        }
+
+        if (_singletonInterceptors != null)
+        {
+            foreach (var interceptor in _singletonInterceptors)
+            {
+                services.AddSingleton(interceptor);
+            }
         }
     }
 
@@ -475,7 +615,7 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
     /// <param name="options">The options being validated.</param>
     public virtual void Validate(IDbContextOptions options)
     {
-        if (MaxPoolSize.HasValue && MaxPoolSize <= 0)
+        if (MaxPoolSize is <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(MaxPoolSize), CoreStrings.InvalidPoolSize);
         }
@@ -507,18 +647,21 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
                         nameof(DbContextOptionsBuilder.UseInternalServiceProvider),
                         nameof(IMemoryCache)));
             }
+
+            if (SingletonInterceptors != null && SingletonInterceptors.Any())
+            {
+                throw new InvalidOperationException(
+                    CoreStrings.InvalidUseService(
+                        nameof(DbContextOptionsBuilder.AddInterceptors),
+                        nameof(DbContextOptionsBuilder.UseInternalServiceProvider),
+                        nameof(ISingletonInterceptor)));
+            }
         }
     }
 
-    private sealed class ExtensionInfo : DbContextOptionsExtensionInfo
+    private sealed class ExtensionInfo(CoreOptionsExtension extension) : DbContextOptionsExtensionInfo(extension)
     {
         private int? _serviceProviderHash;
-        private string? _logFragment;
-
-        public ExtensionInfo(CoreOptionsExtension extension)
-            : base(extension)
-        {
-        }
 
         private new CoreOptionsExtension Extension
             => (CoreOptionsExtension)base.Extension;
@@ -526,11 +669,12 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
         public override bool IsDatabaseProvider
             => false;
 
+        [field: AllowNull, MaybeNull]
         public override string LogFragment
         {
             get
             {
-                if (_logFragment == null)
+                if (field == null)
                 {
                     var builder = new StringBuilder();
 
@@ -559,10 +703,10 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
                         builder.Append("MaxPoolSize=").Append(Extension._maxPoolSize).Append(' ');
                     }
 
-                    _logFragment = builder.ToString();
+                    field = builder.ToString();
                 }
 
-                return _logFragment;
+                return field;
             }
         }
 
@@ -603,6 +747,7 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
                 hashCode.Add(Extension.GetMemoryCache());
                 hashCode.Add(Extension._sensitiveDataLoggingEnabled);
                 hashCode.Add(Extension._detailedErrorsEnabled);
+                hashCode.Add(Extension.RootApplicationServiceProvider);
                 hashCode.Add(Extension._threadSafetyChecksEnabled);
                 hashCode.Add(Extension._warningsConfiguration.GetServiceProviderHashCode());
 
@@ -611,6 +756,14 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
                     foreach (var replacedService in Extension._replacedServices)
                     {
                         hashCode.Add(replacedService.Value);
+                    }
+                }
+
+                if (Extension._singletonInterceptors != null)
+                {
+                    foreach (var interceptor in Extension._singletonInterceptors)
+                    {
+                        hashCode.Add(interceptor);
                     }
                 }
 
@@ -625,12 +778,17 @@ public class CoreOptionsExtension : IDbContextOptionsExtension
                 && Extension.GetMemoryCache() == otherInfo.Extension.GetMemoryCache()
                 && Extension._sensitiveDataLoggingEnabled == otherInfo.Extension._sensitiveDataLoggingEnabled
                 && Extension._detailedErrorsEnabled == otherInfo.Extension._detailedErrorsEnabled
+                && Extension.RootApplicationServiceProvider == otherInfo.Extension.RootApplicationServiceProvider
                 && Extension._threadSafetyChecksEnabled == otherInfo.Extension._threadSafetyChecksEnabled
                 && Extension._warningsConfiguration.ShouldUseSameServiceProvider(otherInfo.Extension._warningsConfiguration)
                 && (Extension._replacedServices == otherInfo.Extension._replacedServices
                     || (Extension._replacedServices != null
                         && otherInfo.Extension._replacedServices != null
                         && Extension._replacedServices.Count == otherInfo.Extension._replacedServices.Count
-                        && Extension._replacedServices.SequenceEqual(otherInfo.Extension._replacedServices)));
+                        && Extension._replacedServices.SequenceEqual(otherInfo.Extension._replacedServices)))
+                && (Extension._singletonInterceptors == otherInfo.Extension._singletonInterceptors
+                    || (Extension._singletonInterceptors != null
+                        && otherInfo.Extension._singletonInterceptors != null
+                        && Extension._singletonInterceptors.SequenceEqual(otherInfo.Extension._singletonInterceptors)));
     }
 }

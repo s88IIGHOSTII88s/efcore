@@ -5,7 +5,7 @@
 
 namespace Microsoft.EntityFrameworkCore.TestModels;
 
-public class SnapshotMonsterContext : MonsterContext<
+public class SnapshotMonsterContext(DbContextOptions options) : MonsterContext<
     SnapshotMonsterContext.Customer, SnapshotMonsterContext.Barcode, SnapshotMonsterContext.IncorrectScan,
     SnapshotMonsterContext.BarcodeDetail, SnapshotMonsterContext.Complaint, SnapshotMonsterContext.Resolution,
     SnapshotMonsterContext.Login, SnapshotMonsterContext.SuspiciousActivity, SnapshotMonsterContext.SmartCard,
@@ -18,34 +18,22 @@ public class SnapshotMonsterContext : MonsterContext<
     SnapshotMonsterContext.Computer, SnapshotMonsterContext.ComputerDetail, SnapshotMonsterContext.Driver,
     SnapshotMonsterContext.License, SnapshotMonsterContext.ConcurrencyInfo, SnapshotMonsterContext.AuditInfo,
     SnapshotMonsterContext.ContactDetails, SnapshotMonsterContext.Dimensions, SnapshotMonsterContext.Phone,
-    SnapshotMonsterContext.BackOrderLine, SnapshotMonsterContext.DiscontinuedProduct, SnapshotMonsterContext.ProductPageView>
+    SnapshotMonsterContext.BackOrderLine, SnapshotMonsterContext.DiscontinuedProduct, SnapshotMonsterContext.ProductPageView>(options)
 {
-    public SnapshotMonsterContext(DbContextOptions options)
-        : base(options)
-    {
-    }
-
-    public class BackOrderLine2 : BackOrderLine
-    {
-    }
+    public class BackOrderLine2 : BackOrderLine;
 
     public class BackOrderLine : OrderLine, IBackOrderLine
     {
-        public BackOrderLine()
-        {
-            ETA = DateTime.Now;
-        }
-
-        public DateTime ETA { get; set; }
+        public DateTime ETA { get; set; } = DateTime.Now;
 
         public int SupplierId { get; set; }
-        public virtual ISupplier Supplier { get; set; }
+        public virtual ISupplier Supplier { get; set; } = null!;
     }
 
     public class BarcodeDetail : IBarcodeDetail
     {
-        public byte[] Code { get; set; }
-        public string RegisteredTo { get; set; }
+        public byte[] Code { get; set; } = null!;
+        public string RegisteredTo { get; set; } = null!;
     }
 
     public class Barcode : IBarcode
@@ -53,13 +41,13 @@ public class SnapshotMonsterContext : MonsterContext<
         public void InitializeCollections()
             => BadScans ??= new HashSet<IIncorrectScan>();
 
-        public byte[] Code { get; set; }
+        public byte[] Code { get; set; } = null!;
         public int ProductId { get; set; }
-        public string Text { get; set; }
+        public string Text { get; set; } = null!;
 
-        public virtual IProduct Product { get; set; }
-        public virtual ICollection<IIncorrectScan> BadScans { get; set; }
-        public virtual IBarcodeDetail Detail { get; set; }
+        public virtual IProduct Product { get; set; } = null!;
+        public virtual ICollection<IIncorrectScan> BadScans { get; set; } = null!;
+        public virtual IBarcodeDetail Detail { get; set; } = null!;
     }
 
     public class Complaint : IComplaint
@@ -68,67 +56,55 @@ public class SnapshotMonsterContext : MonsterContext<
         public int AlternateId { get; set; }
         public int? CustomerId { get; set; }
         public DateTime Logged { get; set; }
-        public string Details { get; set; }
+        public string Details { get; set; } = null!;
 
-        public virtual ICustomer Customer { get; set; }
-        public virtual IResolution Resolution { get; set; }
+        public virtual ICustomer Customer { get; set; } = null!;
+        public virtual IResolution Resolution { get; set; } = null!;
     }
 
     public class ComputerDetail : IComputerDetail
     {
-        public ComputerDetail()
-        {
-            Dimensions = new Dimensions();
-        }
-
         public int ComputerDetailId { get; set; }
-        public string Manufacturer { get; set; }
-        public string Model { get; set; }
-        public string Serial { get; set; }
-        public string Specifications { get; set; }
+        public string Manufacturer { get; set; } = null!;
+        public string Model { get; set; } = null!;
+        public string Serial { get; set; } = null!;
+        public string Specifications { get; set; } = null!;
         public DateTime PurchaseDate { get; set; }
 
-        public IDimensions Dimensions { get; set; }
+        public IDimensions Dimensions { get; set; } = new Dimensions();
 
-        public virtual IComputer Computer { get; set; }
+        public virtual IComputer Computer { get; set; } = null!;
     }
 
     public class Computer : IComputer
     {
         public int ComputerId { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
-        public virtual IComputerDetail ComputerDetail { get; set; }
+        public virtual IComputerDetail ComputerDetail { get; set; } = null!;
     }
 
     public class ConcurrencyInfo : IConcurrencyInfo
     {
         public bool Active { get; set; }
-        public string Token { get; set; }
+        public string? Token { get; set; }
         public DateTime? QueriedDateTime { get; set; }
     }
 
     public class ContactDetails : IContactDetails
     {
-        public ContactDetails()
-        {
-            HomePhone = new Phone();
-            WorkPhone = new Phone();
-            MobilePhone = new Phone();
-        }
-
         public bool Active { get; set; }
-        public string Email { get; set; }
+        public string? Email { get; set; }
 
-        public IPhone HomePhone { get; set; }
-        public IPhone WorkPhone { get; set; }
-        public IPhone MobilePhone { get; set; }
+        public IPhone HomePhone { get; set; } = new Phone();
+        public IPhone WorkPhone { get; set; } = new Phone();
+        public IPhone MobilePhone { get; set; } = new Phone();
     }
 
     public class CustomerInfo : ICustomerInfo
     {
         public int CustomerInfoId { get; set; }
-        public string Information { get; set; }
+        public string Information { get; set; } = null!;
     }
 
     public class Dimensions : IDimensions
@@ -143,94 +119,79 @@ public class SnapshotMonsterContext : MonsterContext<
         public DateTime Discontinued { get; set; }
         public int? ReplacementProductId { get; set; }
 
-        public virtual IProduct ReplacedBy { get; set; }
+        public virtual IProduct ReplacedBy { get; set; } = null!;
     }
 
     public class Driver : IDriver
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         public DateTime BirthDate { get; set; }
 
-        public virtual ILicense License { get; set; }
+        public virtual ILicense License { get; set; } = null!;
     }
 
     public class IncorrectScan : IIncorrectScan
     {
         public int IncorrectScanId { get; set; }
-        public byte[] ExpectedCode { get; set; }
-        public byte[] ActualCode { get; set; }
+        public byte[]? ExpectedCode { get; set; }
+        public byte[]? ActualCode { get; set; }
         public DateTime ScanDate { get; set; }
-        public string Details { get; set; }
+        public string Details { get; set; } = null!;
 
-        public virtual IBarcode ExpectedBarcode { get; set; }
-        public virtual IBarcode ActualBarcode { get; set; }
+        public virtual IBarcode? ExpectedBarcode { get; set; }
+        public virtual IBarcode? ActualBarcode { get; set; }
     }
 
     public class LastLogin : ILastLogin
     {
-        public string Username { get; set; }
+        public string Username { get; set; } = null!;
         public DateTime LoggedIn { get; set; }
         public DateTime? LoggedOut { get; set; }
 
-        public string SmartcardUsername { get; set; }
+        public string? SmartcardUsername { get; set; }
 
-        public virtual ILogin Login { get; set; }
+        public virtual ILogin Login { get; set; } = null!;
     }
 
     public class License : ILicense
     {
-        public License()
-        {
-            LicenseClass = "C";
-        }
-
-        public string Name { get; set; }
-        public string LicenseNumber { get; set; }
-        public string LicenseClass { get; set; }
-        public string Restrictions { get; set; }
+        public string Name { get; set; } = null!;
+        public string LicenseNumber { get; set; } = null!;
+        public string LicenseClass { get; set; } = "C";
+        public string Restrictions { get; set; } = null!;
         public DateTime ExpirationDate { get; set; }
         public LicenseState? State { get; set; }
 
-        public virtual IDriver Driver { get; set; }
+        public virtual IDriver Driver { get; set; } = null!;
     }
 
     public class Message : IMessage
     {
         public int MessageId { get; set; }
-        public string FromUsername { get; set; }
-        public string ToUsername { get; set; }
+        public string FromUsername { get; set; } = null!;
+        public string? ToUsername { get; set; }
         public DateTime Sent { get; set; }
-        public string Subject { get; set; }
-        public string Body { get; set; }
+        public string Subject { get; set; } = null!;
+        public string Body { get; set; } = null!;
         public bool IsRead { get; set; }
 
-        public virtual ILogin Sender { get; set; }
-        public virtual ILogin Recipient { get; set; }
+        public virtual ILogin Sender { get; set; } = null!;
+        public virtual ILogin? Recipient { get; set; }
     }
 
     public class OrderLine : IOrderLine
     {
-        public OrderLine()
-        {
-            Quantity = 1;
-        }
-
         public int OrderId { get; set; }
         public int ProductId { get; set; }
-        public int Quantity { get; set; }
-        public string ConcurrencyToken { get; set; }
+        public int Quantity { get; set; } = 1;
+        public string? ConcurrencyToken { get; set; }
 
-        public virtual IAnOrder Order { get; set; }
-        public virtual IProduct Product { get; set; }
+        public virtual IAnOrder Order { get; set; } = null!;
+        public virtual IProduct Product { get; set; } = null!;
     }
 
     public class AnOrder : IAnOrder
     {
-        public AnOrder()
-        {
-            Concurrency = new ConcurrencyInfo();
-        }
-
         public void InitializeCollections()
         {
             OrderLines ??= new HashSet<IOrderLine>();
@@ -241,70 +202,64 @@ public class SnapshotMonsterContext : MonsterContext<
         public int AlternateId { get; set; }
         public int? CustomerId { get; set; }
 
-        public IConcurrencyInfo Concurrency { get; set; }
+        public IConcurrencyInfo Concurrency { get; set; } = new ConcurrencyInfo();
 
-        public virtual ICustomer Customer { get; set; }
-        public virtual ICollection<IOrderLine> OrderLines { get; set; }
-        public virtual ICollection<IOrderNote> Notes { get; set; }
+        public virtual ICustomer Customer { get; set; } = null!;
+        public virtual ICollection<IOrderLine> OrderLines { get; set; } = null!;
+        public virtual ICollection<IOrderNote> Notes { get; set; } = null!;
 
-        public string Username { get; set; }
-        public virtual ILogin Login { get; set; }
+        public string Username { get; set; } = null!;
+        public virtual ILogin Login { get; set; } = null!;
     }
 
     public class OrderNote : IOrderNote
     {
         public int NoteId { get; set; }
-        public string Note { get; set; }
+        public string Note { get; set; } = null!;
 
         public int OrderId { get; set; }
-        public virtual IAnOrder Order { get; set; }
+        public virtual IAnOrder Order { get; set; } = null!;
     }
 
     public class OrderQualityCheck : IOrderQualityCheck
     {
         public int OrderId { get; set; }
-        public string CheckedBy { get; set; }
+        public string CheckedBy { get; set; } = null!;
         public DateTime CheckedDateTime { get; set; }
 
-        public virtual IAnOrder Order { get; set; }
+        public virtual IAnOrder Order { get; set; } = null!;
     }
 
     public class PageView : IPageView
     {
         public int PageViewId { get; set; }
-        public string Username { get; set; }
+        public string Username { get; set; } = null!;
         public DateTime Viewed { get; set; }
-        public string PageUrl { get; set; }
+        public string PageUrl { get; set; } = null!;
 
-        public virtual ILogin Login { get; set; }
+        public virtual ILogin Login { get; set; } = null!;
     }
 
     public class PasswordReset : IPasswordReset
     {
         public int ResetNo { get; set; }
-        public string Username { get; set; }
-        public string TempPassword { get; set; }
-        public string EmailedTo { get; set; }
+        public string Username { get; set; } = null!;
+        public string TempPassword { get; set; } = null!;
+        public string EmailedTo { get; set; } = null!;
 
-        public virtual ILogin Login { get; set; }
+        public virtual ILogin Login { get; set; } = null!;
     }
 
     public class ProductDetail : IProductDetail
     {
         public int ProductId { get; set; }
-        public string Details { get; set; }
+        public string Details { get; set; } = null!;
 
-        public virtual IProduct Product { get; set; }
+        public virtual IProduct Product { get; set; } = null!;
     }
 
     public class Product : IProduct
     {
-        public Product()
-        {
-            ComplexConcurrency = new ConcurrencyInfo();
-            NestedComplexConcurrency = new AuditInfo();
-        }
-
         public void InitializeCollections()
         {
             Suppliers ??= new HashSet<ISupplier>();
@@ -315,26 +270,26 @@ public class SnapshotMonsterContext : MonsterContext<
         }
 
         public int ProductId { get; set; }
-        public string Description { get; set; }
-        public string BaseConcurrency { get; set; }
+        public string Description { get; set; } = null!;
+        public string BaseConcurrency { get; set; } = null!;
 
-        public IDimensions Dimensions { get; set; }
-        public IConcurrencyInfo ComplexConcurrency { get; set; }
-        public IAuditInfo NestedComplexConcurrency { get; set; }
+        public IDimensions Dimensions { get; set; } = null!;
+        public IConcurrencyInfo ComplexConcurrency { get; set; } = new ConcurrencyInfo();
+        public IAuditInfo NestedComplexConcurrency { get; set; } = new AuditInfo();
 
-        public virtual ICollection<ISupplier> Suppliers { get; set; }
-        public virtual ICollection<IDiscontinuedProduct> Replaces { get; set; }
-        public virtual IProductDetail Detail { get; set; }
-        public virtual ICollection<IProductReview> Reviews { get; set; }
-        public virtual ICollection<IProductPhoto> Photos { get; set; }
-        public virtual ICollection<IBarcode> Barcodes { get; set; }
+        public virtual ICollection<ISupplier> Suppliers { get; set; } = null!;
+        public virtual ICollection<IDiscontinuedProduct> Replaces { get; set; } = null!;
+        public virtual IProductDetail Detail { get; set; } = null!;
+        public virtual ICollection<IProductReview> Reviews { get; set; } = null!;
+        public virtual ICollection<IProductPhoto> Photos { get; set; } = null!;
+        public virtual ICollection<IBarcode> Barcodes { get; set; } = null!;
     }
 
     public class ProductPageView : PageView, IProductPageView
     {
         public int ProductId { get; set; }
 
-        public virtual IProduct Product { get; set; }
+        public virtual IProduct Product { get; set; } = null!;
     }
 
     public class ProductPhoto : IProductPhoto
@@ -344,9 +299,9 @@ public class SnapshotMonsterContext : MonsterContext<
 
         public int ProductId { get; set; }
         public int PhotoId { get; set; }
-        public byte[] Photo { get; set; }
+        public byte[] Photo { get; set; } = null!;
 
-        public virtual ICollection<IProductWebFeature> Features { get; set; }
+        public virtual ICollection<IProductWebFeature> Features { get; set; } = null!;
     }
 
     public class ProductReview : IProductReview
@@ -356,10 +311,10 @@ public class SnapshotMonsterContext : MonsterContext<
 
         public int ProductId { get; set; }
         public int ReviewId { get; set; }
-        public string Review { get; set; }
+        public string Review { get; set; } = null!;
 
-        public virtual IProduct Product { get; set; }
-        public virtual ICollection<IProductWebFeature> Features { get; set; }
+        public virtual IProduct Product { get; set; } = null!;
+        public virtual ICollection<IProductWebFeature> Features { get; set; } = null!;
     }
 
     public class ProductWebFeature : IProductWebFeature
@@ -368,52 +323,52 @@ public class SnapshotMonsterContext : MonsterContext<
         public int? ProductId { get; set; }
         public int? PhotoId { get; set; }
         public int ReviewId { get; set; }
-        public string Heading { get; set; }
+        public string Heading { get; set; } = null!;
 
-        public virtual IProductReview Review { get; set; }
-        public virtual IProductPhoto Photo { get; set; }
+        public virtual IProductReview Review { get; set; } = null!;
+        public virtual IProductPhoto Photo { get; set; } = null!;
     }
 
     public class Resolution : IResolution
     {
         public int ResolutionId { get; set; }
-        public string Details { get; set; }
+        public string Details { get; set; } = null!;
 
-        public virtual IComplaint Complaint { get; set; }
+        public virtual IComplaint Complaint { get; set; } = null!;
     }
 
     public class RsaToken : IRsaToken
     {
-        public string Serial { get; set; }
+        public string Serial { get; set; } = null!;
         public DateTime Issued { get; set; }
 
-        public string Username { get; set; }
-        public virtual ILogin Login { get; set; }
+        public string Username { get; set; } = null!;
+        public virtual ILogin Login { get; set; } = null!;
     }
 
     public class SmartCard : ISmartCard
     {
-        public string Username { get; set; }
-        public string CardSerial { get; set; }
+        public string Username { get; set; } = null!;
+        public string CardSerial { get; set; } = null!;
         public DateTime Issued { get; set; }
 
-        public virtual ILogin Login { get; set; }
-        public virtual ILastLogin LastLogin { get; set; }
+        public virtual ILogin Login { get; set; } = null!;
+        public virtual ILastLogin? LastLogin { get; set; }
     }
 
     public class SupplierInfo : ISupplierInfo
     {
         public int SupplierInfoId { get; set; }
-        public string Information { get; set; }
+        public string Information { get; set; } = null!;
 
         public int SupplierId { get; set; }
-        public virtual ISupplier Supplier { get; set; }
+        public virtual ISupplier Supplier { get; set; } = null!;
     }
 
     public class SupplierLogo : ISupplierLogo
     {
         public int SupplierId { get; set; }
-        public byte[] Logo { get; set; }
+        public byte[] Logo { get; set; } = null!;
     }
 
     public class Supplier : ISupplier
@@ -425,43 +380,31 @@ public class SnapshotMonsterContext : MonsterContext<
         }
 
         public int SupplierId { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
-        public virtual ICollection<IProduct> Products { get; set; }
-        public virtual ICollection<IBackOrderLine> BackOrderLines { get; set; }
-        public virtual ISupplierLogo Logo { get; set; }
+        public virtual ICollection<IProduct> Products { get; set; } = null!;
+        public virtual ICollection<IBackOrderLine> BackOrderLines { get; set; } = null!;
+        public virtual ISupplierLogo Logo { get; set; } = null!;
     }
 
     public class SuspiciousActivity : ISuspiciousActivity
     {
         public int SuspiciousActivityId { get; set; }
-        public string Activity { get; set; }
+        public string Activity { get; set; } = null!;
 
-        public string Username { get; set; }
+        public string Username { get; set; } = null!;
     }
 
     public class AuditInfo : IAuditInfo
     {
-        public AuditInfo()
-        {
-            Concurrency = new ConcurrencyInfo();
-            ModifiedDate = DateTime.Now;
-        }
+        public DateTime ModifiedDate { get; set; } = DateTime.Now;
+        public string? ModifiedBy { get; set; }
 
-        public DateTime ModifiedDate { get; set; }
-        public string ModifiedBy { get; set; }
-
-        public IConcurrencyInfo Concurrency { get; set; }
+        public IConcurrencyInfo Concurrency { get; set; } = new ConcurrencyInfo();
     }
 
     public class Customer : ICustomer
     {
-        public Customer()
-        {
-            ContactInfo = new ContactDetails();
-            Auditing = new AuditInfo();
-        }
-
         public void InitializeCollections()
         {
             Orders ??= new HashSet<IAnOrder>();
@@ -470,16 +413,16 @@ public class SnapshotMonsterContext : MonsterContext<
 
         public int CustomerId { get; set; }
         public int? HusbandId { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
-        public IContactDetails ContactInfo { get; set; }
-        public IAuditInfo Auditing { get; set; }
+        public IContactDetails ContactInfo { get; set; } = new ContactDetails();
+        public IAuditInfo Auditing { get; set; } = new AuditInfo();
 
-        public virtual ICollection<IAnOrder> Orders { get; set; }
-        public virtual ICollection<ILogin> Logins { get; set; }
-        public virtual ICustomer Husband { get; set; }
-        public virtual ICustomer Wife { get; set; }
-        public virtual ICustomerInfo Info { get; set; }
+        public virtual ICollection<IAnOrder> Orders { get; set; } = null!;
+        public virtual ICollection<ILogin> Logins { get; set; } = null!;
+        public virtual ICustomer Husband { get; set; } = null!;
+        public virtual ICustomer Wife { get; set; } = null!;
+        public virtual ICustomerInfo Info { get; set; } = null!;
     }
 
     public class Login : ILogin
@@ -491,26 +434,21 @@ public class SnapshotMonsterContext : MonsterContext<
             Orders ??= new HashSet<IAnOrder>();
         }
 
-        public string Username { get; set; }
-        public string AlternateUsername { get; set; }
+        public string Username { get; set; } = null!;
+        public string AlternateUsername { get; set; } = null!;
         public int CustomerId { get; set; }
 
-        public virtual ICustomer Customer { get; set; }
-        public virtual ILastLogin LastLogin { get; set; }
-        public virtual ICollection<IMessage> SentMessages { get; set; }
-        public virtual ICollection<IMessage> ReceivedMessages { get; set; }
-        public virtual ICollection<IAnOrder> Orders { get; set; }
+        public virtual ICustomer Customer { get; set; } = null!;
+        public virtual ILastLogin LastLogin { get; set; } = null!;
+        public virtual ICollection<IMessage> SentMessages { get; set; } = null!;
+        public virtual ICollection<IMessage> ReceivedMessages { get; set; } = null!;
+        public virtual ICollection<IAnOrder> Orders { get; set; } = null!;
     }
 
     public class Phone : IPhone
     {
-        public Phone()
-        {
-            Extension = "None";
-        }
-
-        public string PhoneNumber { get; set; }
-        public string Extension { get; set; }
+        public string? PhoneNumber { get; set; }
+        public string Extension { get; set; } = "None";
         public PhoneType PhoneType { get; set; }
     }
 }

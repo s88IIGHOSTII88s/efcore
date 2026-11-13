@@ -11,7 +11,7 @@ namespace Microsoft.EntityFrameworkCore;
 /// </summary>
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-modeling">Modeling entity types and relationships</see>, and
-///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
 ///     for more information and examples.
 /// </remarks>
 public static class SqlServerModelExtensions
@@ -20,6 +20,11 @@ public static class SqlServerModelExtensions
     ///     The default name for the hi-lo sequence.
     /// </summary>
     public const string DefaultHiLoSequenceName = "EntityFrameworkHiLoSequence";
+
+    /// <summary>
+    ///     The default prefix for sequences applied to properties.
+    /// </summary>
+    public const string DefaultSequenceNameSuffix = "Sequence";
 
     /// <summary>
     ///     Returns the name to use for the default hi-lo sequence.
@@ -37,7 +42,7 @@ public static class SqlServerModelExtensions
     /// <param name="name">The value to set.</param>
     public static void SetHiLoSequenceName(this IMutableModel model, string? name)
     {
-        Check.NullButNotEmpty(name, nameof(name));
+        Check.NullButNotEmpty(name);
 
         model.SetOrRemoveAnnotation(SqlServerAnnotationNames.HiLoSequenceName, name);
     }
@@ -53,13 +58,10 @@ public static class SqlServerModelExtensions
         this IConventionModel model,
         string? name,
         bool fromDataAnnotation = false)
-    {
-        Check.NullButNotEmpty(name, nameof(name));
-
-        model.SetOrRemoveAnnotation(SqlServerAnnotationNames.HiLoSequenceName, name, fromDataAnnotation);
-
-        return name;
-    }
+        => (string?)model.SetOrRemoveAnnotation(
+            SqlServerAnnotationNames.HiLoSequenceName,
+            Check.NullButNotEmpty(name),
+            fromDataAnnotation)?.Value;
 
     /// <summary>
     ///     Returns the <see cref="ConfigurationSource" /> for the default hi-lo sequence name.
@@ -85,7 +87,7 @@ public static class SqlServerModelExtensions
     /// <param name="value">The value to set.</param>
     public static void SetHiLoSequenceSchema(this IMutableModel model, string? value)
     {
-        Check.NullButNotEmpty(value, nameof(value));
+        Check.NullButNotEmpty(value);
 
         model.SetOrRemoveAnnotation(SqlServerAnnotationNames.HiLoSequenceSchema, value);
     }
@@ -101,13 +103,10 @@ public static class SqlServerModelExtensions
         this IConventionModel model,
         string? value,
         bool fromDataAnnotation = false)
-    {
-        Check.NullButNotEmpty(value, nameof(value));
-
-        model.SetOrRemoveAnnotation(SqlServerAnnotationNames.HiLoSequenceSchema, value, fromDataAnnotation);
-
-        return value;
-    }
+        => (string?)model.SetOrRemoveAnnotation(
+            SqlServerAnnotationNames.HiLoSequenceSchema,
+            Check.NullButNotEmpty(value),
+            fromDataAnnotation)?.Value;
 
     /// <summary>
     ///     Returns the <see cref="ConfigurationSource" /> for the default hi-lo sequence schema.
@@ -116,6 +115,96 @@ public static class SqlServerModelExtensions
     /// <returns>The <see cref="ConfigurationSource" /> for the default hi-lo sequence schema.</returns>
     public static ConfigurationSource? GetHiLoSequenceSchemaConfigurationSource(this IConventionModel model)
         => model.FindAnnotation(SqlServerAnnotationNames.HiLoSequenceSchema)?.GetConfigurationSource();
+
+    /// <summary>
+    ///     Returns the suffix to append to the name of automatically created sequences.
+    /// </summary>
+    /// <param name="model">The model.</param>
+    /// <returns>The name to use for the default key value generation sequence.</returns>
+    public static string GetSequenceNameSuffix(this IReadOnlyModel model)
+        => (string?)model[SqlServerAnnotationNames.SequenceNameSuffix]
+            ?? DefaultSequenceNameSuffix;
+
+    /// <summary>
+    ///     Sets the suffix to append to the name of automatically created sequences.
+    /// </summary>
+    /// <param name="model">The model.</param>
+    /// <param name="name">The value to set.</param>
+    public static void SetSequenceNameSuffix(this IMutableModel model, string? name)
+    {
+        Check.NullButNotEmpty(name);
+
+        model.SetOrRemoveAnnotation(SqlServerAnnotationNames.SequenceNameSuffix, name);
+    }
+
+    /// <summary>
+    ///     Sets the suffix to append to the name of automatically created sequences.
+    /// </summary>
+    /// <param name="model">The model.</param>
+    /// <param name="name">The value to set.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>The configured value.</returns>
+    public static string? SetSequenceNameSuffix(
+        this IConventionModel model,
+        string? name,
+        bool fromDataAnnotation = false)
+        => (string?)model.SetOrRemoveAnnotation(
+            SqlServerAnnotationNames.SequenceNameSuffix,
+            Check.NullButNotEmpty(name),
+            fromDataAnnotation)?.Value;
+
+    /// <summary>
+    ///     Returns the <see cref="ConfigurationSource" /> for the default value generation sequence name suffix.
+    /// </summary>
+    /// <param name="model">The model.</param>
+    /// <returns>The <see cref="ConfigurationSource" /> for the default key value generation sequence name.</returns>
+    public static ConfigurationSource? GetSequenceNameSuffixConfigurationSource(this IConventionModel model)
+        => model.FindAnnotation(SqlServerAnnotationNames.SequenceNameSuffix)?.GetConfigurationSource();
+
+    /// <summary>
+    ///     Returns the schema to use for the default value generation sequence.
+    ///     <see cref="SqlServerPropertyBuilderExtensions.UseSequence" />
+    /// </summary>
+    /// <param name="model">The model.</param>
+    /// <returns>The schema to use for the default key value generation sequence.</returns>
+    public static string? GetSequenceSchema(this IReadOnlyModel model)
+        => (string?)model[SqlServerAnnotationNames.SequenceSchema];
+
+    /// <summary>
+    ///     Sets the schema to use for the default key value generation sequence.
+    /// </summary>
+    /// <param name="model">The model.</param>
+    /// <param name="value">The value to set.</param>
+    public static void SetSequenceSchema(this IMutableModel model, string? value)
+    {
+        Check.NullButNotEmpty(value);
+
+        model.SetOrRemoveAnnotation(SqlServerAnnotationNames.SequenceSchema, value);
+    }
+
+    /// <summary>
+    ///     Sets the schema to use for the default key value generation sequence.
+    /// </summary>
+    /// <param name="model">The model.</param>
+    /// <param name="value">The value to set.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>The configured value.</returns>
+    public static string? SetSequenceSchema(
+        this IConventionModel model,
+        string? value,
+        bool fromDataAnnotation = false)
+        => (string?)model.SetOrRemoveAnnotation(
+            SqlServerAnnotationNames.SequenceSchema,
+            Check.NullButNotEmpty(value),
+            fromDataAnnotation)?.Value;
+
+    /// <summary>
+    ///     Returns the <see cref="ConfigurationSource" /> for the default key value generation sequence schema.
+    /// </summary>
+    /// <param name="model">The model.</param>
+    /// <returns>The <see cref="ConfigurationSource" /> for the default key value generation sequence schema.</returns>
+    public static ConfigurationSource? GetSequenceSchemaConfigurationSource(this IConventionModel model)
+        => model.FindAnnotation(SqlServerAnnotationNames.SequenceSchema)?.GetConfigurationSource();
 
     /// <summary>
     ///     Returns the default identity seed.
@@ -156,14 +245,10 @@ public static class SqlServerModelExtensions
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns>The configured value.</returns>
     public static long? SetIdentitySeed(this IConventionModel model, long? seed, bool fromDataAnnotation = false)
-    {
-        model.SetOrRemoveAnnotation(
+        => (long?)model.SetOrRemoveAnnotation(
             SqlServerAnnotationNames.IdentitySeed,
             seed,
-            fromDataAnnotation);
-
-        return seed;
-    }
+            fromDataAnnotation)?.Value;
 
     /// <summary>
     ///     Returns the <see cref="ConfigurationSource" /> for the default schema.
@@ -204,14 +289,10 @@ public static class SqlServerModelExtensions
         this IConventionModel model,
         int? increment,
         bool fromDataAnnotation = false)
-    {
-        model.SetOrRemoveAnnotation(
+        => (int?)model.SetOrRemoveAnnotation(
             SqlServerAnnotationNames.IdentityIncrement,
             increment,
-            fromDataAnnotation);
-
-        return increment;
-    }
+            fromDataAnnotation)?.Value;
 
     /// <summary>
     ///     Returns the <see cref="ConfigurationSource" /> for the default identity increment.
@@ -253,11 +334,10 @@ public static class SqlServerModelExtensions
         this IConventionModel model,
         SqlServerValueGenerationStrategy? value,
         bool fromDataAnnotation = false)
-    {
-        model.SetOrRemoveAnnotation(SqlServerAnnotationNames.ValueGenerationStrategy, value, fromDataAnnotation);
-
-        return value;
-    }
+        => (SqlServerValueGenerationStrategy?)model.SetOrRemoveAnnotation(
+            SqlServerAnnotationNames.ValueGenerationStrategy,
+            value,
+            fromDataAnnotation)?.Value;
 
     /// <summary>
     ///     Returns the <see cref="ConfigurationSource" /> for the default <see cref="SqlServerValueGenerationStrategy" />.
@@ -296,11 +376,10 @@ public static class SqlServerModelExtensions
         this IConventionModel model,
         string? value,
         bool fromDataAnnotation = false)
-    {
-        model.SetOrRemoveAnnotation(SqlServerAnnotationNames.MaxDatabaseSize, value, fromDataAnnotation);
-
-        return value;
-    }
+        => (string?)model.SetOrRemoveAnnotation(
+            SqlServerAnnotationNames.MaxDatabaseSize,
+            value,
+            fromDataAnnotation)?.Value;
 
     /// <summary>
     ///     Returns the <see cref="ConfigurationSource" /> for the maximum size of the database.
@@ -339,11 +418,10 @@ public static class SqlServerModelExtensions
         this IConventionModel model,
         string? value,
         bool fromDataAnnotation = false)
-    {
-        model.SetOrRemoveAnnotation(SqlServerAnnotationNames.ServiceTierSql, value, fromDataAnnotation);
-
-        return value;
-    }
+        => (string?)model.SetOrRemoveAnnotation(
+            SqlServerAnnotationNames.ServiceTierSql,
+            value,
+            fromDataAnnotation)?.Value;
 
     /// <summary>
     ///     Returns the <see cref="ConfigurationSource" /> for the service tier of the database.
@@ -382,11 +460,10 @@ public static class SqlServerModelExtensions
         this IConventionModel model,
         string? value,
         bool fromDataAnnotation = false)
-    {
-        model.SetOrRemoveAnnotation(SqlServerAnnotationNames.PerformanceLevelSql, value, fromDataAnnotation);
-
-        return value;
-    }
+        => (string?)model.SetOrRemoveAnnotation(
+            SqlServerAnnotationNames.PerformanceLevelSql,
+            value,
+            fromDataAnnotation)?.Value;
 
     /// <summary>
     ///     Returns the <see cref="ConfigurationSource" /> for the performance level of the database.
@@ -395,4 +472,178 @@ public static class SqlServerModelExtensions
     /// <returns>The <see cref="ConfigurationSource" /> for the performance level of the database.</returns>
     public static ConfigurationSource? GetPerformanceLevelSqlConfigurationSource(this IConventionModel model)
         => model.FindAnnotation(SqlServerAnnotationNames.PerformanceLevelSql)?.GetConfigurationSource();
+
+    /// <summary>
+    ///     Adds a full-text catalog to the model.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
+    ///     for more information on SQL Server full-text search.
+    /// </remarks>
+    /// <param name="model">The model.</param>
+    /// <param name="name">The name of the full-text catalog.</param>
+    /// <returns>The <see cref="IMutableSqlServerFullTextCatalog" /> added to the model.</returns>
+    public static IMutableSqlServerFullTextCatalog AddFullTextCatalog(
+        this IMutableModel model,
+        string name)
+        => SqlServerFullTextCatalog.AddFullTextCatalog(model, name, ConfigurationSource.Explicit);
+
+    /// <summary>
+    ///     Adds a full-text catalog to the model.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
+    ///     for more information on SQL Server full-text search.
+    /// </remarks>
+    /// <param name="model">The model.</param>
+    /// <param name="name">The name of the full-text catalog.</param>
+    /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
+    /// <returns>
+    ///     The <see cref="IConventionSqlServerFullTextCatalog" /> added to the model, or <see langword="null" /> if the catalog could not be
+    ///     added.
+    /// </returns>
+    public static IConventionSqlServerFullTextCatalog? AddFullTextCatalog(
+        this IConventionModel model,
+        string name,
+        bool fromDataAnnotation = false)
+        => SqlServerFullTextCatalog.AddFullTextCatalog(
+            (IMutableModel)model, name, fromDataAnnotation ? ConfigurationSource.DataAnnotation : ConfigurationSource.Convention);
+
+    /// <summary>
+    ///     Finds a full-text catalog in the model, or returns <see langword="null" /> if not found.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
+    ///     for more information on SQL Server full-text search.
+    /// </remarks>
+    /// <param name="model">The model.</param>
+    /// <param name="name">The name of the full-text catalog.</param>
+    /// <returns>The <see cref="IReadOnlySqlServerFullTextCatalog" />, or <see langword="null" /> if not found.</returns>
+    public static IReadOnlySqlServerFullTextCatalog? FindFullTextCatalog(
+        this IReadOnlyModel model,
+        string name)
+        => SqlServerFullTextCatalog.FindFullTextCatalog(model, name);
+
+    /// <summary>
+    ///     Finds a full-text catalog in the model, or returns <see langword="null" /> if not found.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
+    ///     for more information on SQL Server full-text search.
+    /// </remarks>
+    /// <param name="model">The model.</param>
+    /// <param name="name">The name of the full-text catalog.</param>
+    /// <returns>The <see cref="IMutableSqlServerFullTextCatalog" />, or <see langword="null" /> if not found.</returns>
+    public static IMutableSqlServerFullTextCatalog? FindFullTextCatalog(
+        this IMutableModel model,
+        string name)
+        => (IMutableSqlServerFullTextCatalog?)((IReadOnlyModel)model).FindFullTextCatalog(name);
+
+    /// <summary>
+    ///     Finds a full-text catalog in the model, or returns <see langword="null" /> if not found.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
+    ///     for more information on SQL Server full-text search.
+    /// </remarks>
+    /// <param name="model">The model.</param>
+    /// <param name="name">The name of the full-text catalog.</param>
+    /// <returns>The <see cref="IConventionSqlServerFullTextCatalog" />, or <see langword="null" /> if not found.</returns>
+    public static IConventionSqlServerFullTextCatalog? FindFullTextCatalog(
+        this IConventionModel model,
+        string name)
+        => (IConventionSqlServerFullTextCatalog?)((IReadOnlyModel)model).FindFullTextCatalog(name);
+
+    /// <summary>
+    ///     Finds a full-text catalog in the model, or returns <see langword="null" /> if not found.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
+    ///     for more information on SQL Server full-text search.
+    /// </remarks>
+    /// <param name="model">The model.</param>
+    /// <param name="name">The name of the full-text catalog.</param>
+    /// <returns>The <see cref="ISqlServerFullTextCatalog" />, or <see langword="null" /> if not found.</returns>
+    public static ISqlServerFullTextCatalog? FindFullTextCatalog(
+        this IModel model,
+        string name)
+        => (ISqlServerFullTextCatalog?)((IReadOnlyModel)model).FindFullTextCatalog(name);
+
+    /// <summary>
+    ///     Removes a full-text catalog from the model.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
+    ///     for more information on SQL Server full-text search.
+    /// </remarks>
+    /// <param name="model">The model.</param>
+    /// <param name="name">The name of the full-text catalog.</param>
+    /// <returns>The removed <see cref="IMutableSqlServerFullTextCatalog" />, or <see langword="null" /> if not found.</returns>
+    public static IMutableSqlServerFullTextCatalog? RemoveFullTextCatalog(
+        this IMutableModel model,
+        string name)
+        => SqlServerFullTextCatalog.RemoveFullTextCatalog(model, name);
+
+    /// <summary>
+    ///     Removes a full-text catalog from the model.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
+    ///     for more information on SQL Server full-text search.
+    /// </remarks>
+    /// <param name="model">The model.</param>
+    /// <param name="name">The name of the full-text catalog.</param>
+    /// <returns>The removed <see cref="IConventionSqlServerFullTextCatalog" />, or <see langword="null" /> if not found.</returns>
+    public static IConventionSqlServerFullTextCatalog? RemoveFullTextCatalog(
+        this IConventionModel model,
+        string name)
+        => SqlServerFullTextCatalog.RemoveFullTextCatalog((IMutableModel)model, name);
+
+    /// <summary>
+    ///     Gets all full-text catalogs defined in the model.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
+    ///     for more information on SQL Server full-text search.
+    /// </remarks>
+    /// <param name="model">The model.</param>
+    /// <returns>All full-text catalogs defined in the model.</returns>
+    public static IEnumerable<IReadOnlySqlServerFullTextCatalog> GetFullTextCatalogs(this IReadOnlyModel model)
+        => SqlServerFullTextCatalog.GetFullTextCatalogs(model);
+
+    /// <summary>
+    ///     Gets all full-text catalogs defined in the model.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
+    ///     for more information on SQL Server full-text search.
+    /// </remarks>
+    /// <param name="model">The model.</param>
+    /// <returns>All full-text catalogs defined in the model.</returns>
+    public static IEnumerable<IMutableSqlServerFullTextCatalog> GetFullTextCatalogs(this IMutableModel model)
+        => SqlServerFullTextCatalog.GetFullTextCatalogs(model);
+
+    /// <summary>
+    ///     Gets all full-text catalogs defined in the model.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
+    ///     for more information on SQL Server full-text search.
+    /// </remarks>
+    /// <param name="model">The model.</param>
+    /// <returns>All full-text catalogs defined in the model.</returns>
+    public static IEnumerable<IConventionSqlServerFullTextCatalog> GetFullTextCatalogs(this IConventionModel model)
+        => SqlServerFullTextCatalog.GetFullTextCatalogs(model);
+
+    /// <summary>
+    ///     Gets all full-text catalogs defined in the model.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
+    ///     for more information on SQL Server full-text search.
+    /// </remarks>
+    /// <param name="model">The model.</param>
+    /// <returns>All full-text catalogs defined in the model.</returns>
+    public static IEnumerable<ISqlServerFullTextCatalog> GetFullTextCatalogs(this IModel model)
+        => SqlServerFullTextCatalog.GetFullTextCatalogs(model);
 }

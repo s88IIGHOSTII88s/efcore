@@ -5,18 +5,14 @@ using Microsoft.EntityFrameworkCore.TestModels.ManyToManyModel;
 
 namespace Microsoft.EntityFrameworkCore;
 
-public class ManyToManyTrackingSqliteTest : ManyToManyTrackingTestBase<ManyToManyTrackingSqliteTest.ManyToManyTrackingSqliteFixture>
+public class ManyToManyTrackingSqliteTest(ManyToManyTrackingSqliteTest.ManyToManyTrackingSqliteFixture fixture)
+    : ManyToManyTrackingRelationalTestBase<ManyToManyTrackingSqliteTest.ManyToManyTrackingSqliteFixture>(fixture)
 {
-    public ManyToManyTrackingSqliteTest(ManyToManyTrackingSqliteFixture fixture)
-        : base(fixture)
+    public class ManyToManyTrackingSqliteFixture : ManyToManyTrackingRelationalFixture, ITestSqlLoggerFactory
     {
-    }
+        public TestSqlLoggerFactory TestSqlLoggerFactory
+            => (TestSqlLoggerFactory)ListLoggerFactory;
 
-    protected override void UseTransaction(DatabaseFacade facade, IDbContextTransaction transaction)
-        => facade.UseTransaction(transaction.GetDbTransaction());
-
-    public class ManyToManyTrackingSqliteFixture : ManyToManyTrackingFixtureBase
-    {
         protected override ITestStoreFactory TestStoreFactory
             => SqliteTestStoreFactory.Instance;
 
@@ -36,6 +32,21 @@ public class ManyToManyTrackingSqliteTest : ManyToManyTrackingTestBase<ManyToMan
 
             modelBuilder
                 .Entity<JoinOneToThreePayloadFull>()
+                .Property(e => e.Payload)
+                .HasDefaultValue("Generated");
+
+            modelBuilder
+                .Entity<UnidirectionalJoinOneSelfPayload>()
+                .Property(e => e.Payload)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            modelBuilder
+                .SharedTypeEntity<Dictionary<string, object>>("UnidirectionalJoinOneToThreePayloadFullShared")
+                .IndexerProperty<string>("Payload")
+                .HasDefaultValue("Generated");
+
+            modelBuilder
+                .Entity<UnidirectionalJoinOneToThreePayloadFull>()
                 .Property(e => e.Payload)
                 .HasDefaultValue("Generated");
         }

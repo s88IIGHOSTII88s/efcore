@@ -9,10 +9,10 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-conventions">Model building conventions</see> for more information and examples.
 /// </remarks>
-public interface IModelAnnotationChangedConvention
+public interface IModelAnnotationChangedConvention : IConvention
 {
     /// <summary>
-    ///     Called after an annotation is changed on an model.
+    ///     Called after an annotation is changed on a model.
     /// </summary>
     /// <param name="modelBuilder">The builder for the model.</param>
     /// <param name="name">The annotation name.</param>

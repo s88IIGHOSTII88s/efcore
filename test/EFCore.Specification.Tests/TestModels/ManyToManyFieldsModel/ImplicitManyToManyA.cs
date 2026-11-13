@@ -8,7 +8,7 @@ namespace Microsoft.EntityFrameworkCore.TestModels.ManyToManyFieldsModel;
 public class ImplicitManyToManyA
 {
     public int Id;
-    public string Name;
+    public string? Name;
 
     public ICollection<ImplicitManyToManyB> Bs = new ObservableCollection<ImplicitManyToManyB>();
 }

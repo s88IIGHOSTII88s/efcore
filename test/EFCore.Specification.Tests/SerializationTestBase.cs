@@ -3,37 +3,24 @@
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.TestModels.ConcurrencyModel;
 using Newtonsoft.Json;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace Microsoft.EntityFrameworkCore;
 
-public abstract class SerializationTestBase<TFixture> : IClassFixture<TFixture>
+public abstract class SerializationTestBase<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : F1FixtureBase<byte[]>, new()
 {
-    protected SerializationTestBase(TFixture fixture)
-    {
-        Fixture = fixture;
-    }
+    protected TFixture Fixture { get; } = fixture;
 
-    protected TFixture Fixture { get; }
-
-    [ConditionalTheory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, false, true)]
+    [Theory, InlineData(false, false, false), InlineData(false, false, true), InlineData(true, true, false),
+     InlineData(true, true, true), InlineData(true, false, false), InlineData(true, false, true)]
     public virtual void Can_round_trip_through_JSON(bool useNewtonsoft, bool ignoreLoops, bool writeIndented)
     {
         using var context = Fixture.CreateContext();
 
-        var teams = context.Teams.Include(e => e.Drivers)
-            .Include(e => e.Engine).ThenInclude(e => e.EngineSupplier)
-            .ToList();
+        var teams = context.Teams.ToList();
 
         Assert.Equal(12, teams.Count);
         Assert.Equal(42, teams.SelectMany(e => e.Drivers).Count());
@@ -50,16 +37,16 @@ public abstract class SerializationTestBase<TFixture> : IClassFixture<TFixture>
 
         foreach (var team in teamsAgain)
         {
-            VerifyTeam(context, team, teamsMap);
-            VerifyEngine(context, team.Engine, enginesMap);
-            VerifyEngineSupplier(context, team.Engine.EngineSupplier, engineSupplierMap);
+            VerifyTeam(context, team, teamsMap!);
+            VerifyEngine(context, team.Engine, enginesMap!);
+            VerifyEngineSupplier(context, team.Engine.EngineSupplier, engineSupplierMap!);
         }
     }
 
     private static void VerifyTeam(F1Context context, Team team, IDictionary<int, Team> teamsMap)
     {
         var trackedTeam = context.Teams.Find(team.Id);
-        Assert.Equal(trackedTeam.Constructor, team.Constructor);
+        Assert.Equal(trackedTeam!.Constructor, team.Constructor);
         Assert.Equal(trackedTeam.Name, team.Name);
         Assert.Equal(trackedTeam.Poles, team.Poles);
         Assert.Equal(trackedTeam.Principal, team.Principal);
@@ -84,7 +71,7 @@ public abstract class SerializationTestBase<TFixture> : IClassFixture<TFixture>
     private static void VerifyEngine(F1Context context, Engine engine, IDictionary<int, Engine> enginesMap)
     {
         var trackedEngine = context.Engines.Find(engine.Id);
-        Assert.Equal(trackedEngine.StorageLocation.Latitude, engine.StorageLocation.Latitude);
+        Assert.Equal(trackedEngine!.StorageLocation!.Latitude, engine.StorageLocation!.Latitude);
         Assert.Equal(trackedEngine.StorageLocation.Longitude, engine.StorageLocation.Longitude);
         Assert.Equal(trackedEngine.Name, engine.Name);
 
@@ -105,7 +92,7 @@ public abstract class SerializationTestBase<TFixture> : IClassFixture<TFixture>
         IDictionary<string, EngineSupplier> engineSupplierMap)
     {
         var trackedEngineSupplier = context.EngineSuppliers.Find(engineSupplier.Name);
-        Assert.Equal(trackedEngineSupplier.Name, engineSupplier.Name);
+        Assert.Equal(trackedEngineSupplier!.Name, engineSupplier.Name);
 
         if (engineSupplierMap != null)
         {
@@ -129,7 +116,7 @@ public abstract class SerializationTestBase<TFixture> : IClassFixture<TFixture>
             MaxDepth = maxDepth
         };
 
-        return JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(collection, options), options);
+        return JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(collection, options), options)!;
     }
 
     private static T RoundtripThroughNewtonsoftJson<T>(T collection, bool ignoreLoops, bool writeIndented)
@@ -142,7 +129,7 @@ public abstract class SerializationTestBase<TFixture> : IClassFixture<TFixture>
             ReferenceLoopHandling = ignoreLoops
                 ? ReferenceLoopHandling.Ignore
                 : ReferenceLoopHandling.Error,
-            EqualityComparer = LegacyReferenceEqualityComparer.Instance,
+            EqualityComparer = ReferenceEqualityComparer.Instance,
             Formatting = writeIndented
                 ? Formatting.Indented
                 : Formatting.None
@@ -150,6 +137,6 @@ public abstract class SerializationTestBase<TFixture> : IClassFixture<TFixture>
 
         var serializeObject = JsonConvert.SerializeObject(collection, options);
 
-        return JsonConvert.DeserializeObject<T>(serializeObject);
+        return JsonConvert.DeserializeObject<T>(serializeObject)!;
     }
 }

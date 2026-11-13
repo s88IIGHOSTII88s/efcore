@@ -3,13 +3,9 @@
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
-public class MappingQuerySqliteTest : MappingQueryTestBase<MappingQuerySqliteTest.MappingQuerySqliteFixture>
+public class MappingQuerySqliteTest(MappingQuerySqliteTest.MappingQuerySqliteFixture fixture)
+    : MappingQueryTestBase<MappingQuerySqliteTest.MappingQuerySqliteFixture>(fixture)
 {
-    public MappingQuerySqliteTest(MappingQuerySqliteFixture fixture)
-        : base(fixture)
-    {
-    }
-
     public override void All_customers()
     {
         base.All_customers();
@@ -56,18 +52,17 @@ public class MappingQuerySqliteTest : MappingQueryTestBase<MappingQuerySqliteTes
         protected override ITestStoreFactory TestStoreFactory
             => SqliteNorthwindTestStoreFactory.Instance;
 
-        protected override string DatabaseSchema { get; } = null;
+        protected override string DatabaseSchema { get; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder, DbContext context)
         {
             base.OnModelCreating(modelBuilder, context);
 
-            modelBuilder.Entity<MappedCustomer>(
-                e =>
-                {
-                    e.Property(c => c.CompanyName2).Metadata.SetColumnName("CompanyName");
-                    e.Metadata.SetTableName("Customers");
-                });
+            modelBuilder.Entity<MappedCustomer>(e =>
+            {
+                e.Property(c => c.CompanyName2).Metadata.SetColumnName("CompanyName");
+                e.Metadata.SetTableName("Customers");
+            });
         }
     }
 }

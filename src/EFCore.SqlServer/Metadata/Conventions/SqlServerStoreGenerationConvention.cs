@@ -13,7 +13,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions;
 /// </summary>
 /// <remarks>
 ///     See <see href="https://aka.ms/efcore-docs-conventions">Model building conventions</see>, and
-///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and SQL Azure databases with EF Core</see>
+///     <see href="https://aka.ms/efcore-docs-sqlserver">Accessing SQL Server and Azure SQL databases with EF Core</see>
 ///     for more information and examples.
 /// </remarks>
 public class SqlServerStoreGenerationConvention : StoreGenerationConvention
@@ -65,7 +65,8 @@ public class SqlServerStoreGenerationConvention : StoreGenerationConvention
 
                 break;
             case RelationalAnnotationNames.DefaultValueSql:
-                if (propertyBuilder.HasValueGenerationStrategy(null, fromDataAnnotation) == null
+                if (propertyBuilder.Metadata.GetValueGenerationStrategy() != SqlServerValueGenerationStrategy.Sequence
+                    && propertyBuilder.HasValueGenerationStrategy(null, fromDataAnnotation) == null
                     && propertyBuilder.HasDefaultValueSql(null, fromDataAnnotation) != null)
                 {
                     context.StopProcessing();
@@ -83,9 +84,12 @@ public class SqlServerStoreGenerationConvention : StoreGenerationConvention
 
                 break;
             case SqlServerAnnotationNames.ValueGenerationStrategy:
-                if ((propertyBuilder.HasDefaultValue(null, fromDataAnnotation) == null
-                        | propertyBuilder.HasDefaultValueSql(null, fromDataAnnotation) == null
-                        | propertyBuilder.HasComputedColumnSql(null, fromDataAnnotation) == null)
+                if (((propertyBuilder.Metadata.GetValueGenerationStrategy() != SqlServerValueGenerationStrategy.Sequence
+                            && (propertyBuilder.HasDefaultValue(null, fromDataAnnotation) == null
+                                || propertyBuilder.HasDefaultValueSql(null, fromDataAnnotation) == null
+                                || propertyBuilder.HasComputedColumnSql(null, fromDataAnnotation) == null))
+                        || propertyBuilder.HasDefaultValue(null, fromDataAnnotation) == null
+                        || propertyBuilder.HasComputedColumnSql(null, fromDataAnnotation) == null)
                     && propertyBuilder.HasValueGenerationStrategy(null, fromDataAnnotation) != null)
                 {
                     context.StopProcessing();

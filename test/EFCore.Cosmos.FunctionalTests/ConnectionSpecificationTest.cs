@@ -1,13 +1,14 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.EntityFrameworkCore.Cosmos.Internal;
 
-namespace Microsoft.EntityFrameworkCore.Cosmos;
+namespace Microsoft.EntityFrameworkCore;
 
+[ConditionalClass(typeof(CosmosTestEnvironment), nameof(CosmosTestEnvironment.DoesNotUseTokenCredential))]
 public class ConnectionSpecificationTest
 {
-    [ConditionalFact]
+    [Fact]
     public async Task Can_specify_connection_string_in_OnConfiguring()
     {
         await using var testDatabase = CosmosTestStore.Create("NonExisting");
@@ -17,67 +18,35 @@ public class ConnectionSpecificationTest
         Assert.False(await creator.EnsureDeletedAsync());
     }
 
-    public class BloggingContext : DbContext
+    public class BloggingContext(CosmosTestStore testStore) : DbContext
     {
-        private readonly string _connectionString;
-        private readonly string _name;
-
-        public BloggingContext(CosmosTestStore testStore)
-        {
-            _connectionString = testStore.ConnectionString;
-            _name = testStore.Name;
-        }
-
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-            => optionsBuilder.UseCosmos(_connectionString, _name, b => b.ApplyConfiguration());
-
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-        }
-
-        public DbSet<Blog> Blogs { get; set; }
-    }
-
-    [ConditionalFact]
-    public async Task Specifying_connection_string_and_account_endpoint_throws()
-    {
-        await using var testDatabase = CosmosTestStore.Create("NonExisting");
-
-        using var context = new BloggingContextWithConnectionConflict(testDatabase);
-
-        Assert.Equal(
-            CosmosStrings.ConnectionStringConflictingConfiguration,
-            Assert.Throws<InvalidOperationException>(() => context.GetService<IDatabaseCreator>()).Message);
-    }
-
-    public class BloggingContextWithConnectionConflict : DbContext
-    {
-        private readonly string _connectionString;
-        private readonly string _connectionUri;
-        private readonly string _authToken;
-        private readonly string _name;
-
-        public BloggingContextWithConnectionConflict(CosmosTestStore testStore)
-        {
-            _connectionString = testStore.ConnectionString;
-            _connectionUri = testStore.ConnectionUri;
-            _authToken = testStore.AuthToken;
-            _name = testStore.Name;
-        }
+        private readonly string _connectionString = testStore.ConnectionString;
+        private readonly string _name = testStore.Name;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder.UseCosmos(_connectionString, _name, b => b.ApplyConfiguration())
-                .UseCosmos(
-                    _connectionUri,
-                    _authToken,
-                    _name,
-                    b => b.ApplyConfiguration());
+                .ConfigureWarnings(w => w.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning));
 
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-        }
+        public DbSet<Blog> Blogs
+            => Set<Blog>();
+    }
 
-        public DbSet<Blog> Blogs { get; set; }
+    [Fact]
+    public async Task Throws_for_missing_connection_info()
+    {
+        using var context = new NoConnectionContext();
+
+        Assert.Equal(
+            CosmosStrings.ConnectionInfoMissing,
+            (await Assert.ThrowsAsync<InvalidOperationException>(() => context.GetService<IDatabaseCreator>().EnsureDeletedAsync()))
+            .Message);
+    }
+
+    public class NoConnectionContext : DbContext
+    {
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+            => optionsBuilder.UseCosmos(b => b.ApplyConfiguration())
+                .ConfigureWarnings(w => w.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning));
     }
 
     public class Blog

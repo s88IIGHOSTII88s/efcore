@@ -7,16 +7,14 @@ namespace Microsoft.EntityFrameworkCore.Update;
 
 public class BatchExecutorTest
 {
-    [ConditionalTheory]
-    [InlineData(true)]
-    [InlineData(false)]
+    [Theory, InlineData(true), InlineData(false)]
     public async Task ExecuteAsync_calls_Commit_if_no_transaction(bool async)
     {
         using var context = new TestContext();
         var connection = SetupConnection(context);
 
-        context.Add(new Foo { Id = "1" });
-        context.Add(new Bar { Id = "1" });
+        await context.AddAsync(new Foo { Id = "1" });
+        await context.AddAsync(new Bar { Id = "1" });
 
         if (async)
         {
@@ -30,9 +28,7 @@ public class BatchExecutorTest
         Assert.Equal(1, connection.DbTransactions.Single().CommitCount);
     }
 
-    [ConditionalTheory]
-    [InlineData(true)]
-    [InlineData(false)]
+    [Theory, InlineData(true), InlineData(false)]
     public async Task ExecuteAsync_does_not_call_Commit_if_existing_transaction(bool async)
     {
         using var context = new TestContext();
@@ -40,7 +36,7 @@ public class BatchExecutorTest
         var transaction = new FakeDbTransaction(connection);
         context.Database.UseTransaction(transaction);
 
-        context.Add(
+        await context.AddAsync(
             new Foo { Id = "1" });
 
         if (async)
@@ -59,7 +55,7 @@ public class BatchExecutorTest
     private static FakeDbConnection SetupConnection(TestContext context)
     {
         var dataReader = new FakeDbDataReader(
-            new[] { "RowsAffected" }, new List<object[]> { new object[] { 1 } });
+            ["RowsAffected"], [new object[] { 1 }]);
 
         var connection = new FakeDbConnection(
             "A=B", new FakeCommandExecutor(
@@ -70,29 +66,24 @@ public class BatchExecutorTest
         return connection;
     }
 
-    private class TestContext : DbContext
+    private class TestContext() : DbContext(FakeRelationalTestHelpers.Instance.CreateOptions(_serviceProvider))
     {
         private static readonly IServiceProvider _serviceProvider
             = FakeRelationalOptionsExtension.AddEntityFrameworkRelationalDatabase(
                     new ServiceCollection())
                 .BuildServiceProvider(validateScopes: true);
 
-        public TestContext()
-            : base(RelationalTestHelpers.Instance.CreateOptions(_serviceProvider))
-        {
-        }
-
-        public DbSet<Foo> Foos { get; set; }
-        public DbSet<Bar> Bars { get; set; }
+        public DbSet<Foo> Foos { get; set; } = null!;
+        public DbSet<Bar> Bars { get; set; } = null!;
     }
 
     private class Foo
     {
-        public string Id { get; set; }
+        public string Id { get; set; } = null!;
     }
 
     private class Bar
     {
-        public string Id { get; set; }
+        public string Id { get; set; } = null!;
     }
 }

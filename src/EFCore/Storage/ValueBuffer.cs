@@ -52,8 +52,11 @@ public readonly struct ValueBuffer : IEquatable<ValueBuffer>
         set => _values[index] = value;
     }
 
+    internal static readonly PropertyInfo Indexer
+        = typeof(ValueBuffer).GetRuntimeProperties().Single(p => p.GetIndexParameters().Length > 0);
+
     internal static readonly MethodInfo GetValueMethod
-        = typeof(ValueBuffer).GetRuntimeProperties().Single(p => p.GetIndexParameters().Length > 0).GetMethod!;
+        = Indexer.GetMethod!;
 
     /// <summary>
     ///     Gets the number of values in this buffer.
@@ -91,7 +94,15 @@ public readonly struct ValueBuffer : IEquatable<ValueBuffer>
     /// </returns>
     public bool Equals(ValueBuffer other)
     {
-        if (_values.Length != other._values.Length)
+        if (_values == null
+            && other._values == null)
+        {
+            return true;
+        }
+
+        if (_values == null
+            || other._values == null
+            || _values.Length != other._values.Length)
         {
             return false;
         }

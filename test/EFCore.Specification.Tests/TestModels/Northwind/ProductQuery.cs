@@ -6,6 +6,6 @@ namespace Microsoft.EntityFrameworkCore.TestModels.Northwind;
 public class ProductQuery
 {
     public int ProductID { get; set; }
-    public string ProductName { get; set; }
-    public string CategoryName { get; set; }
+    public string ProductName { get; set; } = null!;
+    public string CategoryName { get; set; } = null!;
 }

@@ -5,9 +5,9 @@ namespace Microsoft.EntityFrameworkCore.TestModels.ConferencePlanner;
 
 public class Session : ConferenceDTO.Session
 {
-    public virtual ICollection<SessionSpeaker> SessionSpeakers { get; set; }
+    public virtual ICollection<SessionSpeaker> SessionSpeakers { get; set; } = null!;
 
-    public virtual ICollection<SessionAttendee> SessionAttendees { get; set; }
+    public virtual ICollection<SessionAttendee> SessionAttendees { get; set; } = null!;
 
-    public Track Track { get; set; }
+    public Track Track { get; set; } = null!;
 }

@@ -7,7 +7,7 @@ namespace Microsoft.EntityFrameworkCore;
 
 public class ModelSourceTest
 {
-    [ConditionalFact] // Issue #2992
+    [Fact] // Issue #2992
     public void Can_customize_ModelBuilder()
     {
         var serviceProvider = new ServiceCollection()
@@ -22,13 +22,8 @@ public class ModelSourceTest
         Assert.Contains("Peak", model.GetEntityTypes().Select(e => e.DisplayName()));
     }
 
-    private class MyModelCustomizer : ModelCustomizer
+    private class MyModelCustomizer(ModelCustomizerDependencies dependencies) : ModelCustomizer(dependencies)
     {
-        public MyModelCustomizer(ModelCustomizerDependencies dependencies)
-            : base(dependencies)
-        {
-        }
-
         public override void Customize(ModelBuilder modelBuilder, DbContext dbContext)
         {
             base.Customize(modelBuilder, dbContext);
@@ -36,16 +31,11 @@ public class ModelSourceTest
         }
     }
 
-    private class JustSomeContext : DbContext
+    private class JustSomeContext(IServiceProvider serviceProvider) : DbContext
     {
-        private readonly IServiceProvider _serviceProvider;
+        private readonly IServiceProvider _serviceProvider = serviceProvider;
 
-        public JustSomeContext(IServiceProvider serviceProvider)
-        {
-            _serviceProvider = serviceProvider;
-        }
-
-        public DbSet<Peak> Peaks { get; set; }
+        public DbSet<Peak> Peaks { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             => modelBuilder.Entity<Base>().HasAnnotation("AllYourBaseAreBelongTo", "Us!");

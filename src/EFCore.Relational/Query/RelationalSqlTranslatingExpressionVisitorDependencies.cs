@@ -19,7 +19,7 @@ namespace Microsoft.EntityFrameworkCore.Query;
 ///         your constructor so that an instance will be created and injected automatically by the
 ///         dependency injection container. To create an instance with some dependent services replaced,
 ///         first resolve the object from the dependency injection container, then replace selected
-///         services using the 'With...' methods. Do not call the constructor at any point in this process.
+///         services using the C# 'with' operator. Do not call the constructor at any point in this process.
 ///     </para>
 ///     <para>
 ///         The service lifetime is <see cref="ServiceLifetime.Scoped" />. This means that each
@@ -41,7 +41,7 @@ public sealed record RelationalSqlTranslatingExpressionVisitorDependencies
     ///     as new dependencies are added. Instead, use this type in your constructor so that an instance
     ///     will be created and injected automatically by the dependency injection container. To create
     ///     an instance with some dependent services replaced, first resolve the object from the dependency
-    ///     injection container, then replace selected services using the 'With...' methods. Do not call
+    ///     injection container, then replace selected services using the C# 'with' operator. Do not call
     ///     the constructor at any point in this process.
     /// </remarks>
     [EntityFrameworkInternal]
@@ -50,13 +50,15 @@ public sealed record RelationalSqlTranslatingExpressionVisitorDependencies
         IModel model,
         IRelationalTypeMappingSource typeMappingSource,
         IMemberTranslatorProvider memberTranslatorProvider,
-        IMethodCallTranslatorProvider methodCallTranslatorProvider)
+        IMethodCallTranslatorProvider methodCallTranslatorProvider,
+        IAggregateMethodCallTranslatorProvider aggregateMethodCallTranslatorProvider)
     {
         SqlExpressionFactory = sqlExpressionFactory;
         Model = model;
         TypeMappingSource = typeMappingSource;
         MemberTranslatorProvider = memberTranslatorProvider;
         MethodCallTranslatorProvider = methodCallTranslatorProvider;
+        AggregateMethodCallTranslatorProvider = aggregateMethodCallTranslatorProvider;
     }
 
     /// <summary>
@@ -65,12 +67,12 @@ public sealed record RelationalSqlTranslatingExpressionVisitorDependencies
     public ISqlExpressionFactory SqlExpressionFactory { get; init; }
 
     /// <summary>
-    ///     The expression factory.
+    ///     The model.
     /// </summary>
     public IModel Model { get; init; }
 
     /// <summary>
-    ///     The relational type mapping souce.
+    ///     The relational type mapping source.
     /// </summary>
     public IRelationalTypeMappingSource TypeMappingSource { get; init; }
 
@@ -80,7 +82,12 @@ public sealed record RelationalSqlTranslatingExpressionVisitorDependencies
     public IMemberTranslatorProvider MemberTranslatorProvider { get; init; }
 
     /// <summary>
-    ///     The method-call translation provider.
+    ///     The scalar method-call translation provider.
     /// </summary>
     public IMethodCallTranslatorProvider MethodCallTranslatorProvider { get; init; }
+
+    /// <summary>
+    ///     The aggregate method-call translation provider.
+    /// </summary>
+    public IAggregateMethodCallTranslatorProvider AggregateMethodCallTranslatorProvider { get; }
 }

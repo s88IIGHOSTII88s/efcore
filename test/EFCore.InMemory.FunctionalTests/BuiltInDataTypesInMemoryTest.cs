@@ -1,21 +1,15 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-
-
 // ReSharper disable InconsistentNaming
+
 namespace Microsoft.EntityFrameworkCore;
 
-public class BuiltInDataTypesInMemoryTest : BuiltInDataTypesTestBase<BuiltInDataTypesInMemoryTest.BuiltInDataTypesInMemoryFixture>
+public class BuiltInDataTypesInMemoryTest(BuiltInDataTypesInMemoryTest.BuiltInDataTypesInMemoryFixture fixture)
+    : BuiltInDataTypesTestBase<BuiltInDataTypesInMemoryTest.BuiltInDataTypesInMemoryFixture>(fixture)
 {
-    public BuiltInDataTypesInMemoryTest(BuiltInDataTypesInMemoryFixture fixture)
-        : base(fixture)
-    {
-    }
-
-    public override void Optional_datetime_reading_null_from_database()
-    {
-    }
+    public override Task Optional_datetime_reading_null_from_database()
+        => Task.CompletedTask;
 
     public class BuiltInDataTypesInMemoryFixture : BuiltInDataTypesFixtureBase
     {

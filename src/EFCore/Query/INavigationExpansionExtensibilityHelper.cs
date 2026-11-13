@@ -20,23 +20,41 @@ namespace Microsoft.EntityFrameworkCore.Query;
 public interface INavigationExpansionExtensibilityHelper
 {
     /// <summary>
-    ///     Creates a new <see cref="QueryRootExpression" />.
+    ///     Creates a new <see cref="EntityQueryRootExpression" />.
     /// </summary>
-    /// <param name="entityType">Entity type of the new <see cref="QueryRootExpression" />.</param>
+    /// <param name="entityType">Entity type of the new <see cref="EntityQueryRootExpression" />.</param>
     /// <param name="source">Source expression.</param>
-    QueryRootExpression CreateQueryRoot(IEntityType entityType, QueryRootExpression? source);
+    EntityQueryRootExpression CreateQueryRoot(IEntityType entityType, EntityQueryRootExpression? source);
 
     /// <summary>
-    ///     Validates whether a new <see cref="QueryRootExpression" /> can be created.
+    ///     Validates whether a new <see cref="EntityQueryRootExpression" /> can be created.
     /// </summary>
-    /// <param name="entityType">Entity type of the new <see cref="QueryRootExpression" />.</param>
+    /// <param name="entityType">Entity type of the new <see cref="EntityQueryRootExpression" />.</param>
     /// <param name="source">Source expression.</param>
-    void ValidateQueryRootCreation(IEntityType entityType, QueryRootExpression? source);
+    void ValidateQueryRootCreation(IEntityType entityType, EntityQueryRootExpression? source);
 
     /// <summary>
     ///     Checks whether two query roots are compatible for a set operation to combine them.
     /// </summary>
     /// <param name="first">The first query root.</param>
     /// <param name="second">The second query root.</param>
-    bool AreQueryRootsCompatible(QueryRootExpression? first, QueryRootExpression? second);
+    bool AreQueryRootsCompatible(EntityQueryRootExpression? first, EntityQueryRootExpression? second);
+
+    /// <summary>
+    ///     Whether navigation expansion may add joins to a source to translate aggregates over
+    ///     reference navigations inside a GroupBy result selector into the grouped query, instead
+    ///     of a correlated subquery per group. Providers that do not support joins must return
+    ///     <see langword="false" />.
+    /// </summary>
+    bool SupportsNavigationExpansionJoins
+        => false;
+
+    /// <summary>
+    ///     Whether navigation expansion may lift a single-result subquery that is read more than once in a projection
+    ///     into a single join. When the subquery's correlation cannot be converted to a regular join, the lifted join
+    ///     requires <c>OUTER APPLY</c> or <c>LATERAL</c>, so providers that cannot translate those must return
+    ///     <see langword="false" />.
+    /// </summary>
+    bool SupportsSingleResultLifting
+        => false;
 }

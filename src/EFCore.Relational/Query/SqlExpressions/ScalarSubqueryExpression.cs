@@ -14,37 +14,41 @@ namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 /// </summary>
 public class ScalarSubqueryExpression : SqlExpression
 {
+    private static ConstructorInfo? _quotingConstructor;
+
     /// <summary>
     ///     Creates a new instance of the <see cref="ScalarSubqueryExpression" /> class.
     /// </summary>
     /// <param name="subquery">A subquery projecting single row with a single scalar projection.</param>
     public ScalarSubqueryExpression(SelectExpression subquery)
-        : base(Verify(subquery).Projection[0].Type, subquery.Projection[0].Expression.TypeMapping)
-    {
-        Subquery = subquery;
-    }
+        : this(subquery, subquery.Projection[0].Expression.TypeMapping)
+        => Subquery = subquery;
+
+    private ScalarSubqueryExpression(SelectExpression subquery, RelationalTypeMapping? typeMapping)
+        : base(Verify(subquery).Projection[0].Type, typeMapping)
+        => Subquery = subquery;
 
     private static SelectExpression Verify(SelectExpression selectExpression)
     {
-        if (selectExpression.Projection.Count != 1)
-        {
-            throw new InvalidOperationException(CoreStrings.TranslationFailed(selectExpression.Print()));
-        }
+        Check.DebugAssert(!selectExpression.IsMutable, "Mutable subquery provided to ExistsExpression");
 
-#if DEBUG
-        if (selectExpression.IsMutable() == true)
-        {
-            throw new InvalidOperationException();
-        }
-#endif
-
-        return selectExpression;
+        return selectExpression.Projection.Count != 1
+            ? throw new InvalidOperationException(CoreStrings.TranslationFailed(selectExpression.Print()))
+            : selectExpression;
     }
 
     /// <summary>
     ///     The subquery projecting single row with single scalar projection.
     /// </summary>
     public virtual SelectExpression Subquery { get; }
+
+    /// <summary>
+    ///     Applies supplied type mapping to this expression.
+    /// </summary>
+    /// <param name="typeMapping">A relational type mapping to apply.</param>
+    /// <returns>A new expression which has supplied type mapping.</returns>
+    public virtual SqlExpression ApplyTypeMapping(RelationalTypeMapping? typeMapping)
+        => new ScalarSubqueryExpression(Subquery, typeMapping);
 
     /// <inheritdoc />
     protected override Expression VisitChildren(ExpressionVisitor visitor)
@@ -62,6 +66,12 @@ public class ScalarSubqueryExpression : SqlExpression
             : this;
 
     /// <inheritdoc />
+    public override Expression Quote()
+        => New(
+            _quotingConstructor ??= typeof(ScalarSubqueryExpression).GetConstructor([typeof(SelectExpression)])!,
+            Subquery.Quote());
+
+    /// <inheritdoc />
     protected override void Print(ExpressionPrinter expressionPrinter)
     {
         expressionPrinter.Append("(");
@@ -77,8 +87,8 @@ public class ScalarSubqueryExpression : SqlExpression
     public override bool Equals(object? obj)
         => obj != null
             && (ReferenceEquals(this, obj)
-                || obj is ScalarSubqueryExpression scalarSubqueryExpression
-                && Equals(scalarSubqueryExpression));
+                || (obj is ScalarSubqueryExpression scalarSubqueryExpression
+                    && Equals(scalarSubqueryExpression)));
 
     private bool Equals(ScalarSubqueryExpression scalarSubqueryExpression)
         => base.Equals(scalarSubqueryExpression)

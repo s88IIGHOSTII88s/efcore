@@ -1,8 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Diagnostics.CodeAnalysis;
-
 namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 
 /// <summary>
@@ -33,7 +31,7 @@ public class DependentsMap<TKey> : IDependentsMap
         _foreignKey = foreignKey;
         _principalKeyValueFactory = principalKeyValueFactory;
         _dependentKeyValueFactory = dependentKeyValueFactory;
-        _map = new Dictionary<TKey, HashSet<IUpdateEntry>>(principalKeyValueFactory.EqualityComparer);
+        _map = [with(principalKeyValueFactory.EqualityComparer)];
     }
 
     /// <summary>
@@ -49,7 +47,7 @@ public class DependentsMap<TKey> : IDependentsMap
         {
             if (!_map.TryGetValue(key, out var dependents))
             {
-                dependents = new HashSet<IUpdateEntry>();
+                dependents = [];
                 _map[key] = dependents;
             }
 
@@ -95,7 +93,7 @@ public class DependentsMap<TKey> : IDependentsMap
             {
                 if (!_map.TryGetValue(key, out dependents))
                 {
-                    dependents = new HashSet<IUpdateEntry>();
+                    dependents = [];
                     _map[key] = dependents;
                 }
 
@@ -126,7 +124,18 @@ public class DependentsMap<TKey> : IDependentsMap
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual IEnumerable<IUpdateEntry> GetDependents(IUpdateEntry principalEntry)
-        => _map.TryGetValue(_principalKeyValueFactory.CreateFromCurrentValues(principalEntry), out var dependents)
+        => _map.TryGetValue(_principalKeyValueFactory.CreateFromCurrentValues(principalEntry)!, out var dependents)
+            ? dependents
+            : Enumerable.Empty<IUpdateEntry>();
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual IEnumerable<IUpdateEntry> GetDependents(IReadOnlyList<object?> keyValues)
+        => _map.TryGetValue((TKey)_principalKeyValueFactory.CreateFromKeyValues(keyValues)!, out var dependents)
             ? dependents
             : Enumerable.Empty<IUpdateEntry>();
 

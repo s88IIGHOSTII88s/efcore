@@ -5,54 +5,59 @@ using System;
 using SQLitePCL;
 using static SQLitePCL.raw;
 
-namespace Microsoft.Data.Sqlite
+namespace Microsoft.Data.Sqlite;
+
+internal class SqliteParameterBinder(sqlite3_stmt stmt, sqlite3 handle, int index, object value, int? size, SqliteType? sqliteType)
+    : SqliteValueBinder(value, sqliteType)
 {
-    internal class SqliteParameterBinder : SqliteValueBinder
+    protected override void BindBlob(ReadOnlySpan<byte> value)
     {
-        private readonly sqlite3_stmt _stmt;
-        private readonly int _index;
-        private readonly int? _size;
-
-        public SqliteParameterBinder(sqlite3_stmt stmt, int index, object value, int? size, SqliteType? sqliteType)
-            : base(value, sqliteType)
+        var blob = value;
+        if (ShouldTruncate(value.Length))
         {
-            _stmt = stmt;
-            _index = index;
-            _size = size;
+            blob = value[..size!.Value];
         }
 
-        protected override void BindBlob(byte[] value)
-        {
-            var blob = value;
-            if (ShouldTruncate(value.Length))
-            {
-                blob = new byte[_size!.Value];
-                Array.Copy(value, blob, _size.Value);
-            }
+        var rc = sqlite3_bind_blob(stmt, index, blob);
 
-            sqlite3_bind_blob(_stmt, _index, blob);
-        }
-
-        protected override void BindDoubleCore(double value)
-            => sqlite3_bind_double(_stmt, _index, value);
-
-        protected override void BindInt64(long value)
-            => sqlite3_bind_int64(_stmt, _index, value);
-
-        protected override void BindNull()
-            => sqlite3_bind_null(_stmt, _index);
-
-        protected override void BindText(string value)
-            => sqlite3_bind_text(
-                _stmt,
-                _index,
-                ShouldTruncate(value.Length)
-                    ? value.Substring(0, _size!.Value)
-                    : value);
-
-        private bool ShouldTruncate(int length)
-            => _size.HasValue
-                && length > _size.Value
-                && _size.Value != -1;
+        SqliteException.ThrowExceptionForRC(rc, handle);
     }
+
+    protected override void BindDoubleCore(double value)
+    {
+        var rc = sqlite3_bind_double(stmt, index, value);
+
+        SqliteException.ThrowExceptionForRC(rc, handle);
+    }
+
+    protected override void BindInt64(long value)
+    {
+        var rc = sqlite3_bind_int64(stmt, index, value);
+
+        SqliteException.ThrowExceptionForRC(rc, handle);
+    }
+
+    protected override void BindNull()
+    {
+        var rc = sqlite3_bind_null(stmt, index);
+
+        SqliteException.ThrowExceptionForRC(rc, handle);
+    }
+
+    protected override void BindText(string value)
+    {
+        var rc = sqlite3_bind_text(
+            stmt,
+            index,
+            ShouldTruncate(value.Length)
+                ? value[..size!.Value]
+                : value);
+
+        SqliteException.ThrowExceptionForRC(rc, handle);
+    }
+
+    // A size of 0 (the default) or -1 sets no limit; only a positive size truncates.
+    private bool ShouldTruncate(int length)
+        => size > 0
+            && length > size.Value;
 }

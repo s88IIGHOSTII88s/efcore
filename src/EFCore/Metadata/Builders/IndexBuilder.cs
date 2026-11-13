@@ -30,9 +30,7 @@ public class IndexBuilder : IInfrastructure<IConventionIndexBuilder>
     /// </summary>
     [EntityFrameworkInternal]
     public IndexBuilder(IMutableIndex index)
-    {
-        Builder = ((Index)index).Builder;
-    }
+        => Builder = ((Index)index).Builder;
 
     /// <summary>
     ///     The internal builder being used to configure the index.
@@ -58,7 +56,7 @@ public class IndexBuilder : IInfrastructure<IConventionIndexBuilder>
     /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
     public virtual IndexBuilder HasAnnotation(string annotation, object? value)
     {
-        Check.NotEmpty(annotation, nameof(annotation));
+        Check.NotEmpty(annotation);
 
         Builder.HasAnnotation(annotation, value, ConfigurationSource.Explicit);
 
@@ -80,7 +78,10 @@ public class IndexBuilder : IInfrastructure<IConventionIndexBuilder>
     /// <summary>
     ///     Configures the sort order(s) for the columns of this index (ascending or descending).
     /// </summary>
-    /// <param name="descending">A set of values indicating whether each corresponding index column has descending sort order.</param>
+    /// <param name="descending">
+    ///     A set of values indicating whether each corresponding index column has descending sort order.
+    ///     An empty list indicates that all index columns will have descending sort order.
+    /// </param>
     /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
     public virtual IndexBuilder IsDescending(params bool[] descending)
     {

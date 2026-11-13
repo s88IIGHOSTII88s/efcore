@@ -30,9 +30,7 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// </summary>
     /// <param name="serviceCollection">The collection to work with.</param>
     public ServiceCollectionMap(IServiceCollection serviceCollection)
-    {
-        _map = new InternalServiceCollectionMap(serviceCollection);
-    }
+        => _map = new InternalServiceCollectionMap(serviceCollection);
 
     /// <summary>
     ///     The underlying <see cref="IServiceCollection" />.
@@ -49,7 +47,8 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <typeparam name="TService">The contract for the service.</typeparam>
     /// <typeparam name="TImplementation">The concrete type that implements the service.</typeparam>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddTransient<TService, TImplementation>()
+    public virtual ServiceCollectionMap TryAddTransient
+        <TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>()
         where TService : class
         where TImplementation : class, TService
         => TryAdd(typeof(TService), typeof(TImplementation), ServiceLifetime.Transient);
@@ -61,7 +60,8 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <typeparam name="TService">The contract for the service.</typeparam>
     /// <typeparam name="TImplementation">The concrete type that implements the service.</typeparam>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddScoped<TService, TImplementation>()
+    public virtual ServiceCollectionMap TryAddScoped
+        <TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>()
         where TService : class
         where TImplementation : class, TService
         => TryAdd(typeof(TService), typeof(TImplementation), ServiceLifetime.Scoped);
@@ -73,7 +73,8 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <typeparam name="TService">The contract for the service.</typeparam>
     /// <typeparam name="TImplementation">The concrete type that implements the service.</typeparam>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddSingleton<TService, TImplementation>()
+    public virtual ServiceCollectionMap TryAddSingleton
+        <TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>()
         where TService : class
         where TImplementation : class, TService
         => TryAdd(typeof(TService), typeof(TImplementation), ServiceLifetime.Singleton);
@@ -85,7 +86,9 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <param name="serviceType">The contract for the service.</param>
     /// <param name="implementationType">The concrete type that implements the service.</param>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddTransient(Type serviceType, Type implementationType)
+    public virtual ServiceCollectionMap TryAddTransient(
+        Type serviceType,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type implementationType)
         => TryAdd(serviceType, implementationType, ServiceLifetime.Transient);
 
     /// <summary>
@@ -95,7 +98,9 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <param name="serviceType">The contract for the service.</param>
     /// <param name="implementationType">The concrete type that implements the service.</param>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddScoped(Type serviceType, Type implementationType)
+    public virtual ServiceCollectionMap TryAddScoped(
+        Type serviceType,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type implementationType)
         => TryAdd(serviceType, implementationType, ServiceLifetime.Scoped);
 
     /// <summary>
@@ -105,7 +110,9 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <param name="serviceType">The contract for the service.</param>
     /// <param name="implementationType">The concrete type that implements the service.</param>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddSingleton(Type serviceType, Type implementationType)
+    public virtual ServiceCollectionMap TryAddSingleton(
+        Type serviceType,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type implementationType)
         => TryAdd(serviceType, implementationType, ServiceLifetime.Singleton);
 
     /// <summary>
@@ -118,7 +125,7 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <returns>The map, such that further calls can be chained.</returns>
     public virtual ServiceCollectionMap TryAdd(
         Type serviceType,
-        Type implementationType,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type implementationType,
         ServiceLifetime lifetime)
     {
         Validate?.Invoke(serviceType);
@@ -300,7 +307,8 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <typeparam name="TService">The contract for the service.</typeparam>
     /// <typeparam name="TImplementation">The concrete type that implements the service.</typeparam>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddTransientEnumerable<TService, TImplementation>()
+    public virtual ServiceCollectionMap TryAddTransientEnumerable
+        <TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>()
         where TService : class
         where TImplementation : class, TService
         => TryAddEnumerable(typeof(TService), typeof(TImplementation), ServiceLifetime.Transient);
@@ -313,7 +321,8 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <typeparam name="TService">The contract for the service.</typeparam>
     /// <typeparam name="TImplementation">The concrete type that implements the service.</typeparam>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddScopedEnumerable<TService, TImplementation>()
+    public virtual ServiceCollectionMap TryAddScopedEnumerable
+        <TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>()
         where TService : class
         where TImplementation : class, TService
         => TryAddEnumerable(typeof(TService), typeof(TImplementation), ServiceLifetime.Scoped);
@@ -326,7 +335,8 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <typeparam name="TService">The contract for the service.</typeparam>
     /// <typeparam name="TImplementation">The concrete type that implements the service.</typeparam>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddSingletonEnumerable<TService, TImplementation>()
+    public virtual ServiceCollectionMap TryAddSingletonEnumerable
+        <TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>()
         where TService : class
         where TImplementation : class, TService
         => TryAddEnumerable(typeof(TService), typeof(TImplementation), ServiceLifetime.Singleton);
@@ -339,7 +349,9 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <param name="serviceType">The contract for the service.</param>
     /// <param name="implementationType">The concrete type that implements the service.</param>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddTransientEnumerable(Type serviceType, Type implementationType)
+    public virtual ServiceCollectionMap TryAddTransientEnumerable(
+        Type serviceType,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type implementationType)
         => TryAddEnumerable(serviceType, implementationType, ServiceLifetime.Transient);
 
     /// <summary>
@@ -350,7 +362,9 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <param name="serviceType">The contract for the service.</param>
     /// <param name="implementationType">The concrete type that implements the service.</param>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddScopedEnumerable(Type serviceType, Type implementationType)
+    public virtual ServiceCollectionMap TryAddScopedEnumerable(
+        Type serviceType,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type implementationType)
         => TryAddEnumerable(serviceType, implementationType, ServiceLifetime.Scoped);
 
     /// <summary>
@@ -361,7 +375,9 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <param name="serviceType">The contract for the service.</param>
     /// <param name="implementationType">The concrete type that implements the service.</param>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddSingletonEnumerable(Type serviceType, Type implementationType)
+    public virtual ServiceCollectionMap TryAddSingletonEnumerable(
+        Type serviceType,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type implementationType)
         => TryAddEnumerable(serviceType, implementationType, ServiceLifetime.Singleton);
 
     /// <summary>
@@ -375,7 +391,7 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <returns>The map, such that further calls can be chained.</returns>
     public virtual ServiceCollectionMap TryAddEnumerable(
         Type serviceType,
-        Type implementationType,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type implementationType,
         ServiceLifetime lifetime)
     {
         Validate?.Invoke(serviceType);
@@ -398,7 +414,9 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <typeparam name="TImplementation">The concrete type that implements the service.</typeparam>
     /// <param name="factory">The factory that implements this service.</param>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddTransientEnumerable<TService, TImplementation>(
+    public virtual ServiceCollectionMap TryAddTransientEnumerable<
+        TService,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
         Func<IServiceProvider, TImplementation> factory)
         where TService : class
         where TImplementation : class, TService
@@ -413,8 +431,9 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <typeparam name="TImplementation">The concrete type that implements the service.</typeparam>
     /// <param name="factory">The factory that implements this service.</param>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddScopedEnumerable<TService, TImplementation>(
-        Func<IServiceProvider, TImplementation> factory)
+    public virtual ServiceCollectionMap TryAddScopedEnumerable
+        <TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
+            Func<IServiceProvider, TImplementation> factory)
         where TService : class
         where TImplementation : class, TService
         => TryAddEnumerable(typeof(TService), typeof(TImplementation), factory, ServiceLifetime.Scoped);
@@ -428,8 +447,9 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <typeparam name="TImplementation">The concrete type that implements the service.</typeparam>
     /// <param name="factory">The factory that implements this service.</param>
     /// <returns>The map, such that further calls can be chained.</returns>
-    public virtual ServiceCollectionMap TryAddSingletonEnumerable<TService, TImplementation>(
-        Func<IServiceProvider, TImplementation> factory)
+    public virtual ServiceCollectionMap TryAddSingletonEnumerable
+        <TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
+            Func<IServiceProvider, TImplementation> factory)
         where TService : class
         where TImplementation : class, TService
         => TryAddEnumerable(typeof(TService), typeof(TImplementation), factory, ServiceLifetime.Singleton);
@@ -446,7 +466,7 @@ public class ServiceCollectionMap : IInfrastructure<IInternalServiceCollectionMa
     /// <returns>The map, such that further calls can be chained.</returns>
     public virtual ServiceCollectionMap TryAddEnumerable(
         Type serviceType,
-        Type implementationType,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type implementationType,
         Func<IServiceProvider, object> factory,
         ServiceLifetime lifetime)
     {

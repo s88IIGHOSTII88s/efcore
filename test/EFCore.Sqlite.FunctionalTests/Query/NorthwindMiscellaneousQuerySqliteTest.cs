@@ -1,23 +1,21 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.EntityFrameworkCore.Sqlite.Internal;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
-using Xunit.Sdk;
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
 public class NorthwindMiscellaneousQuerySqliteTest : NorthwindMiscellaneousQueryRelationalTestBase<
     NorthwindQuerySqliteFixture<NoopModelCustomizer>>
 {
-    // ReSharper disable once UnusedParameter.Local
     public NorthwindMiscellaneousQuerySqliteTest(
         NorthwindQuerySqliteFixture<NoopModelCustomizer> fixture,
         ITestOutputHelper testOutputHelper)
         : base(fixture)
     {
         Fixture.TestSqlLoggerFactory.Clear();
-        //Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
+        Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
 
     public override async Task Query_expression_with_to_string_and_contains(bool async)
@@ -25,9 +23,11 @@ public class NorthwindMiscellaneousQuerySqliteTest : NorthwindMiscellaneousQuery
         await base.Query_expression_with_to_string_and_contains(async);
 
         AssertSql(
-            @"SELECT ""o"".""CustomerID""
-FROM ""Orders"" AS ""o""
-WHERE ""o"".""OrderDate"" IS NOT NULL AND ('10' = '' OR instr(CAST(""o"".""EmployeeID"" AS TEXT), '10') > 0)");
+            """
+SELECT "o"."CustomerID"
+FROM "Orders" AS "o"
+WHERE "o"."OrderDate" IS NOT NULL AND instr(COALESCE(CAST("o"."EmployeeID" AS TEXT), ''), '7') > 0
+""");
     }
 
     public override async Task Take_Skip(bool async)
@@ -35,44 +35,65 @@ WHERE ""o"".""OrderDate"" IS NOT NULL AND ('10' = '' OR instr(CAST(""o"".""Emplo
         await base.Take_Skip(async);
 
         AssertSql(
-            @"@__p_0='10'
-@__p_1='5'
+            """
+@p='10'
+@p1='5'
 
-SELECT ""t"".""CustomerID"", ""t"".""Address"", ""t"".""City"", ""t"".""CompanyName"", ""t"".""ContactName"", ""t"".""ContactTitle"", ""t"".""Country"", ""t"".""Fax"", ""t"".""Phone"", ""t"".""PostalCode"", ""t"".""Region""
+SELECT "c0"."CustomerID", "c0"."Address", "c0"."City", "c0"."CompanyName", "c0"."ContactName", "c0"."ContactTitle", "c0"."Country", "c0"."Fax", "c0"."Phone", "c0"."PostalCode", "c0"."Region"
 FROM (
-    SELECT ""c"".""CustomerID"", ""c"".""Address"", ""c"".""City"", ""c"".""CompanyName"", ""c"".""ContactName"", ""c"".""ContactTitle"", ""c"".""Country"", ""c"".""Fax"", ""c"".""Phone"", ""c"".""PostalCode"", ""c"".""Region""
-    FROM ""Customers"" AS ""c""
-    ORDER BY ""c"".""ContactName""
-    LIMIT @__p_0
-) AS ""t""
-ORDER BY ""t"".""ContactName""
-LIMIT -1 OFFSET @__p_1");
+    SELECT "c"."CustomerID", "c"."Address", "c"."City", "c"."CompanyName", "c"."ContactName", "c"."ContactTitle", "c"."Country", "c"."Fax", "c"."Phone", "c"."PostalCode", "c"."Region"
+    FROM "Customers" AS "c"
+    ORDER BY "c"."ContactName"
+    LIMIT @p
+) AS "c0"
+ORDER BY "c0"."ContactName"
+LIMIT -1 OFFSET @p1
+""");
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
+    [Theory, MemberData(nameof(IsAsyncData))]
     public virtual async Task Select_datetime_millisecond_component_composed(bool async)
     {
         await AssertQueryScalar(
             async,
-            ss => ss.Set<Order>().Select(o => o.OrderDate.Value.AddYears(1).Millisecond));
+            ss => ss.Set<Order>().Select(o => o.OrderDate!.Value.AddYears(1).Millisecond));
 
         AssertSql(
-            @"SELECT (CAST(strftime('%f', ""o"".""OrderDate"", CAST(1 AS TEXT) || ' years') AS REAL) * 1000.0) % 1000.0
-FROM ""Orders"" AS ""o""");
+            """
+SELECT CAST(substr(strftime('%f', "o"."OrderDate", CAST(1 AS TEXT) || ' years'), 4) AS INTEGER)
+FROM "Orders" AS "o"
+""");
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
+    [Theory, MemberData(nameof(IsAsyncData))]
+    public virtual async Task Select_datetime_millisecond_component_not_representable_as_double(bool async)
+    {
+        // 1.005 seconds can't be represented exactly as a double, and 1.005 * 1000 truncates to 1004
+        await AssertQueryScalar(
+            async,
+            ss => ss.Set<Order>().Where(o => o.OrderDate != null)
+                .Select(o => o.OrderDate!.Value.AddSeconds(1).AddMilliseconds(5).Millisecond));
+
+        AssertSql(
+            """
+SELECT CAST(substr(strftime('%f', "o"."OrderDate", CAST(1.0 AS TEXT) || ' seconds', CAST(5.0 / 1000.0 AS TEXT) || ' seconds'), 4) AS INTEGER)
+FROM "Orders" AS "o"
+WHERE "o"."OrderDate" IS NOT NULL
+""");
+    }
+
+    [Theory, MemberData(nameof(IsAsyncData))]
     public virtual async Task Select_datetime_TimeOfDay_component_composed(bool async)
     {
         await AssertQueryScalar(
             async,
-            ss => ss.Set<Order>().Select(o => o.OrderDate.Value.AddYears(1).TimeOfDay));
+            ss => ss.Set<Order>().Select(o => o.OrderDate!.Value.AddYears(1).TimeOfDay));
 
         AssertSql(
-            @"SELECT rtrim(rtrim(strftime('%H:%M:%f', ""o"".""OrderDate"", CAST(1 AS TEXT) || ' years'), '0'), '.')
-FROM ""Orders"" AS ""o""");
+            """
+SELECT rtrim(rtrim(strftime('%H:%M:%f', "o"."OrderDate", CAST(1 AS TEXT) || ' years'), '0'), '.')
+FROM "Orders" AS "o"
+""");
     }
 
     public override async Task Select_expression_date_add_year(bool async)
@@ -80,23 +101,45 @@ FROM ""Orders"" AS ""o""");
         await base.Select_expression_date_add_year(async);
 
         AssertSql(
-            @"SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', ""o"".""OrderDate"", CAST(1 AS TEXT) || ' years'), '0'), '.') AS ""OrderDate""
-FROM ""Orders"" AS ""o""
-WHERE ""o"".""OrderDate"" IS NOT NULL");
+            """
+SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', "o"."OrderDate", CAST(1 AS TEXT) || ' years'), '0'), '.') AS "OrderDate"
+FROM "Orders" AS "o"
+WHERE "o"."OrderDate" IS NOT NULL
+""");
     }
 
     public override async Task Select_expression_datetime_add_month(bool async)
     {
-        // Add ticks. Issue #25851.
-        Assert.Equal(
-            "1996-12-01T00:00:00.0000000",
-            (await Assert.ThrowsAsync<EqualException>(
-                () => base.Select_expression_datetime_add_month(async))).Actual);
+        await AssertQuery(
+            async,
+            ss => ss.Set<Order>()
+                .Where(o => o.OrderDate != null)
+                .Select(o => new Order { OrderDate = o.OrderDate!.Value.AddMonths(1) }),
+            e => e.OrderDate,
+            elementAsserter: (e, a) =>
+            {
+                Assert.Equal(e.OrderDate.HasValue, a.OrderDate.HasValue);
+                if (e.OrderDate.HasValue && a.OrderDate.HasValue)
+                {
+                    // difference between how Sqlite and everyone else add months
+                    // e.g. when adding 1 month to Jan 31st, we get March 2/3 on Sqlite and Feb 28th/29ths for everyone else
+                    // see notes on issue #25851 for more details
+                    var diff = (e.OrderDate - a.OrderDate)!.Value;
+                    Assert.True(diff.Days is >= -3 and <= 0);
+                    Assert.Equal(0, diff.Hours);
+                    Assert.Equal(0, diff.Minutes);
+                    Assert.Equal(0, diff.Seconds);
+                    Assert.Equal(0, diff.Milliseconds);
+                    Assert.Equal(0, diff.Microseconds);
+                }
+            });
 
         AssertSql(
-            @"SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', ""o"".""OrderDate"", CAST(1 AS TEXT) || ' months'), '0'), '.') AS ""OrderDate""
-FROM ""Orders"" AS ""o""
-WHERE ""o"".""OrderDate"" IS NOT NULL");
+            """
+SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', "o"."OrderDate", CAST(1 AS TEXT) || ' months'), '0'), '.') AS "OrderDate"
+FROM "Orders" AS "o"
+WHERE "o"."OrderDate" IS NOT NULL
+""");
     }
 
     public override async Task Select_expression_datetime_add_hour(bool async)
@@ -104,9 +147,11 @@ WHERE ""o"".""OrderDate"" IS NOT NULL");
         await base.Select_expression_datetime_add_hour(async);
 
         AssertSql(
-            @"SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', ""o"".""OrderDate"", CAST(1.0 AS TEXT) || ' hours'), '0'), '.') AS ""OrderDate""
-FROM ""Orders"" AS ""o""
-WHERE ""o"".""OrderDate"" IS NOT NULL");
+            """
+SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', "o"."OrderDate", CAST(1.0 AS TEXT) || ' hours'), '0'), '.') AS "OrderDate"
+FROM "Orders" AS "o"
+WHERE "o"."OrderDate" IS NOT NULL
+""");
     }
 
     public override async Task Select_expression_datetime_add_minute(bool async)
@@ -114,9 +159,11 @@ WHERE ""o"".""OrderDate"" IS NOT NULL");
         await base.Select_expression_datetime_add_minute(async);
 
         AssertSql(
-            @"SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', ""o"".""OrderDate"", CAST(1.0 AS TEXT) || ' minutes'), '0'), '.') AS ""OrderDate""
-FROM ""Orders"" AS ""o""
-WHERE ""o"".""OrderDate"" IS NOT NULL");
+            """
+SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', "o"."OrderDate", CAST(1.0 AS TEXT) || ' minutes'), '0'), '.') AS "OrderDate"
+FROM "Orders" AS "o"
+WHERE "o"."OrderDate" IS NOT NULL
+""");
     }
 
     public override async Task Select_expression_datetime_add_second(bool async)
@@ -124,23 +171,28 @@ WHERE ""o"".""OrderDate"" IS NOT NULL");
         await base.Select_expression_datetime_add_second(async);
 
         AssertSql(
-            @"SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', ""o"".""OrderDate"", CAST(1.0 AS TEXT) || ' seconds'), '0'), '.') AS ""OrderDate""
-FROM ""Orders"" AS ""o""
-WHERE ""o"".""OrderDate"" IS NOT NULL");
+            """
+SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', "o"."OrderDate", CAST(1.0 AS TEXT) || ' seconds'), '0'), '.') AS "OrderDate"
+FROM "Orders" AS "o"
+WHERE "o"."OrderDate" IS NOT NULL
+""");
     }
 
     public override async Task Select_expression_datetime_add_ticks(bool async)
     {
-        // Add ticks. Issue #25851.
-        Assert.Equal(
-            "1996-07-04T00:00:00.0000000",
-            (await Assert.ThrowsAsync<EqualException>(
-                () => base.Select_expression_datetime_add_ticks(async))).Actual);
+        // modifying the original scenario - Sqlite gives inaccurate results for values of granularity less than 1 second
+        await AssertQuery(
+            async,
+            ss => ss.Set<Order>().Where(o => o.OrderDate != null)
+                .Select(o => new Order { OrderDate = o.OrderDate!.Value.AddTicks(10 * TimeSpan.TicksPerSecond) }),
+            e => e.OrderDate);
 
         AssertSql(
-            @"SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', ""o"".""OrderDate"", CAST((10000 / 864000000000) AS TEXT) || ' seconds'), '0'), '.') AS ""OrderDate""
-FROM ""Orders"" AS ""o""
-WHERE ""o"".""OrderDate"" IS NOT NULL");
+            """
+SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', "o"."OrderDate", CAST(100000000 / 10000000 AS TEXT) || ' seconds'), '0'), '.') AS "OrderDate"
+FROM "Orders" AS "o"
+WHERE "o"."OrderDate" IS NOT NULL
+""");
     }
 
     public override async Task Select_expression_date_add_milliseconds_above_the_range(bool async)
@@ -148,9 +200,11 @@ WHERE ""o"".""OrderDate"" IS NOT NULL");
         await base.Select_expression_date_add_milliseconds_above_the_range(async);
 
         AssertSql(
-            @"SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', ""o"".""OrderDate"", CAST((1000000000000.0 / 1000.0) AS TEXT) || ' seconds'), '0'), '.') AS ""OrderDate""
-FROM ""Orders"" AS ""o""
-WHERE ""o"".""OrderDate"" IS NOT NULL");
+            """
+SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', "o"."OrderDate", CAST(1000000000000.0 / 1000.0 AS TEXT) || ' seconds'), '0'), '.') AS "OrderDate"
+FROM "Orders" AS "o"
+WHERE "o"."OrderDate" IS NOT NULL
+""");
     }
 
     public override async Task Select_expression_date_add_milliseconds_below_the_range(bool async)
@@ -158,9 +212,11 @@ WHERE ""o"".""OrderDate"" IS NOT NULL");
         await base.Select_expression_date_add_milliseconds_below_the_range(async);
 
         AssertSql(
-            @"SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', ""o"".""OrderDate"", CAST((-1000000000000.0 / 1000.0) AS TEXT) || ' seconds'), '0'), '.') AS ""OrderDate""
-FROM ""Orders"" AS ""o""
-WHERE ""o"".""OrderDate"" IS NOT NULL");
+            """
+SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', "o"."OrderDate", CAST(-1000000000000.0 / 1000.0 AS TEXT) || ' seconds'), '0'), '.') AS "OrderDate"
+FROM "Orders" AS "o"
+WHERE "o"."OrderDate" IS NOT NULL
+""");
     }
 
     public override async Task Select_expression_date_add_milliseconds_large_number_divided(bool async)
@@ -168,11 +224,13 @@ WHERE ""o"".""OrderDate"" IS NOT NULL");
         await base.Select_expression_date_add_milliseconds_large_number_divided(async);
 
         AssertSql(
-            @"@__millisecondsPerDay_0='86400000'
+            """
+@millisecondsPerDay='86400000'
 
-SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', ""o"".""OrderDate"", COALESCE(CAST(CAST((CAST(((CAST(strftime('%f', ""o"".""OrderDate"") AS REAL) * 1000.0) % 1000.0) AS INTEGER) / @__millisecondsPerDay_0) AS REAL) AS TEXT), '') || ' days', COALESCE(CAST((CAST((CAST(((CAST(strftime('%f', ""o"".""OrderDate"") AS REAL) * 1000.0) % 1000.0) AS INTEGER) % @__millisecondsPerDay_0) AS REAL) / 1000.0) AS TEXT), '') || ' seconds'), '0'), '.') AS ""OrderDate""
-FROM ""Orders"" AS ""o""
-WHERE ""o"".""OrderDate"" IS NOT NULL");
+SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', "o"."OrderDate", COALESCE(CAST(CAST(CAST(substr(strftime('%f', "o"."OrderDate"), 4) AS INTEGER) / @millisecondsPerDay AS REAL) AS TEXT), '') || ' days', COALESCE(CAST(CAST(CAST(substr(strftime('%f', "o"."OrderDate"), 4) AS INTEGER) % @millisecondsPerDay AS REAL) / 1000.0 AS TEXT), '') || ' seconds'), '0'), '.') AS "OrderDate"
+FROM "Orders" AS "o"
+WHERE "o"."OrderDate" IS NOT NULL
+""");
     }
 
     public override async Task Add_minutes_on_constant_value(bool async)
@@ -180,10 +238,12 @@ WHERE ""o"".""OrderDate"" IS NOT NULL");
         await base.Add_minutes_on_constant_value(async);
 
         AssertSql(
-            @"SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', '1900-01-01 00:00:00', CAST(CAST((""o"".""OrderID"" % 25) AS REAL) AS TEXT) || ' minutes'), '0'), '.') AS ""Test""
-FROM ""Orders"" AS ""o""
-WHERE ""o"".""OrderID"" < 10500
-ORDER BY ""o"".""OrderID""");
+            """
+SELECT rtrim(rtrim(strftime('%Y-%m-%d %H:%M:%f', '1900-01-01 00:00:00', CAST(CAST("o"."OrderID" % 25 AS REAL) AS TEXT) || ' minutes'), '0'), '.') AS "Test"
+FROM "Orders" AS "o"
+WHERE "o"."OrderID" < 10500
+ORDER BY "o"."OrderID"
+""");
     }
 
     public override async Task Select_distinct_long_count(bool async)
@@ -191,11 +251,13 @@ ORDER BY ""o"".""OrderID""");
         await base.Select_distinct_long_count(async);
 
         AssertSql(
-            @"SELECT COUNT(*)
+            """
+SELECT COUNT(*)
 FROM (
-    SELECT DISTINCT ""c"".""CustomerID"", ""c"".""Address"", ""c"".""City"", ""c"".""CompanyName"", ""c"".""ContactName"", ""c"".""ContactTitle"", ""c"".""Country"", ""c"".""Fax"", ""c"".""Phone"", ""c"".""PostalCode"", ""c"".""Region""
-    FROM ""Customers"" AS ""c""
-) AS ""t""");
+    SELECT DISTINCT "c"."CustomerID", "c"."Address", "c"."City", "c"."CompanyName", "c"."ContactName", "c"."ContactTitle", "c"."Country", "c"."Fax", "c"."Phone", "c"."PostalCode", "c"."Region"
+    FROM "Customers" AS "c"
+) AS "c0"
+""");
     }
 
     public override async Task Select_orderBy_skip_long_count(bool async)
@@ -203,15 +265,17 @@ FROM (
         await base.Select_orderBy_skip_long_count(async);
 
         AssertSql(
-            @"@__p_0='7'
+            """
+@p='7'
 
 SELECT COUNT(*)
 FROM (
-    SELECT ""c"".""CustomerID"", ""c"".""Address"", ""c"".""City"", ""c"".""CompanyName"", ""c"".""ContactName"", ""c"".""ContactTitle"", ""c"".""Country"", ""c"".""Fax"", ""c"".""Phone"", ""c"".""PostalCode"", ""c"".""Region""
-    FROM ""Customers"" AS ""c""
-    ORDER BY ""c"".""Country""
-    LIMIT -1 OFFSET @__p_0
-) AS ""t""");
+    SELECT 1
+    FROM "Customers" AS "c"
+    ORDER BY "c"."Country"
+    LIMIT -1 OFFSET @p
+) AS "c0"
+""");
     }
 
     public override async Task Select_orderBy_take_long_count(bool async)
@@ -219,15 +283,17 @@ FROM (
         await base.Select_orderBy_take_long_count(async);
 
         AssertSql(
-            @"@__p_0='7'
+            """
+@p='7'
 
 SELECT COUNT(*)
 FROM (
-    SELECT ""c"".""CustomerID"", ""c"".""Address"", ""c"".""City"", ""c"".""CompanyName"", ""c"".""ContactName"", ""c"".""ContactTitle"", ""c"".""Country"", ""c"".""Fax"", ""c"".""Phone"", ""c"".""PostalCode"", ""c"".""Region""
-    FROM ""Customers"" AS ""c""
-    ORDER BY ""c"".""Country""
-    LIMIT @__p_0
-) AS ""t""");
+    SELECT 1
+    FROM "Customers" AS "c"
+    ORDER BY "c"."Country"
+    LIMIT @p
+) AS "c0"
+""");
     }
 
     public override async Task Select_skip_long_count(bool async)
@@ -235,14 +301,16 @@ FROM (
         await base.Select_skip_long_count(async);
 
         AssertSql(
-            @"@__p_0='7'
+            """
+@p='7'
 
 SELECT COUNT(*)
 FROM (
-    SELECT ""c"".""CustomerID"", ""c"".""Address"", ""c"".""City"", ""c"".""CompanyName"", ""c"".""ContactName"", ""c"".""ContactTitle"", ""c"".""Country"", ""c"".""Fax"", ""c"".""Phone"", ""c"".""PostalCode"", ""c"".""Region""
-    FROM ""Customers"" AS ""c""
-    LIMIT -1 OFFSET @__p_0
-) AS ""t""");
+    SELECT 1
+    FROM "Customers" AS "c"
+    LIMIT -1 OFFSET @p
+) AS "c0"
+""");
     }
 
     public override async Task Select_take_long_count(bool async)
@@ -250,29 +318,39 @@ FROM (
         await base.Select_take_long_count(async);
 
         AssertSql(
-            @"@__p_0='7'
+            """
+@p='7'
 
 SELECT COUNT(*)
 FROM (
-    SELECT ""c"".""CustomerID"", ""c"".""Address"", ""c"".""City"", ""c"".""CompanyName"", ""c"".""ContactName"", ""c"".""ContactTitle"", ""c"".""Country"", ""c"".""Fax"", ""c"".""Phone"", ""c"".""PostalCode"", ""c"".""Region""
-    FROM ""Customers"" AS ""c""
-    LIMIT @__p_0
-) AS ""t""");
+    SELECT 1
+    FROM "Customers" AS "c"
+    LIMIT @p
+) AS "c0"
+""");
     }
 
     public override Task Complex_nested_query_doesnt_try_binding_to_grandparent_when_parent_returns_complex_result(bool async)
-        => null;
+        => null!;
 
     public override Task SelectMany_correlated_subquery_hard(bool async)
-        => null;
+        => null!;
+
+    public override async Task SelectMany_correlated_with_Select_value_type_and_DefaultIfEmpty_in_selector(bool async)
+        => Assert.Equal(
+            SqliteStrings.ApplyNotSupported,
+            (await Assert.ThrowsAsync<InvalidOperationException>(()
+                => base.SelectMany_correlated_with_Select_value_type_and_DefaultIfEmpty_in_selector(async))).Message);
 
     public override async Task Concat_string_int(bool async)
     {
         await base.Concat_string_int(async);
 
         AssertSql(
-            @"SELECT CAST(""o"".""OrderID"" AS TEXT) || COALESCE(""o"".""CustomerID"", '')
-FROM ""Orders"" AS ""o""");
+            """
+SELECT CAST("o"."OrderID" AS TEXT) || COALESCE("o"."CustomerID", '')
+FROM "Orders" AS "o"
+""");
     }
 
     public override async Task Concat_int_string(bool async)
@@ -280,8 +358,10 @@ FROM ""Orders"" AS ""o""");
         await base.Concat_int_string(async);
 
         AssertSql(
-            @"SELECT COALESCE(""o"".""CustomerID"", '') || CAST(""o"".""OrderID"" AS TEXT)
-FROM ""Orders"" AS ""o""");
+            """
+SELECT COALESCE("o"."CustomerID", '') || CAST("o"."OrderID" AS TEXT)
+FROM "Orders" AS "o"
+""");
     }
 
     public override async Task Concat_parameter_string_int(bool async)
@@ -289,10 +369,12 @@ FROM ""Orders"" AS ""o""");
         await base.Concat_parameter_string_int(async);
 
         AssertSql(
-            @"@__parameter_0='-' (Size = 1)
+            """
+@parameter='-' (Size = 1)
 
-SELECT @__parameter_0 || CAST(""o"".""OrderID"" AS TEXT)
-FROM ""Orders"" AS ""o""");
+SELECT @parameter || CAST("o"."OrderID" AS TEXT)
+FROM "Orders" AS "o"
+""");
     }
 
     public override async Task Concat_constant_string_int(bool async)
@@ -300,8 +382,10 @@ FROM ""Orders"" AS ""o""");
         await base.Concat_constant_string_int(async);
 
         AssertSql(
-            @"SELECT '-' || CAST(""o"".""OrderID"" AS TEXT)
-FROM ""Orders"" AS ""o""");
+            """
+SELECT '-' || CAST("o"."OrderID" AS TEXT)
+FROM "Orders" AS "o"
+""");
     }
 
     public override async Task Client_code_using_instance_method_throws(bool async)
@@ -309,23 +393,20 @@ FROM ""Orders"" AS ""o""");
             CoreStrings.ClientProjectionCapturingConstantInMethodInstance(
                 "Microsoft.EntityFrameworkCore.Query.NorthwindMiscellaneousQuerySqliteTest",
                 "InstanceMethod"),
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                () => base.Client_code_using_instance_method_throws(async))).Message);
+            (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Client_code_using_instance_method_throws(async))).Message);
 
     public override async Task Client_code_using_instance_in_static_method(bool async)
         => Assert.Equal(
             CoreStrings.ClientProjectionCapturingConstantInMethodArgument(
                 "Microsoft.EntityFrameworkCore.Query.NorthwindMiscellaneousQuerySqliteTest",
                 "StaticMethod"),
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                () => base.Client_code_using_instance_in_static_method(async))).Message);
+            (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Client_code_using_instance_in_static_method(async))).Message);
 
     public override async Task Client_code_using_instance_in_anonymous_type(bool async)
         => Assert.Equal(
             CoreStrings.ClientProjectionCapturingConstantInTree(
                 "Microsoft.EntityFrameworkCore.Query.NorthwindMiscellaneousQuerySqliteTest"),
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                () => base.Client_code_using_instance_in_anonymous_type(async))).Message);
+            (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Client_code_using_instance_in_anonymous_type(async))).Message);
 
     public override async Task Client_code_unknown_method(bool async)
         => await AssertTranslationFailedWithDetails(
@@ -337,49 +418,49 @@ FROM ""Orders"" AS ""o""");
     public override async Task Entity_equality_through_subquery_composite_key(bool async)
         => Assert.Equal(
             CoreStrings.EntityEqualityOnCompositeKeyEntitySubqueryNotSupported("==", nameof(OrderDetail)),
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                () => base.Entity_equality_through_subquery_composite_key(async))).Message);
+            (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Entity_equality_through_subquery_composite_key(async)))
+            .Message);
 
     public override async Task DefaultIfEmpty_in_subquery_nested_filter_order_comparison(bool async)
         => Assert.Equal(
             SqliteStrings.ApplyNotSupported,
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                () => base.DefaultIfEmpty_in_subquery_nested_filter_order_comparison(async))).Message);
+            (await Assert.ThrowsAsync<InvalidOperationException>(()
+                => base.DefaultIfEmpty_in_subquery_nested_filter_order_comparison(async))).Message);
 
     public override async Task Select_subquery_recursive_trivial(bool async)
         => Assert.Equal(
             SqliteStrings.ApplyNotSupported,
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                () => base.Select_subquery_recursive_trivial(async))).Message);
+            (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Select_subquery_recursive_trivial(async))).Message);
 
     public override async Task Select_correlated_subquery_ordered(bool async)
         => Assert.Equal(
             SqliteStrings.ApplyNotSupported,
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                () => base.Select_correlated_subquery_ordered(async))).Message);
+            (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Select_correlated_subquery_ordered(async))).Message);
 
     public override async Task Correlated_collection_with_distinct_without_default_identifiers_projecting_columns_with_navigation(
         bool async)
         => Assert.Equal(
             SqliteStrings.ApplyNotSupported,
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                () => base.Correlated_collection_with_distinct_without_default_identifiers_projecting_columns_with_navigation(async)))
+            (await Assert.ThrowsAsync<InvalidOperationException>(()
+                => base.Correlated_collection_with_distinct_without_default_identifiers_projecting_columns_with_navigation(async)))
             .Message);
 
     public override async Task Correlated_collection_with_distinct_without_default_identifiers_projecting_columns(bool async)
         => Assert.Equal(
             SqliteStrings.ApplyNotSupported,
-            (await Assert.ThrowsAsync<InvalidOperationException>(
-                () => base.Correlated_collection_with_distinct_without_default_identifiers_projecting_columns(async))).Message);
+            (await Assert.ThrowsAsync<InvalidOperationException>(()
+                => base.Correlated_collection_with_distinct_without_default_identifiers_projecting_columns(async))).Message);
 
     public override Task Max_on_empty_sequence_throws(bool async)
         => Assert.ThrowsAsync<InvalidOperationException>(() => base.Max_on_empty_sequence_throws(async));
 
-    [ConditionalFact]
+    public override Task Where_nanosecond_and_microsecond_component(bool async)
+        => AssertTranslationFailed(() => base.Where_nanosecond_and_microsecond_component(async));
+
+    [Fact]
     public async Task Single_Predicate_Cancellation()
-        => await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            async () =>
-                await Single_Predicate_Cancellation_test(Fixture.TestSqlLoggerFactory.CancelQuery()));
+        => await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await Single_Predicate_Cancellation_test(Fixture.TestSqlLoggerFactory.CancelQuery()));
 
     private void AssertSql(params string[] expected)
         => Fixture.TestSqlLoggerFactory.AssertBaseline(expected);

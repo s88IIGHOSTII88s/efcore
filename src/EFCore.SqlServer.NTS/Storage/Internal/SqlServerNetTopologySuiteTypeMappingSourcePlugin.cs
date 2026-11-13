@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Data.SqlTypes;
 using NetTopologySuite.Geometries;
 
 namespace Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal;
@@ -13,7 +14,7 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal;
 /// </summary>
 public class SqlServerNetTopologySuiteTypeMappingSourcePlugin : IRelationalTypeMappingSourcePlugin
 {
-    private readonly HashSet<string> _spatialStoreTypes = new(StringComparer.OrdinalIgnoreCase) { "geometry", "geography" };
+    private readonly HashSet<string> _spatialStoreTypes = [with(StringComparer.OrdinalIgnoreCase), "geometry", "geography"];
 
     private readonly NtsGeometryServices _geometryServices;
 
@@ -24,9 +25,7 @@ public class SqlServerNetTopologySuiteTypeMappingSourcePlugin : IRelationalTypeM
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public SqlServerNetTopologySuiteTypeMappingSourcePlugin(NtsGeometryServices geometryServices)
-    {
-        _geometryServices = geometryServices;
-    }
+        => _geometryServices = geometryServices;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -43,7 +42,8 @@ public class SqlServerNetTopologySuiteTypeMappingSourcePlugin : IRelationalTypeM
             || (storeTypeName != null
                 && _spatialStoreTypes.Contains(storeTypeName))
                 ? (RelationalTypeMapping)Activator.CreateInstance(
-                    typeof(SqlServerGeometryTypeMapping<>).MakeGenericType(clrType ?? typeof(Geometry)),
+                    typeof(SqlServerGeometryTypeMapping<>).MakeGenericType(
+                        clrType is null || clrType == typeof(SqlBytes) ? typeof(Geometry) : clrType),
                     _geometryServices,
                     storeTypeName ?? "geography")!
                 : null;

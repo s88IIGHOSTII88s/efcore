@@ -18,7 +18,6 @@ public class Key : ConventionAnnotatable, IMutableKey, IConventionKey, IRuntimeK
     private ConfigurationSource _configurationSource;
 
     // Warning: Never access these fields directly as access needs to be thread-safe
-    private Func<bool, IIdentityMap>? _identityMapFactory;
 
     private object? _principalKeyValueFactory;
 
@@ -53,7 +52,7 @@ public class Key : ConventionAnnotatable, IMutableKey, IConventionKey, IRuntimeK
     public virtual EntityType DeclaringEntityType
     {
         [DebuggerStepThrough]
-        get => Properties[0].DeclaringEntityType;
+        get => Properties[0].DeclaringType.ContainingEntityType;
     }
 
     /// <summary>
@@ -65,7 +64,10 @@ public class Key : ConventionAnnotatable, IMutableKey, IConventionKey, IRuntimeK
     public virtual InternalKeyBuilder Builder
     {
         [DebuggerStepThrough]
-        get => _builder ?? throw new InvalidOperationException(CoreStrings.ObjectRemovedFromModel);
+        get => _builder
+            ?? throw new InvalidOperationException(
+                CoreStrings.ObjectRemovedFromModel(
+                    Property.Format(Properties.Select(p => p.Name))));
     }
 
     /// <summary>
@@ -75,7 +77,8 @@ public class Key : ConventionAnnotatable, IMutableKey, IConventionKey, IRuntimeK
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual bool IsInModel
-        => _builder is not null;
+        => _builder is not null
+            && DeclaringEntityType.IsInModel;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -148,27 +151,13 @@ public class Key : ConventionAnnotatable, IMutableKey, IConventionKey, IRuntimeK
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    [field: AllowNull, MaybeNull]
     public virtual Func<bool, IIdentityMap> IdentityMapFactory
         => NonCapturingLazyInitializer.EnsureInitialized(
-            ref _identityMapFactory, this, static key =>
+            ref field, this, static key =>
             {
                 key.EnsureReadOnly();
-                return new IdentityMapFactoryFactory().Create(key);
-            });
-
-    /// <summary>
-    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-    ///     any release. You should only use it directly in your code with extreme caution and knowing that
-    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-    /// </summary>
-    public virtual IPrincipalKeyValueFactory<TKey> GetPrincipalKeyValueFactory<TKey>()
-        where TKey : notnull
-        => (IPrincipalKeyValueFactory<TKey>)NonCapturingLazyInitializer.EnsureInitialized(
-            ref _principalKeyValueFactory, this, static key =>
-            {
-                key.EnsureReadOnly();
-                return new KeyValueFactoryFactory().Create<TKey>(key);
+                return IdentityMapFactoryFactory.Create(key);
             });
 
     /// <summary>
@@ -338,4 +327,20 @@ public class Key : ConventionAnnotatable, IMutableKey, IConventionKey, IRuntimeK
     [DebuggerStepThrough]
     Func<bool, IIdentityMap> IRuntimeKey.GetIdentityMapFactory()
         => IdentityMapFactory;
+
+    IPrincipalKeyValueFactory<TKey> IKey.GetPrincipalKeyValueFactory<TKey>()
+        => (IPrincipalKeyValueFactory<TKey>)NonCapturingLazyInitializer.EnsureInitialized(
+            ref _principalKeyValueFactory, this, static key =>
+            {
+                key.EnsureReadOnly();
+                return KeyValueFactoryFactory.Create(key);
+            });
+
+    IPrincipalKeyValueFactory IKey.GetPrincipalKeyValueFactory()
+        => (IPrincipalKeyValueFactory)NonCapturingLazyInitializer.EnsureInitialized(
+            ref _principalKeyValueFactory, this, static key =>
+            {
+                key.EnsureReadOnly();
+                return KeyValueFactoryFactory.Create(key);
+            });
 }

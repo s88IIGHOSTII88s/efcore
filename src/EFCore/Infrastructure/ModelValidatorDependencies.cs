@@ -1,8 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
-
 namespace Microsoft.EntityFrameworkCore.Infrastructure;
 
 /// <summary>
@@ -21,7 +19,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure;
 ///         your constructor so that an instance will be created and injected automatically by the
 ///         dependency injection container. To create an instance with some dependent services replaced,
 ///         first resolve the object from the dependency injection container, then replace selected
-///         services using the 'With...' methods. Do not call the constructor at any point in this process.
+///         services using the C# 'with' operator. Do not call the constructor at any point in this process.
 ///     </para>
 ///     <para>
 ///         The service lifetime is <see cref="ServiceLifetime.Singleton" />.
@@ -43,14 +41,12 @@ public sealed record ModelValidatorDependencies
     ///     as new dependencies are added. Instead, use this type in your constructor so that an instance
     ///     will be created and injected automatically by the dependency injection container. To create
     ///     an instance with some dependent services replaced, first resolve the object from the dependency
-    ///     injection container, then replace selected services using the 'With...' methods. Do not call
+    ///     injection container, then replace selected services using the C# 'with' operator. Do not call
     ///     the constructor at any point in this process.
     /// </remarks>
     [EntityFrameworkInternal]
     public ModelValidatorDependencies(IMemberClassifier memberClassifier)
-    {
-        MemberClassifier = memberClassifier;
-    }
+        => MemberClassifier = memberClassifier;
 
     /// <summary>
     ///     The member classifier.

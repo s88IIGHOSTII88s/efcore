@@ -5,9 +5,9 @@ namespace Microsoft.EntityFrameworkCore.TestModels.TransportationModel;
 
 public class CompositeVehicle : PoweredVehicle
 {
-    public Vehicle AttachedVehicle { get; set; }
+    public Vehicle? AttachedVehicle { get; set; }
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
         => obj is CompositeVehicle other
             && base.Equals(other)
             && Equals(AttachedVehicle, other.AttachedVehicle);

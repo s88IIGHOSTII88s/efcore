@@ -17,18 +17,20 @@ public class StateManager : IStateManager
 {
     private readonly EntityReferenceMap _entityReferenceMap = new(hasSubMap: true);
 
-    private IDictionary<object, IList<Tuple<INavigationBase, InternalEntityEntry>>>? _referencedUntrackedEntities;
+    private Dictionary<object, IList<Tuple<INavigationBase, InternalEntityEntry>>>? _referencedUntrackedEntities;
     private IIdentityMap? _identityMap0;
     private IIdentityMap? _identityMap1;
     private Dictionary<IKey, IIdentityMap>? _identityMaps;
     private bool _needsUnsubscribe;
+    private bool _hasServiceProperties;
     private IChangeDetector? _changeDetector;
 
     private readonly IDiagnosticsLogger<DbLoggerCategory.ChangeTracking> _changeTrackingLogger;
-    private readonly IInternalEntityEntrySubscriber _internalEntityEntrySubscriber;
+    private readonly IInternalEntrySubscriber _internalEntityEntrySubscriber;
     private readonly IModel _model;
     private readonly IDatabase _database;
     private readonly IConcurrencyDetector? _concurrencyDetector;
+    private readonly IIdentityResolutionInterceptor? _resolutionInterceptor;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -60,6 +62,8 @@ public class StateManager : IStateManager
 
         UpdateLogger = dependencies.UpdateLogger;
         _changeTrackingLogger = dependencies.ChangeTrackingLogger;
+
+        _resolutionInterceptor = dependencies.Interceptors.Aggregate<IIdentityResolutionInterceptor>();
     }
 
     /// <summary>
@@ -124,7 +128,7 @@ public class StateManager : IStateManager
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual void StateChanging(InternalEntityEntry entry, EntityState newState)
+    public virtual void ChangingState(InternalEntityEntry entry, EntityState newState)
     {
         InternalEntityEntryNotifier.StateChanging(entry, newState);
 
@@ -170,7 +174,7 @@ public class StateManager : IStateManager
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual IEntityMaterializerSource EntityMaterializerSource { get; }
+    public virtual IStructuralTypeMaterializerSource EntityMaterializerSource { get; }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -268,30 +272,24 @@ public class StateManager : IStateManager
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    [Obsolete("Use the overload that accepts a dictionary keyed by " + nameof(IProperty) + " instead.")]
     public virtual InternalEntityEntry CreateEntry(IDictionary<string, object?> values, IEntityType entityType)
     {
-        var i = 0;
-        var valuesArray = new object?[entityType.PropertyCount()];
-        var shadowPropertyValuesArray = new object?[entityType.ShadowPropertyCount()];
-        foreach (var property in entityType.GetProperties())
-        {
-            valuesArray[i++] = values.TryGetValue(property.Name, out var value)
-                ? value
-                : property.ClrType.GetDefaultValue();
+        var entry = new InternalEntityEntry(this, entityType, values, EntityMaterializerSource);
+        UpdateReferenceMaps(entry, EntityState.Detached, null);
 
-            if (property.IsShadowProperty())
-            {
-                shadowPropertyValuesArray[property.GetShadowIndex()] = values.TryGetValue(property.Name, out var shadowValue)
-                    ? shadowValue
-                    : property.ClrType.GetDefaultValue();
-            }
-        }
+        return entry;
+    }
 
-        var valueBuffer = new ValueBuffer(valuesArray);
-        var entity = EntityMaterializerSource.GetMaterializer(entityType)(new MaterializationContext(valueBuffer, Context));
-
-        var shadowPropertyValueBuffer = new ValueBuffer(shadowPropertyValuesArray);
-        var entry = new InternalEntityEntry(this, entityType, entity, shadowPropertyValueBuffer);
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual InternalEntityEntry CreateEntry(IReadOnlyDictionary<IProperty, object?> values, IEntityType entityType)
+    {
+        var entry = new InternalEntityEntry(this, entityType, values, EntityMaterializerSource);
 
         UpdateReferenceMaps(entry, EntityState.Detached, null);
 
@@ -306,7 +304,7 @@ public class StateManager : IStateManager
         var entityType = entry.EntityType;
         if (entityType.HasSharedClrType)
         {
-            var mapKey = entry.Entity ?? entry;
+            var mapKey = entry.Entity;
             foreach (var otherType in _model.FindEntityTypes(entityType.ClrType)
                          .Where(et => et != entityType && TryGetEntry(mapKey, et) != null))
             {
@@ -326,7 +324,7 @@ public class StateManager : IStateManager
     public virtual InternalEntityEntry StartTrackingFromQuery(
         IEntityType baseEntityType,
         object entity,
-        in ValueBuffer valueBuffer)
+        in ISnapshot snapshot)
     {
         var existingEntry = TryGetEntry(entity);
         if (existingEntry != null)
@@ -340,9 +338,9 @@ public class StateManager : IStateManager
                 ? baseEntityType
                 : _model.FindRuntimeEntityType(clrType)!;
 
-        var newEntry = valueBuffer.IsEmpty
+        var newEntry = snapshot.IsEmpty
             ? new InternalEntityEntry(this, entityType, entity)
-            : new InternalEntityEntry(this, entityType, entity, valueBuffer);
+            : new InternalEntityEntry(this, entityType, entity, snapshot);
 
         foreach (var key in baseEntityType.GetKeys())
         {
@@ -358,6 +356,11 @@ public class StateManager : IStateManager
             _needsUnsubscribe = true;
         }
 
+        if (!_hasServiceProperties && newEntry.EntityType.HasServiceProperties())
+        {
+            _hasServiceProperties = true;
+        }
+
         return newEntry;
     }
 
@@ -367,8 +370,17 @@ public class StateManager : IStateManager
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual InternalEntityEntry? TryGetEntry(IKey key, object?[] keyValues)
+    public virtual InternalEntityEntry? TryGetEntry(IKey key, IReadOnlyList<object?> keyValues)
         => FindIdentityMap(key)?.TryGetEntry(keyValues);
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual InternalEntityEntry? TryGetEntryTyped<TKey>(IKey key, TKey keyValue)
+        => ((IIdentityMap<TKey>?)FindIdentityMap(key))?.TryGetEntryTyped(keyValue);
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -406,6 +418,37 @@ public class StateManager : IStateManager
                 : entry
             : null;
 
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual InternalEntityEntry? TryGetExistingEntry(object entity, IKey key)
+    {
+        var keyValues = GetKeyValues();
+        return keyValues == null ? null : TryGetEntry(key, keyValues);
+
+        object[]? GetKeyValues()
+        {
+            var entry = GetOrCreateEntry(entity);
+            var properties = key.Properties;
+            var propertyValues = new object[properties.Count];
+            for (var i = 0; i < propertyValues.Length; i++)
+            {
+                var propertyValue = entry[properties[i]];
+                if (propertyValue == null)
+                {
+                    return null;
+                }
+
+                propertyValues[i] = propertyValue;
+            }
+
+            return propertyValues;
+        }
+    }
+
     private IIdentityMap GetOrCreateIdentityMap(IKey key)
     {
         if (_identityMap0 == null)
@@ -430,7 +473,7 @@ public class StateManager : IStateManager
             return _identityMap1;
         }
 
-        _identityMaps ??= new Dictionary<IKey, IIdentityMap>();
+        _identityMaps ??= [];
 
         if (!_identityMaps.TryGetValue(key, out var identityMap))
         {
@@ -442,33 +485,19 @@ public class StateManager : IStateManager
     }
 
     private IIdentityMap? FindIdentityMap(IKey? key)
-    {
-        if (_identityMap0 == null
-            || key == null)
-        {
-            return null;
-        }
-
-        if (_identityMap0.Key == key)
-        {
-            return _identityMap0;
-        }
-
-        if (_identityMap1 == null)
-        {
-            return null;
-        }
-
-        if (_identityMap1.Key == key)
-        {
-            return _identityMap1;
-        }
-
-        return _identityMaps == null
-            || !_identityMaps.TryGetValue(key, out var identityMap)
+        => _identityMap0 == null
+            || key == null
                 ? null
-                : identityMap;
-    }
+                : _identityMap0.Key == key
+                    ? _identityMap0
+                    : _identityMap1 == null
+                        ? null
+                        : _identityMap1.Key == key
+                            ? _identityMap1
+                            : _identityMaps == null
+                            || !_identityMaps.TryGetValue(key, out var identityMap)
+                                ? null
+                                : identityMap;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -542,7 +571,7 @@ public class StateManager : IStateManager
         }
 
 #if DEBUG
-        var existingEntry = TryGetEntry(entry.Entity ?? entry, entityType);
+        var existingEntry = TryGetEntry(entry.Entity, entityType);
 
         Check.DebugAssert(existingEntry == null || existingEntry == entry, "Duplicate InternalEntityEntry");
 #endif
@@ -550,6 +579,32 @@ public class StateManager : IStateManager
         foreach (var key in entityType.GetKeys())
         {
             GetOrCreateIdentityMap(key).Add(entry);
+        }
+
+        if (_internalEntityEntrySubscriber.SnapshotAndSubscribe(entry))
+        {
+            _needsUnsubscribe = true;
+        }
+
+        if (!_hasServiceProperties && entry.EntityType.HasServiceProperties())
+        {
+            _hasServiceProperties = true;
+        }
+
+        return entry;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual InternalComplexEntry StartTracking(InternalComplexEntry entry)
+    {
+        if (entry.StateManager != this)
+        {
+            throw new InvalidOperationException(CoreStrings.WrongStateManager(entry.StructuralType.DisplayName()));
         }
 
         if (_internalEntityEntrySubscriber.SnapshotAndSubscribe(entry))
@@ -618,13 +673,53 @@ public class StateManager : IStateManager
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual void Unsubscribe()
+    public virtual void StopTracking(InternalComplexEntry entry, EntityState oldState)
+    {
+        if (_needsUnsubscribe)
+        {
+            _internalEntityEntrySubscriber.Unsubscribe(entry);
+        }
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual void Unsubscribe(bool resetting)
     {
         if (_needsUnsubscribe)
         {
             foreach (var entry in Entries)
             {
                 _internalEntityEntrySubscriber.Unsubscribe(entry);
+            }
+        }
+
+        if (_hasServiceProperties)
+        {
+            foreach (var entry in Entries)
+            {
+                foreach (var serviceProperty in entry.EntityType.GetServiceProperties())
+                {
+                    var service = entry[serviceProperty];
+                    if (resetting
+                        && service is IDisposable disposable)
+                    {
+                        disposable.Dispose();
+                    }
+                    else if (resetting
+                             && service is ILazyLoader lazyLoader)
+                    {
+                        lazyLoader.Dispose();
+                    }
+                    else if (service is not IInjectableService detachable
+                             || detachable.Detaching(Context, entry.Entity))
+                    {
+                        entry[serviceProperty] = null;
+                    }
+                }
             }
         }
     }
@@ -637,10 +732,14 @@ public class StateManager : IStateManager
     /// </summary>
     public virtual void ResetState()
     {
-        Clear();
+        Clear(resetting: true);
         Dependencies.NavigationFixer.AbortDelayedFixup();
+        _changeDetector?.ResetState();
+        (_concurrencyDetector as IResettableService)?.ResetState();
 
+        Tracking = null;
         Tracked = null;
+        StateChanging = null;
         StateChanged = null;
     }
 
@@ -650,9 +749,9 @@ public class StateManager : IStateManager
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual void Clear()
+    public virtual void Clear(bool resetting)
     {
-        Unsubscribe();
+        Unsubscribe(resetting);
         ChangedCount = 0;
         _entityReferenceMap.Clear();
         _referencedUntrackedEntities = null;
@@ -662,8 +761,19 @@ public class StateManager : IStateManager
         _identityMap1?.Clear();
 
         _needsUnsubscribe = false;
+        _hasServiceProperties = false;
 
         SavingChanges = false;
+
+        // Local views are only reset with the context. ChangeTracker.Clear() notifies them itself, and the temporary
+        // state managers used for identity resolution share the context but must not touch its views.
+        if (resetting)
+        {
+            foreach (IResettableService set in ((IDbSetCache)Context).GetSets())
+            {
+                set.ResetState();
+            }
+        }
     }
 
     /// <summary>
@@ -720,15 +830,97 @@ public class StateManager : IStateManager
         InternalEntityEntry referencedFromEntry)
     {
         _referencedUntrackedEntities ??=
-            new Dictionary<object, IList<Tuple<INavigationBase, InternalEntityEntry>>>(LegacyReferenceEqualityComparer.Instance);
+            [with(ReferenceEqualityComparer.Instance)];
 
         if (!_referencedUntrackedEntities.TryGetValue(referencedEntity, out var danglers))
         {
-            danglers = new List<Tuple<INavigationBase, InternalEntityEntry>>();
+            danglers = [];
             _referencedUntrackedEntities.Add(referencedEntity, danglers);
         }
 
         danglers.Add(Tuple.Create(navigation, referencedFromEntry));
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual void UpdateReferencedUntrackedEntity(
+        object referencedEntity,
+        object newReferencedEntity,
+        INavigationBase navigation,
+        InternalEntityEntry referencedFromEntry)
+    {
+        if (_referencedUntrackedEntities != null
+            && _referencedUntrackedEntities.Remove(referencedEntity, out var danglers))
+        {
+            if (!_referencedUntrackedEntities.TryGetValue(newReferencedEntity, out var newDanglers))
+            {
+                newDanglers = [];
+                _referencedUntrackedEntities.Add(newReferencedEntity, newDanglers);
+            }
+
+            foreach (var dangler in danglers)
+            {
+                newDanglers.Add(dangler);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual bool ResolveToExistingEntry(
+        InternalEntityEntry newEntry,
+        INavigationBase? navigation,
+        InternalEntityEntry? referencedFromEntry)
+    {
+        if (_resolutionInterceptor != null)
+        {
+            var interceptionData = new IdentityResolutionInterceptionData(Context);
+            var needsTracking = false;
+            foreach (var key in newEntry.EntityType.GetKeys())
+            {
+                var existingEntry = FindIdentityMap(key)?.TryGetEntry(newEntry);
+                if (existingEntry != null)
+                {
+                    _resolutionInterceptor.UpdateTrackedInstance(
+                        interceptionData,
+                        new EntityEntry(existingEntry),
+                        newEntry.Entity);
+
+                    if (navigation != null)
+                    {
+                        UpdateReferencedUntrackedEntity(
+                            newEntry.Entity,
+                            existingEntry.Entity,
+                            navigation,
+                            referencedFromEntry!);
+
+                        var navigationValue = referencedFromEntry![navigation];
+                        if (navigationValue != null && navigation.IsCollection)
+                        {
+                            referencedFromEntry.RemoveFromCollection(navigation, newEntry.Entity);
+                        }
+                    }
+
+                    InternalEntityEntryNotifier.FixupResolved(existingEntry, newEntry);
+                }
+                else
+                {
+                    needsTracking = true;
+                }
+            }
+
+            return !needsTracking;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -750,7 +942,7 @@ public class StateManager : IStateManager
             return danglers;
         }
 
-        return Enumerable.Empty<Tuple<INavigationBase, InternalEntityEntry>>();
+        return [];
     }
 
     /// <summary>
@@ -857,7 +1049,36 @@ public class StateManager : IStateManager
         var dependentIdentityMap = FindIdentityMap(foreignKey.DeclaringEntityType.FindPrimaryKey());
         return dependentIdentityMap != null && foreignKey.PrincipalEntityType.IsAssignableFrom(principalEntry.EntityType)
             ? dependentIdentityMap.GetDependentsMap(foreignKey).GetDependents(principalEntry)
-            : Enumerable.Empty<IUpdateEntry>();
+            : [];
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual IEnumerable<InternalEntityEntry> GetEntries(IKey key)
+    {
+        var identityMap = FindIdentityMap(key);
+        return identityMap == null
+            ? []
+            : identityMap.All();
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual IEnumerable<IUpdateEntry> GetDependents(
+        IReadOnlyList<object?> keyValues,
+        IForeignKey foreignKey)
+    {
+        GetOrCreateIdentityMap(foreignKey.PrincipalKey); // Ensure the identity map is created even if principal not tracked.
+        return GetOrCreateIdentityMap(foreignKey.DeclaringEntityType.FindPrimaryKey()!)
+            .GetDependentsMap(foreignKey).GetDependents(keyValues);
     }
 
     /// <summary>
@@ -873,7 +1094,7 @@ public class StateManager : IStateManager
         var dependentIdentityMap = FindIdentityMap(foreignKey.DeclaringEntityType.FindPrimaryKey());
         return dependentIdentityMap != null
             ? dependentIdentityMap.GetDependentsMap(foreignKey).GetDependentsUsingRelationshipSnapshot(principalEntry)
-            : Enumerable.Empty<IUpdateEntry>();
+            : [];
     }
 
     /// <summary>
@@ -896,7 +1117,7 @@ public class StateManager : IStateManager
         var navigationValue = ((InternalEntityEntry)principalEntry)[navigation];
         if (navigationValue == null)
         {
-            return Enumerable.Empty<InternalEntityEntry>();
+            return [];
         }
 
         if (foreignKey.IsUnique)
@@ -949,7 +1170,7 @@ public class StateManager : IStateManager
 
         foreach (var entry in GetEntriesForState(added: true, modified: true, deleted: true))
         {
-            toSave.Add(entry.PrepareToSave());
+            toSave.Add((IUpdateEntry)entry.PrepareToSave());
         }
 
         return toSave;
@@ -994,8 +1215,19 @@ public class StateManager : IStateManager
     /// </summary>
     public virtual void CascadeDelete(InternalEntityEntry entry, bool force, IEnumerable<IForeignKey>? foreignKeys = null)
     {
+        // When an owned entity is replaced (e.g., via record 'with' expression), the old entry is
+        // marked Deleted and a new entry with the same key is linked via SharedIdentityEntry.
+        // Skip cascade from the old entry since the replacement handles its own dependents.
+        if (entry.SharedIdentityEntry != null)
+        {
+            return;
+        }
+
         var doCascadeDelete = force || CascadeDeleteTiming != CascadeTiming.Never;
         var principalIsDetached = entry.EntityState == EntityState.Detached;
+
+        var detectChangesEnabled = Context.ChangeTracker.AutoDetectChangesEnabled
+            && !((IRuntimeModel)Model).SkipDetectChanges;
 
         foreignKeys ??= entry.EntityType.GetReferencingForeignKeys();
         foreach (var fk in foreignKeys)
@@ -1013,15 +1245,17 @@ public class StateManager : IStateManager
                     continue;
                 }
 
-                ChangeDetector.DetectChanges(dependent);
+                if (detectChangesEnabled)
+                {
+                    ChangeDetector.DetectChanges(dependent);
+                }
 
                 if (dependent.EntityState != EntityState.Deleted
                     && dependent.EntityState != EntityState.Detached
                     && (dependent.EntityState == EntityState.Added
                         || KeysEqual(entry, fk, dependent)))
                 {
-                    if ((fk.DeleteBehavior == DeleteBehavior.Cascade
-                            || fk.DeleteBehavior == DeleteBehavior.ClientCascade)
+                    if (fk.DeleteBehavior is DeleteBehavior.Cascade or DeleteBehavior.ClientCascade
                         && doCascadeDelete)
                     {
                         var cascadeState = principalIsDetached
@@ -1048,8 +1282,12 @@ public class StateManager : IStateManager
 
                         foreach (var dependentProperty in fkProperties)
                         {
+                            var valueToSet = fk.DeleteBehavior is DeleteBehavior.SetDefault or DeleteBehavior.ClientSetDefault
+                                ? dependentProperty.Sentinel
+                                : null;
+
                             dependent.SetProperty(
-                                dependentProperty, null, isMaterialization: false, setModified: true, isCascadeDelete: true);
+                                dependentProperty, valueToSet, isMaterialization: false, setModified: true, isCascadeDelete: true);
                         }
 
                         if (dependent.HasConceptualNull)
@@ -1092,18 +1330,11 @@ public class StateManager : IStateManager
     /// </summary>
     protected virtual int SaveChanges(IList<IUpdateEntry> entriesToSave)
     {
-        _concurrencyDetector?.EnterCriticalSection();
+        using var _ = _concurrencyDetector?.EnterCriticalSection();
 
-        try
-        {
-            EntityFrameworkEventSource.Log.SavingChanges();
+        EntityFrameworkMetricsData.ReportSavingChanges();
 
-            return _database.SaveChanges(entriesToSave);
-        }
-        finally
-        {
-            _concurrencyDetector?.ExitCriticalSection();
-        }
+        return _database.SaveChanges(entriesToSave);
     }
 
     /// <summary>
@@ -1116,19 +1347,12 @@ public class StateManager : IStateManager
         IList<IUpdateEntry> entriesToSave,
         CancellationToken cancellationToken = default)
     {
-        _concurrencyDetector?.EnterCriticalSection();
+        using var _ = _concurrencyDetector?.EnterCriticalSection();
 
-        try
-        {
-            EntityFrameworkEventSource.Log.SavingChanges();
+        EntityFrameworkMetricsData.ReportSavingChanges();
 
-            return await _database.SaveChangesAsync(entriesToSave, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        finally
-        {
-            _concurrencyDetector?.ExitCriticalSection();
-        }
+        return await _database.SaveChangesAsync(entriesToSave, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1138,7 +1362,7 @@ public class StateManager : IStateManager
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     public virtual int SaveChanges(bool acceptAllChangesOnSuccess)
-        => !Context.Database.AutoTransactionsEnabled
+        => Context.Database.AutoTransactionBehavior == AutoTransactionBehavior.Never
             ? SaveChanges(this, acceptAllChangesOnSuccess)
             : Dependencies.ExecutionStrategy.Execute(
                 (StateManager: this, AcceptAllChangesOnSuccess: acceptAllChangesOnSuccess),
@@ -1194,7 +1418,7 @@ public class StateManager : IStateManager
     public virtual Task<int> SaveChangesAsync(
         bool acceptAllChangesOnSuccess,
         CancellationToken cancellationToken = default)
-        => !Context.Database.AutoTransactionsEnabled
+        => Context.Database.AutoTransactionBehavior == AutoTransactionBehavior.Never
             ? SaveChangesAsync(this, acceptAllChangesOnSuccess, cancellationToken)
             : Dependencies.ExecutionStrategy.ExecuteAsync(
                 (StateManager: this, AcceptAllChangesOnSuccess: acceptAllChangesOnSuccess),
@@ -1270,6 +1494,58 @@ public class StateManager : IStateManager
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
+    public virtual (
+        EventHandler<EntityTrackingEventArgs>? Tracking,
+        EventHandler<EntityTrackedEventArgs>? Tracked,
+        EventHandler<EntityStateChangingEventArgs>? StateChanging,
+        EventHandler<EntityStateChangedEventArgs>? StateChanged) CaptureEvents()
+        => (Tracking, Tracked, StateChanging, StateChanged);
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual void SetEvents(
+        EventHandler<EntityTrackingEventArgs>? tracking,
+        EventHandler<EntityTrackedEventArgs>? tracked,
+        EventHandler<EntityStateChangingEventArgs>? stateChanging,
+        EventHandler<EntityStateChangedEventArgs>? stateChanged)
+    {
+        Tracking = tracking;
+        Tracked = tracked;
+        StateChanging = stateChanging;
+        StateChanged = stateChanged;
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public event EventHandler<EntityTrackingEventArgs>? Tracking;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual void OnTracking(InternalEntityEntry internalEntityEntry, EntityState state, bool fromQuery)
+    {
+        var @event = Tracking;
+
+        @event?.Invoke(Context.ChangeTracker, new EntityTrackingEventArgs(internalEntityEntry, state, fromQuery));
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
     public event EventHandler<EntityTrackedEventArgs>? Tracked;
 
     /// <summary>
@@ -1292,6 +1568,28 @@ public class StateManager : IStateManager
         }
 
         @event?.Invoke(Context.ChangeTracker, new EntityTrackedEventArgs(internalEntityEntry, fromQuery));
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public event EventHandler<EntityStateChangingEventArgs>? StateChanging;
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public virtual void OnStateChanging(InternalEntityEntry internalEntityEntry, EntityState newState)
+    {
+        var @event = StateChanging;
+        var oldState = internalEntityEntry.EntityState;
+
+        @event?.Invoke(Context.ChangeTracker, new EntityStateChangingEventArgs(internalEntityEntry, oldState, newState));
     }
 
     /// <summary>

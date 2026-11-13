@@ -5,7 +5,7 @@ namespace Microsoft.EntityFrameworkCore.TestModels.Northwind;
 
 public class MostExpensiveProduct
 {
-    public string TenMostExpensiveProducts { get; set; }
+    public string? TenMostExpensiveProducts { get; set; }
 
     public decimal? UnitPrice { get; set; }
 }

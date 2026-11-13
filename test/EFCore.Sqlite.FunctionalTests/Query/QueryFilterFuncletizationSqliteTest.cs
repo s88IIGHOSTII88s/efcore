@@ -12,27 +12,28 @@ public class QueryFilterFuncletizationSqliteTest : QueryFilterFuncletizationTest
         : base(fixture)
     {
         Fixture.TestSqlLoggerFactory.Clear();
-        //Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
+        Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
 
-    public override void DbContext_list_is_parameterized()
+    public override void Using_multiple_entities_with_filters_reuses_parameters()
     {
-        using var context = CreateContext();
-        // Default value of TenantIds is null InExpression over null values throws
-        Assert.Throws<NullReferenceException>(() => context.Set<ListFilter>().ToList());
+        base.Using_multiple_entities_with_filters_reuses_parameters();
 
-        context.TenantIds = new List<int>();
-        var query = context.Set<ListFilter>().ToList();
-        Assert.Empty(query);
+        AssertSql(
+            """
+@ef_filter__Tenant='1'
 
-        context.TenantIds = new List<int> { 1 };
-        query = context.Set<ListFilter>().ToList();
-        Assert.Single(query);
-
-        context.TenantIds = new List<int> { 2, 3 };
-        query = context.Set<ListFilter>().ToList();
-        Assert.Equal(2, query.Count);
+SELECT "d"."Id", "d"."Tenant", "d0"."Id", "d0"."DeDupeFilter1Id", "d0"."TenantX", "d1"."Id", "d1"."DeDupeFilter1Id", "d1"."Tenant"
+FROM "DeDupeFilter1" AS "d"
+LEFT JOIN "DeDupeFilter2" AS "d0" ON "d"."Id" = "d0"."DeDupeFilter1Id" AND "d0"."TenantX" = @ef_filter__Tenant
+LEFT JOIN "DeDupeFilter3" AS "d1" ON "d"."Id" = "d1"."DeDupeFilter1Id" AND "d1"."Tenant" = @ef_filter__Tenant
+WHERE "d"."Tenant" = @ef_filter__Tenant
+ORDER BY "d"."Id", "d0"."Id"
+""");
     }
+
+    private void AssertSql(params string[] expected)
+        => Fixture.TestSqlLoggerFactory.AssertBaseline(expected);
 
     public class QueryFilterFuncletizationSqliteFixture : QueryFilterFuncletizationRelationalFixture
     {

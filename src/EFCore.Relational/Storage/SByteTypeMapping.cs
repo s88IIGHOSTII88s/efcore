@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Data;
+using Microsoft.EntityFrameworkCore.Storage.Json;
 
 namespace Microsoft.EntityFrameworkCore.Storage;
 
@@ -18,8 +19,16 @@ namespace Microsoft.EntityFrameworkCore.Storage;
 ///     See <see href="https://aka.ms/efcore-docs-providers">Implementation of database providers and extensions</see>
 ///     for more information and examples.
 /// </remarks>
-public class SByteTypeMapping : RelationalTypeMapping
+public class SByteTypeMapping : RelationalTypeMapping<sbyte>
 {
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public static SByteTypeMapping Default { get; } = new("tinyint");
+
     /// <summary>
     ///     Initializes a new instance of the <see cref="SByteTypeMapping" /> class.
     /// </summary>
@@ -28,7 +37,7 @@ public class SByteTypeMapping : RelationalTypeMapping
     public SByteTypeMapping(
         string storeType,
         DbType? dbType = System.Data.DbType.SByte)
-        : base(storeType, typeof(sbyte), dbType)
+        : base(storeType, typeof(sbyte), dbType, jsonValueReaderWriter: JsonSByteReaderWriter.Instance)
     {
     }
 
